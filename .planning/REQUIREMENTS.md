@@ -87,44 +87,42 @@
 
 ## Traceability
 
-*Populated during roadmap creation.*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| ONBD-01 | — | Pending |
-| ONBD-02 | — | Pending |
-| ONBD-03 | — | Pending |
-| ONBD-04 | — | Pending |
-| DISC-01 | — | Pending |
-| DISC-02 | — | Pending |
-| DISC-03 | — | Pending |
-| DISC-04 | — | Pending |
-| DISC-05 | — | Pending |
-| LEAD-01 | — | Pending |
-| LEAD-02 | — | Pending |
-| LEAD-03 | — | Pending |
-| LEAD-04 | — | Pending |
-| EGEN-01 | — | Pending |
-| EGEN-02 | — | Pending |
-| EGEN-03 | — | Pending |
-| EGEN-04 | — | Pending |
-| SEND-01 | — | Pending |
-| SEND-02 | — | Pending |
-| SEND-03 | — | Pending |
-| SEND-04 | — | Pending |
-| TRAK-01 | — | Pending |
-| TRAK-02 | — | Pending |
-| TRAK-03 | — | Pending |
-| TRAK-04 | — | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| ONBD-01 | Phase 1 | Pending |
+| ONBD-02 | Phase 1 | Pending |
+| ONBD-03 | Phase 1 | Pending |
+| ONBD-04 | Phase 1 | Pending |
+| DISC-01 | Phase 2 | Pending |
+| DISC-02 | Phase 2 | Pending |
+| DISC-03 | Phase 2 | Pending |
+| DISC-04 | Phase 2 | Pending |
+| DISC-05 | Phase 2 | Pending |
+| LEAD-01 | Phase 2 | Pending |
+| LEAD-02 | Phase 2 | Pending |
+| LEAD-03 | Phase 2 | Pending |
+| LEAD-04 | Phase 2 | Pending |
+| EGEN-01 | Phase 3 | Pending |
+| EGEN-02 | Phase 3 | Pending |
+| EGEN-03 | Phase 3 | Pending |
+| EGEN-04 | Phase 3 | Pending |
+| SEND-01 | Phase 3 | Pending |
+| SEND-02 | Phase 3 | Pending |
+| SEND-03 | Phase 3 | Pending |
+| SEND-04 | Phase 3 | Pending |
+| TRAK-01 | Phase 3 | Pending |
+| TRAK-02 | Phase 3 | Pending |
+| TRAK-03 | Phase 3 | Pending |
+| TRAK-04 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 28 ⚠️
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 after roadmap creation*
