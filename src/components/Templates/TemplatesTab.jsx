@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -109,16 +109,28 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   )
 }
 
-export default function TemplatesTab({ templates, setTemplates }) {
+export default function TemplatesTab({ templates, setTemplates, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const [filterShared, setFilterShared] = useState('all') // 'all' | 'shared' | 'personal'
-  const [selectedId, setSelectedId] = useState(templates[0]?.id || null)
+  const defaultTemplateId = workspaceConfig?.templateId && templates.some(t => t.id === workspaceConfig.templateId)
+    ? workspaceConfig.templateId
+    : templates[0]?.id || null
+  const [selectedId, setSelectedId] = useState(defaultTemplateId)
   const [view, setView] = useState('edit') // 'edit' | 'preview'
   const [editModal, setEditModal] = useState(false)
   const [form, setForm] = useState({ name: '', subject: '', body: '', isShared: false })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [previewData] = useState(sampleContactData)
+  const previewData = useMemo(() => ({
+    ...sampleContactData,
+    sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
+  }), [workspaceConfig?.senderName])
+
+  useEffect(() => {
+    if (!selectedId || !templates.some(template => template.id === selectedId)) {
+      setSelectedId(defaultTemplateId)
+    }
+  }, [defaultTemplateId, selectedId, templates])
 
   const filtered = templates.filter(t => {
     const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) || t.subject.toLowerCase().includes(search.toLowerCase())
@@ -214,6 +226,9 @@ export default function TemplatesTab({ templates, setTemplates }) {
                   <Badge variant={selected.isShared ? 'shared' : 'personal'}>
                     {selected.isShared ? <><Users size={10} className="mr-1" />Shared</> : <><Lock size={10} className="mr-1" />Personal</>}
                   </Badge>
+                  {workspaceConfig?.templateId === selected.id && (
+                    <Badge variant="draft">Default template</Badge>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">

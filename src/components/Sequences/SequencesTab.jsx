@@ -77,14 +77,19 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
   )
 }
 
-const STEP_DEFAULTS = { name: '', templateId: '', waitDays: 3, variants: [] }
+export default function SequencesTab({ sequences, setSequences, templates, workspaceConfig }) {
+  const createStepDefaults = () => ({
+    name: '',
+    templateId: workspaceConfig?.templateId || '',
+    waitDays: 3,
+    variants: [],
+  })
 
-export default function SequencesTab({ sequences, setSequences, templates }) {
   const [selectedId, setSelectedId] = useState(sequences[0]?.id || null)
   const [seqModal, setSeqModal] = useState(false)
   const [seqForm, setSeqForm] = useState({ name: '', description: '' })
   const [stepModal, setStepModal] = useState(false)
-  const [stepForm, setStepForm] = useState(STEP_DEFAULTS)
+  const [stepForm, setStepForm] = useState(createStepDefaults)
   const [editingStep, setEditingStep] = useState(null)
   const [deleteSeqTarget, setDeleteSeqTarget] = useState(null)
   const [variantInput, setVariantInput] = useState('')
@@ -101,7 +106,7 @@ export default function SequencesTab({ sequences, setSequences, templates }) {
     const id = uuidv4()
     const seq = {
       id, name: seqForm.name, description: seqForm.description,
-      steps: [{ id: uuidv4(), order: 0, name: 'Initial Email', templateId: '', waitDays: 0, variants: [] }],
+      steps: [{ id: uuidv4(), order: 0, name: 'Initial Email', templateId: workspaceConfig?.templateId || '', waitDays: 0, variants: [] }],
       createdAt: now, updatedAt: now,
     }
     setSequences(prev => [...prev, seq])
@@ -131,7 +136,7 @@ export default function SequencesTab({ sequences, setSequences, templates }) {
 
   const addStep = () => {
     setEditingStep(null)
-    setStepForm(STEP_DEFAULTS)
+    setStepForm(createStepDefaults())
     setVariantInput('')
     setStepModal(true)
   }

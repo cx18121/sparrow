@@ -1,20 +1,23 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { BarChart2, Layers, Users, Mail, FileText, Settings } from 'lucide-react'
+import { BarChart2, Layers, Users, Mail, FileText } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import AuthScreen from './components/Auth/AuthScreen'
 import Header from './components/Layout/Header'
-import SignInModal from './components/Auth/SignInModal'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
 import SequencesTab from './components/Sequences/SequencesTab'
 import ContactsTab from './components/Contacts/ContactsTab'
 import AnalyticsTab from './components/Analytics/AnalyticsTab'
 import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
+import OnboardingScreen from './components/Onboarding/OnboardingScreen'
 
 import {
   seedCampaigns, seedSequences, seedContacts, seedTemplates,
 } from './lib/mockData'
+import { createWorkspaceConfig } from './lib/workspaceConfig'
 
 const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
@@ -24,42 +27,30 @@ const TABS = [
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
 ]
 
-function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth()
-  const [signInOpen, setSignInOpen] = useState(false)
+const getOnboardingStorageKey = (user) => {
+  if (!user) return null
+  return `cf_onboarding_${user.id || user.email}`
+}
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+const formatTemplateBody = (body) => {
+  if (!body) return ''
+  if (body.includes('<')) return body
 
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-surface">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-          <Mail size={18} className="text-white" />
-        </div>
-        <h1 className="text-2xl font-display font-semibold text-dark">Welcome to ColdFlow</h1>
-        <p className="text-muted text-sm">Sign in to access your dashboard.</p>
-        <button onClick={() => setSignInOpen(true)} className="btn-primary">Sign in</button>
-        <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
-      </div>
-    )
-  }
-
-  return children
+  return body
+    .split(/\n{2,}/)
+    .map(block => `<p>${block.replace(/\n/g, '<br>')}</p>`)
+    .join('')
 }
 
 function AppShell() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const previousOnboardingKeyRef = useRef(null)
 
-  const [signInOpen, setSignInOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [onboardingState, setOnboardingState] = useState({ loaded: false, completed: false, data: null })
+  const [workspaceConfig, setWorkspaceConfig] = useState(() => createWorkspaceConfig({ user: null, templates: seedTemplates }))
 
   // Shared state (would be Supabase-backed in production)
   const [campaigns, setCampaigns] = useState(seedCampaigns)
@@ -74,6 +65,166 @@ function AppShell() {
     if (tab) navigate(tab.path)
   }
 
+  useEffect(() => {
+    if (!user) {
+      if (previousOnboardingKeyRef.current) {
+        sessionStorage.removeItem(`${previousOnboardingKeyRef.current}_session`)
+        previousOnboardingKeyRef.current = null
+      }
+      setWorkspaceConfig(createWorkspaceConfig({ user: null, templates }))
+      setOnboardingState({ loaded: true, completed: false, data: null })
+      return
+    }
+
+    const storageKey = getOnboardingStorageKey(user)
+    const sessionKey = storageKey ? `${storageKey}_session` : null
+    const stored = storageKey ? localStorage.getItem(storageKey) : null
+    const completedThisSession = sessionKey ? sessionStorage.getItem(sessionKey) === 'true' : false
+    let parsed = null
+
+    if (stored) {
+      try {
+        parsed = JSON.parse(stored)
+      } catch {
+        parsed = null
+      }
+    }
+
+    const nextWorkspaceConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
+
+    previousOnboardingKeyRef.current = storageKey
+    setWorkspaceConfig(nextWorkspaceConfig)
+
+    if (!stored) {
+      setOnboardingState({ loaded: true, completed: completedThisSession, data: nextWorkspaceConfig })
+      return
+    }
+
+    setOnboardingState({
+      loaded: true,
+      completed: completedThisSession,
+      data: nextWorkspaceConfig,
+    })
+  }, [user, templates])
+
+  const persistWorkspaceConfig = (data, {
+    completed = onboardingState.completed,
+    completeSession = false,
+    templatesOverride = templates,
+  } = {}) => {
+    if (!user) return
+
+    const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
+    const storageKey = getOnboardingStorageKey(user)
+    const sessionKey = storageKey ? `${storageKey}_session` : null
+    let completedAt = null
+
+    if (storageKey) {
+      try {
+        completedAt = JSON.parse(localStorage.getItem(storageKey) || '{}')?.completedAt || null
+      } catch {
+        completedAt = null
+      }
+    }
+
+    const next = {
+      completed,
+      completedAt: completed ? (completedAt || new Date().toISOString()) : completedAt,
+      data: normalized,
+    }
+
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
+    if (sessionKey && completeSession) sessionStorage.setItem(sessionKey, 'true')
+
+    setWorkspaceConfig(normalized)
+    setOnboardingState({ loaded: true, completed, data: normalized })
+  }
+
+  const saveOnboardingDraft = useCallback((data, templatesOverride = templates) => {
+    if (!user) return
+
+    const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
+    const storageKey = getOnboardingStorageKey(user)
+    let previous = null
+
+    if (storageKey) {
+      try {
+        previous = JSON.parse(localStorage.getItem(storageKey) || 'null')
+      } catch {
+        previous = null
+      }
+    }
+
+    const next = {
+      completed: previous?.completed || false,
+      completedAt: previous?.completedAt || null,
+      data: normalized,
+    }
+
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
+
+    setWorkspaceConfig(normalized)
+    setOnboardingState(current => ({ ...current, loaded: true, data: normalized }))
+  }, [templates, user])
+
+  const syncOnboardingTemplate = (data) => {
+    if (data.templateMode !== 'custom') {
+      return { data, templatesOverride: templates }
+    }
+
+    const customTemplate = data.customTemplate || {}
+    const hasRequiredFields = customTemplate.name?.trim() && customTemplate.subject?.trim() && customTemplate.body?.trim()
+
+    if (!hasRequiredFields) {
+      return { data: { ...data, templateMode: 'existing' }, templatesOverride: templates }
+    }
+
+    const templateId = customTemplate.id || uuidv4()
+    const now = new Date().toISOString()
+    const nextTemplate = {
+      id: templateId,
+      name: customTemplate.name.trim(),
+      subject: customTemplate.subject.trim(),
+      body: formatTemplateBody(customTemplate.body.trim()),
+      isShared: false,
+      createdAt: customTemplate.id
+        ? templates.find(template => template.id === templateId)?.createdAt || now
+        : now,
+      updatedAt: now,
+    }
+
+    const templateExists = templates.some(template => template.id === templateId)
+    const nextTemplates = templateExists
+      ? templates.map(template => template.id === templateId ? { ...template, ...nextTemplate } : template)
+      : [...templates, nextTemplate]
+
+    setTemplates(nextTemplates)
+
+    return {
+      templatesOverride: nextTemplates,
+      data: {
+        ...data,
+        templateId,
+        customTemplate: nextTemplate,
+      },
+    }
+  }
+
+  const completeOnboarding = (data) => {
+    const { data: nextData, templatesOverride } = syncOnboardingTemplate(data)
+    persistWorkspaceConfig(nextData, {
+      completed: true,
+      completeSession: true,
+      templatesOverride,
+    })
+  }
+
+  const updateWorkspaceConfig = (dataOrUpdater) => {
+    const current = workspaceConfig || createWorkspaceConfig({ user, templates })
+    const nextData = typeof dataOrUpdater === 'function' ? dataOrUpdater(current) : dataOrUpdater
+    persistWorkspaceConfig(nextData)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -82,11 +233,34 @@ function AppShell() {
     )
   }
 
+  if (!user) {
+    return <AuthScreen />
+  }
+
+  if (user && !onboardingState.loaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (user && !onboardingState.completed) {
+    return (
+      <OnboardingScreen
+        user={user}
+        templates={templates}
+        initialData={workspaceConfig}
+        onSaveDraft={saveOnboardingDraft}
+        onComplete={completeOnboarding}
+      />
+    )
+  }
+
   if (settingsOpen) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header
-          onSignIn={() => setSignInOpen(true)}
           onOpenSettings={() => setSettingsOpen(false)}
           activeTab={activeTab}
           tabs={TABS}
@@ -98,9 +272,12 @@ function AppShell() {
             <span className="text-xs text-muted">/</span>
             <span className="text-xs text-dark font-medium">Settings</span>
           </div>
-          <SettingsPage />
+          <SettingsPage
+            workspaceConfig={workspaceConfig}
+            onSaveWorkspaceConfig={updateWorkspaceConfig}
+            templates={templates}
+          />
         </main>
-        <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
       </div>
     )
   }
@@ -108,7 +285,6 @@ function AppShell() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header
-        onSignIn={() => setSignInOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         activeTab={activeTab}
         tabs={TABS}
@@ -116,34 +292,40 @@ function AppShell() {
       />
 
       <main className="flex-1 overflow-y-auto">
-        <ProtectedRoute>
-          <Routes>
-            <Route path="/" element={<Navigate to="/campaigns" replace />} />
-            <Route path="/campaigns" element={
-              <CampaignsTab
-                campaigns={campaigns} setCampaigns={setCampaigns}
-                sequences={sequences} templates={templates}
-              />
-            } />
-            <Route path="/sequences" element={
-              <SequencesTab
-                sequences={sequences} setSequences={setSequences}
-                templates={templates}
-              />
-            } />
-            <Route path="/contacts" element={
-              <ContactsTab contacts={contacts} setContacts={setContacts} />
-            } />
-            <Route path="/analytics" element={<AnalyticsTab />} />
-            <Route path="/templates" element={
-              <TemplatesTab templates={templates} setTemplates={setTemplates} />
-            } />
-            <Route path="*" element={<Navigate to="/campaigns" replace />} />
-          </Routes>
-        </ProtectedRoute>
+        <Routes>
+          <Route path="/" element={<Navigate to="/campaigns" replace />} />
+          <Route path="/campaigns" element={
+            <CampaignsTab
+              campaigns={campaigns} setCampaigns={setCampaigns}
+              sequences={sequences} templates={templates}
+              workspaceConfig={workspaceConfig}
+            />
+          } />
+          <Route path="/sequences" element={
+            <SequencesTab
+              sequences={sequences} setSequences={setSequences}
+              templates={templates}
+              workspaceConfig={workspaceConfig}
+            />
+          } />
+          <Route path="/contacts" element={
+            <ContactsTab
+              contacts={contacts}
+              setContacts={setContacts}
+              workspaceConfig={workspaceConfig}
+            />
+          } />
+          <Route path="/analytics" element={<AnalyticsTab />} />
+          <Route path="/templates" element={
+            <TemplatesTab
+              templates={templates}
+              setTemplates={setTemplates}
+              workspaceConfig={workspaceConfig}
+            />
+          } />
+          <Route path="*" element={<Navigate to="/campaigns" replace />} />
+        </Routes>
       </main>
-
-      <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
     </div>
   )
 }

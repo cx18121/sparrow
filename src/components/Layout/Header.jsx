@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Settings, LogOut, ChevronDown, Zap } from 'lucide-react'
 
-export default function Header({ onSignIn, onOpenSettings, activeTab, tabs, onTabChange }) {
+export default function Header({ onOpenSettings, activeTab, tabs, onTabChange }) {
   const { user, signOut } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropRef = useRef(null)
@@ -31,7 +31,7 @@ export default function Header({ onSignIn, onOpenSettings, activeTab, tabs, onTa
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
-          {user ? (
+          {user && (
             <div className="relative" ref={dropRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -69,10 +69,6 @@ export default function Header({ onSignIn, onOpenSettings, activeTab, tabs, onTa
                 </div>
               )}
             </div>
-          ) : (
-            <button onClick={onSignIn} className="btn-primary py-1.5 text-xs">
-              Sign in
-            </button>
           )}
         </div>
       </div>

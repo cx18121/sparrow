@@ -12,6 +12,10 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 const PAGE_SIZE = 10
 
 const STATUSES = ['active', 'bounced', 'unsubscribed']
+const FIRST_NAMES = ['Alex', 'Taylor', 'Jordan', 'Morgan', 'Casey', 'Avery', 'Cameron', 'Parker', 'Rowan', 'Skyler']
+const LAST_NAMES = ['Chen', 'Patel', 'Rivera', 'Morgan', 'Brooks', 'Nguyen', 'Hughes', 'Lee', 'Diaz', 'Turner']
+const COMPANY_PREFIXES = ['Northstar', 'Summit', 'Vector', 'Signal', 'Anchor', 'Atlas', 'Bluebird', 'Forge', 'Harbor', 'Lattice']
+const COMPANY_SUFFIXES = ['Labs', 'Cloud', 'Systems', 'Works', 'AI', 'HQ', 'Analytics', 'Studio', 'Partners', 'Tech']
 
 function ContactForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || { firstName: '', lastName: '', email: '', company: '', status: 'active' })
@@ -183,7 +187,7 @@ function SegmentBuilder({ contacts, segments, setSegments, onClose }) {
   )
 }
 
-export default function ContactsTab({ contacts, setContacts }) {
+export default function ContactsTab({ contacts, setContacts, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState('firstName')
@@ -198,6 +202,12 @@ export default function ContactsTab({ contacts, setContacts }) {
   const [segmentModal, setSegmentModal] = useState(false)
   const [blacklist, setBlacklist] = useState([])
   const [blacklistInput, setBlacklistInput] = useState('')
+  const leadTarget = Math.max(1, workspaceConfig?.leadsPerGeneration || 50)
+  const profileSummary = workspaceConfig?.resumeText?.trim()
+    ? workspaceConfig.resumeText.trim().slice(0, 140)
+    : workspaceConfig?.resumeFileName
+      ? `Profile loaded from ${workspaceConfig.resumeFileName}`
+      : 'No AI profile context saved yet.'
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -240,6 +250,27 @@ export default function ContactsTab({ contacts, setContacts }) {
 
   const openEdit = (c) => { setEditingContact(c.id); setContactModal(true) }
   const importContacts = (rows) => setContacts(prev => [...prev, ...rows])
+  const generateLeads = () => {
+    const stamp = Date.now()
+    const generated = Array.from({ length: leadTarget }, (_, index) => {
+      const firstName = FIRST_NAMES[index % FIRST_NAMES.length]
+      const lastName = LAST_NAMES[(index + 3) % LAST_NAMES.length]
+      const company = `${COMPANY_PREFIXES[(index + 2) % COMPANY_PREFIXES.length]} ${COMPANY_SUFFIXES[(index + 4) % COMPANY_SUFFIXES.length]}`
+      const domain = company.toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+      return {
+        id: uuidv4(),
+        firstName,
+        lastName,
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${stamp + index}@${domain}.com`,
+        company,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      }
+    })
+
+    setContacts(prev => [...generated, ...prev])
+  }
   const addToBlacklist = () => {
     if (blacklistInput.trim()) { setBlacklist(prev => [...prev, blacklistInput.trim()]); setBlacklistInput('') }
   }
@@ -264,6 +295,7 @@ export default function ContactsTab({ contacts, setContacts }) {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCSV} className="btn-secondary text-xs py-1.5"><Download size={13} /> Export</button>
+          <button onClick={generateLeads} className="btn-secondary text-xs py-1.5">Generate {leadTarget}</button>
           <button onClick={() => setCsvModal(true)} className="btn-secondary text-xs py-1.5"><Upload size={13} /> Import CSV</button>
           <button onClick={() => { setEditingContact(null); setContactModal(true) }} className="btn-primary text-xs py-1.5"><Plus size={13} /> Add contact</button>
         </div>
@@ -280,6 +312,31 @@ export default function ContactsTab({ contacts, setContacts }) {
 
       {tab === 'contacts' && (
         <>
+          <div className="mb-4 rounded-2xl border border-primary/10 bg-white/70 px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Lead Generation</p>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-dark">
+                  Generate {leadTarget} leads per run
+                  {workspaceConfig?.senderName ? ` for ${workspaceConfig.senderName}` : ''}
+                </p>
+                {(workspaceConfig?.senderRole || workspaceConfig?.senderCompany) && (
+                  <p className="mt-1 text-xs text-muted">
+                    {workspaceConfig?.senderRole || 'Outbound profile'}
+                    {workspaceConfig?.senderCompany ? ` at ${workspaceConfig.senderCompany}` : ''}
+                  </p>
+                )}
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  {profileSummary}
+                  {workspaceConfig?.resumeText?.trim()?.length > 140 ? '…' : ''}
+                </p>
+              </div>
+              <button onClick={generateLeads} className="btn-primary whitespace-nowrap text-xs py-1.5">
+                Generate now
+              </button>
+            </div>
+          </div>
+
           {/* Filters */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">

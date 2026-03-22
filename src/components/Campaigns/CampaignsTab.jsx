@@ -11,12 +11,21 @@ const INITIAL_FORM = {
   templateId: '', sequenceId: '', contactListId: '', scheduledAt: '',
 }
 
-export default function CampaignsTab({ campaigns, setCampaigns, sequences, templates }) {
+export default function CampaignsTab({ campaigns, setCampaigns, sequences, templates, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(INITIAL_FORM)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const workspaceTemplate = templates.find(template => template.id === workspaceConfig?.templateId)
+
+  const getInitialForm = () => {
+    return {
+      ...INITIAL_FORM,
+      templateId: workspaceTemplate?.id || '',
+      subject: workspaceTemplate?.subject || '',
+    }
+  }
 
   const filtered = campaigns.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -25,7 +34,7 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
 
   const openCreate = () => {
     setEditing(null)
-    setForm(INITIAL_FORM)
+    setForm(getInitialForm())
     setModalOpen(true)
   }
 
@@ -76,7 +85,12 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-display font-semibold text-dark">Campaigns</h1>
-          <p className="text-sm text-muted mt-0.5">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted mt-0.5">
+            {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
+            {workspaceTemplate
+              ? ` · default template: ${workspaceTemplate.name}`
+              : ''}
+          </p>
         </div>
         <button onClick={openCreate} className="btn-primary">
           <Plus size={15} /> New campaign
