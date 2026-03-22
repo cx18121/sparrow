@@ -13,7 +13,7 @@ Three phases deliver the complete cold email loop. Phase 1 establishes the user 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - User accounts, authentication, and onboarding wizard (resume, sender info, API keys, email template)
-- [ ] **Phase 2: Discovery** - Background job infrastructure, scrapers, shared lead pool, lead dashboard with filters and management
+- [x] **Phase 2: Discovery** - Background job infrastructure, scrapers, shared lead pool, lead dashboard with filters and management (completed 2026-03-22)
 - [ ] **Phase 3: Outreach Loop** - AI email generation, Gmail sending with compliance, reply detection, and follow-up reminders
 
 ## Phase Details
@@ -35,21 +35,21 @@ Plans:
 - [ ] 01-02: Onboarding wizard — resume upload, sender info, Gmail OAuth connect, API key storage, default filter preferences
 
 ### Phase 2: Discovery
-**Goal**: Users can browse a live pool of startup companies and contacts sourced from YC, Wellfound, and Product Hunt, filter it to their preferences, and save leads to their personal list for outreach.
+**Goal**: Prisma schema and standalone ingestion scripts that populate the shared company/contact pool from YC, Product Hunt, and Apollo — runnable via `npx tsx scripts/<name>.ts` with idempotent upserts and region normalization.
 **Depends on**: Phase 1
 **Requirements**: DISC-01, DISC-02, DISC-03, DISC-04, DISC-05, LEAD-01, LEAD-02, LEAD-03, LEAD-04
 **Success Criteria** (what must be TRUE):
-  1. Background job worker (Railway) is running and the BullMQ scrape queue populates the shared `companies` and `contacts` tables from YC and Wellfound without duplicates
+  1. Background job worker (Railway) is running and the BullMQ scrape queue populates the shared `companies` and `contacts` tables from YC and Product Hunt without duplicates
   2. User can open the lead dashboard and see companies filterable by funding stage, industry, location (with region grouping), company size, is-hiring, and contact role
   3. User can save individual leads from the global pool to their personal list and tag them as New / Saved / Emailed / Rejected
   4. User can manually add a company and contact that does not appear in the scraped pool
   5. User can bulk-select leads from the dashboard and queue them for batch email generation
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: BullMQ worker skeleton — Upstash Redis, queue definitions (scrape/email/reply), Railway worker deployment, Bull Board admin UI, idempotency pattern
-- [ ] 02-02: Lead discovery — YC scraper, Wellfound scraper, Apollo contact enrichment, shared pool upsert, `last_verified_at` on contacts
-- [ ] 02-03: Lead dashboard — filterable/searchable table, region grouping, save to personal list, status tags, bulk selection, manual add
+- [x] 02-01-PLAN.md — Prisma schema (Company, Contact, UserLead, Email) with indexed filter columns, shared utility library (region map, role normalizer, upsert helpers)
+- [x] 02-02-PLAN.md — Ingestion scripts (YC, Product Hunt, Apollo enrichment) and polling orchestrator
+- [x] 02-03-PLAN.md — Gap closure: is-main-module guards on ingestion scripts, REQUIREMENTS.md traceability fix for LEAD-01/LEAD-04
 
 ### Phase 3: Outreach Loop
 **Goal**: Users can generate a personalized AI-drafted email for any lead, review and edit it, send it from their own Gmail account, and track replies and follow-up reminders — completing the full cold outreach cycle in one product.
@@ -76,5 +76,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/2 | Not started | - |
-| 2. Discovery | 0/3 | Not started | - |
+| 2. Discovery | 3/3 | Complete   | 2026-03-22 |
 | 3. Outreach Loop | 0/3 | Not started | - |

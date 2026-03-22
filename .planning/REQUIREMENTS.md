@@ -20,18 +20,18 @@
 
 ### Lead Discovery
 
-- [ ] **DISC-01**: App pulls companies from YC, Wellfound, and Product Hunt into shared global pool via background jobs
-- [ ] **DISC-02**: App enriches contacts with emails via user's Apollo API key
-- [ ] **DISC-03**: User can filter the lead pool by company size, funding stage, location, industry, is-hiring, and contact role
-- [ ] **DISC-04**: Location filtering groups nearby cities into named regions (e.g. "Bay Area" = SF + San Jose)
-- [ ] **DISC-05**: User can manually add a company and contact to their lead list
+- [x] **DISC-01**: App pulls companies from YC and Product Hunt into shared global pool via background jobs
+- [x] **DISC-02**: App enriches contacts with emails via user's Apollo API key
+- [x] **DISC-03**: User can filter the lead pool by company size, funding stage, location, industry, is-hiring, and contact role
+- [x] **DISC-04**: Location filtering groups nearby cities into named regions (e.g. "Bay Area" = SF + San Jose)
+- [x] **DISC-05**: User can manually add a company and contact to their lead list
 
 ### Lead Management
 
-- [ ] **LEAD-01**: User can view all leads in a filterable, searchable dashboard
-- [ ] **LEAD-02**: User can save leads to their personal list from the global pool
-- [ ] **LEAD-03**: User can tag leads with status: New / Saved / Emailed / Rejected
-- [ ] **LEAD-04**: User can bulk-select leads and trigger batch email generation
+- [x] **LEAD-01**: User can view all leads in a filterable, searchable dashboard
+- [x] **LEAD-02**: User can save leads to their personal list from the global pool
+- [x] **LEAD-03**: User can tag leads with status: New / Saved / Emailed / Rejected
+- [x] **LEAD-04**: User can bulk-select leads and trigger batch email generation
 
 ### Email Generation
 
@@ -96,15 +96,15 @@
 | ONBD-02 | Phase 1 | Pending |
 | ONBD-03 | Phase 1 | Pending |
 | ONBD-04 | Phase 1 | Pending |
-| DISC-01 | Phase 2 | Pending |
-| DISC-02 | Phase 2 | Pending |
-| DISC-03 | Phase 2 | Pending |
-| DISC-04 | Phase 2 | Pending |
-| DISC-05 | Phase 2 | Pending |
-| LEAD-01 | Phase 2 | Pending |
-| LEAD-02 | Phase 2 | Pending |
-| LEAD-03 | Phase 2 | Pending |
-| LEAD-04 | Phase 2 | Pending |
+| DISC-01 | Phase 2 | Complete |
+| DISC-02 | Phase 2 | Complete |
+| DISC-03 | Phase 2 | Complete |
+| DISC-04 | Phase 2 | Complete |
+| DISC-05 | Phase 2 | Complete |
+| LEAD-01 | Phase 3 | Complete |
+| LEAD-02 | Phase 2 | Complete |
+| LEAD-03 | Phase 2 | Complete |
+| LEAD-04 | Phase 3 | Complete |
 | EGEN-01 | Phase 3 | Pending |
 | EGEN-02 | Phase 3 | Pending |
 | EGEN-03 | Phase 3 | Pending |

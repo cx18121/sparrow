@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A multi-user SaaS platform that automates the entire cold email outreach process for job seekers and collaborators. It discovers startups and their contacts from multiple sources (YC, Product Hunt, Wellfound, Apollo), filters them by user preferences, and generates human-sounding personalized emails using the user's resume and email template — then sends and tracks those emails directly from the app.
+A multi-user SaaS platform that automates the entire cold email outreach process for job seekers and collaborators. It discovers startups and their contacts from multiple sources (YC, Product Hunt, Apollo), filters them by user preferences, and generates human-sounding personalized emails using the user's resume and email template — then sends and tracks those emails directly from the app.
 
 ## Core Value
 
@@ -18,7 +18,7 @@ Save users hours of manual work by automating startup discovery, contact enrichm
 
 - [ ] Users can sign up and manage their own account
 - [ ] Users can input their resume, sender info, email template, and API keys during onboarding
-- [ ] App pulls startups and contacts from YC, Product Hunt, Wellfound, and Apollo
+- [ ] App pulls startups and contacts from YC, Product Hunt, and Apollo
 - [ ] Shared global company/contact pool across users (reducing redundant API calls)
 - [ ] Users can filter leads by company size, funding stage, location, industry, is-hiring, and contact role
 - [ ] Location filtering groups nearby cities into regions (e.g. "Bay Area" = SF + San Jose)
@@ -43,7 +43,7 @@ Save users hours of manual work by automating startup discovery, contact enrichm
 
 - **Target users**: Students looking for internships; people seeking co-founders or collaborators
 - **Primary pain point**: Cold emailing is slow — finding companies, finding valid emails, and writing personalized messages all take significant manual effort
-- **Data sources (v1)**: Y Combinator directory, Product Hunt, Wellfound (AngelList), Apollo.io
+- **Data sources (v1)**: Y Combinator directory, Product Hunt, Apollo.io
 - **Email generation**: Agentic search gathers company context → combined with user resume + template → Claude API generates email
 - **Background processing**: Redis + BullMQ for lead scraping and enrichment jobs
 - **Global DB model**: Companies and contacts are stored in a shared pool with filter tags; per-user tracking and email history are isolated
@@ -61,7 +61,7 @@ Save users hours of manual work by automating startup discovery, contact enrichm
 |----------|-----------|---------|
 | Shared global company pool | Reduces redundant API calls across users, lowers cost | — Pending |
 | App sends emails directly | Better UX than copy/paste; enables reply tracking | — Pending |
-| YC + Product Hunt + Wellfound + Apollo for v1 | Best coverage of early-stage startups at lowest cost | — Pending |
+| YC + Product Hunt + Apollo for v1 | Best coverage of early-stage startups at lowest cost | — Pending |
 | Claude API for email generation | Enables tone-matching, semantic customization, avoids AI patterns | — Pending |
 
 ---
