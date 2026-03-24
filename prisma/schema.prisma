@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id            String    @id @default(cuid())
+  name          String
+  domain        String    @unique
+  description   String?   @db.Text
+  oneLiner      String?
+  website       String?
+  stage         String?
+  industry      String?
+  subIndustry   String?
+  location      String?
+  region        String?
+  headcount     Int?
+  isHiring      Boolean   @default(false)
+  batch         String?
+  source        String
+  sourceId      String?
+  lastScrapedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contacts  Contact[]
+  userLeads UserLead[]
+
+  @@index([stage])
+  @@index([industry])
+  @@index([region])
+  @@index([isHiring])
+  @@index([source])
+  @@index([headcount])
+}
+
+model Contact {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  name           String?
+  email          String?   @unique
+  title          String?
+  role           String?
+  linkedinUrl    String?
+  source         String
+  lastVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  userLeads UserLead[]
+  emails    Email[]
+
+  @@index([companyId])
+  @@index([role])
+  @@index([lastVerifiedAt])
+}
+
+model UserLead {
+  id        String     @id @default(cuid())
+  userId    String
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  contactId String?
+  contact   Contact?   @relation(fields: [contactId], references: [id])
+  status    LeadStatus @default(NEW)
+  notes     String?    @db.Text
+  addedAt   DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  emails Email[]
+
+  @@unique([userId, companyId, contactId])
+  @@index([userId])
+  @@index([status])
+}
+
+enum LeadStatus {
+  NEW
+  SAVED
+  EMAILED
+  REJECTED
+}
+
+model Email {
+  id         String   @id @default(cuid())
+  userLeadId String
+  userLead   UserLead @relation(fields: [userLeadId], references: [id])
+  contactId  String
+  contact    Contact  @relation(fields: [contactId], references: [id])
+  subject    String?
+  body       String?  @db.Text
+  status     String   @default("draft")
+  sentAt     DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userLeadId])
+  @@index([contactId])
+}
