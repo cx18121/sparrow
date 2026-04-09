@@ -24,11 +24,11 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-0 bg-dark/40 backdrop-blur-sm" />
-      <div className={`relative w-full ${sizeClass} bg-white rounded-2xl shadow-modal animate-fade-in`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="absolute inset-0 bg-[rgba(11,29,51,0.28)] backdrop-blur-md" />
+      <div className={`relative w-full ${sizeClass} overflow-hidden rounded-[30px] border border-white/75 bg-white/88 shadow-modal backdrop-blur-xl animate-fade-in`}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-base font-semibold text-dark">{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-muted transition-colors">
+          <button onClick={onClose} className="btn-ghost p-2 text-muted">
             <X size={16} />
           </button>
         </div>

@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, GripVertical, ChevronRight, Mail, Clock, GitBranch, Edit2 } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Mail, Clock, GitBranch, Edit2 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
-  useSensor, useSensors, DragOverlay,
+  useSensor, useSensors,
 } from '@dnd-kit/core'
 import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
@@ -20,30 +20,29 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
-      {/* Step card */}
       <div className="flex items-start gap-3 group">
         <div
           {...attributes}
           {...listeners}
-          className="drag-handle mt-3.5 text-gray-300 hover:text-muted transition-colors"
+          className="drag-handle mt-5 text-slate-300 transition-colors hover:text-primary"
         >
           <GripVertical size={16} />
         </div>
 
-        <div className="flex-1 card p-4 hover:border-primary/30 transition-colors">
-          <div className="flex items-center justify-between mb-2">
+        <div className="flex-1 p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 {stepIndex + 1}
               </div>
               <span className="text-sm font-medium text-dark">{step.name || `Step ${stepIndex + 1}`}</span>
               {step.variants.length > 0 && (
-                <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                <span className="flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs text-purple-600">
                   <GitBranch size={10} /> A/B
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
               <button onClick={() => onEdit(step)} className="btn-ghost px-2 py-1"><Edit2 size={12} /></button>
               {!isOnly && (
                 <button onClick={() => onDelete(step.id)} className="btn-ghost px-2 py-1 hover:text-red-500"><Trash2 size={12} /></button>
@@ -63,14 +62,13 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
         </div>
       </div>
 
-      {/* Wait connector — shown between steps */}
       {step._showWait && (
-        <div className="flex items-center gap-2 my-1 ml-10 pl-4">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700">
+        <div className="my-2 ml-10 flex items-center gap-3 pl-4">
+          <div className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
             <Clock size={10} />
             Wait {step.waitDays} {step.waitDays === 1 ? 'day' : 'days'}
           </div>
-          <div className="flex-1 border-t border-dashed border-gray-200" />
+          <div className="flex-1 border-t border-dashed border-white/90" />
         </div>
       )}
     </div>
@@ -177,81 +175,98 @@ export default function SequencesTab({ sequences, setSequences, templates, works
     _showWait: i < arr.length - 1 && arr[i + 1]?.waitDays > 0,
     waitDays: arr[i + 1]?.waitDays || 0,
   })) || []
+  const totalSteps = sequences.reduce((count, sequence) => count + sequence.steps.length, 0)
+  const totalVariants = sequences.reduce((count, sequence) => count + sequence.steps.reduce((stepCount, step) => stepCount + step.variants.length, 0), 0)
+  const defaultTemplate = templates.find(template => template.id === workspaceConfig?.templateId)
 
   return (
-    <div className="flex h-[calc(100vh-112px)] animate-fade-in">
-      {/* Sequence list sidebar */}
-      <div className="w-64 border-r border-gray-100 bg-white flex flex-col">
-        <div className="p-4 border-b border-gray-100">
-          <button onClick={() => setSeqModal(true)} className="btn-primary w-full justify-center text-xs py-2">
+    <div className="page-shell space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-start">
+        <aside className="flex h-fit flex-col gap-4 xl:sticky xl:top-6">
+          <button onClick={() => setSeqModal(true)} className="btn-primary w-full justify-center text-xs">
             <Plus size={13} /> New sequence
           </button>
-        </div>
-        <div className="flex-1 overflow-y-auto py-2">
-          {sequences.map(s => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedId(s.id)}
-              className={`w-full text-left px-4 py-3 transition-colors group ${
-                selectedId === s.id ? 'bg-primary/5 border-r-2 border-primary' : 'hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium truncate ${selectedId === s.id ? 'text-primary' : 'text-dark'}`}>
-                  {s.name}
-                </p>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteSeqTarget(s.id) }}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 text-muted transition-all"
-                >
-                  <Trash2 size={11} />
-                </button>
-              </div>
-              <p className="text-xs text-muted mt-0.5">{s.steps.length} step{s.steps.length !== 1 ? 's' : ''}</p>
-            </button>
-          ))}
-          {sequences.length === 0 && (
-            <p className="text-xs text-muted text-center py-8 px-4">No sequences yet. Create one to get started.</p>
-          )}
-        </div>
-      </div>
 
-      {/* Builder area */}
-      <div className="flex-1 overflow-y-auto p-6 bg-surface">
-        {!selected ? (
-          <div className="flex items-center justify-center h-full text-muted text-sm">
-            Select or create a sequence
-          </div>
-        ) : (
-          <>
-            <div className="mb-6">
-              <h2 className="text-lg font-display font-semibold text-dark">{selected.name}</h2>
-              {selected.description && <p className="text-sm text-muted mt-0.5">{selected.description}</p>}
-            </div>
-
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={stepsWithWait.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-0 max-w-xl">
-                  {stepsWithWait.map((step, i) => (
-                    <SortableStep
-                      key={step.id}
-                      step={step}
-                      stepIndex={i}
-                      onEdit={editStep}
-                      onDelete={deleteStep}
-                      templates={templates}
-                      isOnly={stepsWithWait.length === 1}
-                    />
-                  ))}
+          <div className="max-h-[calc(100vh-320px)] space-y-2 overflow-y-auto pr-1">
+            {sequences.map(s => (
+              <div
+                key={s.id}
+                className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                  selectedId === s.id
+                    ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
+                    : 'border-white/70 bg-white/70 hover:-translate-y-0.5 hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(s.id)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className={`truncate text-sm font-medium ${selectedId === s.id ? 'text-primary' : 'text-dark'}`}>
+                      {s.name}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">{s.steps.length} step{s.steps.length !== 1 ? 's' : ''}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setDeleteSeqTarget(s.id) }}
+                    className="btn-ghost p-1 text-muted hover:text-red-500"
+                  >
+                    <Trash2 size={11} />
+                  </button>
                 </div>
-              </SortableContext>
-            </DndContext>
+              </div>
+            ))}
+            {sequences.length === 0 && (
+              <div className="empty-state border-0 bg-transparent px-4 py-10 text-xs shadow-none">No sequences yet. Create one to get started.</div>
+            )}
+          </div>
+        </aside>
 
-            <button onClick={addStep} className="btn-secondary mt-4 text-xs">
-              <Plus size={13} /> Add step
-            </button>
-          </>
-        )}
+        <section className="space-y-4">
+          {!selected ? (
+            <div className="empty-state">Select or create a sequence to start building.</div>
+          ) : (
+            <>
+              <div className="page-toolbar">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Editing sequence</p>
+                    <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
+                    {selected.description && <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{selected.description}</p>}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-full border border-white/80 bg-white/82 px-3 py-1.5 text-sm text-muted">
+                      {selected.steps.length} step{selected.steps.length !== 1 ? 's' : ''}
+                    </div>
+                    <button onClick={addStep} className="btn-primary text-xs">
+                      <Plus size={13} /> Add step
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={stepsWithWait.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="max-w-3xl space-y-1">
+                    {stepsWithWait.map((step, i) => (
+                      <SortableStep
+                        key={step.id}
+                        step={step}
+                        stepIndex={i}
+                        onEdit={editStep}
+                        onDelete={deleteStep}
+                        templates={templates}
+                        isOnly={stepsWithWait.length === 1}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </>
+          )}
+        </section>
       </div>
 
       {/* New sequence modal */}

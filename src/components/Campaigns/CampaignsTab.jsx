@@ -31,6 +31,9 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.subject.toLowerCase().includes(search.toLowerCase())
   )
+  const activeCampaignCount = campaigns.filter(c => c.status === 'active').length
+  const scheduledCount = campaigns.filter(c => Boolean(c.scheduledAt)).length
+  const draftCount = campaigns.filter(c => c.status === 'draft').length
 
   const openCreate = () => {
     setEditing(null)
@@ -80,60 +83,54 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
   const field = (key, value) => setForm(f => ({ ...f, [key]: value }))
 
   return (
-    <div className="p-6 animate-fade-in">
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-display font-semibold text-dark">Campaigns</h1>
-          <p className="text-sm text-muted mt-0.5">
-            {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
-            {workspaceTemplate
-              ? ` · default template: ${workspaceTemplate.name}`
-              : ''}
+    <div className="page-shell">
+      <section className="page-toolbar">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-1 items-center gap-3">
+            <div className="relative w-full max-w-md">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search campaigns…"
+                className="input pl-9"
+              />
+            </div>
+            <button onClick={openCreate} className="btn-primary shrink-0">
+              <Plus size={15} /> New campaign
+            </button>
+          </div>
+          <p className="text-sm text-muted shrink-0">
+            {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button onClick={openCreate} className="btn-primary">
-          <Plus size={15} /> New campaign
-        </button>
-      </div>
+      </section>
 
-      {/* Search */}
-      <div className="relative mb-4 max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search campaigns…"
-          className="input pl-8"
-        />
-      </div>
-
-      {/* Table */}
-      <div className="card overflow-hidden">
+      <section className="table-shell">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-muted text-sm">
+          <div className="empty-state border-0 bg-transparent shadow-none">
             {search ? 'No campaigns match your search.' : 'No campaigns yet. Create your first one!'}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted">Name</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted">Subject</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted">Scheduled</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted">Actions</th>
+              <tr className="border-b border-slate-100 bg-[rgba(248,250,252,0.86)]">
+                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Name</th>
+                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Subject</th>
+                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Status</th>
+                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Scheduled</th>
+                <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-100">
               {filtered.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-dark">{c.name}</td>
-                  <td className="px-4 py-3 text-muted max-w-[240px] truncate">{c.subject || '—'}</td>
-                  <td className="px-4 py-3">
+                <tr key={c.id} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
+                  <td className="px-5 py-4 font-medium text-dark">{c.name}</td>
+                  <td className="max-w-[260px] px-5 py-4 text-muted truncate">{c.subject || '—'}</td>
+                  <td className="px-5 py-4">
                     <Badge variant={c.status}>{c.status}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-muted">
+                  <td className="px-5 py-4 text-muted">
                     {c.scheduledAt ? (
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
@@ -141,8 +138,8 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button onClick={() => openEdit(c)} className="btn-ghost px-2 py-1">
                         <Edit2 size={13} />
                       </button>
@@ -164,7 +161,7 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
             </tbody>
           </table>
         )}
-      </div>
+      </section>
 
       {/* Create / Edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="md">

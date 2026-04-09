@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
-import Header from './components/Layout/Header'
+import Sidebar from './components/Layout/Sidebar'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
 import SequencesTab from './components/Sequences/SequencesTab'
 import ContactsTab from './components/Contacts/ContactsTab'
@@ -43,7 +43,7 @@ const formatTemplateBody = (body) => {
 }
 
 function AppShell() {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
@@ -227,8 +227,9 @@ function AppShell() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface">
+        <div className="dashboard-backdrop absolute inset-0" />
+        <div className="relative h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     )
   }
@@ -239,8 +240,9 @@ function AppShell() {
 
   if (user && !onboardingState.loaded) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface">
+        <div className="dashboard-backdrop absolute inset-0" />
+        <div className="relative h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     )
   }
@@ -253,84 +255,79 @@ function AppShell() {
         initialData={workspaceConfig}
         onSaveDraft={saveOnboardingDraft}
         onComplete={completeOnboarding}
+        onLogout={signOut}
       />
-    )
-  }
-
-  if (settingsOpen) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header
-          onOpenSettings={() => setSettingsOpen(false)}
-          activeTab={activeTab}
-          tabs={TABS}
-          onTabChange={(id) => { setSettingsOpen(false); handleTabChange(id) }}
-        />
-        <main className="flex-1 overflow-y-auto">
-          <div className="flex items-center gap-2 px-6 py-3 bg-white border-b border-gray-100">
-            <button onClick={() => setSettingsOpen(false)} className="text-xs text-muted hover:text-dark transition-colors">← Back</button>
-            <span className="text-xs text-muted">/</span>
-            <span className="text-xs text-dark font-medium">Settings</span>
-          </div>
-          <SettingsPage
-            workspaceConfig={workspaceConfig}
-            onSaveWorkspaceConfig={updateWorkspaceConfig}
-            templates={templates}
-          />
-        </main>
-      </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header
-        onOpenSettings={() => setSettingsOpen(true)}
+    <div className="flex h-screen overflow-hidden bg-surface">
+      <div className="dashboard-backdrop fixed inset-0" />
+      <Sidebar
+        onOpenSettings={() => setSettingsOpen(current => !current)}
         activeTab={activeTab}
         tabs={TABS}
-        onTabChange={handleTabChange}
+        onTabChange={(id) => { setSettingsOpen(false); handleTabChange(id) }}
+        settingsOpen={settingsOpen}
       />
 
-      <main className="flex-1 overflow-y-auto">
-        <Routes>
-          <Route path="/" element={<Navigate to="/campaigns" replace />} />
-          <Route path="/campaigns" element={
-            <CampaignsTab
-              campaigns={campaigns} setCampaigns={setCampaigns}
-              sequences={sequences} templates={templates}
+      <main className="relative z-10 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex h-14 items-center border-b-2 border-slate-100 bg-white/80 px-8 backdrop-blur-xl">
+          <h1 className="font-display text-xl font-semibold tracking-[-0.03em] text-dark">
+            {settingsOpen ? 'Settings' : TABS.find(t => t.id === activeTab)?.label ?? 'Dashboard'}
+          </h1>
+        </div>
+        <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+          {settingsOpen ? (
+            <SettingsPage
               workspaceConfig={workspaceConfig}
-            />
-          } />
-          <Route path="/sequences" element={
-            <SequencesTab
-              sequences={sequences} setSequences={setSequences}
+              onSaveWorkspaceConfig={updateWorkspaceConfig}
               templates={templates}
-              workspaceConfig={workspaceConfig}
             />
-          } />
-          <Route path="/contacts" element={
-            <ContactsTab
-              contacts={contacts}
-              setContacts={setContacts}
-              workspaceConfig={workspaceConfig}
-            />
-          } />
-          <Route path="/analytics" element={<AnalyticsTab />} />
-          <Route path="/templates" element={
-            <TemplatesTab
-              templates={templates}
-              setTemplates={setTemplates}
-              workspaceConfig={workspaceConfig}
-            />
-          } />
-          <Route path="*" element={<Navigate to="/campaigns" replace />} />
-        </Routes>
+          ) : (
+            <Routes>
+              <Route path="/" element={<Navigate to="/campaigns" replace />} />
+              <Route path="/campaigns" element={
+                <CampaignsTab
+                  campaigns={campaigns} setCampaigns={setCampaigns}
+                  sequences={sequences} templates={templates}
+                  workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="/sequences" element={
+                <SequencesTab
+                  sequences={sequences} setSequences={setSequences}
+                  templates={templates}
+                  workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="/contacts" element={
+                <ContactsTab
+                  contacts={contacts}
+                  setContacts={setContacts}
+                  workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="/analytics" element={<AnalyticsTab />} />
+              <Route path="/templates" element={
+                <TemplatesTab
+                  templates={templates}
+                  setTemplates={setTemplates}
+                  workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="*" element={<Navigate to="/campaigns" replace />} />
+            </Routes>
+          )}
+          <footer className="mt-auto py-6 text-center text-xs text-muted">Made by Cornell Generative AI</footer>
+        </div>
       </main>
     </div>
   )
 }
 
 export default function App() {
+
   return (
     <AuthProvider>
       <AppShell />

@@ -1,20 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Server, Key, Users, Clock, Webhook, Plus, Trash2,
-  Copy, Eye, EyeOff, Check, Mail, AlertCircle, FileText,
+  Plus, Trash2, Copy, Eye, EyeOff, Check, Mail, AlertCircle,
   Building2, Briefcase, Target,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
-function Section({ icon: Icon, title, children }) {
+function Section({ title, children }) {
   return (
-    <div className="card p-6 space-y-4">
-      <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Icon size={15} className="text-primary" />
-        </div>
+    <div className="space-y-4 py-4">
+      <div className="pb-3 border-b border-slate-100">
         <h2 className="text-sm font-semibold text-dark">{title}</h2>
       </div>
       {children}
@@ -31,7 +27,7 @@ function SmtpSection() {
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
 
   return (
-    <Section icon={Server} title="SMTP Configuration">
+    <Section title="SMTP Configuration">
       <div className="grid grid-cols-3 gap-3">
         <div className="col-span-2">
           <label className="label">Host</label>
@@ -86,7 +82,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   }
 
   return (
-    <Section icon={FileText} title="AI Workspace Profile">
+    <Section title="AI Workspace Profile">
       <div>
         <label className="label">Resume or background context</label>
         <textarea
@@ -188,7 +184,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
   const connectedCount = Object.values(form).filter(Boolean).length
 
   return (
-    <Section icon={Key} title="Model & Data Providers">
+    <Section title="Model & Data Providers">
       <div className="flex items-start gap-2 p-3 bg-primary/5 rounded-lg border border-primary/10">
         <AlertCircle size={14} className="text-primary mt-0.5 shrink-0" />
         <p className="text-xs text-primary">
@@ -254,7 +250,7 @@ function ApiKeysSection() {
   }
 
   return (
-    <Section icon={Key} title="Public API Keys">
+    <Section title="Public API Keys">
       <div className="flex gap-2">
         <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && generate()} placeholder="Key name (e.g. Production)" className="input flex-1" />
         <button onClick={generate} disabled={!newName.trim()} className="btn-primary whitespace-nowrap"><Plus size={14} /> Generate key</button>
@@ -308,7 +304,7 @@ function TeamSection() {
   }
 
   return (
-    <Section icon={Users} title="Team Members">
+    <Section title="Team Members">
       <div className="flex gap-2">
         <input
           type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))}
@@ -358,7 +354,7 @@ function SendingLimitsSection() {
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
 
   return (
-    <Section icon={Clock} title="Sending Limits">
+    <Section title="Sending Limits">
       <div className="grid grid-cols-2 gap-6">
         <div>
           <label className="label">Daily send limit</label>
@@ -407,7 +403,7 @@ function WebhooksSection() {
   }
 
   return (
-    <Section icon={Webhook} title="Webhooks">
+    <Section title="Webhooks">
       <button onClick={() => setAddOpen(!addOpen)} className="btn-secondary text-xs py-1.5"><Plus size={13} /> Add webhook endpoint</button>
 
       {addOpen && (
@@ -463,11 +459,7 @@ function WebhooksSection() {
 
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates }) {
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6 animate-fade-in">
-      <div className="mb-2">
-        <h1 className="text-xl font-display font-semibold text-dark">Settings</h1>
-        <p className="text-sm text-muted mt-0.5">Configure your sending infrastructure, team, and integrations.</p>
-      </div>
+    <div className="w-full max-w-5xl px-8 pb-10 pt-6 space-y-8">
       <WorkspaceProfileSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} templates={templates} />
       <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
       <SmtpSection />

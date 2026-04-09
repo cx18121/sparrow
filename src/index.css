@@ -7,6 +7,10 @@
     @apply font-sans text-dark bg-surface antialiased;
   }
 
+  #root {
+    @apply min-h-screen;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
   }
@@ -31,50 +35,144 @@
 }
 
 @layer components {
+  .dashboard-backdrop {
+    background: #f4f7fb;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg
-           hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-white transition-all duration-150
+           disabled:cursor-not-allowed disabled:opacity-50;
   }
+
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    filter: brightness(0.96);
+  }
+
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-white text-dark text-sm font-medium rounded-lg border border-gray-200
-           hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium text-dark transition-all duration-150
+           disabled:cursor-not-allowed disabled:opacity-50;
+    border-color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
+
+  .btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 16px 32px rgba(15, 23, 42, 0.1);
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 text-muted text-sm font-medium rounded-lg
-           hover:bg-gray-100 hover:text-dark active:bg-gray-200 transition-colors duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-muted transition-all duration-150
+           disabled:cursor-not-allowed disabled:opacity-50;
   }
+
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.72);
+    color: #0b1d33;
+    transform: translateY(-1px);
+  }
+
   .btn-danger {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg
-           hover:bg-red-600 active:bg-red-700 transition-colors duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2.5 text-sm font-medium text-white transition-all duration-150
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(1.08);
   }
 
   .card {
-    @apply bg-white rounded-xl border border-gray-100 shadow-card;
+    @apply block;
   }
 
   .input {
-    @apply w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg text-dark placeholder-muted
-           focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors;
+    @apply w-full rounded-2xl border px-3.5 py-3 text-sm text-dark placeholder-muted transition-all
+           focus:outline-none focus:ring-2 focus:ring-primary/15;
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(148, 163, 184, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+
+  .input:focus {
+    border-color: rgba(27, 110, 243, 0.28);
+    background: rgba(255, 255, 255, 0.94);
   }
 
   .label {
-    @apply block text-xs font-medium text-muted mb-1;
+    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80;
   }
 
   .select {
-    @apply w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg text-dark
-           focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors;
+    @apply w-full rounded-2xl border px-3.5 py-3 text-sm text-dark transition-all
+           focus:outline-none focus:ring-2 focus:ring-primary/15;
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(148, 163, 184, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
-  .tab-active {
-    @apply text-primary border-b-2 border-primary font-medium;
+  .select:focus {
+    border-color: rgba(27, 110, 243, 0.28);
+    background: rgba(255, 255, 255, 0.94);
   }
-  .tab-inactive {
-    @apply text-muted hover:text-dark transition-colors;
+
+  .page-shell {
+    @apply mx-auto w-full max-w-7xl px-6 pb-10 pt-6 sm:px-10 lg:px-14 space-y-5;
+  }
+
+  .page-hero {
+    @apply py-2 sm:py-4;
+  }
+
+  .page-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.28em] text-primary;
+  }
+
+  .page-title {
+    @apply mt-3 font-display text-[clamp(2rem,4vw,3.25rem)] font-semibold tracking-[-0.05em] text-dark;
+  }
+
+  .page-subtitle {
+    @apply mt-2 max-w-3xl text-sm leading-6 text-muted sm:text-base;
+  }
+
+  .page-toolbar {
+    @apply py-3 sm:py-4;
+  }
+
+  .table-shell {
+    @apply overflow-hidden;
+  }
+
+  .empty-state {
+    @apply px-6 py-16 text-center text-sm text-muted;
+  }
+
+  .segmented-control {
+    @apply inline-flex items-center gap-1 p-1;
+  }
+
+  .segmented-chip {
+    @apply rounded-full px-4 py-2 text-sm font-medium text-muted transition-all duration-150;
+  }
+
+  .segmented-chip-active {
+    @apply bg-primary text-white;
+    box-shadow: 0 10px 24px rgba(27, 110, 243, 0.22);
+  }
+
+  .segmented-chip:hover:not(.segmented-chip-active) {
+    @apply text-dark;
+    background: rgba(255, 255, 255, 0.82);
   }
 }
 

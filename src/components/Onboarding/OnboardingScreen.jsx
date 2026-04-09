@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, ArrowRight, Building2, FileText, Key,
+  LogOut,
   Sparkles,
   Target, Upload, User,
 } from 'lucide-react'
@@ -69,7 +70,7 @@ function WelcomeStep({ name }) {
     <div className="mx-auto w-full max-w-2xl">
       <div className="relative mb-8 flex justify-center sm:mb-10">
         <div className="animate-welcome-breathe absolute top-4 h-28 w-28 rounded-full bg-primary/15 blur-3xl sm:h-36 sm:w-36" />
-        <div className="animate-welcome-float relative flex h-24 w-24 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,_#7cb7ff,_#1b6ef3_58%,_#102743)] text-white shadow-[0_24px_60px_rgba(27,110,243,0.28)] sm:h-28 sm:w-28">
+        <div className="animate-welcome-float relative flex h-24 w-24 items-center justify-center rounded-full bg-primary text-white sm:h-28 sm:w-28">
           <Sparkles size={28} className="animate-welcome-twinkle sm:h-8 sm:w-8" />
         </div>
 
@@ -121,7 +122,7 @@ function ResumeStep({ form, updateField }) {
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+        <div className="p-1">
           <label className="label">Paste resume or bio</label>
           <textarea
             value={form.resumeText}
@@ -265,10 +266,10 @@ function TemplateStep({
           Make custom
         </button>
       </div>
- s
+
       {form.templateMode === 'existing' ? (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+          <div className="p-1">
             <label className="label">Template</label>
             <div className="relative">
               <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -284,8 +285,8 @@ function TemplateStep({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-card">
-            <div className="border-b border-gray-100 bg-gray-50 px-4 py-3">
+          <div className="overflow-hidden">
+            <div className="border-b border-gray-100 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
               <p className="mt-1 text-sm font-medium text-dark">
                 {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
@@ -298,7 +299,7 @@ function TemplateStep({
         </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-          <div className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+          <div className="space-y-3 p-1">
             <div>
               <label className="label">Template name</label>
               <input
@@ -328,8 +329,8 @@ function TemplateStep({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-card">
-            <div className="border-b border-gray-100 bg-gray-50 px-4 py-3">
+          <div className="overflow-hidden">
+            <div className="border-b border-gray-100 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
               <p className="mt-1 text-sm font-medium text-dark">
                 {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
@@ -373,7 +374,7 @@ function LeadsStep({ form, updateField }) {
         ))}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+      <div className="mt-4 p-1">
         <label className="label">Custom prospect count</label>
         <div className="relative max-w-[180px]">
           <Target size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -422,9 +423,17 @@ function ApiKeysStep({ form, updateApiKey }) {
   )
 }
 
-export default function OnboardingScreen({ user, templates, initialData, onSaveDraft, onComplete }) {
+export default function OnboardingScreen({
+  user,
+  templates,
+  initialData,
+  onSaveDraft,
+  onComplete,
+  onLogout,
+}) {
   const [stepIndex, setStepIndex] = useState(0)
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [form, setForm] = useState(() => {
     const config = createWorkspaceConfig({ user, templates, data: initialData })
 
@@ -539,17 +548,39 @@ export default function OnboardingScreen({ user, templates, initialData, onSaveD
     })
   }
 
+  const handleLogout = async () => {
+    if (!onLogout || isSigningOut) return
+
+    setIsSigningOut(true)
+
+    try {
+      await onLogout()
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-surface">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(27,110,243,0.1),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(27,110,243,0.08),_transparent_22%),linear-gradient(180deg,_#f6f8fc_0%,_#eff4fb_100%)]" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 sm:px-10 lg:px-14">
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 pt-8 pb-12 sm:px-10 sm:pb-14 lg:px-14">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">ColdFlow</p>
-            <p className="mt-1 text-sm text-muted">Onboarding</p>
+          <div className="flex items-start gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isSigningOut}
+              className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5  hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
+            >
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
+            </button>
+
+            <div>
+              <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">ColdFlow</p>
+              <p className="mt-1 text-sm text-muted">Onboarding</p>
+            </div>
           </div>
-          <button onClick={() => finish(true)} className="btn-ghost text-xs">
+          <button type="button" onClick={() => finish(true)} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50">
             Skip
           </button>
         </div>
@@ -575,13 +606,16 @@ export default function OnboardingScreen({ user, templates, initialData, onSaveD
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 rounded-[28px] px-3 py-3">
             <button
+              type="button"
               onClick={prevStep}
               disabled={isFirstStep}
-              className="btn-secondary justify-center disabled:opacity-40"
+              className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-white hover:shadow-[0_16px_32px_rgba(15,23,42,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
             >
-              <ArrowLeft size={15} />
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <ArrowLeft size={14} />
+              </span>
               Back
             </button>
 
@@ -590,17 +624,30 @@ export default function OnboardingScreen({ user, templates, initialData, onSaveD
             </p>
 
             {isLastStep ? (
-              <button onClick={() => finish(false)} className="btn-primary justify-center">
+              <button
+                type="button"
+                onClick={() => finish(false)}
+                className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
+              >
                 Enter dashboard
-                <ArrowRight size={15} />
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
+                  <ArrowRight size={14} />
+                </span>
               </button>
             ) : (
-              <button onClick={nextStep} className="btn-primary justify-center">
+              <button
+                type="button"
+                onClick={nextStep}
+                className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
+              >
                 Next
-                <ArrowRight size={15} />
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
+                  <ArrowRight size={14} />
+                </span>
               </button>
             )}
           </div>
+
         </div>
       </div>
     </div>

@@ -71,19 +71,15 @@ export default function AnalyticsTab() {
   }
 
   return (
-    <div className="p-6 animate-fade-in space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-display font-semibold text-dark">Analytics</h1>
-          <p className="text-sm text-muted mt-0.5">Performance overview across all campaigns</p>
-        </div>
-        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1">
+    <div className="page-shell space-y-6">
+      <div className="flex items-center justify-between py-2">
+        <p className="text-sm font-medium text-dark">Performance overview</p>
+        <div className="segmented-control">
           {[7, 14, 30].map(d => (
             <button
               key={d}
               onClick={() => setRange(d)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${range === d ? 'bg-primary text-white' : 'text-muted hover:text-dark'}`}
+              className={`segmented-chip ${range === d ? 'segmented-chip-active' : ''}`}
             >
               {d}d
             </button>
@@ -91,7 +87,6 @@ export default function AnalyticsTab() {
         </div>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4">
         {METRICS.map(m => <StatCard key={m.key} metric={m} data={data} />)}
       </div>
@@ -144,6 +139,7 @@ export default function AnalyticsTab() {
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
@@ -159,7 +155,7 @@ export default function AnalyticsTab() {
             <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#5E7B97' }} tickLine={false} axisLine={false} interval={Math.ceil(data.length / 6) - 1} />
             <YAxis tick={{ fontSize: 11, fill: '#5E7B97' }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
-            <Bar dataKey="sent" name="Emails sent" fill="#1B6EF3" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="sent" name="Emails sent" fill="#1B6EF3" radius={[3, 3, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>

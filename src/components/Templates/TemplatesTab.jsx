@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -7,7 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { v4 as uuidv4 } from 'uuid'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
-  List, ListOrdered, Eye, Edit3, Users, Lock, Search, Copy,
+  List, ListOrdered, Eye, Edit3, Search, Copy,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Modal from '../ui/Modal'
@@ -32,7 +32,9 @@ function ToolbarButton({ onClick, active, title, children }) {
       type="button"
       onMouseDown={(e) => { e.preventDefault(); onClick() }}
       title={title}
-      className={`p-1.5 rounded transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-muted hover:text-dark hover:bg-gray-100'}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+        active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-white hover:text-dark'
+      }`}
     >
       {children}
     </button>
@@ -67,9 +69,8 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   if (!editor) return null
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden tiptap-editor">
-      {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-100 bg-gray-50/60 flex-wrap">
+    <div className="tiptap-editor overflow-hidden rounded-[28px] border border-white/80 bg-white/82 shadow-card backdrop-blur-sm">
+      <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-[rgba(248,250,252,0.82)] px-3 py-2">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={13} />
         </ToolbarButton>
@@ -97,7 +98,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
               key={v}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); insertVariable(v) }}
-              className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded font-mono hover:bg-primary/20 transition-colors"
+              className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
             >
               {v}
             </button>
@@ -111,14 +112,13 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
 
 export default function TemplatesTab({ templates, setTemplates, workspaceConfig }) {
   const [search, setSearch] = useState('')
-  const [filterShared, setFilterShared] = useState('all') // 'all' | 'shared' | 'personal'
   const defaultTemplateId = workspaceConfig?.templateId && templates.some(t => t.id === workspaceConfig.templateId)
     ? workspaceConfig.templateId
     : templates[0]?.id || null
   const [selectedId, setSelectedId] = useState(defaultTemplateId)
   const [view, setView] = useState('edit') // 'edit' | 'preview'
   const [editModal, setEditModal] = useState(false)
-  const [form, setForm] = useState({ name: '', subject: '', body: '', isShared: false })
+  const [form, setForm] = useState({ name: '', subject: '', body: '' })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const previewData = useMemo(() => ({
@@ -132,23 +132,22 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
     }
   }, [defaultTemplateId, selectedId, templates])
 
-  const filtered = templates.filter(t => {
-    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) || t.subject.toLowerCase().includes(search.toLowerCase())
-    const matchShared = filterShared === 'all' || (filterShared === 'shared' ? t.isShared : !t.isShared)
-    return matchSearch && matchShared
-  })
+  const filtered = templates.filter(t =>
+    t.name.toLowerCase().includes(search.toLowerCase()) || t.subject.toLowerCase().includes(search.toLowerCase())
+  )
 
   const selected = templates.find(t => t.id === selectedId)
+  const defaultTemplate = templates.find(template => template.id === workspaceConfig?.templateId) || null
 
   const openCreate = () => {
     setEditingId(null)
-    setForm({ name: '', subject: '', body: '', isShared: false })
+    setForm({ name: '', subject: '', body: '' })
     setEditModal(true)
   }
 
   const openEdit = (t) => {
     setEditingId(t.id)
-    setForm({ name: t.name, subject: t.subject, body: t.body, isShared: t.isShared })
+    setForm({ name: t.name, subject: t.subject, body: t.body })
     setEditModal(true)
   }
 
@@ -172,115 +171,121 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
   }
 
   return (
-    <div className="flex h-[calc(100vh-112px)] animate-fade-in">
-      {/* Template list sidebar */}
-      <div className="w-72 border-r border-gray-100 bg-white flex flex-col">
-        <div className="p-3 border-b border-gray-100 space-y-2">
-          <button onClick={openCreate} className="btn-primary w-full justify-center text-xs py-2">
+    <div className="page-shell space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
+        <aside className="flex h-fit flex-col gap-4 xl:sticky xl:top-6">
+          <button onClick={openCreate} className="btn-primary w-full justify-center text-xs">
             <Plus size={13} /> New template
           </button>
           <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="input pl-7 text-xs py-1.5" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
           </div>
-          <div className="flex gap-1">
-            {[['all', 'All'], ['shared', 'Shared'], ['personal', 'Personal']].map(([v, l]) => (
-              <button key={v} onClick={() => setFilterShared(v)} className={`flex-1 text-xs py-1 rounded-lg font-medium transition-colors ${filterShared === v ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-gray-100'}`}>{l}</button>
+
+          <div className="max-h-[calc(100vh-340px)] space-y-2 overflow-y-auto pr-1">
+            {filtered.map(t => (
+              <button
+                key={t.id}
+                onClick={() => { setSelectedId(t.id); setView('edit') }}
+                className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                  selectedId === t.id
+                    ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
+                    : 'border-white/70 bg-white/70 hover:-translate-y-0.5 hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
+                </div>
+                <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
+              </button>
             ))}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-1">
-          {filtered.map(t => (
-            <button
-              key={t.id}
-              onClick={() => { setSelectedId(t.id); setView('edit') }}
-              className={`w-full text-left px-4 py-3 transition-colors group ${selectedId === t.id ? 'bg-primary/5 border-r-2 border-primary' : 'hover:bg-gray-50'}`}
-            >
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium truncate ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
-                {t.isShared ? <Users size={11} className="text-muted shrink-0" /> : <Lock size={11} className="text-muted shrink-0" />}
-              </div>
-              <p className="text-xs text-muted mt-0.5 truncate">{t.subject || 'No subject'}</p>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="text-xs text-muted text-center py-8 px-4">No templates match.</p>
-          )}
-        </div>
-      </div>
-
-      {/* Editor / Preview area */}
-      <div className="flex-1 overflow-y-auto bg-surface">
-        {!selected ? (
-          <div className="flex items-center justify-center h-full text-muted text-sm">
-            Select or create a template
-          </div>
-        ) : (
-          <div className="p-6 max-w-3xl mx-auto">
-            {/* Template header */}
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-display font-semibold text-dark">{selected.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant={selected.isShared ? 'shared' : 'personal'}>
-                    {selected.isShared ? <><Users size={10} className="mr-1" />Shared</> : <><Lock size={10} className="mr-1" />Personal</>}
-                  </Badge>
-                  {workspaceConfig?.templateId === selected.id && (
-                    <Badge variant="draft">Default template</Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setView(v => v === 'edit' ? 'preview' : 'edit')}
-                  className={`btn-secondary text-xs py-1.5 ${view === 'preview' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
-                >
-                  {view === 'edit' ? <><Eye size={13} /> Preview</> : <><Edit3 size={13} /> Edit</>}
-                </button>
-                <button onClick={() => duplicate(selected)} className="btn-ghost text-xs py-1.5"><Copy size={13} /></button>
-                <button onClick={() => openEdit(selected)} className="btn-secondary text-xs py-1.5"><Edit3 size={13} /> Edit info</button>
-                <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs py-1.5 hover:text-red-500"><Trash2 size={13} /></button>
-              </div>
-            </div>
-
-            {view === 'edit' ? (
-              <div className="card p-5 space-y-4">
-                <div>
-                  <label className="label">Subject line</label>
-                  <input
-                    value={selected.subject}
-                    onChange={e => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, subject: e.target.value } : t))}
-                    placeholder="e.g. Quick question about {{company}}"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Body</label>
-                  <RichEditor
-                    content={selected.body}
-                    onChange={body => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, body, updatedAt: new Date().toISOString() } : t))}
-                    placeholder="Write your email here… Use the variable buttons above to insert dynamic fields."
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-                  <p className="text-xs text-muted mb-0.5">Preview (sample data)</p>
-                  <p className="text-sm font-medium text-dark">{fillVariables(selected.subject, previewData)}</p>
-                </div>
-                <div
-                  className="p-5 text-sm text-dark prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: fillVariables(selected.body, previewData) }}
-                />
-                <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/60 text-xs text-muted">
-                  Preview uses: first_name="{previewData.first_name}", company="{previewData.company}", role="{previewData.role}"
-                </div>
-              </div>
+            {filtered.length === 0 && (
+              <div className="empty-state border-0 bg-transparent px-4 py-10 text-xs shadow-none">No templates match.</div>
             )}
           </div>
-        )}
+        </aside>
+
+        <section className="space-y-4">
+          {!selected ? (
+            <div className="empty-state">Select or create a template to start editing.</div>
+          ) : (
+            <>
+              <div className="page-toolbar">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
+                    {workspaceConfig?.templateId === selected.id && (
+                    <div className="mt-2">
+                      <Badge variant="draft">Default template</Badge>
+                    </div>
+                  )}
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+                      Toggle between editing and previewing to validate tone, variables, and sample-data substitution before this template ships.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="segmented-control">
+                      <button
+                        type="button"
+                        onClick={() => setView('edit')}
+                        className={`segmented-chip ${view === 'edit' ? 'segmented-chip-active' : ''}`}
+                      >
+                        <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setView('preview')}
+                        className={`segmented-chip ${view === 'preview' ? 'segmented-chip-active' : ''}`}
+                      >
+                        <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
+                      </button>
+                    </div>
+                    <button onClick={() => duplicate(selected)} className="btn-secondary text-xs"><Copy size={13} /> Duplicate</button>
+                    <button onClick={() => openEdit(selected)} className="btn-secondary text-xs"><Edit3 size={13} /> Edit info</button>
+                    <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500"><Trash2 size={13} /> Delete</button>
+                  </div>
+                </div>
+              </div>
+
+              {view === 'edit' ? (
+                <div className="card p-6 space-y-5">
+                  <div>
+                    <label className="label">Subject line</label>
+                    <input
+                      value={selected.subject}
+                      onChange={e => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, subject: e.target.value, updatedAt: new Date().toISOString() } : t))}
+                      placeholder="e.g. Quick question about {{company}}"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Body</label>
+                    <RichEditor
+                      content={selected.body}
+                      onChange={body => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, body, updatedAt: new Date().toISOString() } : t))}
+                      placeholder="Write your email here… Use the variable buttons above to insert dynamic fields."
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="card overflow-hidden">
+                  <div className="border-b border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted/80">Preview</p>
+                    <p className="mt-2 text-sm font-medium text-dark">{fillVariables(selected.subject, previewData)}</p>
+                  </div>
+                  <div
+                    className="prose prose-sm max-w-none p-6 text-dark"
+                    dangerouslySetInnerHTML={{ __html: fillVariables(selected.body, previewData) }}
+                  />
+                  <div className="border-t border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4 text-xs text-muted">
+                    Preview uses: first_name="{previewData.first_name}", company="{previewData.company}", role="{previewData.role}"
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       </div>
 
       {/* Create/Edit info modal */}
@@ -288,13 +293,6 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
         <div className="px-6 py-4 space-y-3">
           <div><label className="label">Template name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Cold Intro — Startup Founder" className="input" /></div>
           <div><label className="label">Subject line</label><input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Quick question about {{company}}" className="input" /></div>
-          <div className="flex items-center gap-3">
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" checked={form.isShared} onChange={e => setForm(f => ({ ...f, isShared: e.target.checked }))} className="sr-only peer" />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-            <span className="text-sm text-dark">Share with team</span>
-          </div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setEditModal(false)} className="btn-secondary">Cancel</button>
             <button onClick={save} disabled={!form.name} className="btn-primary">{editingId ? 'Save' : 'Create template'}</button>

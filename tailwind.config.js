@@ -5,7 +5,7 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#1B6EF3',
+          DEFAULT: '#1460D0',
           50: '#EBF2FE',
           100: '#D6E5FD',
           200: '#ADCAFB',
@@ -26,8 +26,8 @@ export default {
         display: ['Outfit', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 1px 3px 0 rgba(11,29,51,0.08), 0 1px 2px -1px rgba(11,29,51,0.06)',
-        modal: '0 20px 60px -10px rgba(11,29,51,0.3)',
+        card: '0 18px 50px rgba(15,23,42,0.08)',
+        modal: '0 32px 90px rgba(15,23,42,0.22)',
       },
     },
   },

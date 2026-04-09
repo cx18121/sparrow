@@ -208,6 +208,9 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
     : workspaceConfig?.resumeFileName
       ? `Profile loaded from ${workspaceConfig.resumeFileName}`
       : 'No AI profile context saved yet.'
+  const activeCount = contacts.filter(contact => contact.status === 'active').length
+  const segmentCount = segments.length
+  const blacklistedCount = blacklist.length
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -286,33 +289,31 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
   }
 
   return (
-    <div className="p-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-display font-semibold text-dark">Contacts</h1>
-          <p className="text-sm text-muted mt-0.5">{contacts.length} total contacts</p>
+    <div className="page-shell">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-2">
+        <div className="segmented-control">
+          {[['contacts', 'Contacts'], ['segments', 'Segments'], ['blacklist', 'Blacklist']].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`segmented-chip ${tab === id ? 'segmented-chip-active' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={exportCSV} className="btn-secondary text-xs py-1.5"><Download size={13} /> Export</button>
-          <button onClick={generateLeads} className="btn-secondary text-xs py-1.5">Generate {leadTarget}</button>
-          <button onClick={() => setCsvModal(true)} className="btn-secondary text-xs py-1.5"><Upload size={13} /> Import CSV</button>
-          <button onClick={() => { setEditingContact(null); setContactModal(true) }} className="btn-primary text-xs py-1.5"><Plus size={13} /> Add contact</button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={exportCSV} className="btn-secondary text-xs"><Download size={13} /> Export</button>
+          <button onClick={generateLeads} className="btn-secondary text-xs">Generate {leadTarget}</button>
+          <button onClick={() => setCsvModal(true)} className="btn-secondary text-xs"><Upload size={13} /> Import CSV</button>
+          <button onClick={() => { setEditingContact(null); setContactModal(true) }} className="btn-primary text-xs"><Plus size={13} /> Add contact</button>
         </div>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-4 border-b border-gray-100 mb-4">
-        {[['contacts', 'Contacts'], ['segments', 'Segments'], ['blacklist', 'Blacklist']].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={`pb-3 text-sm font-medium ${tab === id ? 'tab-active' : 'tab-inactive'}`}>
-            {label}
-          </button>
-        ))}
       </div>
 
       {tab === 'contacts' && (
         <>
-          <div className="mb-4 rounded-2xl border border-primary/10 bg-white/70 px-4 py-4">
+          <div className="page-toolbar">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Lead Generation</p>
             <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -337,41 +338,47 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search contacts…" className="input pl-8" />
+          <div className="page-toolbar">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1 max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search contacts, domains, or companies…" className="input pl-9" />
+                </div>
+                <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className="select w-full sm:w-44">
+                  <option value="all">All statuses</option>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <p className="text-sm text-muted">
+                {filtered.length} visible contact{filtered.length !== 1 ? 's' : ''} across {totalPages || 1} page{(totalPages || 1) !== 1 ? 's' : ''}
+              </p>
             </div>
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className="select w-36">
-              <option value="all">All statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
           </div>
 
-          <div className="card overflow-hidden">
+          <div className="table-shell">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+                <tr className="border-b border-slate-100 bg-[rgba(248,250,252,0.86)]">
                   {[['firstName', 'Name'], ['email', 'Email'], ['company', 'Company'], ['status', 'Status']].map(([key, label]) => (
-                    <th key={key} className="text-left px-4 py-3">
-                      <button onClick={() => toggleSort(key)} className="flex items-center gap-1 text-xs font-medium text-muted hover:text-dark transition-colors">
+                    <th key={key} className="px-5 py-4 text-left">
+                      <button onClick={() => toggleSort(key)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 transition-colors hover:text-dark">
                         {label} <SortIcon col={key} />
                       </button>
                     </th>
                   ))}
-                  <th className="text-right px-4 py-3 text-xs font-medium text-muted">Actions</th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-slate-100">
                 {paginated.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-dark">{c.firstName} {c.lastName}</td>
-                    <td className="px-4 py-3 text-muted">{c.email}</td>
-                    <td className="px-4 py-3 text-muted">{c.company || '—'}</td>
-                    <td className="px-4 py-3"><Badge variant={c.status}>{c.status}</Badge></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                  <tr key={c.id} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
+                    <td className="px-5 py-4 font-medium text-dark">{c.firstName} {c.lastName}</td>
+                    <td className="px-5 py-4 text-muted">{c.email}</td>
+                    <td className="px-5 py-4 text-muted">{c.company || '—'}</td>
+                    <td className="px-5 py-4"><Badge variant={c.status}>{c.status}</Badge></td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => openEdit(c)} className="btn-ghost px-2 py-1"><Filter size={12} /></button>
                         <button onClick={() => setDeleteTarget(c.id)} className="btn-ghost px-2 py-1 hover:text-red-500"><Trash2 size={12} /></button>
                       </div>
@@ -379,14 +386,13 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
                   </tr>
                 ))}
                 {paginated.length === 0 && (
-                  <tr><td colSpan={5} className="py-16 text-center text-muted text-sm">No contacts found.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-10"><div className="empty-state border-0 bg-transparent py-10 shadow-none">No contacts found.</div></td></tr>
                 )}
               </tbody>
             </table>
 
-            {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
                 <p className="text-xs text-muted">
                   {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
                 </p>
@@ -395,7 +401,7 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i
                     return (
-                      <button key={p} onClick={() => setPage(p)} className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${p === page ? 'bg-primary text-white' : 'text-muted hover:bg-gray-100'}`}>{p}</button>
+                      <button key={p} onClick={() => setPage(p)} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.2)]' : 'text-muted hover:bg-white hover:text-dark'}`}>{p}</button>
                     )
                   })}
                   <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost px-2 py-1 disabled:opacity-40"><ChevronRight size={13} /></button>
@@ -407,14 +413,18 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
       )}
 
       {tab === 'segments' && (
-        <div>
-          <div className="flex justify-end mb-4">
-            <button onClick={() => setSegmentModal(true)} className="btn-primary text-xs py-1.5"><Plus size={13} /> New segment</button>
+        <div className="space-y-4">
+          <div className="page-toolbar flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-dark">Saved audience slices</p>
+              <p className="mt-1 text-sm text-muted">Group contacts by rules so campaigns can target them without rebuilding filters.</p>
+            </div>
+            <button onClick={() => setSegmentModal(true)} className="btn-primary text-xs"><Plus size={13} /> New segment</button>
           </div>
           {segments.length === 0 ? (
-            <div className="card py-16 text-center text-muted text-sm">No segments yet. Create one with filters to group your contacts.</div>
+            <div className="empty-state">No segments yet. Create one with filters to group your contacts.</div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-4 md:grid-cols-2">
               {segments.map(seg => (
                 <div key={seg.id} className="card p-4">
                   <div className="flex items-start justify-between">
@@ -437,20 +447,22 @@ export default function ContactsTab({ contacts, setContacts, workspaceConfig }) 
       )}
 
       {tab === 'blacklist' && (
-        <div className="max-w-lg">
-          <p className="text-sm text-muted mb-4">Emails on the blacklist will be excluded from all campaigns.</p>
-          <div className="flex gap-2 mb-4">
-            <input value={blacklistInput} onChange={e => setBlacklistInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addToBlacklist()} placeholder="email@domain.com" className="input flex-1" />
-            <button onClick={addToBlacklist} className="btn-primary">Add</button>
+        <div className="max-w-2xl space-y-4">
+          <div className="page-toolbar">
+            <p className="text-sm text-muted mb-4">Emails on the blacklist will be excluded from all campaigns.</p>
+            <div className="flex gap-2">
+              <input value={blacklistInput} onChange={e => setBlacklistInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addToBlacklist()} placeholder="email@domain.com" className="input flex-1" />
+              <button onClick={addToBlacklist} className="btn-primary">Add</button>
+            </div>
           </div>
           {blacklist.length === 0 ? (
-            <div className="card py-10 text-center text-muted text-sm">No blacklisted emails.</div>
+            <div className="empty-state py-10">No blacklisted emails.</div>
           ) : (
-            <div className="card divide-y divide-gray-50">
+            <div className="table-shell divide-y divide-slate-100">
               {blacklist.map((email, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                <div key={i} className="flex items-center justify-between px-5 py-3">
                   <span className="text-sm text-dark">{email}</span>
-                  <button onClick={() => setBlacklist(prev => prev.filter((_, j) => j !== i))} className="text-muted hover:text-red-500"><X size={13} /></button>
+                  <button onClick={() => setBlacklist(prev => prev.filter((_, j) => j !== i))} className="btn-ghost px-2 py-1 hover:text-red-500"><X size={13} /></button>
                 </div>
               ))}
             </div>

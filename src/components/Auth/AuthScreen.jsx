@@ -33,7 +33,6 @@ export default function AuthScreen() {
   return (
     <div className="min-h-screen bg-dark lg:grid lg:grid-cols-[1.08fr_0.92fr]">
       <section className="relative overflow-hidden bg-dark px-6 py-10 text-white sm:px-10 lg:flex lg:min-h-screen lg:flex-col lg:justify-center lg:px-14 xl:px-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_22%,_rgba(27,110,243,0.52),_transparent_24%),radial-gradient(circle_at_82%_30%,_rgba(90,205,255,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.03),_transparent_55%)]" />
         <div className="absolute inset-y-0 right-0 hidden w-px bg-white/10 lg:block" />
         <div className="relative max-w-xl">
           <h1 className="text-[clamp(4.5rem,11vw,8.75rem)] font-display font-semibold leading-[0.9] tracking-[-0.08em] text-white">
@@ -46,7 +45,7 @@ export default function AuthScreen() {
         </div>
       </section>
 
-      <section className="flex min-h-[56vh] items-center bg-[linear-gradient(180deg,#fcfbf8_0%,#f7f3eb_100%)] px-6 py-10 sm:px-10 lg:min-h-screen lg:px-14 xl:px-20">
+      <section className="flex min-h-[56vh] items-center bg-surface px-6 py-10 sm:px-10 lg:min-h-screen lg:px-14 xl:px-20">
         <div className="w-full max-w-md">
           <div className="mb-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted/80">Account</p>
@@ -133,7 +132,7 @@ export default function AuthScreen() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#2f7bf4_0%,#1b6ef3_100%)] px-4 text-base font-medium text-white shadow-[0_18px_40px_-22px_rgba(27,110,243,0.95)] transition-transform duration-150 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-primary px-4 text-base font-medium text-white transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </button>
