@@ -1,7 +1,37 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isDemo } from '../lib/supabase'
+import { setApiAccessToken, setApiUserId, saveProfile } from '../lib/api'
 
 const AuthContext = createContext(null)
+
+// Google OAuth scopes — gmail.send is required to send mail on the
+// user's behalf; offline access is required for Google to issue a
+// refresh token (combined with access_type=offline + prompt=consent).
+const GOOGLE_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/gmail.send',
+].join(' ')
+
+const persistedRefreshTokens = new Set()
+
+async function persistGoogleRefreshToken(session) {
+  const token = session?.provider_refresh_token
+  if (!token || persistedRefreshTokens.has(token)) return
+  persistedRefreshTokens.add(token)
+  try {
+    await saveProfile({ googleRefreshToken: token })
+  } catch (err) {
+    persistedRefreshTokens.delete(token)
+    console.error('Failed to persist Google refresh token', err)
+  }
+}
+
+function applySessionToApiClient(session) {
+  setApiUserId(session?.user?.id ?? null)
+  setApiAccessToken(session?.access_token ?? null)
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -11,18 +41,26 @@ export function AuthProvider({ children }) {
     // In demo mode, check localStorage for a persisted demo user
     if (isDemo) {
       const stored = localStorage.getItem('cf_demo_user')
-      if (stored) setUser(JSON.parse(stored))
+      if (stored) {
+        const demoUser = JSON.parse(stored)
+        setUser(demoUser)
+        setApiUserId(demoUser.id)
+      }
       setLoading(false)
       return
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      applySessionToApiClient(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      if (session) persistGoogleRefreshToken(session)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      applySessionToApiClient(session)
       setUser(session?.user ?? null)
+      if (event === 'SIGNED_IN' && session) persistGoogleRefreshToken(session)
     })
 
     return () => subscription.unsubscribe()
@@ -60,7 +98,17 @@ export function AuthProvider({ children }) {
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        scopes: GOOGLE_SCOPES,
+        // access_type=offline + prompt=consent forces Google to issue a
+        // refresh token even on repeat sign-ins, so we can send mail
+        // server-side without keeping the user on the page.
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     })
     return { error }
   }

@@ -6,6 +6,7 @@ import {
   Target, Upload, User,
 } from 'lucide-react'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
+import { supabase, isDemo } from '../../lib/supabase'
 
 const TOTAL_STEPS = 6
 const LEAD_PRESETS = [25, 50, 100, 250]
@@ -111,7 +112,13 @@ function WelcomeStep({ name }) {
   )
 }
 
-function ResumeStep({ form, updateField }) {
+function ResumeStep({ form, updateField, onUploadResume, uploadState }) {
+  const statusLabel = uploadState.uploading
+    ? 'Uploading…'
+    : uploadState.error
+      ? `Upload failed: ${uploadState.error}`
+      : form.resumeFileName || 'Upload a resume file'
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
@@ -138,7 +145,7 @@ function ResumeStep({ form, updateField }) {
               <Upload size={18} />
             </div>
             <p className="text-sm font-medium text-dark">
-              {form.resumeFileName || 'Upload a resume file'}
+              {statusLabel}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted">
               PDF, DOCX, or TXT. This is optional if you already pasted context.
@@ -149,7 +156,11 @@ function ResumeStep({ form, updateField }) {
             type="file"
             accept=".pdf,.doc,.docx,.txt"
             className="hidden"
-            onChange={e => updateField('resumeFileName', e.target.files?.[0]?.name || '')}
+            disabled={uploadState.uploading}
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) onUploadResume(file)
+            }}
           />
         </label>
       </div>
@@ -434,6 +445,7 @@ export default function OnboardingScreen({
   const [stepIndex, setStepIndex] = useState(0)
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [resumeUpload, setResumeUpload] = useState({ uploading: false, error: null })
   const [form, setForm] = useState(() => {
     const config = createWorkspaceConfig({ user, templates, data: initialData })
 
@@ -476,6 +488,31 @@ export default function OnboardingScreen({
       [key]: value,
     },
   }))
+  const handleUploadResume = async (file) => {
+    if (!file) return
+    setResumeUpload({ uploading: true, error: null })
+
+    if (isDemo || !user?.id) {
+      // Demo mode: just record the filename so the UX still works.
+      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '' }))
+      setResumeUpload({ uploading: false, error: null })
+      return
+    }
+
+    const path = `${user.id}/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage
+      .from('resumes')
+      .upload(path, file, { upsert: true, contentType: file.type || undefined })
+
+    if (error) {
+      setResumeUpload({ uploading: false, error: error.message })
+      return
+    }
+
+    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path }))
+    setResumeUpload({ uploading: false, error: null })
+  }
+
   const setTemplateMode = (mode) => {
     setForm(current => {
       if (mode === 'custom' && !current.customTemplate.subject && selectedTemplate) {
@@ -497,7 +534,13 @@ export default function OnboardingScreen({
 
   const steps = [
     <WelcomeStep key="welcome" name={form.senderName || user?.user_metadata?.full_name || ''} />,
-    <ResumeStep key="resume" form={form} updateField={updateField} />,
+    <ResumeStep
+      key="resume"
+      form={form}
+      updateField={updateField}
+      onUploadResume={handleUploadResume}
+      uploadState={resumeUpload}
+    />,
     <SenderStep
       key="sender"
       form={form}

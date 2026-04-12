@@ -1,13 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { Settings, LogOut, ChevronDown, Snowflake, ArrowLeft } from 'lucide-react'
+import { LogOut, ChevronDown, Snowflake } from 'lucide-react'
 
 export default function Sidebar({
-  onOpenSettings,
   activeTab,
   tabs,
   onTabChange,
-  settingsOpen = false,
 }) {
   const { user, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
@@ -25,6 +23,28 @@ export default function Sidebar({
   const avatarUrl = user?.user_metadata?.avatar_url
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const mainTabs = tabs.filter(t => t.id !== 'settings')
+  const settingsTab = tabs.find(t => t.id === 'settings')
+
+  const renderTabButton = (tab) => {
+    const isActive = activeTab === tab.id
+    return (
+      <button
+        key={tab.id}
+        onClick={() => onTabChange(tab.id)}
+        title={collapsed ? tab.label : undefined}
+        className={`flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium transition-all duration-150 ${
+          isActive
+            ? 'bg-primary text-white'
+            : 'text-muted hover:bg-slate-50 hover:text-dark'
+        } ${collapsed ? 'justify-center' : ''}`}
+      >
+        <tab.icon size={15} className="shrink-0" />
+        {!collapsed && tab.label}
+      </button>
+    )
+  }
 
   return (
     <aside className={`relative z-20 flex h-screen shrink-0 flex-col border-r border-slate-100 bg-white/80 backdrop-blur-xl transition-all duration-200 ${collapsed ? 'w-14' : 'w-52'}`}>
@@ -53,40 +73,12 @@ export default function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {tabs.map(tab => {
-          const isActive = activeTab === tab.id && !settingsOpen
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              title={collapsed ? tab.label : undefined}
-              className={`flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium transition-all duration-150 ${
-                isActive
-                  ? 'bg-primary text-white'
-                  : 'text-muted hover:bg-slate-50 hover:text-dark'
-              } ${collapsed ? 'justify-center' : ''}`}
-            >
-              <tab.icon size={15} className="shrink-0" />
-              {!collapsed && tab.label}
-            </button>
-          )
-        })}
+        {mainTabs.map(renderTabButton)}
       </nav>
 
       {/* Bottom */}
       <div className="shrink-0 border-t border-slate-100 px-2 py-2 space-y-0.5">
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          title={collapsed ? (settingsOpen ? 'Dashboard' : 'Settings') : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium transition-all duration-150 ${
-            settingsOpen ? 'bg-primary text-white' : 'text-muted hover:bg-slate-50 hover:text-dark'
-          } ${collapsed ? 'justify-center' : ''}`}
-        >
-          {settingsOpen ? <ArrowLeft size={15} className="shrink-0" /> : <Settings size={15} className="shrink-0" />}
-          {!collapsed && (settingsOpen ? 'Dashboard' : 'Settings')}
-        </button>
-
+        {settingsTab && renderTabButton(settingsTab)}
         {user && (
           <div className="relative" ref={dropRef}>
             <button

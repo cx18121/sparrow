@@ -1,17 +1,16 @@
 import React, { useState } from 'react'
 import { Plus, Edit2, Pause, Play, Copy, Trash2, Search, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
-import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
-  templateId: '', sequenceId: '', contactListId: '', scheduledAt: '',
+  templateId: '', sequenceId: '', scheduledAt: '',
 }
 
-export default function CampaignsTab({ campaigns, setCampaigns, sequences, templates, workspaceConfig }) {
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, sequences, templates, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -44,41 +43,53 @@ export default function CampaignsTab({ campaigns, setCampaigns, sequences, templ
   const openEdit = (c) => {
     setEditing(c.id)
     setForm({
-      name: c.name, subject: c.subject, status: c.status,
+      name: c.name, subject: c.subject || '', status: c.status,
       templateId: c.templateId || '', sequenceId: c.sequenceId || '',
-      contactListId: c.contactListId || '',
       scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : '',
     })
     setModalOpen(true)
   }
 
-  const save = () => {
-    const now = new Date().toISOString()
-    if (editing) {
-      setCampaigns(prev => prev.map(c =>
-        c.id === editing ? { ...c, ...form, scheduledAt: form.scheduledAt || null, updatedAt: now } : c
-      ))
-    } else {
-      setCampaigns(prev => [...prev, {
-        id: uuidv4(), ...form,
-        scheduledAt: form.scheduledAt || null,
-        createdAt: now, updatedAt: now,
-      }])
+  const save = async () => {
+    const payload = {
+      name: form.name,
+      subject: form.subject || null,
+      status: form.status,
+      templateId: form.templateId || null,
+      sequenceId: form.sequenceId || null,
+      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
     }
-    setModalOpen(false)
+    try {
+      if (editing) {
+        await onUpdate({ id: editing, ...payload })
+      } else {
+        await onCreate(payload)
+      }
+      setModalOpen(false)
+    } catch (err) {
+      console.error('Failed to save campaign', err)
+    }
   }
 
   const toggleStatus = (c) => {
     const next = c.status === 'active' ? 'paused' : 'active'
-    setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: next } : x))
+    onUpdate({ id: c.id, status: next }).catch(err => console.error('Failed to toggle campaign', err))
   }
 
   const duplicate = (c) => {
-    const now = new Date().toISOString()
-    setCampaigns(prev => [...prev, { ...c, id: uuidv4(), name: `${c.name} (copy)`, status: 'draft', createdAt: now, updatedAt: now }])
+    onCreate({
+      name: `${c.name} (copy)`,
+      subject: c.subject || null,
+      status: 'draft',
+      templateId: c.templateId || null,
+      sequenceId: c.sequenceId || null,
+      scheduledAt: c.scheduledAt || null,
+    }).catch(err => console.error('Failed to duplicate campaign', err))
   }
 
-  const remove = (id) => setCampaigns(prev => prev.filter(c => c.id !== id))
+  const remove = (id) => {
+    onDelete(id).catch(err => console.error('Failed to delete campaign', err))
+  }
 
   const field = (key, value) => setForm(f => ({ ...f, [key]: value }))
 

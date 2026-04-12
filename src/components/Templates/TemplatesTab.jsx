@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
-import { v4 as uuidv4 } from 'uuid'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
   List, ListOrdered, Eye, Edit3, Search, Copy,
@@ -110,7 +109,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   )
 }
 
-export default function TemplatesTab({ templates, setTemplates, workspaceConfig }) {
+export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const defaultTemplateId = workspaceConfig?.templateId && templates.some(t => t.id === workspaceConfig.templateId)
     ? workspaceConfig.templateId
@@ -121,6 +120,10 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
   const [form, setForm] = useState({ name: '', subject: '', body: '' })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  // Local draft state for the inline editor — we debounce writes so that
+  // subject/body keystrokes don't fire a PATCH per character.
+  const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
+  const flushTimerRef = useRef(null)
   const previewData = useMemo(() => ({
     ...sampleContactData,
     sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
@@ -132,8 +135,43 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
     }
   }, [defaultTemplateId, selectedId, templates])
 
+  // Sync draft with the selected template when the selection changes.
+  useEffect(() => {
+    const selectedTpl = templates.find(t => t.id === selectedId)
+    if (!selectedTpl) {
+      setDraft({ id: null, subject: '', body: '' })
+      return
+    }
+    setDraft({ id: selectedTpl.id, subject: selectedTpl.subject || '', body: selectedTpl.body || '' })
+  }, [selectedId, templates])
+
+  useEffect(() => () => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+  }, [])
+
+  const flushDraft = (override) => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    const next = override || draft
+    if (!next.id) return
+    const selectedTpl = templates.find(t => t.id === next.id)
+    if (!selectedTpl) return
+    if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return
+    onUpdate({ id: next.id, subject: next.subject, body: next.body }).catch(err => {
+      console.error('Failed to save template', err)
+    })
+  }
+
+  const scheduleFlush = (next) => {
+    setDraft(next)
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+    flushTimerRef.current = setTimeout(() => flushDraft(next), 500)
+  }
+
   const filtered = templates.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) || t.subject.toLowerCase().includes(search.toLowerCase())
+    t.name.toLowerCase().includes(search.toLowerCase()) || (t.subject || '').toLowerCase().includes(search.toLowerCase())
   )
 
   const selected = templates.find(t => t.id === selectedId)
@@ -151,23 +189,28 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
     setEditModal(true)
   }
 
-  const save = () => {
-    const now = new Date().toISOString()
+  const save = async () => {
     if (editingId) {
-      setTemplates(prev => prev.map(t => t.id === editingId ? { ...t, ...form, updatedAt: now } : t))
+      await onUpdate({ id: editingId, name: form.name, subject: form.subject })
     } else {
-      const id = uuidv4()
-      setTemplates(prev => [...prev, { id, ...form, createdAt: now, updatedAt: now }])
-      setSelectedId(id)
+      const created = await onCreate({
+        name: form.name,
+        subject: form.subject || '(no subject)',
+        body: form.body || '<p></p>',
+      })
+      if (created?.id) setSelectedId(created.id)
     }
     setEditModal(false)
   }
 
-  const duplicate = (t) => {
-    const now = new Date().toISOString()
-    const id = uuidv4()
-    setTemplates(prev => [...prev, { ...t, id, name: `${t.name} (copy)`, createdAt: now, updatedAt: now }])
-    setSelectedId(id)
+  const duplicate = async (t) => {
+    const created = await onCreate({
+      name: `${t.name} (copy)`,
+      subject: t.subject,
+      body: t.body,
+      isShared: false,
+    })
+    if (created?.id) setSelectedId(created.id)
   }
 
   return (
@@ -253,8 +296,9 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
                   <div>
                     <label className="label">Subject line</label>
                     <input
-                      value={selected.subject}
-                      onChange={e => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, subject: e.target.value, updatedAt: new Date().toISOString() } : t))}
+                      value={draft.id === selected.id ? draft.subject : (selected.subject || '')}
+                      onChange={e => scheduleFlush({ ...draft, id: selected.id, subject: e.target.value })}
+                      onBlur={() => flushDraft()}
                       placeholder="e.g. Quick question about {{company}}"
                       className="input"
                     />
@@ -262,8 +306,9 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
                   <div>
                     <label className="label">Body</label>
                     <RichEditor
+                      key={selected.id}
                       content={selected.body}
-                      onChange={body => setTemplates(prev => prev.map(t => t.id === selected.id ? { ...t, body, updatedAt: new Date().toISOString() } : t))}
+                      onChange={body => scheduleFlush({ ...draft, id: selected.id, body })}
                       placeholder="Write your email here… Use the variable buttons above to insert dynamic fields."
                     />
                   </div>
@@ -272,11 +317,11 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
                 <div className="card overflow-hidden">
                   <div className="border-b border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted/80">Preview</p>
-                    <p className="mt-2 text-sm font-medium text-dark">{fillVariables(selected.subject, previewData)}</p>
+                    <p className="mt-2 text-sm font-medium text-dark">{fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}</p>
                   </div>
                   <div
                     className="prose prose-sm max-w-none p-6 text-dark"
-                    dangerouslySetInnerHTML={{ __html: fillVariables(selected.body, previewData) }}
+                    dangerouslySetInnerHTML={{ __html: fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData) }}
                   />
                   <div className="border-t border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4 text-xs text-muted">
                     Preview uses: first_name="{previewData.first_name}", company="{previewData.company}", role="{previewData.role}"
@@ -303,10 +348,15 @@ export default function TemplatesTab({ templates, setTemplates, workspaceConfig 
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          setTemplates(prev => prev.filter(t => t.id !== deleteTarget))
-          setSelectedId(templates.find(t => t.id !== deleteTarget)?.id || null)
+        onConfirm={async () => {
+          const victim = deleteTarget
           setDeleteTarget(null)
+          try {
+            await onDelete(victim)
+            setSelectedId(templates.find(t => t.id !== victim)?.id || null)
+          } catch (err) {
+            console.error('Failed to delete template', err)
+          }
         }}
         title="Delete template"
         message="Delete this template? Any campaigns using it will need to be updated."

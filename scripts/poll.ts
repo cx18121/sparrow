@@ -3,15 +3,12 @@ import { pathToFileURL } from "node:url";
 import { prisma } from "./_lib/prisma.js";
 import { ingestYC } from "./ingest-yc.js";
 import { enrichApollo } from "./enrich-apollo.js";
-import { ingestProductHunt } from "./ingest-producthunt.js";
 import { ingestCrunchbase } from "./ingest-crunchbase.js";
 
 // Configuration from environment variables.
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS ?? "86400000", 10);
-const SKIP_PRODUCTHUNT = process.env.SKIP_PRODUCTHUNT === "true";
 const SKIP_CRUNCHBASE = process.env.SKIP_CRUNCHBASE === "true";
 const APOLLO_API_KEY = process.env.APOLLO_API_KEY;
-const PRODUCTHUNT_TOKEN = process.env.PRODUCTHUNT_TOKEN;
 const CRUNCHBASE_API_KEY = process.env.CRUNCHBASE_API_KEY;
 const FRESHNESS_HOURS = parseInt(process.env.FRESHNESS_HOURS ?? "24", 10);
 
@@ -25,20 +22,7 @@ export async function runPollCycle(): Promise<void> {
     console.error("[POLL] YC failed:", (e as Error).message);
   }
 
-  // Step 2: Run Product Hunt if not skipped and token is available.
-  if (!SKIP_PRODUCTHUNT && PRODUCTHUNT_TOKEN) {
-    try {
-      await ingestProductHunt();
-    } catch (e) {
-      console.error("[POLL] Product Hunt failed:", (e as Error).message);
-    }
-  } else if (SKIP_PRODUCTHUNT) {
-    console.log("[POLL] Skipping Product Hunt (SKIP_PRODUCTHUNT=true)");
-  } else {
-    console.log("[POLL] Skipping Product Hunt (no PRODUCTHUNT_TOKEN)");
-  }
-
-  // Step 3: Run Crunchbase ingestion if not skipped and API key is available.
+  // Step 2: Run Crunchbase ingestion if not skipped and API key is available.
   if (!SKIP_CRUNCHBASE && CRUNCHBASE_API_KEY) {
     try {
       await ingestCrunchbase();
@@ -51,7 +35,7 @@ export async function runPollCycle(): Promise<void> {
     console.log("[POLL] Skipping Crunchbase (no CRUNCHBASE_API_KEY)");
   }
 
-  // Step 4: Run Apollo enrichment only if API key is set.
+  // Step 3: Run Apollo enrichment only if API key is set.
   if (APOLLO_API_KEY) {
     const freshnessThreshold = new Date(
       Date.now() - FRESHNESS_HOURS * 60 * 60 * 1000

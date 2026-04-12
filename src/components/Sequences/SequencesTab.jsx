@@ -1,6 +1,5 @@
-import React, { useState } from 'react'
-import { Plus, Trash2, GripVertical, Mail, Clock, GitBranch, Edit2 } from 'lucide-react'
-import { v4 as uuidv4 } from 'uuid'
+import React, { useState, useEffect } from 'react'
+import { Plus, Trash2, GripVertical, Mail, Clock, Edit2 } from 'lucide-react'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors,
@@ -36,11 +35,6 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
                 {stepIndex + 1}
               </div>
               <span className="text-sm font-medium text-dark">{step.name || `Step ${stepIndex + 1}`}</span>
-              {step.variants.length > 0 && (
-                <span className="flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs text-purple-600">
-                  <GitBranch size={10} /> A/B
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
               <button onClick={() => onEdit(step)} className="btn-ghost px-2 py-1"><Edit2 size={12} /></button>
@@ -55,9 +49,6 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
               <Mail size={11} />
               {tpl ? tpl.name : <span className="italic text-amber-600">No template selected</span>}
             </span>
-            {step.variants.length > 0 && (
-              <span className="text-purple-600">{step.variants.length + 1} variants</span>
-            )}
           </div>
         </div>
       </div>
@@ -75,12 +66,11 @@ function SortableStep({ step, stepIndex, onEdit, onDelete, templates, isOnly }) 
   )
 }
 
-export default function SequencesTab({ sequences, setSequences, templates, workspaceConfig }) {
+export default function SequencesTab({ sequences, onCreate, onUpdate, onDelete, templates, workspaceConfig }) {
   const createStepDefaults = () => ({
     name: '',
     templateId: workspaceConfig?.templateId || '',
     waitDays: 3,
-    variants: [],
   })
 
   const [selectedId, setSelectedId] = useState(sequences[0]?.id || null)
@@ -90,7 +80,13 @@ export default function SequencesTab({ sequences, setSequences, templates, works
   const [stepForm, setStepForm] = useState(createStepDefaults)
   const [editingStep, setEditingStep] = useState(null)
   const [deleteSeqTarget, setDeleteSeqTarget] = useState(null)
-  const [variantInput, setVariantInput] = useState('')
+
+  useEffect(() => {
+    if (!selectedId && sequences.length > 0) setSelectedId(sequences[0].id)
+    if (selectedId && !sequences.some(s => s.id === selectedId)) {
+      setSelectedId(sequences[0]?.id || null)
+    }
+  }, [sequences, selectedId])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -99,29 +95,45 @@ export default function SequencesTab({ sequences, setSequences, templates, works
 
   const selected = sequences.find(s => s.id === selectedId)
 
-  const createSequence = () => {
-    const now = new Date().toISOString()
-    const id = uuidv4()
-    const seq = {
-      id, name: seqForm.name, description: seqForm.description,
-      steps: [{ id: uuidv4(), order: 0, name: 'Initial Email', templateId: workspaceConfig?.templateId || '', waitDays: 0, variants: [] }],
-      createdAt: now, updatedAt: now,
+  // Convert a UI step (which may have a client-only id from drag-drop) into
+  // the StepInput shape the API expects. The API re-keys SequenceStep rows
+  // on every PATCH, so we strip ids.
+  const toApiSteps = (steps) => steps.map((s, i) => ({
+    order: i,
+    name: s.name || `Step ${i + 1}`,
+    templateId: s.templateId || null,
+    waitDays: typeof s.waitDays === 'number' ? s.waitDays : 0,
+  }))
+
+  const createSequence = async () => {
+    try {
+      const created = await onCreate({
+        name: seqForm.name,
+        description: seqForm.description,
+        steps: [{ order: 0, name: 'Initial Email', templateId: workspaceConfig?.templateId || null, waitDays: 0 }],
+      })
+      if (created?.id) setSelectedId(created.id)
+      setSeqModal(false)
+      setSeqForm({ name: '', description: '' })
+    } catch (err) {
+      console.error('Failed to create sequence', err)
     }
-    setSequences(prev => [...prev, seq])
-    setSelectedId(id)
-    setSeqModal(false)
-    setSeqForm({ name: '', description: '' })
   }
 
-  const deleteSequence = (id) => {
-    setSequences(prev => prev.filter(s => s.id !== id))
-    if (selectedId === id) setSelectedId(sequences.find(s => s.id !== id)?.id || null)
+  const deleteSequence = async (id) => {
+    try {
+      await onDelete(id)
+      if (selectedId === id) setSelectedId(sequences.find(s => s.id !== id)?.id || null)
+    } catch (err) {
+      console.error('Failed to delete sequence', err)
+    }
   }
 
-  const updateSteps = (steps) => {
-    setSequences(prev => prev.map(s =>
-      s.id === selectedId ? { ...s, steps, updatedAt: new Date().toISOString() } : s
-    ))
+  const persistSteps = (steps) => {
+    if (!selected) return
+    onUpdate({ id: selected.id, steps: toApiSteps(steps) }).catch(err => {
+      console.error('Failed to save sequence steps', err)
+    })
   }
 
   const handleDragEnd = ({ active, over }) => {
@@ -129,54 +141,45 @@ export default function SequencesTab({ sequences, setSequences, templates, works
     const oldIndex = selected.steps.findIndex(s => s.id === active.id)
     const newIndex = selected.steps.findIndex(s => s.id === over.id)
     const reordered = arrayMove(selected.steps, oldIndex, newIndex).map((s, i) => ({ ...s, order: i }))
-    updateSteps(reordered)
+    persistSteps(reordered)
   }
 
   const addStep = () => {
     setEditingStep(null)
     setStepForm(createStepDefaults())
-    setVariantInput('')
     setStepModal(true)
   }
 
   const editStep = (step) => {
     setEditingStep(step.id)
-    setStepForm({ name: step.name, templateId: step.templateId || '', waitDays: step.waitDays, variants: [...step.variants] })
-    setVariantInput('')
+    setStepForm({ name: step.name, templateId: step.templateId || '', waitDays: step.waitDays })
     setStepModal(true)
   }
 
   const saveStep = () => {
     if (!selected) return
+    let nextSteps
     if (editingStep) {
-      updateSteps(selected.steps.map(s => s.id === editingStep ? { ...s, ...stepForm } : s))
+      nextSteps = selected.steps.map(s => s.id === editingStep ? { ...s, ...stepForm } : s)
     } else {
-      const step = { id: uuidv4(), order: selected.steps.length, ...stepForm }
-      updateSteps([...selected.steps, step])
+      // Placeholder id — the API re-keys on PATCH anyway.
+      const step = { id: `tmp-${Date.now()}`, order: selected.steps.length, ...stepForm }
+      nextSteps = [...selected.steps, step]
     }
+    persistSteps(nextSteps)
     setStepModal(false)
   }
 
   const deleteStep = (stepId) => {
     if (!selected) return
-    updateSteps(selected.steps.filter(s => s.id !== stepId).map((s, i) => ({ ...s, order: i })))
+    persistSteps(selected.steps.filter(s => s.id !== stepId).map((s, i) => ({ ...s, order: i })))
   }
-
-  const addVariant = () => {
-    if (!variantInput.trim()) return
-    setStepForm(f => ({ ...f, variants: [...f.variants, { id: uuidv4(), label: variantInput.trim(), templateId: '' }] }))
-    setVariantInput('')
-  }
-
-  const removeVariant = (id) => setStepForm(f => ({ ...f, variants: f.variants.filter(v => v.id !== id) }))
 
   const stepsWithWait = selected?.steps.slice().sort((a, b) => a.order - b.order).map((s, i, arr) => ({
     ...s,
     _showWait: i < arr.length - 1 && arr[i + 1]?.waitDays > 0,
     waitDays: arr[i + 1]?.waitDays || 0,
   })) || []
-  const totalSteps = sequences.reduce((count, sequence) => count + sequence.steps.length, 0)
-  const totalVariants = sequences.reduce((count, sequence) => count + sequence.steps.reduce((stepCount, step) => stepCount + step.variants.length, 0), 0)
   const defaultTemplate = templates.find(template => template.id === workspaceConfig?.templateId)
 
   return (
@@ -310,30 +313,6 @@ export default function SequencesTab({ sequences, setSequences, templates, works
               className="input"
             />
             <p className="text-xs text-muted mt-1">Set 0 for the first step or to send immediately.</p>
-          </div>
-
-          {/* A/B Variants */}
-          <div>
-            <label className="label flex items-center gap-1"><GitBranch size={11} /> A/B Variants (optional)</label>
-            {stepForm.variants.map(v => (
-              <div key={v.id} className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-purple-600 font-medium w-8">{String.fromCharCode(66 + stepForm.variants.indexOf(v))}</span>
-                <select
-                  value={v.templateId}
-                  onChange={e => setStepForm(f => ({ ...f, variants: f.variants.map(x => x.id === v.id ? { ...x, templateId: e.target.value } : x) }))}
-                  className="select flex-1 text-xs py-1.5"
-                >
-                  <option value="">Select template…</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <button onClick={() => removeVariant(v.id)} className="text-muted hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <button onClick={addVariant} className="btn-ghost text-xs py-1 px-2 text-purple-600">
-                <Plus size={11} /> Add variant
-              </button>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-1">

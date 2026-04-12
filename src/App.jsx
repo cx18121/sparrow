@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { BarChart2, Layers, Users, Mail, FileText } from 'lucide-react'
-import { v4 as uuidv4 } from 'uuid'
-
+import { BarChart2, Layers, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
@@ -14,10 +12,22 @@ import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
 
-import {
-  seedCampaigns, seedSequences, seedContacts, seedTemplates,
-} from './lib/mockData'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
+import {
+  fetchProfile, saveProfile,
+  fetchTemplates, createTemplate, updateTemplate, deleteTemplate,
+  fetchSequences, createSequence, updateSequence, deleteSequence,
+  fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
+  fetchLeads, updateLead, deleteLead,
+} from './lib/api'
+
+// DB stores campaign status as UPPERCASE; the UI uses lowercase.
+const campaignToUi = (c) => c && { ...c, status: (c.status || 'DRAFT').toLowerCase() }
+const campaignToApi = (c) => {
+  if (!c) return c
+  const { status, ...rest } = c
+  return status ? { ...rest, status: status.toUpperCase() } : rest
+}
 
 const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
@@ -25,6 +35,7 @@ const TABS = [
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
   { id: 'analytics', label: 'Analytics', icon: BarChart2, path: '/analytics' },
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
 ]
 
 const getOnboardingStorageKey = (user) => {
@@ -48,15 +59,15 @@ function AppShell() {
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
 
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [onboardingState, setOnboardingState] = useState({ loaded: false, completed: false, data: null })
-  const [workspaceConfig, setWorkspaceConfig] = useState(() => createWorkspaceConfig({ user: null, templates: seedTemplates }))
+  const [workspaceConfig, setWorkspaceConfig] = useState(() => createWorkspaceConfig({ user: null, templates: [] }))
 
-  // Shared state (would be Supabase-backed in production)
-  const [campaigns, setCampaigns] = useState(seedCampaigns)
-  const [sequences, setSequences] = useState(seedSequences)
-  const [contacts, setContacts] = useState(seedContacts)
-  const [templates, setTemplates] = useState(seedTemplates)
+  // Server-backed resource state. Hydrated from /api/* once the user is known.
+  const [campaigns, setCampaigns] = useState([])
+  const [sequences, setSequences] = useState([])
+  const [leads, setLeads] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   const activeTab = TABS.find(t => location.pathname.startsWith(t.path))?.id || 'campaigns'
 
@@ -90,22 +101,179 @@ function AppShell() {
       }
     }
 
-    const nextWorkspaceConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
-
     previousOnboardingKeyRef.current = storageKey
-    setWorkspaceConfig(nextWorkspaceConfig)
 
-    if (!stored) {
-      setOnboardingState({ loaded: true, completed: completedThisSession, data: nextWorkspaceConfig })
+    // Optimistically hydrate from localStorage so the UI renders fast,
+    // then reconcile against the server profile (cross-device source of truth).
+    const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
+    const localCompleted = parsed?.completed || completedThisSession
+    setWorkspaceConfig(localConfig)
+    setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
+
+    let cancelled = false
+    fetchProfile()
+      .then((res) => {
+        if (cancelled || !res?.profile) return
+        const serverConfig = createWorkspaceConfig({
+          user,
+          templates,
+          data: res.profile.workspaceConfig || null,
+        })
+        setWorkspaceConfig(serverConfig)
+        setOnboardingState({
+          loaded: true,
+          completed: !!res.profile.onboardingCompleted || localCompleted,
+          data: serverConfig,
+        })
+      })
+      .catch((err) => {
+        // Non-fatal: localStorage hydration is already in place.
+        console.warn('Profile fetch failed, using local copy', err)
+      })
+
+    return () => { cancelled = true }
+  }, [user, templates])
+
+  // Hydrate templates / sequences / campaigns / leads from the API after auth.
+  useEffect(() => {
+    if (!user) {
+      setTemplates([])
+      setSequences([])
+      setCampaigns([])
+      setLeads([])
+      setDataLoaded(false)
       return
     }
 
-    setOnboardingState({
-      loaded: true,
-      completed: completedThisSession,
-      data: nextWorkspaceConfig,
+    let cancelled = false
+    Promise.all([
+      fetchTemplates().catch(() => ({ items: [] })),
+      fetchSequences().catch(() => ({ items: [] })),
+      fetchCampaigns().catch(() => ({ items: [] })),
+      fetchLeads().catch(() => ({ items: [] })),
+    ]).then(([t, s, c, l]) => {
+      if (cancelled) return
+      setTemplates(t?.items || [])
+      setSequences(s?.items || [])
+      setCampaigns((c?.items || []).map(campaignToUi))
+      setLeads(l?.items || [])
+      setDataLoaded(true)
     })
-  }, [user, templates])
+
+    return () => { cancelled = true }
+  }, [user])
+
+  // ── Templates ──
+  const createTemplateHandler = async (data) => {
+    const created = await createTemplate(data)
+    setTemplates(prev => [created, ...prev])
+    return created
+  }
+  const updateTemplateHandler = async (data) => {
+    const prev = templates
+    setTemplates(curr => curr.map(t => t.id === data.id ? { ...t, ...data } : t))
+    try {
+      const updated = await updateTemplate(data)
+      setTemplates(curr => curr.map(t => t.id === updated.id ? updated : t))
+      return updated
+    } catch (err) {
+      setTemplates(prev)
+      throw err
+    }
+  }
+  const deleteTemplateHandler = async (id) => {
+    const prev = templates
+    setTemplates(curr => curr.filter(t => t.id !== id))
+    try {
+      await deleteTemplate(id)
+    } catch (err) {
+      setTemplates(prev)
+      throw err
+    }
+  }
+
+  // ── Sequences ──
+  const createSequenceHandler = async (data) => {
+    const created = await createSequence(data)
+    setSequences(prev => [created, ...prev])
+    return created
+  }
+  const updateSequenceHandler = async (data) => {
+    const prev = sequences
+    setSequences(curr => curr.map(s => s.id === data.id ? { ...s, ...data } : s))
+    try {
+      const updated = await updateSequence(data)
+      setSequences(curr => curr.map(s => s.id === updated.id ? updated : s))
+      return updated
+    } catch (err) {
+      setSequences(prev)
+      throw err
+    }
+  }
+  const deleteSequenceHandler = async (id) => {
+    const prev = sequences
+    setSequences(curr => curr.filter(s => s.id !== id))
+    try {
+      await deleteSequence(id)
+    } catch (err) {
+      setSequences(prev)
+      throw err
+    }
+  }
+
+  // ── Campaigns ──
+  const createCampaignHandler = async (data) => {
+    const created = await createCampaign(campaignToApi(data))
+    const ui = campaignToUi(created)
+    setCampaigns(prev => [ui, ...prev])
+    return ui
+  }
+  const updateCampaignHandler = async (data) => {
+    const prev = campaigns
+    setCampaigns(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
+    try {
+      const updated = campaignToUi(await updateCampaign(campaignToApi(data)))
+      setCampaigns(curr => curr.map(c => c.id === updated.id ? updated : c))
+      return updated
+    } catch (err) {
+      setCampaigns(prev)
+      throw err
+    }
+  }
+  const deleteCampaignHandler = async (id) => {
+    const prev = campaigns
+    setCampaigns(curr => curr.filter(c => c.id !== id))
+    try {
+      await deleteCampaign(id)
+    } catch (err) {
+      setCampaigns(prev)
+      throw err
+    }
+  }
+
+  // ── Leads (Contacts tab) ──
+  const updateLeadHandler = async (data) => {
+    const prev = leads
+    setLeads(curr => curr.map(l => l.id === data.id ? { ...l, ...data } : l))
+    try {
+      const updated = await updateLead(data)
+      setLeads(curr => curr.map(l => l.id === updated.id ? { ...l, ...updated } : l))
+      return updated
+    } catch (err) {
+      setLeads(prev)
+      throw err
+    }
+  }
+  const deleteLeadHandler = async (id) => {
+    const prev = leads
+    setLeads(curr => curr.filter(l => l.id !== id))
+    try {
+      await deleteLead(id)
+    } catch (err) {
+      setLeads(prev)
+      throw err
+    }
+  }
 
   const persistWorkspaceConfig = (data, {
     completed = onboardingState.completed,
@@ -138,6 +306,26 @@ function AppShell() {
 
     setWorkspaceConfig(normalized)
     setOnboardingState({ loaded: true, completed, data: normalized })
+
+    // Mirror to /api/profile so changes survive across devices.
+    // The Claude key is stripped from the cached config and sent
+    // separately so /api/profile can encrypt it before insertion.
+    const claudeKey = normalized.apiKeys?.claude || null
+    const sanitizedConfig = {
+      ...normalized,
+      apiKeys: { ...(normalized.apiKeys || {}), claude: '' },
+    }
+
+    saveProfile({
+      workspaceConfig: sanitizedConfig,
+      defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
+      resumePath: normalized.resumePath || null,
+      resumeText: normalized.resumeText || null,
+      ...(claudeKey ? { claudeApiKey: claudeKey } : {}),
+      ...(completed ? { onboardingCompleted: true } : {}),
+    }).catch((err) => {
+      console.error('Failed to persist workspace config', err)
+    })
   }
 
   const saveOnboardingDraft = useCallback((data, templatesOverride = templates) => {
@@ -167,7 +355,7 @@ function AppShell() {
     setOnboardingState(current => ({ ...current, loaded: true, data: normalized }))
   }, [templates, user])
 
-  const syncOnboardingTemplate = (data) => {
+  const syncOnboardingTemplate = async (data) => {
     if (data.templateMode !== 'custom') {
       return { data, templatesOverride: templates }
     }
@@ -179,39 +367,31 @@ function AppShell() {
       return { data: { ...data, templateMode: 'existing' }, templatesOverride: templates }
     }
 
-    const templateId = customTemplate.id || uuidv4()
-    const now = new Date().toISOString()
-    const nextTemplate = {
-      id: templateId,
+    const payload = {
       name: customTemplate.name.trim(),
       subject: customTemplate.subject.trim(),
       body: formatTemplateBody(customTemplate.body.trim()),
       isShared: false,
-      createdAt: customTemplate.id
-        ? templates.find(template => template.id === templateId)?.createdAt || now
-        : now,
-      updatedAt: now,
     }
 
-    const templateExists = templates.some(template => template.id === templateId)
-    const nextTemplates = templateExists
-      ? templates.map(template => template.id === templateId ? { ...template, ...nextTemplate } : template)
-      : [...templates, nextTemplate]
-
-    setTemplates(nextTemplates)
-
-    return {
-      templatesOverride: nextTemplates,
-      data: {
-        ...data,
-        templateId,
-        customTemplate: nextTemplate,
-      },
+    // Onboarding always creates a new Template (we don't roundtrip edits
+    // through here). If the user re-runs onboarding with a changed body,
+    // they'll get a new row — that's fine for now.
+    try {
+      const created = await createTemplateHandler(payload)
+      const nextTemplates = [created, ...templates.filter(t => t.id !== created.id)]
+      return {
+        templatesOverride: nextTemplates,
+        data: { ...data, templateId: created.id, customTemplate: created },
+      }
+    } catch (err) {
+      console.error('Failed to persist onboarding template', err)
+      return { data, templatesOverride: templates }
     }
   }
 
-  const completeOnboarding = (data) => {
-    const { data: nextData, templatesOverride } = syncOnboardingTemplate(data)
+  const completeOnboarding = async (data) => {
+    const { data: nextData, templatesOverride } = await syncOnboardingTemplate(data)
     persistWorkspaceConfig(nextData, {
       completed: true,
       completeSession: true,
@@ -264,47 +444,46 @@ function AppShell() {
     <div className="flex h-screen overflow-hidden bg-surface">
       <div className="dashboard-backdrop fixed inset-0" />
       <Sidebar
-        onOpenSettings={() => setSettingsOpen(current => !current)}
         activeTab={activeTab}
         tabs={TABS}
-        onTabChange={(id) => { setSettingsOpen(false); handleTabChange(id) }}
-        settingsOpen={settingsOpen}
+        onTabChange={handleTabChange}
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 flex h-14 items-center border-b-2 border-slate-100 bg-white/80 px-8 backdrop-blur-xl">
           <h1 className="font-display text-xl font-semibold tracking-[-0.03em] text-dark">
-            {settingsOpen ? 'Settings' : TABS.find(t => t.id === activeTab)?.label ?? 'Dashboard'}
+            {TABS.find(t => t.id === activeTab)?.label ?? 'Dashboard'}
           </h1>
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
-          {settingsOpen ? (
-            <SettingsPage
-              workspaceConfig={workspaceConfig}
-              onSaveWorkspaceConfig={updateWorkspaceConfig}
-              templates={templates}
-            />
-          ) : (
-            <Routes>
+          <Routes>
               <Route path="/" element={<Navigate to="/campaigns" replace />} />
               <Route path="/campaigns" element={
                 <CampaignsTab
-                  campaigns={campaigns} setCampaigns={setCampaigns}
+                  campaigns={campaigns}
+                  onCreate={createCampaignHandler}
+                  onUpdate={updateCampaignHandler}
+                  onDelete={deleteCampaignHandler}
                   sequences={sequences} templates={templates}
                   workspaceConfig={workspaceConfig}
                 />
               } />
               <Route path="/sequences" element={
                 <SequencesTab
-                  sequences={sequences} setSequences={setSequences}
+                  sequences={sequences}
+                  onCreate={createSequenceHandler}
+                  onUpdate={updateSequenceHandler}
+                  onDelete={deleteSequenceHandler}
                   templates={templates}
                   workspaceConfig={workspaceConfig}
                 />
               } />
               <Route path="/contacts" element={
                 <ContactsTab
-                  contacts={contacts}
-                  setContacts={setContacts}
+                  leads={leads}
+                  templates={templates}
+                  onUpdate={updateLeadHandler}
+                  onDelete={deleteLeadHandler}
                   workspaceConfig={workspaceConfig}
                 />
               } />
@@ -312,13 +491,21 @@ function AppShell() {
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}
-                  setTemplates={setTemplates}
+                  onCreate={createTemplateHandler}
+                  onUpdate={updateTemplateHandler}
+                  onDelete={deleteTemplateHandler}
                   workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="/settings" element={
+                <SettingsPage
+                  workspaceConfig={workspaceConfig}
+                  onSaveWorkspaceConfig={updateWorkspaceConfig}
+                  templates={templates}
                 />
               } />
               <Route path="*" element={<Navigate to="/campaigns" replace />} />
             </Routes>
-          )}
           <footer className="mt-auto py-6 text-center text-xs text-muted">Made by Cornell Generative AI</footer>
         </div>
       </main>
