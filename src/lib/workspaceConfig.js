@@ -5,6 +5,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
   const baseConfig = {
     resumeText: '',
     resumeFileName: '',
+    resumePath: '',
     senderName: defaultName,
     senderCompany: '',
     senderRole: '',

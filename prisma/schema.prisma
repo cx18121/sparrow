@@ -102,3 +102,76 @@ model Email {
   @@index([userLeadId])
   @@index([contactId])
 }
+
+model Template {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  subject   String
+  body      String   @db.Text
+  isShared  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps     SequenceStep[]
+  campaigns Campaign[]
+
+  @@index([userId])
+}
+
+model Sequence {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps     SequenceStep[]
+  campaigns Campaign[]
+
+  @@index([userId])
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  order      Int
+  name       String
+  templateId String?
+  template   Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  waitDays   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([sequenceId])
+  @@index([templateId])
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  userId      String
+  name        String
+  subject     String?
+  status      CampaignStatus @default(DRAFT)
+  sequenceId  String?
+  sequence    Sequence?      @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  templateId  String?
+  template    Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  scheduledAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([sequenceId])
+  @@index([templateId])
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}

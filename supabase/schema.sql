@@ -197,6 +197,70 @@ create policy "Owners can manage invites" on team_invites
   for all using (auth.uid() = owner_id);
 
 -- ──────────────────────────────────────────────
+-- User profiles (one row per user)
+-- ──────────────────────────────────────────────
+-- Holds onboarding state, encrypted secrets (Google refresh token,
+-- Claude API key), the resume storage path, and the workspace config
+-- JSON so onboarding hydrates across devices.
+create table user_profiles (
+  user_id                       uuid primary key references auth.users(id) on delete cascade,
+  google_refresh_token_encrypted text,
+  claude_api_key_encrypted       text,
+  resume_path                    text,
+  resume_text                    text,
+  workspace_config               jsonb not null default '{}',
+  default_filters                jsonb not null default '{}',
+  onboarding_completed           boolean not null default false,
+  onboarding_completed_at        timestamptz,
+  created_at                     timestamptz default now(),
+  updated_at                     timestamptz default now()
+);
+
+alter table user_profiles enable row level security;
+
+-- Users may read their own profile via the anon/authenticated client.
+-- Writes go through the service-role key in /api/profile so encrypted
+-- fields never round-trip through the browser.
+create policy "Users can read own profile" on user_profiles
+  for select using (auth.uid() = user_id);
+
+-- ──────────────────────────────────────────────
+-- Resumes storage bucket
+-- ──────────────────────────────────────────────
+-- Run once per project. Files are written to `resumes/<user_id>/<filename>`.
+insert into storage.buckets (id, name, public)
+values ('resumes', 'resumes', false)
+on conflict (id) do nothing;
+
+create policy "Users can upload own resume"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'resumes'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can read own resume"
+  on storage.objects for select
+  using (
+    bucket_id = 'resumes'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can replace own resume"
+  on storage.objects for update
+  using (
+    bucket_id = 'resumes'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can delete own resume"
+  on storage.objects for delete
+  using (
+    bucket_id = 'resumes'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- ──────────────────────────────────────────────
 -- Webhooks
 -- ──────────────────────────────────────────────
 create table webhooks (
