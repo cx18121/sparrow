@@ -16,6 +16,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
+  // Supabase user_profiles.user_id is UUID — non-UUID IDs are local dev bypasses
+  // with no server-side profile, so return null profile gracefully.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(userId)) {
+    return res.status(200).json({ profile: null });
+  }
+
   const supabase = getSupabaseAdmin();
 
   if (req.method === "GET") {

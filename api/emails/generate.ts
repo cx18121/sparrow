@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../_lib/prisma.js";
 import { getSupabaseAdmin, getUserIdFromRequest } from "../_lib/supabaseAdmin.js";
 import { decrypt } from "../_lib/crypto.js";
+import axios from "axios";
 
 type GenerateBody = {
   userLeadId?: string;
@@ -38,8 +39,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!lead || lead.userId !== userId) {
     return res.status(404).json({ error: "Lead not found" });
   }
-  if (!lead.contact) {
-    return res.status(400).json({ error: "Lead has no contact attached" });
+
+  // If no contact but we have an Apollo person ID, try to reveal the contact on-demand.
+  let contact = lead.contact;
+  if (!contact && lead.apolloPersonId) {
+    const apolloKey = process.env.APOLLO_API_KEY;
+    if (apolloKey) {
+      try {
+        const revealed = await revealApolloContact(lead.apolloPersonId, apolloKey);
+        if (revealed?.email) {
+          // Upsert Contact so future generations/UI calls don't re-hit Apollo.
+          const saved = await prisma.contact.upsert({
+            where: { email: revealed.email },
+            create: {
+              companyId: lead.companyId,
+              name: revealed.name ?? null,
+              email: revealed.email,
+              title: revealed.title ?? null,
+              role: null,
+              linkedinUrl: revealed.linkedin_url ?? null,
+              source: "apollo",
+            },
+            update: {
+              name: revealed.name ?? null,
+              title: revealed.title ?? null,
+              linkedinUrl: revealed.linkedin_url ?? null,
+              lastVerifiedAt: new Date(),
+            },
+          });
+          // Attach contact to this UserLead so subsequent calls skip Apollo.
+          await prisma.userLead.update({
+            where: { id: lead.id },
+            data: { contactId: saved.id },
+          });
+          contact = saved;
+        }
+      } catch (err) {
+        console.warn("Apollo reveal failed, proceeding without contact:", err);
+      }
+    }
+  }
+  if (!contact) {
+    return res.status(400).json({
+      error: "Lead has no contact. Save a lead from Discover to get contact details.",
+    });
   }
 
   let template: { name: string; subject: string; body: string } | null = null;
@@ -73,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const context = buildContext({
-    contact: lead.contact,
+    contact,
     company: lead.company,
     resume: profile.resume_text ?? null,
     template,
@@ -88,10 +131,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       system: SYSTEM_PROMPT,
       userMessage: context,
     });
+    // Save email if we have a contact (Apollo or stored).
+    let savedEmail = null;
+    if (contact) {
+      try {
+        savedEmail = await prisma.email.create({
+          data: {
+            userLeadId: lead.id,
+            contactId: contact.id,
+            subject: generated.subject,
+            body: generated.body,
+            status: "draft",
+          },
+        });
+      } catch (err) {
+        console.warn("Failed to save generated email:", err);
+      }
+    }
+
     return res.status(200).json({
       subject: generated.subject,
       body: generated.body,
       model: model || DEFAULT_MODEL,
+      emailId: savedEmail?.id ?? null,
     });
   } catch (err) {
     return res.status(502).json({ error: (err as Error).message });
@@ -248,4 +310,29 @@ function parseBody(req: VercelRequest): Record<string, unknown> {
     }
   }
   return req.body as Record<string, unknown>;
+}
+
+async function revealApolloContact(personId: string, apiKey: string): Promise<{
+  name: string;
+  email: string;
+  title: string | null;
+  linkedin_url: string | null;
+} | null> {
+  try {
+    const response = await axios.post(
+      "https://api.apollo.io/api/v1/people/match",
+      { id: personId, reveal_personal_emails: false },
+      {
+        headers: {
+          "x-api-key": apiKey,
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        timeout: 10_000,
+      }
+    );
+    return response.data.person ?? null;
+  } catch {
+    return null;
+  }
 }

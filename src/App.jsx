@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { BarChart2, Layers, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
+import { BarChart2, Layers, Search, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
+import LeadDiscoveryTab from './components/LeadDiscovery/LeadDiscoveryTab'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
 import SequencesTab from './components/Sequences/SequencesTab'
 import ContactsTab from './components/Contacts/ContactsTab'
@@ -19,6 +20,7 @@ import {
   fetchSequences, createSequence, updateSequence, deleteSequence,
   fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   fetchLeads, updateLead, deleteLead,
+  apiGetAuth,
 } from './lib/api'
 
 // DB stores campaign status as UPPERCASE; the UI uses lowercase.
@@ -32,6 +34,7 @@ const campaignToApi = (c) => {
 const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
   { id: 'sequences', label: 'Sequences', icon: Layers, path: '/sequences' },
+  { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
   { id: 'analytics', label: 'Analytics', icon: BarChart2, path: '/analytics' },
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
@@ -135,8 +138,11 @@ function AppShell() {
   }, [user, templates])
 
   // Hydrate templates / sequences / campaigns / leads from the API after auth.
+  // Check both React user state and module-level auth (set synchronously before state updates).
   useEffect(() => {
-    if (!user) {
+    const { userId } = apiGetAuth()
+    const effectiveUser = user || userId
+    if (!effectiveUser) {
       setTemplates([])
       setSequences([])
       setCampaigns([])
@@ -147,12 +153,15 @@ function AppShell() {
 
     let cancelled = false
     Promise.all([
-      fetchTemplates().catch(() => ({ items: [] })),
-      fetchSequences().catch(() => ({ items: [] })),
-      fetchCampaigns().catch(() => ({ items: [] })),
-      fetchLeads().catch(() => ({ items: [] })),
+      fetchTemplates().catch(e => { console.error('fetchTemplates failed:', e.message); return { items: [] } }),
+      fetchSequences().catch(e => { console.error('fetchSequences failed:', e.message); return { items: [] } }),
+      fetchCampaigns().catch(e => { console.error('fetchCampaigns failed:', e.message); return { items: [] } }),
+      fetchLeads().catch(e => { console.error('fetchLeads failed:', e.message); return { items: [] } }),
     ]).then(([t, s, c, l]) => {
       if (cancelled) return
+      const { userId, accessToken } = apiGetAuth()
+      console.log('[data load] user:', user, '| userId:', userId, '| accessToken:', accessToken ? 'set' : 'null')
+      console.log('[data load] templates:', t?.items?.length, '| sequences:', s?.items?.length, '| campaigns:', c?.items?.length, '| leads:', l?.items?.length)
       setTemplates(t?.items || [])
       setSequences(s?.items || [])
       setCampaigns((c?.items || []).map(campaignToUi))
@@ -165,9 +174,17 @@ function AppShell() {
 
   // ── Templates ──
   const createTemplateHandler = async (data) => {
-    const created = await createTemplate(data)
-    setTemplates(prev => [created, ...prev])
-    return created
+    const tempId = `temp-${Date.now()}`
+    const optimistic = { ...data, id: tempId }
+    setTemplates(prev => [optimistic, ...prev])
+    try {
+      const created = await createTemplate(data)
+      setTemplates(prev => prev.map(t => t.id === tempId ? created : t))
+      return created
+    } catch (err) {
+      setTemplates(prev => prev.filter(t => t.id !== tempId))
+      throw err
+    }
   }
   const updateTemplateHandler = async (data) => {
     const prev = templates
@@ -177,7 +194,7 @@ function AppShell() {
       setTemplates(curr => curr.map(t => t.id === updated.id ? updated : t))
       return updated
     } catch (err) {
-      setTemplates(prev)
+      setTemplates(() => prev)
       throw err
     }
   }
@@ -187,16 +204,24 @@ function AppShell() {
     try {
       await deleteTemplate(id)
     } catch (err) {
-      setTemplates(prev)
+      setTemplates(() => prev)
       throw err
     }
   }
 
   // ── Sequences ──
   const createSequenceHandler = async (data) => {
-    const created = await createSequence(data)
-    setSequences(prev => [created, ...prev])
-    return created
+    const tempId = `temp-${Date.now()}`
+    const optimistic = { ...data, id: tempId }
+    setSequences(prev => [optimistic, ...prev])
+    try {
+      const created = await createSequence(data)
+      setSequences(prev => prev.map(s => s.id === tempId ? created : s))
+      return created
+    } catch (err) {
+      setSequences(prev => prev.filter(s => s.id !== tempId))
+      throw err
+    }
   }
   const updateSequenceHandler = async (data) => {
     const prev = sequences
@@ -206,7 +231,7 @@ function AppShell() {
       setSequences(curr => curr.map(s => s.id === updated.id ? updated : s))
       return updated
     } catch (err) {
-      setSequences(prev)
+      setSequences(() => prev)
       throw err
     }
   }
@@ -216,17 +241,25 @@ function AppShell() {
     try {
       await deleteSequence(id)
     } catch (err) {
-      setSequences(prev)
+      setSequences(() => prev)
       throw err
     }
   }
 
   // ── Campaigns ──
   const createCampaignHandler = async (data) => {
-    const created = await createCampaign(campaignToApi(data))
-    const ui = campaignToUi(created)
-    setCampaigns(prev => [ui, ...prev])
-    return ui
+    const tempId = `temp-${Date.now()}`
+    const optimistic = { ...data, id: tempId, status: data.status || 'draft' }
+    setCampaigns(prev => [optimistic, ...prev])
+    try {
+      const created = await createCampaign(campaignToApi(data))
+      const ui = campaignToUi(created)
+      setCampaigns(prev => prev.map(c => c.id === tempId ? ui : c))
+      return ui
+    } catch (err) {
+      setCampaigns(prev => prev.filter(c => c.id !== tempId))
+      throw err
+    }
   }
   const updateCampaignHandler = async (data) => {
     const prev = campaigns
@@ -236,7 +269,7 @@ function AppShell() {
       setCampaigns(curr => curr.map(c => c.id === updated.id ? updated : c))
       return updated
     } catch (err) {
-      setCampaigns(prev)
+      setCampaigns(() => prev)
       throw err
     }
   }
@@ -246,12 +279,16 @@ function AppShell() {
     try {
       await deleteCampaign(id)
     } catch (err) {
-      setCampaigns(prev)
+      setCampaigns(() => prev)
       throw err
     }
   }
 
   // ── Leads (Contacts tab) ──
+  const refreshLeads = async () => {
+    const res = await fetchLeads()
+    setLeads(res?.items || [])
+  }
   const updateLeadHandler = async (data) => {
     const prev = leads
     setLeads(curr => curr.map(l => l.id === data.id ? { ...l, ...data } : l))
@@ -260,7 +297,7 @@ function AppShell() {
       setLeads(curr => curr.map(l => l.id === updated.id ? { ...l, ...updated } : l))
       return updated
     } catch (err) {
-      setLeads(prev)
+      setLeads(() => prev)
       throw err
     }
   }
@@ -270,7 +307,7 @@ function AppShell() {
     try {
       await deleteLead(id)
     } catch (err) {
-      setLeads(prev)
+      setLeads(() => prev)
       throw err
     }
   }
@@ -476,6 +513,12 @@ function AppShell() {
                   onDelete={deleteSequenceHandler}
                   templates={templates}
                   workspaceConfig={workspaceConfig}
+                />
+              } />
+              <Route path="/leads" element={
+                <LeadDiscoveryTab
+                  workspaceConfig={workspaceConfig}
+                  onLeadSaved={refreshLeads}
                 />
               } />
               <Route path="/contacts" element={

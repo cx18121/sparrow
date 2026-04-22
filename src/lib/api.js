@@ -2,15 +2,20 @@ const BASE = '/api'
 
 let currentUserId = null
 let currentAccessToken = null
+
 export function setApiUserId(id) { currentUserId = id }
 export function setApiAccessToken(token) { currentAccessToken = token }
+
+export function apiGetAuth() {
+  return { userId: currentUserId, accessToken: currentAccessToken }
+}
 
 async function request(path, opts = {}) {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(currentUserId && { 'x-user-id': currentUserId }),
-      ...(currentAccessToken && { Authorization: `Bearer ${currentAccessToken}` }),
+      ...(currentUserId ? { 'x-user-id': currentUserId } : {}),
+      ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
       ...(opts.headers || {}),
     },
     ...opts,
@@ -18,7 +23,7 @@ async function request(path, opts = {}) {
   if (res.status === 204) return null
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`API ${res.status}: ${text || res.statusText}`)
+    throw Object.assign(new Error(`API ${res.status}: ${text || res.statusText}`), { status: res.status, path, method: opts.method || 'GET' })
   }
   return res.json()
 }
@@ -33,6 +38,9 @@ function qs(params) {
 export const fetchHealth = () => request('/health')
 
 export const fetchCompanies = (params = {}) => request(`/companies${qs(params)}`)
+
+export const apolloSearch = (domain, companyId) =>
+  request('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
 
 export const fetchContacts = (params = {}) => request(`/contacts${qs(params)}`)
 

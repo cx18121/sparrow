@@ -51,16 +51,24 @@ export function AuthProvider({ children }) {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      applySessionToApiClient(session)
       setUser(session?.user ?? null)
       setLoading(false)
-      if (session) persistGoogleRefreshToken(session)
+      if (session) {
+        applySessionToApiClient(session)
+        persistGoogleRefreshToken(session)
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      applySessionToApiClient(session)
-      setUser(session?.user ?? null)
-      if (event === 'SIGNED_IN' && session) persistGoogleRefreshToken(session)
+      // onAuthStateChange fires synchronously for INITIAL_SESSION before getSession resolves,
+      // and again for SIGNED_IN/TOKEN_REFRESHED. Only act on actual auth changes.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null)
+        if (session) {
+          applySessionToApiClient(session)
+          persistGoogleRefreshToken(session)
+        }
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -71,9 +79,14 @@ export function AuthProvider({ children }) {
       const demoUser = { id: 'demo-user', email, user_metadata: { full_name: email.split('@')[0], avatar_url: null } }
       setUser(demoUser)
       localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
+      setApiUserId(demoUser.id)
       return { error: null }
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (!error && data.session) {
+      applySessionToApiClient(data.session)
+      setUser(data.user)
+    }
     return { error }
   }
 
@@ -82,13 +95,18 @@ export function AuthProvider({ children }) {
       const demoUser = { id: 'demo-user', email, user_metadata: { full_name: fullName, avatar_url: null } }
       setUser(demoUser)
       localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
+      setApiUserId(demoUser.id)
       return { error: null }
     }
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     })
+    if (!error && data?.session) {
+      applySessionToApiClient(data.session)
+      setUser(data.user)
+    }
     return { error }
   }
 
@@ -96,7 +114,7 @@ export function AuthProvider({ children }) {
     if (isDemo) {
       return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
     }
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
@@ -110,6 +128,9 @@ export function AuthProvider({ children }) {
         },
       },
     })
+    if (!error && data?.session) {
+      applySessionToApiClient(data.session)
+    }
     return { error }
   }
 
@@ -117,9 +138,11 @@ export function AuthProvider({ children }) {
     if (isDemo) {
       localStorage.removeItem('cf_demo_user')
       setUser(null)
+      setApiUserId(null)
       return
     }
     await supabase.auth.signOut()
+    setApiUserId(null)
   }
 
   const value = { user, loading, signIn, signUp, signInWithGoogle, signOut, isDemo }

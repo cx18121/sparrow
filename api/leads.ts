@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
 import { HttpError } from "./_lib/user.js";
+import axios from "axios";
 
 const ALLOWED_STATUSES = ["NEW", "SAVED", "EMAILED", "REJECTED"] as const;
 type LeadStatus = (typeof ALLOWED_STATUSES)[number];
@@ -55,22 +56,83 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { companyId, contactId, notes } = req.body ?? {};
+  const { companyId, contactId, notes, apolloPersonId } = req.body ?? {};
   if (!companyId) throw new HttpError(400, "companyId is required");
 
-  const lead = await prisma.userLead.upsert({
+  let resolvedContactId = contactId ?? null;
+
+  // If an Apollo person ID is provided, reveal the contact and upsert it now
+  // so the saved lead has email/title available immediately.
+  if (apolloPersonId && !contactId) {
+    const apolloKey = process.env.APOLLO_API_KEY;
+    if (apolloKey) {
+      try {
+        const revealed = await revealApolloContact(apolloPersonId, apolloKey);
+        if (revealed?.email) {
+          const saved = await prisma.contact.upsert({
+            where: { email: revealed.email },
+            create: {
+              companyId,
+              name: revealed.name ?? null,
+              email: revealed.email,
+              title: revealed.title ?? null,
+              role: null,
+              linkedinUrl: revealed.linkedin_url ?? null,
+              source: "apollo",
+            },
+            update: {
+              name: revealed.name ?? null,
+              title: revealed.title ?? null,
+              linkedinUrl: revealed.linkedin_url ?? null,
+              lastVerifiedAt: new Date(),
+            },
+          });
+          resolvedContactId = saved.id;
+        }
+      } catch (err) {
+        console.warn("Apollo reveal failed during save:", err);
+      }
+    }
+  }
+
+  // Prisma @@unique([userId, companyId, contactId]) does not coalesce nulls in
+  // PostgreSQL — two rows with contactId=null would conflict. Use find+create
+  // instead of upsert to avoid the error.
+  const existing = await prisma.userLead.findFirst({
     where: {
-      userId_companyId_contactId: {
-        userId,
-        companyId,
-        contactId: contactId ?? null,
-      },
+      userId,
+      companyId,
+      ...(resolvedContactId !== undefined ? { contactId: resolvedContactId } : {}),
     },
-    create: { userId, companyId, contactId: contactId ?? null, notes, status: "SAVED" },
-    update: { notes },
   });
 
+  if (existing) {
+    const updated = await prisma.userLead.update({
+      where: { id: existing.id },
+      data: { notes, ...(apolloPersonId && { apolloPersonId }) },
+    });
+    return res.status(200).json(updated);
+  }
+
+  const lead = await prisma.userLead.create({
+    data: { userId, companyId, contactId: resolvedContactId, notes, apolloPersonId: apolloPersonId ?? null, status: "SAVED" },
+  });
   res.status(201).json(lead);
+}
+
+async function revealApolloContact(personId: string, apiKey: string): Promise<{
+  name: string; email: string; title: string | null; linkedin_url: string | null;
+} | null> {
+  try {
+    const response = await axios.post(
+      "https://api.apollo.io/api/v1/people/match",
+      { id: personId, reveal_personal_emails: false },
+      { headers: { "x-api-key": apiKey, "Content-Type": "application/json", accept: "application/json" }, timeout: 10_000 }
+    );
+    return response.data.person ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {

@@ -25,6 +25,18 @@ const getName = (lead) => lead.contact?.name || ''
 const getEmail = (lead) => lead.contact?.email || ''
 const getCompany = (lead) => lead.company?.name || ''
 const getTitle = (lead) => lead.contact?.title || ''
+// When no Contact record exists (lead saved from Apollo preview without enrichment),
+// the name/title are embedded in the notes field.
+const getNotesName = (lead) => {
+  if (lead.contact?.name) return lead.contact.name
+  const m = lead.notes?.match(/^Apollo contact: ([^ ]+) /)
+  return m ? m[1] : ''
+}
+const getNotesTitle = (lead) => {
+  if (lead.contact?.title) return lead.contact.title
+  const m = lead.notes?.match(/— (.+?) \//)
+  return m ? m[1] : ''
+}
 
 export default function ContactsTab({ leads = [], templates = [], onUpdate, onDelete, workspaceConfig }) {
   const [search, setSearch] = useState('')
@@ -112,10 +124,16 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
 
   const getSortValue = (lead, key) => {
     switch (key) {
-      case 'name':    return getName(lead).toLowerCase()
+      case 'name': {
+        const n = getName(lead) || getNotesName(lead)
+        return n.toLowerCase()
+      }
       case 'email':   return getEmail(lead).toLowerCase()
       case 'company': return getCompany(lead).toLowerCase()
-      case 'title':   return getTitle(lead).toLowerCase()
+      case 'title': {
+        const t = getTitle(lead) || getNotesTitle(lead)
+        return t.toLowerCase()
+      }
       case 'status':  return (lead.status || '').toLowerCase()
       case 'addedAt': return lead.addedAt || ''
       default: return ''
@@ -127,10 +145,10 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
     if (search) {
       const q = search.toLowerCase()
       data = data.filter(l =>
-        getName(l).toLowerCase().includes(q) ||
+        (getName(l) || getNotesName(l)).toLowerCase().includes(q) ||
         getEmail(l).toLowerCase().includes(q) ||
         getCompany(l).toLowerCase().includes(q) ||
-        getTitle(l).toLowerCase().includes(q)
+        (getTitle(l) || getNotesTitle(l)).toLowerCase().includes(q)
       )
     }
     if (statusFilter !== 'all') data = data.filter(l => l.status === statusFilter)
@@ -236,10 +254,10 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
           <tbody className="divide-y divide-slate-100">
             {paginated.map(lead => (
               <tr key={lead.id} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
-                <td className="px-5 py-4 font-medium text-dark">{getName(lead) || '—'}</td>
+                <td className="px-5 py-4 font-medium text-dark">{getName(lead) || getNotesName(lead) || '—'}</td>
                 <td className="px-5 py-4 text-muted">{getEmail(lead) || '—'}</td>
                 <td className="px-5 py-4 text-muted">{getCompany(lead) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getTitle(lead) || '—'}</td>
+                <td className="px-5 py-4 text-muted">{getTitle(lead) || getNotesTitle(lead) || '—'}</td>
                 <td className="px-5 py-4">
                   <select
                     value={lead.status}
@@ -259,8 +277,8 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => openGenerate(lead)}
-                      disabled={!lead.contact?.email}
-                      title={lead.contact?.email ? 'Generate email with Claude' : 'Lead has no contact email'}
+                      disabled={!lead.contact?.email && !lead.apolloPersonId}
+                      title={lead.contact?.email ? 'Generate email with Claude' : lead.apolloPersonId ? 'Generating will reveal contact via Apollo' : 'Lead has no contact email'}
                       className="btn-ghost px-2 py-1 hover:text-primary disabled:opacity-40"
                     >
                       <Sparkles size={12} />

@@ -65,12 +65,11 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     select: { id: true, userId: true, contactId: true },
   });
   if (!lead || lead.userId !== userId) throw new HttpError(404, "Lead not found");
-  if (!lead.contactId) throw new HttpError(400, "Lead has no contact attached");
 
   const email = await prisma.email.create({
     data: {
       userLeadId,
-      contactId: lead.contactId,
+      contactId: lead.contactId ?? null,
       subject,
       body,
       status,

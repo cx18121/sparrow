@@ -61,16 +61,17 @@ model Contact {
 }
 
 model UserLead {
-  id        String     @id @default(cuid())
-  userId    String
-  companyId String
-  company   Company    @relation(fields: [companyId], references: [id])
-  contactId String?
-  contact   Contact?   @relation(fields: [contactId], references: [id])
-  status    LeadStatus @default(NEW)
-  notes     String?    @db.Text
-  addedAt   DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  userId         String
+  companyId      String
+  company        Company    @relation(fields: [companyId], references: [id])
+  contactId      String?
+  contact        Contact?   @relation(fields: [contactId], references: [id])
+  apolloPersonId String?
+  status         LeadStatus @default(NEW)
+  notes          String?    @db.Text
+  addedAt        DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   emails Email[]
 
@@ -90,8 +91,8 @@ model Email {
   id         String   @id @default(cuid())
   userLeadId String
   userLead   UserLead @relation(fields: [userLeadId], references: [id])
-  contactId  String
-  contact    Contact  @relation(fields: [contactId], references: [id])
+  contactId  String?
+  contact    Contact? @relation(fields: [contactId], references: [id])
   subject    String?
   body       String?  @db.Text
   status     String   @default("draft")

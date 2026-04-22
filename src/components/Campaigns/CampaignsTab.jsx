@@ -16,6 +16,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(INITIAL_FORM)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [pendingActions, setPendingActions] = useState(new Set())
   const workspaceTemplate = templates.find(template => template.id === workspaceConfig?.templateId)
 
   const getInitialForm = () => {
@@ -51,6 +53,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   }
 
   const save = async () => {
+    if (saving) return
+    setSaving(true)
     const payload = {
       name: form.name,
       subject: form.subject || null,
@@ -68,27 +72,38 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       setModalOpen(false)
     } catch (err) {
       console.error('Failed to save campaign', err)
+    } finally {
+      setSaving(false)
     }
   }
 
+  const withPending = (id, fn) => {
+    if (pendingActions.has(id)) return
+    setPendingActions(prev => new Set([...prev, id]))
+    fn().finally(() => setPendingActions(prev => { const n = new Set(prev); n.delete(id); return n }))
+  }
+
   const toggleStatus = (c) => {
+    if (pendingActions.has(c.id)) return
     const next = c.status === 'active' ? 'paused' : 'active'
-    onUpdate({ id: c.id, status: next }).catch(err => console.error('Failed to toggle campaign', err))
+    withPending(c.id, () => onUpdate({ id: c.id, status: next }).catch(err => console.error('Failed to toggle campaign', err)))
   }
 
   const duplicate = (c) => {
-    onCreate({
+    if (pendingActions.has(c.id)) return
+    withPending(c.id, () => onCreate({
       name: `${c.name} (copy)`,
       subject: c.subject || null,
       status: 'draft',
       templateId: c.templateId || null,
       sequenceId: c.sequenceId || null,
       scheduledAt: c.scheduledAt || null,
-    }).catch(err => console.error('Failed to duplicate campaign', err))
+    }).catch(err => console.error('Failed to duplicate campaign', err)))
   }
 
   const remove = (id) => {
-    onDelete(id).catch(err => console.error('Failed to delete campaign', err))
+    if (pendingActions.has(id)) return
+    withPending(id, () => onDelete(id).catch(err => console.error('Failed to delete campaign', err)))
   }
 
   const field = (key, value) => setForm(f => ({ ...f, [key]: value }))
@@ -151,18 +166,18 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => openEdit(c)} className="btn-ghost px-2 py-1">
+                      <button onClick={() => openEdit(c)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
                         <Edit2 size={13} />
                       </button>
                       {(c.status === 'active' || c.status === 'paused') && (
-                        <button onClick={() => toggleStatus(c)} className="btn-ghost px-2 py-1">
+                        <button onClick={() => toggleStatus(c)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
                           {c.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
                         </button>
                       )}
-                      <button onClick={() => duplicate(c)} className="btn-ghost px-2 py-1">
+                      <button onClick={() => duplicate(c)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
                         <Copy size={13} />
                       </button>
-                      <button onClick={() => setDeleteTarget(c.id)} className="btn-ghost px-2 py-1 hover:text-red-500">
+                      <button onClick={() => setDeleteTarget(c.id)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 hover:text-red-500 disabled:opacity-40">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -226,8 +241,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
 
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
-            <button onClick={save} disabled={!form.name} className="btn-primary">
-              {editing ? 'Save changes' : 'Create campaign'}
+            <button onClick={save} disabled={saving || !form.name} className="btn-primary">
+              {saving ? 'Saving…' : editing ? 'Save changes' : 'Create campaign'}
             </button>
           </div>
         </div>
