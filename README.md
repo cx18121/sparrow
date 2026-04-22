@@ -1,2 +1,13 @@
 # GenAI-Internal-Project---Cold-Email-Automation
-genai internal project, automating cold email process
+
+### run frontend
+
+```bash
+npm run dev
+```
+
+### run backend (run in seperate terminal)
+
+```bash
+npm run dev:api:local
+```

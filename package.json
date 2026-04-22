@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "vercel dev",
+    "dev:api:local": "tsx local-api.ts",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -26,6 +27,7 @@
     "axios": "^1.13.6",
     "date-fns": "^3.6.0",
     "effect": "^3.21.0",
+    "express": "^5.2.1",
     "lucide-react": "^0.363.0",
     "papaparse": "^5.4.1",
     "pg": "^8.14.1",
@@ -37,6 +39,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@vercel/node": "^5.7.4",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
