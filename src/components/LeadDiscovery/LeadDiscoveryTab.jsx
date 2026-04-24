@@ -4,12 +4,11 @@ import {
   Sparkles, CheckCircle, AlertCircle,
 } from 'lucide-react'
 import Modal from '../ui/Modal'
-import { apolloSearch, saveLead, fetchCompanies as apiFetchCompanies } from '../../lib/api'
+import { apolloSearch, saveLead, fetchCompanies as apiFetchCompanies, fetchIndustries } from '../../lib/api'
 
 const PAGE_SIZE = 20
 
-const REGIONS = ['All', 'US', 'EU', 'Asia', 'Latin America', 'Africa', 'Oceania', 'Canada']
-const INDUSTRIES = ['All', 'AI/ML', 'SaaS', 'Fintech', 'Health', 'E-commerce', 'Developer Tools', 'Security', 'Enterprise', 'Consumer', 'Web3', 'Other']
+const INDUSTRIES = ['All', '3D Printer', 'A/B Testing', 'Accounting', 'Advertising', 'Affiliate marketing', 'Alarms', 'Amazon', 'Analytics', 'Android', 'Anonymous', 'API', 'Apple', 'Apple TV', 'Apple Watch', 'Art', 'Art Books', 'Artificial Intelligence', 'Audio', 'B2B', 'Basketball', 'Beauty', 'Biking', 'Biohacking', 'Bitcoin', 'Blockchain', 'Board Games', 'Books', 'Bots', 'Branding', 'Browser Extensions', 'Budgeting', 'Business', 'Business Intelligence', 'Calendar', 'Cannabis', 'Card Games', 'Career', 'Cars', 'Cats', 'Celebrities', 'Charity & Giving', 'Chrome Extensions', 'Climate Tech', 'Coffee', 'Comics & Graphic Novels', 'Construction', 'Consulting', 'Consumer', 'Cooking', 'Cosmetics', 'Couples', 'Crowdfunding', 'Crypto', 'Customer Communication', 'Customer Success', 'Data & Analytics', 'Dating', 'Delivery', 'Design Books', 'Design Tools', 'Developer Tools', 'Dogs', 'Drinking', 'Drones', 'E-Commerce', 'eBook Reader', 'Education', 'Email', 'Email Marketing', 'Emoji', 'Entertainment', 'Events', 'Family', 'Farming', 'Fashion', 'Fighting Games', 'Finance', 'Fintech', 'First Person Shooter', 'Fitness', 'Food & Drink', 'Football', 'Free Games', 'Freelance', 'Funny', 'Funny Games', 'Games', 'GIFs', 'GitHub', 'Global Nomad', 'Government', 'Graphic Design', 'Graphics & Design', 'Growth Hacking', 'Hardware', 'Health', 'Health & Fitness', 'Healthcare', 'Hiring', 'Historical Games', 'History Books', 'Home', 'Home services', 'Horror Games', 'Human Resources', 'Icons', 'Indie Games', 'Industrials', 'Instagram', 'Interior design', 'Internet of Things', 'Investing', 'iOS', 'iPad', 'Jewelry', 'Kids', 'Languages', 'Legal', 'Lifestyle', 'LinkedIn', 'Linux', 'Mac', 'Maker Tools', 'Maps', 'Marketing', 'Medical', 'Meditation', 'Meetings', 'Menu Bar Apps', 'Messaging', 'MMOs', 'Money', 'Movies', 'Moving & Storage', 'Music', 'News', 'Newsletters', 'Nintendo', 'No-Code', 'Notes', 'Novels', 'Nutrition', 'Open Source', 'Outdoors', 'Parenting', 'Payments', 'PC', 'Personal Finance', 'Pets', 'Photo & Video', 'Photography', 'Photoshop', 'Plants', 'Playstation', 'Pokemon', 'Politics', 'Privacy', 'Product Hunt', 'Productivity', 'Prototyping', 'Public Relations', 'Puzzle Games', 'Quantified Self', 'Real Estate and Construction', 'Robots', 'RPGs', 'SaaS', 'Safari Extensions', 'Sales', 'Science', 'Security', 'SEO', 'Shopping', 'Slack', 'Soccer', 'Social Impact', 'Social Media', 'Social Network', 'Social Networking', 'Software Engineering', 'Space', 'Spirituality', 'Sports', 'Sports Games', 'Spreadsheets', 'Startup Books', 'Storage', 'Strategy Games', 'Streaming Services', 'Tabletop Games', 'Task Management', 'Tech', 'Telegram', 'Text Editors', 'Time Tracking', 'Toys', 'Transportation', 'Travel', 'Twitter', 'Typography', 'User Experience', 'Venture Capital', 'Vibe coding', 'Video', 'Video Art', 'Video Streaming', 'Virtual Assistants', 'Virtual Reality', 'VPN', 'Wallpaper', 'Wearables', 'Weather', 'Web App', 'Web Design', 'Web3', 'Website Builder', 'Windows', 'Wine', 'Word Games', 'WordPress', 'Writing', 'XBox', 'YouTube']
 
 function CompanyRow({ company, onSelect }) {
   return (
@@ -89,8 +88,8 @@ function ContactRow({ preview, onSave, saving, saved }) {
 
 export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [search, setSearch] = useState('')
-  const [region, setRegion] = useState('All')
   const [industry, setIndustry] = useState('All')
+  const [availableIndustries, setAvailableIndustries] = useState(INDUSTRIES.map(i => ({ name: i, count: null })))
   const [isHiring, setIsHiring] = useState(false)
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
@@ -113,7 +112,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       const params = {
         search: search || undefined,
         limit: PAGE_SIZE,
-        ...(region !== 'All' && { region }),
         ...(industry !== 'All' && { industry }),
         ...(isHiring && { isHiring: 'true' }),
         ...(cursor && { cursor }),
@@ -127,7 +125,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     } finally {
       setLoading(false)
     }
-  }, [search, region, industry, isHiring])
+  }, [search, industry, isHiring])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -136,7 +134,16 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     fetchCompanies(null)
   }, [fetchCompanies])
 
-  useEffect(() => { fetchCompanies(null) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchCompanies(null)
+    fetchIndustries()
+      .then(data => {
+        const countMap = new Map(data.industries.map(({ name, count }) => [name, count]))
+        const filtered = INDUSTRIES.slice(1).filter(i => countMap.has(i)).map(i => ({ name: i, count: countMap.get(i) }))
+        setAvailableIndustries([{ name: 'All', count: null }, ...filtered])
+      })
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = useCallback(() => {
     if (nextCursor) fetchCompanies(nextCursor)
@@ -206,15 +213,13 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
           </div>
           <div className="flex flex-wrap gap-2 lg:shrink-0">
             <div>
-              <label className="label">Region</label>
-              <select value={region} onChange={e => setRegion(e.target.value)} className="select w-full sm:w-36">
-                {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="label">Industry</label>
-              <select value={industry} onChange={e => setIndustry(e.target.value)} className="select w-full sm:w-36">
-                {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+              <select value={industry} onChange={e => setIndustry(e.target.value)} className="select w-full sm:w-48">
+                {availableIndustries.map(({ name, count }) => (
+                  <option key={name} value={name}>
+                    {name}{count != null ? ` (${count})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex items-end">

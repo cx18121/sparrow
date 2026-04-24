@@ -22,6 +22,7 @@ const routes: Record<string, string> = {
   "/api/sequences": "./api/sequences.ts",
   "/api/campaigns": "./api/campaigns.ts",
   "/api/apollo-search": "./api/apollo-search.ts",
+  "/api/industries": "./api/industries.ts",
 };
 
 async function loadHandler(filePath: string) {

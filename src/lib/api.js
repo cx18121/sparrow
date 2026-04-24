@@ -38,6 +38,7 @@ function qs(params) {
 export const fetchHealth = () => request('/health')
 
 export const fetchCompanies = (params = {}) => request(`/companies${qs(params)}`)
+export const fetchIndustries = () => request('/industries')
 
 export const apolloSearch = (domain, companyId) =>
   request('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
