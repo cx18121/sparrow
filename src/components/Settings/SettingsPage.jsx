@@ -459,9 +459,9 @@ function WebhooksSection() {
 
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding }) {
   return (
-    <div className="w-full max-w-5xl px-8 pb-10 pt-6 space-y-8">
+    <div className="w-full max-w-3xl px-8 pb-10 pt-6 space-y-8">
       {onGoToOnboarding && (
-        <div className="flex justify-end">
+        <div className="flex justify-start">
           <button onClick={onGoToOnboarding} className="btn-secondary flex items-center gap-2 text-xs">
             Go back to Onboarding <Sparkles size={13} className="text-primary" />
           </button>
