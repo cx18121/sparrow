@@ -11,3 +11,9 @@ npm run dev
 ```bash
 npm run dev:api:local
 ```
+
+### prisma
+
+```bash
+prisma generate
+```
