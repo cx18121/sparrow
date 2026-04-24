@@ -34,7 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       take: take + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      orderBy: sort === "name" ? { name: "asc" } : { createdAt: "desc" },
+      orderBy: sort === "name"
+        ? [{ name: "asc" }, { id: "asc" }]
+        : [{ contacts: { _count: "desc" } }, { createdAt: "desc" }, { id: "asc" }],
       select: {
         id: true,
         name: true,

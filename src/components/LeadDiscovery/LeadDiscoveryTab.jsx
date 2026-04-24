@@ -10,7 +10,8 @@ const PAGE_SIZE = 20
 
 const INDUSTRIES = ['All', '3D Printer', 'A/B Testing', 'Accounting', 'Advertising', 'Affiliate marketing', 'Alarms', 'Amazon', 'Analytics', 'Android', 'Anonymous', 'API', 'Apple', 'Apple TV', 'Apple Watch', 'Art', 'Art Books', 'Artificial Intelligence', 'Audio', 'B2B', 'Basketball', 'Beauty', 'Biking', 'Biohacking', 'Bitcoin', 'Blockchain', 'Board Games', 'Books', 'Bots', 'Branding', 'Browser Extensions', 'Budgeting', 'Business', 'Business Intelligence', 'Calendar', 'Cannabis', 'Card Games', 'Career', 'Cars', 'Cats', 'Celebrities', 'Charity & Giving', 'Chrome Extensions', 'Climate Tech', 'Coffee', 'Comics & Graphic Novels', 'Construction', 'Consulting', 'Consumer', 'Cooking', 'Cosmetics', 'Couples', 'Crowdfunding', 'Crypto', 'Customer Communication', 'Customer Success', 'Data & Analytics', 'Dating', 'Delivery', 'Design Books', 'Design Tools', 'Developer Tools', 'Dogs', 'Drinking', 'Drones', 'E-Commerce', 'eBook Reader', 'Education', 'Email', 'Email Marketing', 'Emoji', 'Entertainment', 'Events', 'Family', 'Farming', 'Fashion', 'Fighting Games', 'Finance', 'Fintech', 'First Person Shooter', 'Fitness', 'Food & Drink', 'Football', 'Free Games', 'Freelance', 'Funny', 'Funny Games', 'Games', 'GIFs', 'GitHub', 'Global Nomad', 'Government', 'Graphic Design', 'Graphics & Design', 'Growth Hacking', 'Hardware', 'Health', 'Health & Fitness', 'Healthcare', 'Hiring', 'Historical Games', 'History Books', 'Home', 'Home services', 'Horror Games', 'Human Resources', 'Icons', 'Indie Games', 'Industrials', 'Instagram', 'Interior design', 'Internet of Things', 'Investing', 'iOS', 'iPad', 'Jewelry', 'Kids', 'Languages', 'Legal', 'Lifestyle', 'LinkedIn', 'Linux', 'Mac', 'Maker Tools', 'Maps', 'Marketing', 'Medical', 'Meditation', 'Meetings', 'Menu Bar Apps', 'Messaging', 'MMOs', 'Money', 'Movies', 'Moving & Storage', 'Music', 'News', 'Newsletters', 'Nintendo', 'No-Code', 'Notes', 'Novels', 'Nutrition', 'Open Source', 'Outdoors', 'Parenting', 'Payments', 'PC', 'Personal Finance', 'Pets', 'Photo & Video', 'Photography', 'Photoshop', 'Plants', 'Playstation', 'Pokemon', 'Politics', 'Privacy', 'Product Hunt', 'Productivity', 'Prototyping', 'Public Relations', 'Puzzle Games', 'Quantified Self', 'Real Estate and Construction', 'Robots', 'RPGs', 'SaaS', 'Safari Extensions', 'Sales', 'Science', 'Security', 'SEO', 'Shopping', 'Slack', 'Soccer', 'Social Impact', 'Social Media', 'Social Network', 'Social Networking', 'Software Engineering', 'Space', 'Spirituality', 'Sports', 'Sports Games', 'Spreadsheets', 'Startup Books', 'Storage', 'Strategy Games', 'Streaming Services', 'Tabletop Games', 'Task Management', 'Tech', 'Telegram', 'Text Editors', 'Time Tracking', 'Toys', 'Transportation', 'Travel', 'Twitter', 'Typography', 'User Experience', 'Venture Capital', 'Vibe coding', 'Video', 'Video Art', 'Video Streaming', 'Virtual Assistants', 'Virtual Reality', 'VPN', 'Wallpaper', 'Wearables', 'Weather', 'Web App', 'Web Design', 'Web3', 'Website Builder', 'Windows', 'Wine', 'Word Games', 'WordPress', 'Writing', 'XBox', 'YouTube']
 
-function CompanyRow({ company, onSelect }) {
+function CompanyRow({ company, apolloCount, onSelect }) {
+  const contactCount = apolloCount !== undefined ? apolloCount : company._count?.contacts
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-100 bg-white/60 px-4 py-3.5 transition-all hover:border-primary/30 hover:bg-white/80">
       <div className="min-w-0 flex-1">
@@ -43,9 +44,9 @@ function CompanyRow({ company, onSelect }) {
         )}
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
-        {company._count?.contacts > 0 && (
+        {contactCount != null && (
           <span className="inline-flex items-center gap-1 text-xs text-muted">
-            <Users size={11} />{company._count.contacts} contacts
+            <Users size={11} />{contactCount} contacts
           </span>
         )}
         <button
@@ -104,6 +105,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [apolloError, setApolloError] = useState(null)
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
+  const [apolloCounts, setApolloCounts] = useState({})
 
   const fetchCompanies = useCallback(async (cursor = null) => {
     setLoading(true)
@@ -157,7 +159,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     setApolloLoading(true)
     try {
       const data = await apolloSearch(company.domain, company.id)
-      setApolloResults(data.previews || [])
+      const previews = data.previews || []
+      setApolloResults(previews)
+      setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
     } catch (err) {
       setApolloError(err.message)
     } finally {
@@ -176,8 +180,13 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} — ${preview.title || 'unknown title'}`,
       })
       setSavedIds(prev => new Set(prev).add(preview.id))
-      // Apollo contact details are revealed server-side during save.
-      // Close the modal so the user sees the saved lead reflected in the Contacts tab.
+      // Increment the contact count for this company in the local list so the
+      // row reflects the new contact without a full refetch.
+      setCompanies(prev => prev.map(c =>
+        c.id === selectedCompany.id
+          ? { ...c, _count: { ...c._count, contacts: (c._count?.contacts ?? 0) + 1 } }
+          : c
+      ))
       setSelectedCompany(null)
       setApolloResults([])
       setApolloError(null)
@@ -260,6 +269,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             <CompanyRow
               key={company.id}
               company={company}
+              apolloCount={apolloCounts[company.id]}
               onSelect={handleCompanySelect}
             />
           ))}
