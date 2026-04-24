@@ -6,7 +6,7 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
-  List, ListOrdered, Eye, Edit3, Search, Copy,
+  List, ListOrdered, Eye, Edit3, Search, Copy, Save,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Modal from '../ui/Modal'
@@ -120,6 +120,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
   const [form, setForm] = useState({ name: '', subject: '', body: '' })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [saved, setSaved] = useState(false)
   // Local draft state for the inline editor — we debounce writes so that
   // subject/body keystrokes don't fire a PATCH per character.
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
@@ -284,6 +285,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                         <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
                       </button>
                     </div>
+                    {view === 'edit' && (
+                      <button
+                        onClick={() => { flushDraft(); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
+                        className={`btn-secondary text-xs ${saved ? 'text-green-600' : ''}`}
+                      >
+                        {saved ? <>Saved ✓</> : <><Save size={13} /> Save</>}
+                      </button>
+                    )}
                     <button onClick={() => duplicate(selected)} className="btn-secondary text-xs"><Copy size={13} /> Duplicate</button>
                     <button onClick={() => openEdit(selected)} className="btn-secondary text-xs"><Edit3 size={13} /> Edit info</button>
                     <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500"><Trash2 size={13} /> Delete</button>
