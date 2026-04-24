@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
+import { Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
@@ -9,6 +9,7 @@ import CampaignsTab from './components/Campaigns/CampaignsTab'
 import ContactsTab from './components/Contacts/ContactsTab'
 import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
+import DraftsTab from './components/Drafts/DraftsTab'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
 
 import { createWorkspaceConfig } from './lib/workspaceConfig'
@@ -33,6 +34,7 @@ const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
   { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
+  { id: 'drafts', label: 'Drafts', icon: Inbox, path: '/drafts' },
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
   { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
 ]
@@ -516,6 +518,7 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                 />
               } />
+              <Route path="/drafts" element={<DraftsTab />} />
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}
