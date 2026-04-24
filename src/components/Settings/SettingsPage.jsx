@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   Plus, Trash2, Copy, Eye, EyeOff, Check, Mail, AlertCircle,
-  Building2, Briefcase, Target,
+  Building2, Briefcase, Target, Sparkles,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
@@ -457,9 +457,16 @@ function WebhooksSection() {
   )
 }
 
-export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates }) {
+export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding }) {
   return (
     <div className="w-full max-w-5xl px-8 pb-10 pt-6 space-y-8">
+      {onGoToOnboarding && (
+        <div className="flex justify-end">
+          <button onClick={onGoToOnboarding} className="btn-secondary flex items-center gap-2 text-xs">
+            Go back to Onboarding <Sparkles size={13} className="text-primary" />
+          </button>
+        </div>
+      )}
       <WorkspaceProfileSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} templates={templates} />
       <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
       <SmtpSection />

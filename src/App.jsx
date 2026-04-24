@@ -545,6 +545,7 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
+                  onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
                 />
               } />
               <Route path="*" element={<Navigate to="/campaigns" replace />} />

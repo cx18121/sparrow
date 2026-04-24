@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   Search, ChevronLeft, ChevronRight, Users, Globe, Building2,
   Sparkles, CheckCircle, AlertCircle,
@@ -136,6 +136,8 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     fetchCompanies(null)
   }, [fetchCompanies])
 
+  useEffect(() => { fetchCompanies(null) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadMore = useCallback(() => {
     if (nextCursor) fetchCompanies(nextCursor)
   }, [nextCursor, fetchCompanies])
@@ -242,7 +244,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
 
       {companies.length === 0 && !loading && (
         <div className="empty-state border-0 bg-transparent py-12 shadow-none">
-          Search for YC companies to discover contacts. Click &ldquo;Search&rdquo; to browse all companies.
+          No companies found. Try adjusting your filters.
         </div>
       )}
 
