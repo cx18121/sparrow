@@ -112,6 +112,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       const params = {
         search: search || undefined,
         limit: PAGE_SIZE,
+        ...(search && { sort: 'name' }),
         ...(industry !== 'All' && { industry }),
         ...(isHiring && { isHiring: 'true' }),
         ...(cursor && { cursor }),

@@ -12,6 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     industry,
     isHiring,
     search,
+    sort,
     limit = "50",
     cursor,
     withContact,
@@ -28,16 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...(industry && { industry }),
         ...(isHiring && { isHiring: isHiring === "true" }),
         ...(search && {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { domain: { contains: search, mode: "insensitive" } },
-            { oneLiner: { contains: search, mode: "insensitive" } },
-          ],
+          name: { startsWith: search, mode: "insensitive" },
         }),
       },
       take: take + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      orderBy: { createdAt: "desc" },
+      orderBy: sort === "name" ? { name: "asc" } : { createdAt: "desc" },
       select: {
         id: true,
         name: true,

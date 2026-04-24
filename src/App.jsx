@@ -1,14 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { BarChart2, Layers, Search, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
+import { Search, Users, Mail, FileText, Settings as SettingsIcon } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
 import LeadDiscoveryTab from './components/LeadDiscovery/LeadDiscoveryTab'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
-import SequencesTab from './components/Sequences/SequencesTab'
 import ContactsTab from './components/Contacts/ContactsTab'
-import AnalyticsTab from './components/Analytics/AnalyticsTab'
 import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
@@ -33,10 +31,8 @@ const campaignToApi = (c) => {
 
 const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
-  { id: 'sequences', label: 'Sequences', icon: Layers, path: '/sequences' },
   { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
-  { id: 'analytics', label: 'Analytics', icon: BarChart2, path: '/analytics' },
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
   { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
 ]
@@ -505,16 +501,6 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                 />
               } />
-              <Route path="/sequences" element={
-                <SequencesTab
-                  sequences={sequences}
-                  onCreate={createSequenceHandler}
-                  onUpdate={updateSequenceHandler}
-                  onDelete={deleteSequenceHandler}
-                  templates={templates}
-                  workspaceConfig={workspaceConfig}
-                />
-              } />
               <Route path="/leads" element={
                 <LeadDiscoveryTab
                   workspaceConfig={workspaceConfig}
@@ -530,7 +516,6 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                 />
               } />
-              <Route path="/analytics" element={<AnalyticsTab />} />
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}
