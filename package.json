@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "vercel dev",
-    "dev:api:local": "tsx local-api.ts",
+    "dev:api:local": "tsx watch local-api.ts",
     "build": "vite build",
     "preview": "vite preview"
   },

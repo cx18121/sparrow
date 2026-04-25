@@ -185,12 +185,9 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
 
   return (
     <Section title="Model & Data Providers">
-      <div className="flex items-start gap-2 p-3 bg-primary/5 rounded-lg border border-primary/10">
-        <AlertCircle size={14} className="text-primary mt-0.5 shrink-0" />
-        <p className="text-xs text-primary">
-          {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} connected. These values come from onboarding and can be updated here.
-        </p>
-      </div>
+      <p className="text-xs text-muted">
+        {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} connected. These values come from onboarding and can be updated here.
+      </p>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -369,10 +366,7 @@ function SendingLimitsSection() {
           <p className="text-xs text-muted mt-1">Time to wait between individual sends to avoid throttling.</p>
         </div>
       </div>
-      <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-        <AlertCircle size={14} className="text-amber-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-amber-700">Stay within your ESP's limits. Most providers recommend a delay of 30–60 seconds and a daily cap of 200–500 for new accounts.</p>
-      </div>
+      <p className="text-xs text-muted">Stay within your ESP's limits. Most providers recommend a delay of 30–60 seconds and a daily cap of 200–500 for new accounts.</p>
       <div className="flex justify-end">
         <button onClick={save} className="btn-primary">
           {saved ? <><Check size={14} /> Saved!</> : 'Save limits'}
@@ -471,7 +465,6 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
       <SmtpSection />
       <ApiKeysSection />
-      <TeamSection />
       <SendingLimitsSection />
       <WebhooksSection />
     </div>

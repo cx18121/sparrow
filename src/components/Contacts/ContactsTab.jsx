@@ -21,6 +21,13 @@ const STATUS_BADGE = {
   REJECTED: 'bounced',
 }
 
+const STATUS_STYLE = {
+  NEW:      'bg-slate-100 text-slate-600',
+  SAVED:    'bg-emerald-50 text-emerald-700',
+  EMAILED:  'bg-blue-50 text-blue-700',
+  REJECTED: 'bg-red-50 text-red-600',
+}
+
 const getName = (lead) => lead.contact?.name || ''
 const getEmail = (lead) => lead.contact?.email || ''
 const getCompany = (lead) => lead.company?.name || ''
@@ -262,13 +269,10 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
                   <select
                     value={lead.status}
                     onChange={e => changeStatus(lead, e.target.value)}
-                    className="select text-xs py-1 pr-6"
+                    className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[lead.status] || STATUS_STYLE.NEW}`}
                   >
                     {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                  <div className="mt-1">
-                    <Badge variant={STATUS_BADGE[lead.status] || 'draft'}>{lead.status}</Badge>
-                  </div>
                 </td>
                 <td className="px-5 py-4 text-muted">
                   {lead.addedAt ? format(new Date(lead.addedAt), 'MMM d, yyyy') : '—'}

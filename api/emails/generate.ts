@@ -91,7 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabaseAdmin();
   const { data: profile, error: profileError } = await supabase
     .from("user_profiles")
-    .select("resume_text, claude_api_key_encrypted, full_name, bio, target_role")
+    .select("resume_text, claude_api_key_encrypted, workspace_config")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -113,10 +113,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .filter(Boolean)
     .join('. ')
 
+  const ws = (profile.workspace_config ?? {}) as Record<string, any>
   const senderContext = buildSenderContext({
-    name: profile.full_name ?? null,
-    bio: [profile.bio, extraParts].filter(Boolean).join('. ') || null,
-    targetRole: profile.target_role ?? null,
+    name: ws.senderName ?? null,
+    bio: [ws.senderRole, extraParts].filter(Boolean).join('. ') || null,
+    targetRole: ws.senderRole ?? null,
     resumeText: profile.resume_text ?? null,
   })
 
@@ -135,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userTemplate: userTemplate?.body ?? null,
       senderContext,
       subjectTemplate: userTemplate?.subject ?? null,
-      senderName: profile.full_name ?? null,
+      senderName: ws.senderName ?? null,
       apiKey,
     })
 

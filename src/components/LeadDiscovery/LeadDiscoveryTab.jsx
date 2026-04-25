@@ -1,17 +1,15 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Search, ChevronLeft, ChevronRight, Users, Globe, Building2,
   Sparkles, CheckCircle, AlertCircle,
 } from 'lucide-react'
 import Modal from '../ui/Modal'
-import { apolloSearch, saveLead, fetchCompanies as apiFetchCompanies, fetchIndustries } from '../../lib/api'
+import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchIndustries } from '../../lib/api'
 
 const PAGE_SIZE = 20
 
-const INDUSTRIES = ['All', '3D Printer', 'A/B Testing', 'Accounting', 'Advertising', 'Affiliate marketing', 'Alarms', 'Amazon', 'Analytics', 'Android', 'Anonymous', 'API', 'Apple', 'Apple TV', 'Apple Watch', 'Art', 'Art Books', 'Artificial Intelligence', 'Audio', 'B2B', 'Basketball', 'Beauty', 'Biking', 'Biohacking', 'Bitcoin', 'Blockchain', 'Board Games', 'Books', 'Bots', 'Branding', 'Browser Extensions', 'Budgeting', 'Business', 'Business Intelligence', 'Calendar', 'Cannabis', 'Card Games', 'Career', 'Cars', 'Cats', 'Celebrities', 'Charity & Giving', 'Chrome Extensions', 'Climate Tech', 'Coffee', 'Comics & Graphic Novels', 'Construction', 'Consulting', 'Consumer', 'Cooking', 'Cosmetics', 'Couples', 'Crowdfunding', 'Crypto', 'Customer Communication', 'Customer Success', 'Data & Analytics', 'Dating', 'Delivery', 'Design Books', 'Design Tools', 'Developer Tools', 'Dogs', 'Drinking', 'Drones', 'E-Commerce', 'eBook Reader', 'Education', 'Email', 'Email Marketing', 'Emoji', 'Entertainment', 'Events', 'Family', 'Farming', 'Fashion', 'Fighting Games', 'Finance', 'Fintech', 'First Person Shooter', 'Fitness', 'Food & Drink', 'Football', 'Free Games', 'Freelance', 'Funny', 'Funny Games', 'Games', 'GIFs', 'GitHub', 'Global Nomad', 'Government', 'Graphic Design', 'Graphics & Design', 'Growth Hacking', 'Hardware', 'Health', 'Health & Fitness', 'Healthcare', 'Hiring', 'Historical Games', 'History Books', 'Home', 'Home services', 'Horror Games', 'Human Resources', 'Icons', 'Indie Games', 'Industrials', 'Instagram', 'Interior design', 'Internet of Things', 'Investing', 'iOS', 'iPad', 'Jewelry', 'Kids', 'Languages', 'Legal', 'Lifestyle', 'LinkedIn', 'Linux', 'Mac', 'Maker Tools', 'Maps', 'Marketing', 'Medical', 'Meditation', 'Meetings', 'Menu Bar Apps', 'Messaging', 'MMOs', 'Money', 'Movies', 'Moving & Storage', 'Music', 'News', 'Newsletters', 'Nintendo', 'No-Code', 'Notes', 'Novels', 'Nutrition', 'Open Source', 'Outdoors', 'Parenting', 'Payments', 'PC', 'Personal Finance', 'Pets', 'Photo & Video', 'Photography', 'Photoshop', 'Plants', 'Playstation', 'Pokemon', 'Politics', 'Privacy', 'Product Hunt', 'Productivity', 'Prototyping', 'Public Relations', 'Puzzle Games', 'Quantified Self', 'Real Estate and Construction', 'Robots', 'RPGs', 'SaaS', 'Safari Extensions', 'Sales', 'Science', 'Security', 'SEO', 'Shopping', 'Slack', 'Soccer', 'Social Impact', 'Social Media', 'Social Network', 'Social Networking', 'Software Engineering', 'Space', 'Spirituality', 'Sports', 'Sports Games', 'Spreadsheets', 'Startup Books', 'Storage', 'Strategy Games', 'Streaming Services', 'Tabletop Games', 'Task Management', 'Tech', 'Telegram', 'Text Editors', 'Time Tracking', 'Toys', 'Transportation', 'Travel', 'Twitter', 'Typography', 'User Experience', 'Venture Capital', 'Vibe coding', 'Video', 'Video Art', 'Video Streaming', 'Virtual Assistants', 'Virtual Reality', 'VPN', 'Wallpaper', 'Wearables', 'Weather', 'Web App', 'Web Design', 'Web3', 'Website Builder', 'Windows', 'Wine', 'Word Games', 'WordPress', 'Writing', 'XBox', 'YouTube']
-
 function CompanyRow({ company, apolloCount, onSelect }) {
-  const contactCount = apolloCount !== undefined ? apolloCount : company._count?.contacts
+  const contactCount = apolloCount
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-100 bg-white/60 px-4 py-3.5 transition-all hover:border-primary/30 hover:bg-white/80">
       <div className="min-w-0 flex-1">
@@ -44,11 +42,10 @@ function CompanyRow({ company, apolloCount, onSelect }) {
         )}
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
-        {contactCount != null && (
-          <span className="inline-flex items-center gap-1 text-xs text-muted">
-            <Users size={11} />{contactCount} contacts
-          </span>
-        )}
+        <span className="inline-flex items-center gap-1 text-xs text-muted">
+          <Users size={11} />
+          {apolloCount === null ? 'Loading…' : apolloCount != null ? `${apolloCount} contacts` : ''}
+        </span>
         <button
           onClick={() => onSelect(company)}
           className="btn-primary text-xs py-1.5 px-3"
@@ -60,7 +57,7 @@ function CompanyRow({ company, apolloCount, onSelect }) {
   )
 }
 
-function ContactRow({ preview, onSave, saving, saved }) {
+function ContactRow({ preview, email, onSave, saving, saved }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white/60 px-4 py-3 transition-all hover:bg-white/80">
       <div className="min-w-0 flex-1">
@@ -68,13 +65,11 @@ function ContactRow({ preview, onSave, saving, saved }) {
           {preview.firstName} {preview.lastNameObfuscated}
         </div>
         <div className="mt-0.5 text-xs text-muted">{preview.title || '—'}</div>
+        <div className={`mt-1 text-xs font-medium ${email ? 'text-primary' : 'text-muted'}`}>
+          {email === undefined ? 'Loading…' : (email || 'N/A')}
+        </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {preview.hasEmail ? (
-          <span className="text-xs text-emerald-600 font-medium">Email available</span>
-        ) : (
-          <span className="text-xs text-muted">No email</span>
-        )}
         <button
           onClick={() => onSave(preview)}
           disabled={saving || saved}
@@ -89,8 +84,10 @@ function ContactRow({ preview, onSave, saving, saved }) {
 
 export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [search, setSearch] = useState('')
-  const [industry, setIndustry] = useState('All')
-  const [availableIndustries, setAvailableIndustries] = useState(INDUSTRIES.map(i => ({ name: i, count: null })))
+  const [selectedIndustries, setSelectedIndustries] = useState(new Set())
+  const selectedIndustriesRef = useRef(new Set())
+  const [availableIndustries, setAvailableIndustries] = useState([])
+  const [hiringCount, setHiringCount] = useState(null)
   const [isHiring, setIsHiring] = useState(false)
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
@@ -106,8 +103,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
   const [apolloCounts, setApolloCounts] = useState({})
+  const [cachedPreviews, setCachedPreviews] = useState({})
+  const [revealedEmails, setRevealedEmails] = useState({})
+  const fetchGenRef = useRef(0)
 
   const fetchCompanies = useCallback(async (cursor = null) => {
+    const gen = ++fetchGenRef.current
     setLoading(true)
     setError(null)
     try {
@@ -115,20 +116,41 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         search: search || undefined,
         limit: PAGE_SIZE,
         ...(search && { sort: 'name' }),
-        ...(industry !== 'All' && { industry }),
+        ...(selectedIndustriesRef.current.size > 0 && { industries: [...selectedIndustriesRef.current].join(',') }),
         ...(isHiring && { isHiring: 'true' }),
         ...(cursor && { cursor }),
       }
       const data = await apiFetchCompanies(params)
-      setCompanies(cursor ? prev => [...prev, ...data.items] : data.items)
+      if (fetchGenRef.current !== gen) return
+      const newItems = data.items ?? []
+      setCompanies(cursor ? prev => [...prev, ...newItems] : newItems)
       setNextCursor(data.nextCursor)
       setHasMore(!!data.nextCursor)
+      const uncached = newItems.filter(c => !(c.id in apolloCounts))
+      if (uncached.length > 0) {
+        setApolloCounts(prev => {
+          const next = { ...prev }
+          uncached.forEach(c => { if (!(c.id in next)) next[c.id] = null })
+          return next
+        })
+        uncached.forEach(async (company) => {
+          try {
+            const result = await apolloSearch(company.domain, company.id)
+            const previews = result.previews ?? []
+            setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
+            setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
+          } catch {
+            setApolloCounts(prev => ({ ...prev, [company.id]: 0 }))
+          }
+        })
+      }
     } catch (err) {
+      if (fetchGenRef.current !== gen) return
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (fetchGenRef.current === gen) setLoading(false)
     }
-  }, [search, industry, isHiring])
+  }, [search, isHiring])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -137,13 +159,28 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     fetchCompanies(null)
   }, [fetchCompanies])
 
+  const toggleIndustry = useCallback((name) => {
+    const next = new Set(selectedIndustriesRef.current)
+    if (next.has(name)) next.delete(name)
+    else next.add(name)
+    selectedIndustriesRef.current = next
+    setSelectedIndustries(new Set(next))
+    doSearch()
+  }, [doSearch])
+
+  const initialMount = useRef(true)
   useEffect(() => {
+    if (initialMount.current) return
+    doSearch()
+  }, [isHiring]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    initialMount.current = false
     fetchCompanies(null)
     fetchIndustries()
       .then(data => {
-        const countMap = new Map(data.industries.map(({ name, count }) => [name, count]))
-        const filtered = INDUSTRIES.slice(1).filter(i => countMap.has(i)).map(i => ({ name: i, count: countMap.get(i) }))
-        setAvailableIndustries([{ name: 'All', count: null }, ...filtered])
+        setAvailableIndustries(data.industries.filter(({ count }) => count > 0))
+        setHiringCount(data.hiringCount ?? null)
       })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -154,14 +191,36 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
 
   const handleCompanySelect = async (company) => {
     setSelectedCompany(company)
-    setApolloResults([])
     setApolloError(null)
-    setApolloLoading(true)
+    const cached = cachedPreviews[company.id]
+    if (cached) {
+      setApolloResults(cached)
+      setApolloLoading(false)
+    } else {
+      setApolloResults([])
+      setApolloLoading(true)
+    }
     try {
-      const data = await apolloSearch(company.domain, company.id)
+      const data = cached ? { previews: cached } : await apolloSearch(company.domain, company.id)
       const previews = data.previews || []
       setApolloResults(previews)
       setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
+      if (!cached) setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
+      // Mark all as loading then reveal in parallel
+      setRevealedEmails(prev => {
+        const next = { ...prev }
+        previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
+        return next
+      })
+      previews.forEach(async (p) => {
+        if (!p.hasEmail) { setRevealedEmails(prev => ({ ...prev, [p.id]: null })); return }
+        try {
+          const result = await revealApolloContact(p.id)
+          setRevealedEmails(prev => ({ ...prev, [p.id]: result.contact?.email ?? null }))
+        } catch {
+          setRevealedEmails(prev => ({ ...prev, [p.id]: null }))
+        }
+      })
     } catch (err) {
       setApolloError(err.message)
     } finally {
@@ -222,31 +281,34 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 lg:shrink-0">
-            <div>
-              <label className="label">Industry</label>
-              <select value={industry} onChange={e => setIndustry(e.target.value)} className="select w-full sm:w-48">
-                {availableIndustries.map(({ name, count }) => (
-                  <option key={name} value={name}>
-                    {name}{count != null ? ` (${count})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isHiring}
-                  onChange={e => setIsHiring(e.target.checked)}
-                  className="checkbox"
-                />
-                <span className="text-xs text-muted whitespace-nowrap">Hiring only</span>
-              </label>
-            </div>
             <button onClick={doSearch} className="btn-primary h-[38px] px-4" disabled={loading}>
               {loading ? 'Loading…' : 'Search'}
             </button>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsHiring(h => !h)}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${isHiring ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
+          >
+            <span className={`h-2 w-2 rounded-full border ${isHiring ? 'bg-white border-white' : 'border-slate-300'}`} />
+            Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
+          </button>
+          {availableIndustries.length > 0 && (
+            <>
+              <span className="text-slate-300 select-none text-sm">|</span>
+              {availableIndustries.map(({ name, count }) => (
+                <button
+                  key={name}
+                  onClick={() => toggleIndustry(name)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${selectedIndustries.has(name) ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
+                >
+                  <span className={`h-2 w-2 rounded-full border ${selectedIndustries.has(name) ? 'bg-white border-white' : 'border-slate-300'}`} />
+                  {name}{count != null ? ` (${count})` : ''}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -257,7 +319,13 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         </div>
       )}
 
-      {companies.length === 0 && !loading && (
+      {loading && companies.length === 0 && (
+        <div className="flex items-center justify-center py-16 text-sm text-muted gap-2">
+          <Sparkles size={14} className="animate-spin" /> Loading…
+        </div>
+      )}
+
+      {!loading && companies.length === 0 && (
         <div className="empty-state border-0 bg-transparent py-12 shadow-none">
           No companies found. Try adjusting your filters.
         </div>
@@ -332,6 +400,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
                     <ContactRow
                       key={preview.id}
                       preview={preview}
+                      email={revealedEmails[preview.id]}
                       onSave={handleSaveLead}
                       saving={savingIds.has(preview.id)}
                       saved={savedIds.has(preview.id)}

@@ -10,6 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     region,
     batch,
     industry,
+    industries,
     isHiring,
     search,
     sort,
@@ -17,6 +18,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     cursor,
     withContact,
   } = req.query as Record<string, string | undefined>;
+
+  const industryFilter = industries
+    ? { industry: { in: industries.split(",") } }
+    : industry
+    ? { industry }
+    : {};
 
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
 
@@ -26,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         source: "yc",
         ...(region && { region }),
         ...(batch && { batch }),
-        ...(industry && { industry }),
+        ...industryFilter,
         ...(isHiring && { isHiring: isHiring === "true" }),
         ...(search && {
           name: { startsWith: search, mode: "insensitive" },
