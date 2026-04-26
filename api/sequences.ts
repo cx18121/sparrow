@@ -86,10 +86,12 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       }
     }
 
-    return tx.sequence.findUnique({
+    const updated = await tx.sequence.findUnique({
       where: { id: id as string },
       include: { steps: { orderBy: { order: "asc" } } },
     });
+    if (!updated) throw new Error("Sequence disappeared during update");
+    return updated;
   });
 
   res.status(200).json(sequence);
