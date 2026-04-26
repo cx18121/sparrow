@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import DOMPurify from 'dompurify'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -330,7 +331,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                   </div>
                   <div
                     className="prose prose-sm max-w-none p-6 text-dark"
-                    dangerouslySetInnerHTML={{ __html: fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData) }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                   <div className="border-t border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4 text-xs text-muted">
                     Preview uses: first_name="{previewData.first_name}", company="{previewData.company}", role="{previewData.role}"

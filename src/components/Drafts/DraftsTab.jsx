@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check } from 'lucide-react'
 import { fetchEmails, updateEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
@@ -392,7 +393,7 @@ export default function DraftsTab() {
               ) : (
                 <div
                   className="text-sm text-dark"
-                  dangerouslySetInnerHTML={{ __html: textToHtml(preview.body) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textToHtml(preview.body)) }}
                 />
               )}
             </div>
