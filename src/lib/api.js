@@ -68,6 +68,8 @@ export const updateEmail = (data) =>
   request('/emails', { method: 'PATCH', body: JSON.stringify(data) })
 export const generateEmail = (data) =>
   request('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
+export const sendEmail = (emailId) =>
+  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
 
 export const fetchProfile = () => request('/profile')
 export const saveProfile = (data) =>

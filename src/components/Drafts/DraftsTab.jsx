@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check } from 'lucide-react'
-import { fetchEmails, updateEmail } from '../../lib/api'
+import { fetchEmails, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
 
 // For table row previews — collapse to one line
@@ -161,12 +161,20 @@ export default function DraftsTab() {
 
   const markSent = async (ids) => {
     setSending(true)
-    const sentAt = new Date().toISOString()
     try {
-      await Promise.all(ids.map(id => updateEmail({ id, status: 'sent', sentAt })))
-      setDrafts(prev => prev.filter(d => !ids.includes(d.id)))
-      setSelected(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
-      if (preview && ids.includes(preview.id)) { setPreview(null); setEditing(false) }
+      const results = await Promise.allSettled(ids.map(id => sendEmail(id)))
+      const failed = results
+        .map((r, i) => r.status === 'rejected' ? (r.reason?.message || 'Send failed') : null)
+        .filter(Boolean)
+      if (failed.length) {
+        alert(`${failed.length} email(s) failed to send:\n${failed.join('\n')}`)
+      }
+      const succeeded = ids.filter((_, i) => results[i].status === 'fulfilled')
+      if (succeeded.length) {
+        setDrafts(prev => prev.filter(d => !succeeded.includes(d.id)))
+        setSelected(prev => { const next = new Set(prev); succeeded.forEach(id => next.delete(id)); return next })
+        if (preview && succeeded.includes(preview.id)) { setPreview(null); setEditing(false) }
+      }
     } finally {
       setSending(false)
     }
