@@ -22,12 +22,12 @@ export const EMAIL_GENERATION_SYSTEM_PROMPT = `You write short, specific cold ou
 
 Rules:
 - Under 130 words in the body.
-- Reference something concrete about the company (stage, product, mission, recent news) — never generic flattery.
-- Connect the candidate's background to the company's needs in one sentence. Do not list their whole background.
+- If company context is provided, reference something concrete (stage, product, mission) — never generic flattery. If no company context is provided, focus on the contact's role and the candidate's background.
+- Connect the candidate's background to the contact's role or company needs in one sentence. Do not list their whole background.
 - No corporate jargon, no "I hope this finds you well", no "circling back", no "leverage", no "synergy".
 - First-person, warm, direct, genuine.
-- Fill all {{placeholder}} slots from the context provided.
-- Do not leave any unfilled placeholders.`
+- Fill all {{placeholder}} slots from the context provided. If a placeholder has no data, remove it naturally.
+- Output ONLY the email body. No subject line, no preamble, no explanation.`
 
 export const DEFAULT_SUBJECT_TEMPLATE = 'Quick intro — {{senderName}}'
 

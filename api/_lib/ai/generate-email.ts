@@ -43,9 +43,11 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
     .filter(Boolean)
     .join('; ')
 
+  const companyLabel = params.company.name ? ` at ${params.company.name}` : ''
+
   const prompt = [
     `Template:\n${template}`,
-    `\nContact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'employee'} at ${params.company.name}`,
+    `\nContact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'professional'}${companyLabel}`,
     companyContext ? `Company context: ${companyContext}` : null,
     `Sender context: ${params.senderContext}`,
     `\n${hookInstruction}`,
