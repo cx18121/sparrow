@@ -47,6 +47,7 @@ function formatDate(iso) {
 }
 
 export default function DraftsTab() {
+  const [tab, setTab] = useState('draft')
   const [drafts, setDrafts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -69,12 +70,12 @@ export default function DraftsTab() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchEmails({ status: 'draft', limit: '200' })
+    setDrafts([])
+    setSelected(new Set())
+    setPreview(null)
+    fetchEmails({ status: tab, limit: '200' })
       .then(res => {
-        if (!cancelled) {
-          setDrafts(res?.items || [])
-          setSelected(new Set())
-        }
+        if (!cancelled) setDrafts(res?.items || [])
       })
       .catch(err => {
         if (!cancelled) setError(err.message)
@@ -83,7 +84,7 @@ export default function DraftsTab() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [loadCount])
+  }, [loadCount, tab])
 
   const load = () => setLoadCount(c => c + 1)
 
@@ -185,14 +186,17 @@ export default function DraftsTab() {
       {/* Main list */}
       <div className={`flex flex-col flex-1 min-w-0 p-8 ${preview ? 'pr-4' : ''}`}>
         <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-dark">Draft Emails</h2>
-            <p className="mt-0.5 text-sm text-muted">
-              {loading ? 'Loading…' : `${drafts.length} draft${drafts.length !== 1 ? 's' : ''}`}
+          <div className="flex items-center gap-4">
+            <div className="segmented-control">
+              <button onClick={() => setTab('draft')} className={`segmented-chip ${tab === 'draft' ? 'segmented-chip-active' : ''}`}>Drafts</button>
+              <button onClick={() => setTab('sent')} className={`segmented-chip ${tab === 'sent' ? 'segmented-chip-active' : ''}`}>Sent</button>
+            </div>
+            <p className="text-sm text-muted">
+              {loading ? 'Loading…' : `${drafts.length} ${tab === 'sent' ? 'sent' : 'draft'}${drafts.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {selectedArr.length > 0 && (
+            {tab === 'draft' && selectedArr.length > 0 && (
               <button
                 onClick={() => markSent(selectedArr)}
                 disabled={sending}
@@ -288,15 +292,17 @@ export default function DraftsTab() {
                     <div className="truncate">{draft.subject || '(no subject)'}</div>
                     <div className="truncate text-xs text-muted">{stripHtml(draft.body)}</div>
                   </td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">{formatDate(draft.createdAt)}</td>
+                  <td className="px-4 py-3 text-muted whitespace-nowrap">{formatDate(tab === 'sent' ? draft.sentAt : draft.createdAt)}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => markSent([draft.id])}
-                      disabled={sending}
-                      className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 ml-auto hover:text-primary disabled:opacity-40"
-                    >
-                      <Send size={11} /> Send
-                    </button>
+                    {tab === 'draft' && (
+                      <button
+                        onClick={() => markSent([draft.id])}
+                        disabled={sending}
+                        className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 ml-auto hover:text-primary disabled:opacity-40"
+                      >
+                        <Send size={11} /> Send
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
