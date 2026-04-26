@@ -114,10 +114,17 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     return res.status(200).json(updated);
   }
 
-  const lead = await prisma.userLead.create({
-    data: { userId, companyId, contactId: resolvedContactId, notes, apolloPersonId: apolloPersonId ?? null, status: "SAVED" },
-  });
-  res.status(201).json(lead);
+  try {
+    const lead = await prisma.userLead.create({
+      data: { userId, companyId, contactId: resolvedContactId, notes, apolloPersonId: apolloPersonId ?? null, status: "SAVED" },
+    });
+    res.status(201).json(lead);
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      return res.status(409).json({ error: "Lead already exists" });
+    }
+    throw err;
+  }
 }
 
 async function revealApolloContact(personId: string, apiKey: string): Promise<{
