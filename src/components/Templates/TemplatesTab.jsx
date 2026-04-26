@@ -193,7 +193,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
 
   const save = async () => {
     if (editingId) {
-      await onUpdate({ id: editingId, name: form.name, subject: form.subject })
+      await onUpdate({ id: editingId, name: form.name, subject: form.subject, body: form.body })
     } else {
       const created = await onCreate({
         name: form.name,
