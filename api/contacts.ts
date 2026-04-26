@@ -24,6 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const contacts = await prisma.contact.findMany({
       where: {
+        userLeads: { some: { userId } },
         ...(companyId && { companyId }),
         ...(role && { role }),
         ...(hasEmail === "true" && { email: { not: null } }),
