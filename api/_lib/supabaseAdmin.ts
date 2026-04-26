@@ -29,9 +29,11 @@ export async function getUserIdFromRequest(req: VercelRequest): Promise<string |
     if (error || !data.user) return null;
     return data.user.id;
   }
-  // x-user-id bypass for local development with non-UUID demo IDs
-  const header = req.headers["x-user-id"];
-  if (typeof header === "string" && header.length > 0) return header;
-  if (Array.isArray(header) && header[0]) return header[0];
+  // x-user-id bypass for local development only — never enabled in production
+  if (process.env.NODE_ENV !== "production" && process.env.ALLOW_X_USER_ID === "1") {
+    const header = req.headers["x-user-id"];
+    if (typeof header === "string" && header.length > 0) return header;
+    if (Array.isArray(header) && header[0]) return header[0];
+  }
   return null;
 }
