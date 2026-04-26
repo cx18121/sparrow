@@ -27,8 +27,9 @@ model Company {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  contacts  Contact[]
-  userLeads UserLead[]
+  contacts     Contact[]
+  userLeads    UserLead[]
+  campaignSeen CampaignSeenCompany[]
 
   @@index([stage])
   @@index([industry])
@@ -73,7 +74,8 @@ model UserLead {
   addedAt        DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  emails Email[]
+  emails        Email[]
+  campaignLeads CampaignLead[]
 
   @@unique([userId, companyId, contactId])
   @@index([userId])
@@ -151,23 +153,61 @@ model SequenceStep {
 }
 
 model Campaign {
-  id          String         @id @default(cuid())
-  userId      String
-  name        String
-  subject     String?
-  status      CampaignStatus @default(DRAFT)
-  sequenceId  String?
-  sequence    Sequence?      @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
-  templateId  String?
-  template    Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  scheduledAt DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  userId             String
+  name               String
+  subject            String?
+  status             CampaignStatus @default(DRAFT)
+  sequenceId         String?
+  sequence           Sequence?      @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  templateId         String?
+  template           Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  scheduledAt        DateTime?
+  filterIndustry     String?
+  filterRegion       String?
+  filterStage        String?
+  filterBatch        String?
+  filterIsHiring     Boolean?
+  filterHeadcountMin Int?
+  filterHeadcountMax Int?
+  batchSize          Int            @default(10)
+  currentBatch       Int            @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  seenCompanies CampaignSeenCompany[]
+  leads         CampaignLead[]
 
   @@index([userId])
   @@index([status])
   @@index([sequenceId])
   @@index([templateId])
+}
+
+model CampaignSeenCompany {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  seenAt     DateTime @default(now())
+
+  @@unique([campaignId, companyId])
+  @@index([campaignId])
+}
+
+model CampaignLead {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userLeadId  String
+  userLead    UserLead @relation(fields: [userLeadId], references: [id], onDelete: Cascade)
+  batchNumber Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@unique([campaignId, batchNumber, userLeadId])
+  @@index([campaignId])
+  @@index([campaignId, batchNumber])
 }
 
 enum CampaignStatus {

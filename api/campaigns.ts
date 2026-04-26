@@ -42,7 +42,11 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { name, subject, status, sequenceId, templateId, scheduledAt } = body ?? {};
+  const {
+    name, subject, status, sequenceId, templateId, scheduledAt,
+    filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterHeadcountMin, filterHeadcountMax, batchSize,
+  } = body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
 
   if (status && !ALLOWED_STATUSES.includes(status as CampaignStatus)) {
@@ -60,6 +64,14 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       sequenceId: (sequenceId as string | null) ?? null,
       templateId: (templateId as string | null) ?? null,
       scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
+      filterIndustry: (filterIndustry as string | null) ?? null,
+      filterRegion: (filterRegion as string | null) ?? null,
+      filterStage: (filterStage as string | null) ?? null,
+      filterBatch: (filterBatch as string | null) ?? null,
+      filterIsHiring: filterIsHiring != null ? Boolean(filterIsHiring) : null,
+      filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null,
+      filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null,
+      batchSize: batchSize != null ? Math.min(Math.max(Number(batchSize), 1), 100) : 10,
     },
     include: {
       sequence: { select: { id: true, name: true } },
@@ -71,7 +83,11 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { id, name, subject, status, sequenceId, templateId, scheduledAt } = body ?? {};
+  const {
+    id, name, subject, status, sequenceId, templateId, scheduledAt,
+    filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterHeadcountMin, filterHeadcountMax, batchSize,
+  } = body ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
 
   if (status && !ALLOWED_STATUSES.includes(status as CampaignStatus)) {
@@ -96,6 +112,14 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(scheduledAt !== undefined && {
         scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       }),
+      ...(filterIndustry !== undefined && { filterIndustry: (filterIndustry as string | null) ?? null }),
+      ...(filterRegion !== undefined && { filterRegion: (filterRegion as string | null) ?? null }),
+      ...(filterStage !== undefined && { filterStage: (filterStage as string | null) ?? null }),
+      ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
+      ...(filterIsHiring !== undefined && { filterIsHiring: filterIsHiring != null ? Boolean(filterIsHiring) : null }),
+      ...(filterHeadcountMin !== undefined && { filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null }),
+      ...(filterHeadcountMax !== undefined && { filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null }),
+      ...(batchSize !== undefined && { batchSize: Math.min(Math.max(Number(batchSize), 1), 100) }),
     },
     include: {
       sequence: { select: { id: true, name: true } },

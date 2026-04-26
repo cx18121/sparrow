@@ -90,3 +90,11 @@ export const updateCampaign = (data) =>
   request('/campaigns', { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteCampaign = (id) =>
   request(`/campaigns${qs({ id })}`, { method: 'DELETE' })
+
+export const fetchCampaignBatch = (campaignId) =>
+  request(`/campaign-batch${qs({ campaignId })}`)
+export const generateCampaignBatch = (campaignId) =>
+  request('/campaign-batch', { method: 'POST', body: JSON.stringify({ campaignId }) })
+export const resetCampaignSeen = (campaignId) =>
+  request(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
+export const fetchCampaignOptions = () => request('/campaign-options')

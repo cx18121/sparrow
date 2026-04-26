@@ -21,6 +21,8 @@ const routes: Record<string, string> = {
   "/api/templates": "./api/templates.ts",
   "/api/sequences": "./api/sequences.ts",
   "/api/campaigns": "./api/campaigns.ts",
+  "/api/campaign-batch": "./api/campaign-batch.ts",
+  "/api/campaign-options": "./api/campaign-options.ts",
   "/api/apollo-search": "./api/apollo-search.ts",
   "/api/industries": "./api/industries.ts",
 };

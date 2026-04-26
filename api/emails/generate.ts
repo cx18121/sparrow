@@ -13,6 +13,7 @@ type GenerateBody = {
   tone?: string;
   extraContext?: string;
   model?: string;
+  save?: boolean; // default true — pass false to preview without persisting
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -25,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const body = parseBody(req) as GenerateBody;
-  const { userLeadId, templateId, interestHook, tone, extraContext } = body;
+  const { userLeadId, templateId, interestHook, tone, extraContext, save = true } = body;
 
   if (!userLeadId) return res.status(400).json({ error: "userLeadId is required" });
 
@@ -141,28 +142,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     let savedEmail = null;
-    try {
-      const existing = await prisma.email.findFirst({
-        where: { userLeadId: lead.id, contactId: contact.id, status: "draft" },
-      });
-      if (existing) {
-        savedEmail = await prisma.email.update({
-          where: { id: existing.id },
-          data: { subject: draft.subject, body: draft.body },
+    if (save) {
+      try {
+        const existing = await prisma.email.findFirst({
+          where: { userLeadId: lead.id, contactId: contact.id, status: "draft" },
         });
-      } else {
-        savedEmail = await prisma.email.create({
-          data: {
-            userLeadId: lead.id,
-            contactId: contact.id,
-            subject: draft.subject,
-            body: draft.body,
-            status: "draft",
-          },
-        });
+        if (existing) {
+          savedEmail = await prisma.email.update({
+            where: { id: existing.id },
+            data: { subject: draft.subject, body: draft.body },
+          });
+        } else {
+          savedEmail = await prisma.email.create({
+            data: {
+              userLeadId: lead.id,
+              contactId: contact.id,
+              subject: draft.subject,
+              body: draft.body,
+              status: "draft",
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to save generated email:", err);
       }
-    } catch (err) {
-      console.warn("Failed to save generated email:", err);
     }
 
     return res.status(200).json({
