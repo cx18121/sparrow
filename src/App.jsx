@@ -351,7 +351,7 @@ function AppShell() {
     const claudeKey = normalized.apiKeys?.claude || null
     const sanitizedConfig = {
       ...normalized,
-      apiKeys: { ...(normalized.apiKeys || {}), claude: '' },
+      apiKeys: {}, // never persist any API keys in the workspace_config column
     }
 
     saveProfile({
