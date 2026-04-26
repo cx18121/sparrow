@@ -21,11 +21,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
+
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, status, limit = "50", cursor } = req.query as Record<
     string,
     string | undefined
   >;
+
+  if (status && !ALLOWED_EMAIL_STATUSES.includes(status as any)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${ALLOWED_EMAIL_STATUSES.join(", ")}` });
+  }
+
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
 
   const items = await prisma.email.findMany({
