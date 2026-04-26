@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, ArrowRight, Building2, FileText, Key,
   LogOut,
@@ -458,7 +458,11 @@ export default function OnboardingScreen({
     }
   })
 
+  // Skip firing onSaveDraft on the initial mount to avoid overwriting the
+  // server-synced profile that AppShell may still be fetching concurrently.
+  const saveDraftMounted = useRef(false)
   useEffect(() => {
+    if (!saveDraftMounted.current) { saveDraftMounted.current = true; return }
     onSaveDraft?.(form)
   }, [form, onSaveDraft])
 
