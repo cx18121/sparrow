@@ -39,13 +39,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function revealContact(req: VercelRequest, res: VercelResponse) {
-  const { personId } = req.body ?? {};
+  const { personId, domain } = req.body ?? {};
   if (!personId) throw new HttpError(400, "personId is required");
 
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
-  const revealed = await revealAndSaveContact(personId, personId, apiKey);
+  const revealed = await revealAndSaveContact(domain ?? personId, personId, apiKey);
   if (!revealed) {
     return res.status(200).json({ revealed: false });
   }
