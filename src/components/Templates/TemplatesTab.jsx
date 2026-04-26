@@ -20,10 +20,13 @@ function fillVariables(html, data) {
   if (!html) return ''
   return html
     .replace(/\{\{first_name\}\}/g, data.first_name || 'Alex')
+    .replace(/\{\{firstName\}\}/g, data.first_name || 'Alex')
     .replace(/\{\{last_name\}\}/g, data.last_name || 'Chen')
     .replace(/\{\{company\}\}/g, data.company || 'Momentum AI')
+    .replace(/\{\{companyName\}\}/g, data.company || 'Momentum AI')
     .replace(/\{\{role\}\}/g, data.role || 'CEO')
     .replace(/\{\{sender_name\}\}/g, data.sender_name || 'Your Name')
+    .replace(/\{\{senderName\}\}/g, data.sender_name || 'Your Name')
 }
 
 function ToolbarButton({ onClick, active, title, children }) {

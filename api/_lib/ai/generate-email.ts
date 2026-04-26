@@ -16,13 +16,16 @@ export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
 export function buildSubjectLine(
   template: string | null,
   contact: { name: string | null },
-  senderName: string | null
+  senderName: string | null,
+  company?: { name: string }
 ): string {
   const tmpl = template ?? DEFAULT_SUBJECT_TEMPLATE
   const firstName = contact.name?.split(' ')[0] ?? 'there'
   return tmpl
     .replace(/\{\{firstName\}\}/g, firstName)
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
+    .replace(/\{\{company\}\}/g, company?.name ?? '')
+    .replace(/\{\{companyName\}\}/g, company?.name ?? '')
 }
 
 export async function generateEmailDraft(params: GenerateEmailParams): Promise<EmailDraft> {
@@ -75,7 +78,7 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
   const rawBody = data.content?.find((c) => c.type === 'text')?.text?.trim() ?? ''
 
   const body = await humanizeEmailBody(rawBody, params.apiKey)
-  const subject = buildSubjectLine(params.subjectTemplate, params.contact, params.senderName)
+  const subject = buildSubjectLine(params.subjectTemplate, params.contact, params.senderName, params.company)
 
   return { subject, body }
 }
