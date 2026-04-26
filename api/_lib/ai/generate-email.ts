@@ -19,7 +19,7 @@ export function buildSubjectLine(
   senderName: string | null
 ): string {
   const tmpl = template ?? DEFAULT_SUBJECT_TEMPLATE
-  const firstName = contact.name?.split(' ')[0] ?? ''
+  const firstName = contact.name?.split(' ')[0] ?? 'there'
   return tmpl
     .replace(/\{\{firstName\}\}/g, firstName)
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
