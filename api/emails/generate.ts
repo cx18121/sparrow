@@ -142,15 +142,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let savedEmail = null;
     try {
-      savedEmail = await prisma.email.create({
-        data: {
-          userLeadId: lead.id,
-          contactId: contact.id,
-          subject: draft.subject,
-          body: draft.body,
-          status: "draft",
-        },
+      const existing = await prisma.email.findFirst({
+        where: { userLeadId: lead.id, contactId: contact.id, status: "draft" },
       });
+      if (existing) {
+        savedEmail = await prisma.email.update({
+          where: { id: existing.id },
+          data: { subject: draft.subject, body: draft.body },
+        });
+      } else {
+        savedEmail = await prisma.email.create({
+          data: {
+            userLeadId: lead.id,
+            contactId: contact.id,
+            subject: draft.subject,
+            body: draft.body,
+            status: "draft",
+          },
+        });
+      }
     } catch (err) {
       console.warn("Failed to save generated email:", err);
     }
