@@ -118,7 +118,10 @@ function AppShell() {
         const serverConfig = createWorkspaceConfig({
           user,
           templates,
-          data: res.profile.workspaceConfig || null,
+          data: {
+            ...(res.profile.workspaceConfig || {}),
+            resumeText: res.profile.resumeText || '',
+          },
         })
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
