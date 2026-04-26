@@ -275,12 +275,15 @@ export default function DraftsTab() {
                     />
                   </td>
                   <td className="px-4 py-3 font-medium text-dark">
-                    {draft.contact?.name || '—'}
-                    {draft.contact?.title && (
-                      <div className="text-xs text-muted font-normal">{draft.contact.title}</div>
+                    {draft.contact?.name || draft.customContact?.name || '—'}
+                    {(draft.contact?.title || draft.customContact?.title) && (
+                      <div className="text-xs text-muted font-normal">{draft.contact?.title || draft.customContact?.title}</div>
+                    )}
+                    {(draft.contact?.email || draft.customContact?.email) && (
+                      <div className="text-xs text-primary/80 font-normal">{draft.contact?.email || draft.customContact?.email}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted">{draft.userLead?.company?.name || '—'}</td>
+                  <td className="px-4 py-3 text-muted">{draft.userLead?.company?.name || draft.customContact?.companyName || '—'}</td>
                   <td className="px-4 py-3 text-dark max-w-xs">
                     <div className="truncate">{draft.subject || '(no subject)'}</div>
                     <div className="truncate text-xs text-muted">{stripHtml(draft.body)}</div>
