@@ -18,6 +18,7 @@ import {
   fetchTemplates, createTemplate, updateTemplate, deleteTemplate,
   fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   fetchLeads, updateLead, deleteLead,
+  fetchCustomContacts, createCustomContact, deleteCustomContact,
   apiGetAuth,
 } from './lib/api'
 
@@ -65,6 +66,7 @@ function AppShell() {
   // Server-backed resource state. Hydrated from /api/* once the user is known.
   const [campaigns, setCampaigns] = useState([])
   const [leads, setLeads] = useState([])
+  const [customContacts, setCustomContacts] = useState([])
   const [templates, setTemplates] = useState([])
   const [dataLoaded, setDataLoaded] = useState(false)
 
@@ -154,11 +156,13 @@ function AppShell() {
       fetchTemplates().catch(e => { console.error('fetchTemplates failed:', e.message); return { items: [] } }),
       fetchCampaigns().catch(e => { console.error('fetchCampaigns failed:', e.message); return { items: [] } }),
       fetchLeads().catch(e => { console.error('fetchLeads failed:', e.message); return { items: [] } }),
-    ]).then(([t, c, l]) => {
+      fetchCustomContacts().catch(e => { console.error('fetchCustomContacts failed:', e.message); return { items: [] } }),
+    ]).then(([t, c, l, cc]) => {
       if (cancelled) return
       setTemplates(t?.items || [])
       setCampaigns((c?.items || []).map(campaignToUi))
       setLeads(l?.items || [])
+      setCustomContacts(cc?.items || [])
       setDataLoaded(true)
     })
 
@@ -264,6 +268,23 @@ function AppShell() {
       await deleteLead(id)
     } catch (err) {
       setLeads(() => prev)
+      throw err
+    }
+  }
+
+  // ── Custom Contacts ──
+  const createCustomContactHandler = async (data) => {
+    const created = await createCustomContact(data)
+    setCustomContacts(prev => [created, ...prev])
+    return created
+  }
+  const deleteCustomContactHandler = async (id) => {
+    const prev = customContacts
+    setCustomContacts(curr => curr.filter(c => c.id !== id))
+    try {
+      await deleteCustomContact(id)
+    } catch (err) {
+      setCustomContacts(() => prev)
       throw err
     }
   }
@@ -470,9 +491,12 @@ function AppShell() {
               <Route path="/contacts" element={
                 <ContactsTab
                   leads={leads}
+                  customContacts={customContacts}
                   templates={templates}
                   onUpdate={updateLeadHandler}
                   onDelete={deleteLeadHandler}
+                  onCreateCustomContact={createCustomContactHandler}
+                  onDeleteCustomContact={deleteCustomContactHandler}
                   workspaceConfig={workspaceConfig}
                 />
               } />

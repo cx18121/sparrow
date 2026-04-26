@@ -48,6 +48,12 @@ export const revealApolloContact = (personId) =>
 
 export const fetchContacts = (params = {}) => request(`/contacts${qs(params)}`)
 
+export const fetchCustomContacts = () => request('/custom-contacts')
+export const createCustomContact = (data) =>
+  request('/custom-contacts', { method: 'POST', body: JSON.stringify(data) })
+export const deleteCustomContact = (id) =>
+  request(`/custom-contacts${qs({ id })}`, { method: 'DELETE' })
+
 export const fetchLeads = (params = {}) => request(`/leads${qs(params)}`)
 export const saveLead = (data) =>
   request('/leads', { method: 'POST', body: JSON.stringify(data) })

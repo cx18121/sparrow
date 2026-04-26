@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
   Search, Trash2, ChevronUp, ChevronDown,
-  ChevronLeft, ChevronRight, Download, Sparkles,
+  ChevronLeft, ChevronRight, Download, Sparkles, UserPlus,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import Badge from '../ui/Badge'
@@ -13,14 +13,6 @@ import { generateEmail, createEmail } from '../../lib/api'
 const PAGE_SIZE = 10
 const STATUSES = ['NEW', 'SAVED', 'EMAILED', 'REJECTED']
 
-// Badge variants are lowercase; map LeadStatus to the nearest Badge variant.
-const STATUS_BADGE = {
-  NEW:      'draft',
-  SAVED:    'active',
-  EMAILED:  'completed',
-  REJECTED: 'bounced',
-}
-
 const STATUS_STYLE = {
   NEW:      'bg-slate-100 text-slate-600',
   SAVED:    'bg-emerald-50 text-emerald-700',
@@ -28,35 +20,44 @@ const STATUS_STYLE = {
   REJECTED: 'bg-red-50 text-red-600',
 }
 
-const getName = (lead) => lead.contact?.name || ''
-const getEmail = (lead) => lead.contact?.email || ''
-const getCompany = (lead) => lead.company?.name || ''
-const getTitle = (lead) => lead.contact?.title || ''
-// When no Contact record exists (lead saved from Apollo preview without enrichment),
-// the name/title are embedded in the notes field.
+// Normalised row shape — works for both UserLead rows and CustomContact rows.
+// CustomContact rows carry a `_custom: true` flag.
+const getName    = (row) => row._custom ? (row.name || '') : (row.contact?.name || '')
+const getEmail   = (row) => row._custom ? (row.email || '') : (row.contact?.email || '')
+const getCompany = (row) => row._custom ? (row.companyName || '') : (row.company?.name || '')
+const getTitle   = (row) => row._custom ? (row.title || '') : (row.contact?.title || '')
+
 const getNotesName = (lead) => {
-  if (lead.contact?.name) return lead.contact.name
+  if (lead._custom || lead.contact?.name) return getName(lead)
   const m = lead.notes?.match(/^Apollo contact: ([^ ]+) /)
   return m ? m[1] : ''
 }
 const getNotesTitle = (lead) => {
-  if (lead.contact?.title) return lead.contact.title
+  if (lead._custom || lead.contact?.title) return getTitle(lead)
   const m = lead.notes?.match(/— (.+?) \//)
   return m ? m[1] : ''
 }
 
-export default function ContactsTab({ leads = [], templates = [], onUpdate, onDelete, workspaceConfig }) {
+export default function ContactsTab({
+  leads = [],
+  customContacts = [],
+  templates = [],
+  onUpdate,
+  onDelete,
+  onCreateCustomContact,
+  onDeleteCustomContact,
+  workspaceConfig,
+}) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
-  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null) // { id, custom }
 
+  // Generate email modal
   const [generateTarget, setGenerateTarget] = useState(null)
-  const [generateTemplateId, setGenerateTemplateId] = useState(
-    workspaceConfig?.templateId || ''
-  )
+  const [generateTemplateId, setGenerateTemplateId] = useState(workspaceConfig?.templateId || '')
   const [generateTone, setGenerateTone] = useState('')
   const [generatedSubject, setGeneratedSubject] = useState('')
   const [generatedBody, setGeneratedBody] = useState('')
@@ -65,8 +66,20 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
   const [saving, setSaving] = useState(false)
   const [generateError, setGenerateError] = useState(null)
 
-  const openGenerate = (lead) => {
-    setGenerateTarget(lead)
+  // Add custom contact modal
+  const [addOpen, setAddOpen] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', email: '', title: '', companyName: '' })
+  const [addSaving, setAddSaving] = useState(false)
+  const [addError, setAddError] = useState(null)
+
+  // Merge leads + custom contacts into a single list
+  const allRows = useMemo(() => [
+    ...leads,
+    ...customContacts.map(cc => ({ ...cc, _custom: true, status: 'SAVED', addedAt: cc.createdAt })),
+  ], [leads, customContacts])
+
+  const openGenerate = (row) => {
+    setGenerateTarget(row)
     setGenerateTemplateId(workspaceConfig?.templateId || '')
     setGenerateTone('')
     setGeneratedSubject('')
@@ -86,11 +99,10 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
     setGenerating(true)
     setGenerateError(null)
     try {
-      const res = await generateEmail({
-        userLeadId: generateTarget.id,
-        templateId: generateTemplateId || undefined,
-        tone: generateTone || undefined,
-      })
+      const payload = generateTarget._custom
+        ? { customContactId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined }
+        : { userLeadId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined }
+      const res = await generateEmail(payload)
       setGeneratedSubject(res.subject || '')
       setGeneratedBody(res.body || '')
       setGeneratedEmailId(res.emailId || null)
@@ -109,17 +121,43 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
       // generateEmail already saved the draft server-side and returned emailId —
       // only call createEmail when it did not (e.g. generation without auto-save).
       if (!generatedEmailId) {
-        await createEmail({
-          userLeadId: generateTarget.id,
-          subject: generatedSubject,
-          body: generatedBody,
-          status: 'draft',
-        })
+        const payload = generateTarget._custom
+          ? { customContactId: generateTarget.id, subject: generatedSubject, body: generatedBody, status: 'draft' }
+          : { userLeadId: generateTarget.id, subject: generatedSubject, body: generatedBody, status: 'draft' }
+        await createEmail(payload)
       }
       closeGenerate()
     } catch (err) {
       setGenerateError(err.message || 'Failed to save draft')
       setSaving(false)
+    }
+  }
+
+  const openAdd = () => {
+    setAddForm({ name: '', email: '', title: '', companyName: '' })
+    setAddError(null)
+    setAddOpen(true)
+  }
+
+  const submitAdd = async () => {
+    if (!addForm.name.trim() && !addForm.email.trim()) {
+      setAddError('Enter at least a name or email.')
+      return
+    }
+    setAddSaving(true)
+    setAddError(null)
+    try {
+      await onCreateCustomContact({
+        name: addForm.name.trim() || null,
+        email: addForm.email.trim() || null,
+        title: addForm.title.trim() || null,
+        companyName: addForm.companyName.trim() || null,
+      })
+      setAddOpen(false)
+    } catch (err) {
+      setAddError(err.message || 'Failed to create contact')
+    } finally {
+      setAddSaving(false)
     }
   }
 
@@ -136,36 +174,30 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
       : <ChevronDown size={11} className="text-primary" />
   }
 
-  const getSortValue = (lead, key) => {
+  const getSortValue = (row, key) => {
     switch (key) {
-      case 'name': {
-        const n = getName(lead) || getNotesName(lead)
-        return n.toLowerCase()
-      }
-      case 'email':   return getEmail(lead).toLowerCase()
-      case 'company': return getCompany(lead).toLowerCase()
-      case 'title': {
-        const t = getTitle(lead) || getNotesTitle(lead)
-        return t.toLowerCase()
-      }
-      case 'status':  return (lead.status || '').toLowerCase()
-      case 'addedAt': return lead.addedAt || ''
+      case 'name':    return (getName(row) || getNotesName(row)).toLowerCase()
+      case 'email':   return getEmail(row).toLowerCase()
+      case 'company': return getCompany(row).toLowerCase()
+      case 'title':   return (getTitle(row) || getNotesTitle(row)).toLowerCase()
+      case 'status':  return (row.status || '').toLowerCase()
+      case 'addedAt': return row.addedAt || ''
       default: return ''
     }
   }
 
   const filtered = useMemo(() => {
-    let data = leads
+    let data = allRows
     if (search) {
       const q = search.toLowerCase()
-      data = data.filter(l =>
-        (getName(l) || getNotesName(l)).toLowerCase().includes(q) ||
-        getEmail(l).toLowerCase().includes(q) ||
-        getCompany(l).toLowerCase().includes(q) ||
-        (getTitle(l) || getNotesTitle(l)).toLowerCase().includes(q)
+      data = data.filter(r =>
+        (getName(r) || getNotesName(r)).toLowerCase().includes(q) ||
+        getEmail(r).toLowerCase().includes(q) ||
+        getCompany(r).toLowerCase().includes(q) ||
+        (getTitle(r) || getNotesTitle(r)).toLowerCase().includes(q)
       )
     }
-    if (statusFilter !== 'all') data = data.filter(l => l.status === statusFilter)
+    if (statusFilter !== 'all') data = data.filter(r => r.status === statusFilter)
     data = [...data].sort((a, b) => {
       const av = getSortValue(a, sortKey)
       const bv = getSortValue(b, sortKey)
@@ -174,24 +206,24 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
       return 0
     })
     return data
-  }, [leads, search, statusFilter, sortKey, sortDir])
+  }, [allRows, search, statusFilter, sortKey, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const changeStatus = (lead, status) => {
-    if (status === lead.status) return
+    if (lead._custom || status === lead.status) return
     onUpdate({ id: lead.id, status }).catch(err => console.error('Failed to update lead', err))
   }
 
   const exportCSV = () => {
-    const csv = Papa.unparse(filtered.map(l => ({
-      name:    getName(l),
-      email:   getEmail(l),
-      title:   getTitle(l),
-      company: getCompany(l),
-      status:  l.status,
-      added:   l.addedAt,
+    const csv = Papa.unparse(filtered.map(r => ({
+      name:    getName(r),
+      email:   getEmail(r),
+      title:   getTitle(r),
+      company: getCompany(r),
+      status:  r.status,
+      added:   r.addedAt,
     })))
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -207,11 +239,16 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Saved leads</p>
-          <p className="mt-1 text-sm text-muted">Leads you've saved from lead search appear here.</p>
+          <p className="mt-1 text-sm text-muted">Leads you've saved from lead search, plus any custom contacts you've added.</p>
         </div>
-        <button onClick={exportCSV} className="btn-secondary text-xs" disabled={filtered.length === 0}>
-          <Download size={13} /> Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={openAdd} className="btn-primary text-xs">
+            <UserPlus size={13} /> Add Contact
+          </button>
+          <button onClick={exportCSV} className="btn-secondary text-xs" disabled={filtered.length === 0}>
+            <Download size={13} /> Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="page-toolbar">
@@ -236,7 +273,7 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
             </select>
           </div>
           <p className="text-sm text-muted">
-            {filtered.length} lead{filtered.length !== 1 ? 's' : ''} across {totalPages} page{totalPages !== 1 ? 's' : ''}
+            {filtered.length} contact{filtered.length !== 1 ? 's' : ''} across {totalPages} page{totalPages !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
@@ -266,36 +303,47 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {paginated.map(lead => (
-              <tr key={lead.id} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
-                <td className="px-5 py-4 font-medium text-dark">{getName(lead) || getNotesName(lead) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getEmail(lead) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getCompany(lead) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getTitle(lead) || getNotesTitle(lead) || '—'}</td>
+            {paginated.map(row => (
+              <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
+                <td className="px-5 py-4 font-medium text-dark">
+                  <span className="flex items-center gap-2">
+                    {getName(row) || getNotesName(row) || '—'}
+                    {row._custom && (
+                      <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600">custom</span>
+                    )}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-muted">{getEmail(row) || '—'}</td>
+                <td className="px-5 py-4 text-muted">{getCompany(row) || '—'}</td>
+                <td className="px-5 py-4 text-muted">{getTitle(row) || getNotesTitle(row) || '—'}</td>
                 <td className="px-5 py-4">
-                  <select
-                    value={lead.status}
-                    onChange={e => changeStatus(lead, e.target.value)}
-                    className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[lead.status] || STATUS_STYLE.NEW}`}
-                  >
-                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  {row._custom ? (
+                    <span className={`rounded-full text-xs font-medium py-1 px-2.5 ${STATUS_STYLE.SAVED}`}>SAVED</span>
+                  ) : (
+                    <select
+                      value={row.status}
+                      onChange={e => changeStatus(row, e.target.value)}
+                      className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.NEW}`}
+                    >
+                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
                 </td>
                 <td className="px-5 py-4 text-muted">
-                  {lead.addedAt ? format(new Date(lead.addedAt), 'MMM d, yyyy') : '—'}
+                  {row.addedAt ? format(new Date(row.addedAt), 'MMM d, yyyy') : '—'}
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
-                      onClick={() => openGenerate(lead)}
-                      disabled={!lead.contact?.email && !lead.apolloPersonId}
-                      title={lead.contact?.email ? 'Generate email with Claude' : lead.apolloPersonId ? 'Generating will reveal contact via Apollo' : 'Lead has no contact email'}
+                      onClick={() => openGenerate(row)}
+                      disabled={!getEmail(row) && !row.apolloPersonId && !row._custom}
+                      title={getEmail(row) ? 'Generate email with Claude' : row._custom ? 'Generate email with Claude' : row.apolloPersonId ? 'Generating will reveal contact via Apollo' : 'Lead has no contact email'}
                       className="btn-ghost px-2 py-1 hover:text-primary disabled:opacity-40"
                     >
                       <Sparkles size={12} />
                     </button>
                     <button
-                      onClick={() => setDeleteTarget(lead.id)}
+                      onClick={() => setDeleteTarget({ id: row.id, custom: !!row._custom })}
                       className="btn-ghost px-2 py-1 hover:text-red-500"
                     >
                       <Trash2 size={12} />
@@ -308,7 +356,7 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
               <tr>
                 <td colSpan={7} className="px-4 py-10">
                   <div className="empty-state border-0 bg-transparent py-10 shadow-none">
-                    No leads yet. Save leads from the lead search to see them here.
+                    No contacts yet. Save leads from lead search or add a custom contact.
                   </div>
                 </td>
               </tr>
@@ -357,18 +405,88 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
         )}
       </div>
 
+      {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
           const victim = deleteTarget
           setDeleteTarget(null)
-          onDelete(victim).catch(err => console.error('Failed to delete lead', err))
+          if (victim.custom) {
+            onDeleteCustomContact(victim.id).catch(err => console.error('Failed to delete custom contact', err))
+          } else {
+            onDelete(victim.id).catch(err => console.error('Failed to delete lead', err))
+          }
         }}
-        title="Remove lead"
-        message="Remove this lead from your saved list? This doesn't affect the underlying company or contact data."
+        title="Remove contact"
+        message="Remove this contact? This action cannot be undone."
       />
 
+      {/* Add custom contact modal */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add custom contact" size="md">
+        <div className="px-6 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Name</label>
+              <input
+                value={addForm.name}
+                onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Jane Smith"
+                className="input"
+                disabled={addSaving}
+              />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input
+                value={addForm.email}
+                onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="jane@acme.com"
+                className="input"
+                type="email"
+                disabled={addSaving}
+              />
+            </div>
+            <div>
+              <label className="label">Title <span className="text-muted">(optional)</span></label>
+              <input
+                value={addForm.title}
+                onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Head of Engineering"
+                className="input"
+                disabled={addSaving}
+              />
+            </div>
+            <div>
+              <label className="label">Company <span className="text-muted">(optional)</span></label>
+              <input
+                value={addForm.companyName}
+                onChange={e => setAddForm(f => ({ ...f, companyName: e.target.value }))}
+                placeholder="Acme Corp"
+                className="input"
+                disabled={addSaving}
+              />
+            </div>
+          </div>
+
+          {addError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {addError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setAddOpen(false)} className="btn-secondary" disabled={addSaving}>
+              Cancel
+            </button>
+            <button onClick={submitAdd} className="btn-primary" disabled={addSaving}>
+              {addSaving ? 'Adding…' : 'Add contact'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Generate email modal */}
       <Modal
         open={!!generateTarget}
         onClose={closeGenerate}
@@ -378,8 +496,11 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
         <div className="px-6 py-4 space-y-4">
           {generateTarget && (
             <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-muted">
-              <div><span className="font-semibold text-dark">{getName(generateTarget) || '—'}</span>{getTitle(generateTarget) ? ` · ${getTitle(generateTarget)}` : ''}</div>
-              <div className="text-muted/80">{getCompany(generateTarget)} · {getEmail(generateTarget) || 'no email'}</div>
+              <div>
+                <span className="font-semibold text-dark">{getName(generateTarget) || '—'}</span>
+                {getTitle(generateTarget) ? ` · ${getTitle(generateTarget)}` : ''}
+              </div>
+              <div className="text-muted/80">{getCompany(generateTarget) || 'No company'} · {getEmail(generateTarget) || 'no email'}</div>
             </div>
           )}
 

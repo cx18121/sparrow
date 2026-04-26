@@ -8,6 +8,7 @@ import axios from "axios";
 
 type GenerateBody = {
   userLeadId?: string;
+  customContactId?: string;
   templateId?: string;
   interestHook?: string;
   tone?: string;
@@ -26,60 +27,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const body = parseBody(req) as GenerateBody;
-  const { userLeadId, templateId, interestHook, tone, extraContext, save = true } = body;
+  const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, save = true } = body;
 
-  if (!userLeadId) return res.status(400).json({ error: "userLeadId is required" });
-
-  const lead = await prisma.userLead.findUnique({
-    where: { id: userLeadId },
-    include: { company: true, contact: true },
-  });
-  if (!lead || lead.userId !== userId) {
-    return res.status(404).json({ error: "Lead not found" });
+  if (!userLeadId && !customContactId) {
+    return res.status(400).json({ error: "userLeadId or customContactId is required" });
   }
 
-  let contact = lead.contact;
-  if (!contact && lead.apolloPersonId) {
-    const apolloKey = process.env.APOLLO_API_KEY;
-    if (apolloKey) {
-      try {
-        const revealed = await revealApolloContact(lead.apolloPersonId, apolloKey);
-        if (revealed?.email) {
-          const saved = await prisma.contact.upsert({
-            where: { email: revealed.email },
-            create: {
-              companyId: lead.companyId,
-              name: revealed.name ?? null,
-              email: revealed.email,
-              title: revealed.title ?? null,
-              role: null,
-              linkedinUrl: revealed.linkedin_url ?? null,
-              source: "apollo",
-            },
-            update: {
-              name: revealed.name ?? null,
-              title: revealed.title ?? null,
-              linkedinUrl: revealed.linkedin_url ?? null,
-              lastVerifiedAt: new Date(),
-            },
-          });
-          await prisma.userLead.update({
-            where: { id: lead.id },
-            data: { contactId: saved.id },
-          });
-          contact = saved;
+  // -- Resolve contact and company info from either source --
+  let contactInfo: { name: string | null; title: string | null } = { name: null, title: null };
+  let companyInfo: {
+    name: string;
+    description: string | null;
+    oneLiner: string | null;
+    stage: string | null;
+    industry: string | null;
+    isHiring: boolean;
+  } = { name: "", description: null, oneLiner: null, stage: null, industry: null, isHiring: false };
+  let savedLeadId: string | null = null;
+  let savedContactId: string | null = null;
+  let savedCustomContactId: string | null = null;
+
+  if (customContactId) {
+    const cc = await prisma.customContact.findUnique({ where: { id: customContactId } });
+    if (!cc || cc.userId !== userId) {
+      return res.status(404).json({ error: "Custom contact not found" });
+    }
+    contactInfo = { name: cc.name, title: cc.title };
+    companyInfo.name = cc.companyName ?? "";
+    savedCustomContactId = cc.id;
+  } else {
+    // userLeadId path
+    const lead = await prisma.userLead.findUnique({
+      where: { id: userLeadId! },
+      include: { company: true, contact: true },
+    });
+    if (!lead || lead.userId !== userId) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    let contact = lead.contact;
+    if (!contact && lead.apolloPersonId) {
+      const apolloKey = process.env.APOLLO_API_KEY;
+      if (apolloKey) {
+        try {
+          const revealed = await revealApolloContact(lead.apolloPersonId, apolloKey);
+          if (revealed?.email) {
+            const saved = await prisma.contact.upsert({
+              where: { email: revealed.email },
+              create: {
+                companyId: lead.companyId,
+                name: revealed.name ?? null,
+                email: revealed.email,
+                title: revealed.title ?? null,
+                role: null,
+                linkedinUrl: revealed.linkedin_url ?? null,
+                source: "apollo",
+              },
+              update: {
+                name: revealed.name ?? null,
+                title: revealed.title ?? null,
+                linkedinUrl: revealed.linkedin_url ?? null,
+                lastVerifiedAt: new Date(),
+              },
+            });
+            await prisma.userLead.update({
+              where: { id: lead.id },
+              data: { contactId: saved.id },
+            });
+            contact = saved;
+          }
+        } catch (err) {
+          console.warn("Apollo reveal failed, proceeding without contact:", err);
         }
-      } catch (err) {
-        console.warn("Apollo reveal failed, proceeding without contact:", err);
       }
     }
-  }
-  if (!contact) {
-    return res.status(400).json({
-      error: "Lead has no contact. Save a lead from Discover to get contact details.",
-    });
+    if (!contact) {
+      return res.status(400).json({
+        error: "Lead has no contact. Save a lead from Discover to get contact details.",
+      });
+    }
+
+    contactInfo = { name: contact.name, title: contact.title };
+    companyInfo = {
+      name: lead.company.name,
+      description: lead.company.description,
+      oneLiner: lead.company.oneLiner,
+      stage: lead.company.stage,
+      industry: lead.company.industry,
+      isHiring: lead.company.isHiring,
+    };
+    savedLeadId = lead.id;
+    savedContactId = contact.id;
   }
 
+  // -- Resolve template --
   let userTemplate: { subject: string; body: string } | null = null;
   if (templateId) {
     const t = await prisma.template.findUnique({ where: { id: templateId } });
@@ -89,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userTemplate = { subject: t.subject, body: t.body };
   }
 
+  // -- Resolve sender profile --
   const supabase = getSupabaseAdmin();
   const { data: profile, error: profileError } = await supabase
     .from("user_profiles")
@@ -124,15 +166,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const draft = await generateEmailDraft({
-      contact: { name: contact.name, title: contact.title },
-      company: {
-        name: lead.company.name,
-        description: lead.company.description,
-        oneLiner: lead.company.oneLiner,
-        stage: lead.company.stage,
-        industry: lead.company.industry,
-        isHiring: lead.company.isHiring,
-      },
+      contact: { name: contactInfo.name, title: contactInfo.title },
+      company: companyInfo,
       interestHook: interestHook ?? null,
       userTemplate: userTemplate?.body ?? null,
       senderContext,
@@ -144,25 +179,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let savedEmail = null;
     if (save) {
       try {
-        const existing = await prisma.email.findFirst({
-          where: { userLeadId: lead.id, contactId: contact.id, status: "draft" },
+        savedEmail = await prisma.email.create({
+          data: {
+            ...(savedLeadId ? { userLeadId: savedLeadId } : {}),
+            ...(savedContactId ? { contactId: savedContactId } : {}),
+            ...(savedCustomContactId ? { customContactId: savedCustomContactId } : {}),
+            subject: draft.subject,
+            body: draft.body,
+            status: "draft",
+          },
         });
-        if (existing) {
-          savedEmail = await prisma.email.update({
-            where: { id: existing.id },
-            data: { subject: draft.subject, body: draft.body },
-          });
-        } else {
-          savedEmail = await prisma.email.create({
-            data: {
-              userLeadId: lead.id,
-              contactId: contact.id,
-              subject: draft.subject,
-              body: draft.body,
-              status: "draft",
-            },
-          });
-        }
       } catch (err) {
         console.warn("Failed to save generated email:", err);
       }
@@ -174,8 +200,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       emailId: savedEmail?.id ?? null,
     });
   } catch (err) {
-    const contactName = contact.name ?? "there";
-    const companyName = lead.company.name;
+    const contactName = contactInfo.name ?? "there";
+    const companyName = companyInfo.name;
     return res.status(502).json({
       error: (err as Error).message,
       subject: GENERIC_FALLBACK_SUBJECT,

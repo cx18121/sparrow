@@ -37,7 +37,10 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const items = await prisma.email.findMany({
     where: {
-      userLead: { userId },
+      OR: [
+        { userLead: { userId } },
+        { customContact: { userId } },
+      ],
       ...(userLeadId && { userLeadId }),
       ...(status && { status }),
     },
@@ -46,6 +49,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     orderBy: { createdAt: "desc" },
     include: {
       contact: { select: { id: true, name: true, email: true, title: true } },
+      customContact: { select: { id: true, name: true, email: true, title: true, companyName: true } },
       userLead: {
         select: {
           id: true,
@@ -64,25 +68,32 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { userLeadId, subject, body, status = "draft" } = req.body ?? {};
-  if (!userLeadId) throw new HttpError(400, "userLeadId is required");
+  const { userLeadId, customContactId, subject, body, status = "draft" } = req.body ?? {};
 
-  const lead = await prisma.userLead.findUnique({
-    where: { id: userLeadId },
-    select: { id: true, userId: true, contactId: true },
-  });
-  if (!lead || lead.userId !== userId) throw new HttpError(404, "Lead not found");
+  if (!userLeadId && !customContactId) {
+    throw new HttpError(400, "userLeadId or customContactId is required");
+  }
+
+  if (userLeadId) {
+    const lead = await prisma.userLead.findUnique({
+      where: { id: userLeadId },
+      select: { id: true, userId: true, contactId: true },
+    });
+    if (!lead || lead.userId !== userId) throw new HttpError(404, "Lead not found");
+
+    const email = await prisma.email.create({
+      data: { userLeadId, contactId: lead.contactId ?? null, subject, body, status },
+    });
+    return res.status(201).json(email);
+  }
+
+  // customContactId path
+  const cc = await prisma.customContact.findUnique({ where: { id: customContactId } });
+  if (!cc || cc.userId !== userId) throw new HttpError(404, "Custom contact not found");
 
   const email = await prisma.email.create({
-    data: {
-      userLeadId,
-      contactId: lead.contactId ?? null,
-      subject,
-      body,
-      status,
-    },
+    data: { customContactId, subject, body, status },
   });
-
   res.status(201).json(email);
 }
 
@@ -92,9 +103,14 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const existing = await prisma.email.findUnique({
     where: { id },
-    include: { userLead: { select: { userId: true } } },
+    include: {
+      userLead: { select: { userId: true } },
+      customContact: { select: { userId: true } },
+    },
   });
-  if (!existing || !existing.userLead || existing.userLead.userId !== userId) {
+
+  const ownerUserId = existing?.userLead?.userId ?? existing?.customContact?.userId ?? null;
+  if (!existing || ownerUserId !== userId) {
     throw new HttpError(404, "Email not found");
   }
 

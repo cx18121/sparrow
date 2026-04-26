@@ -89,21 +89,39 @@ enum LeadStatus {
   REJECTED
 }
 
+model CustomContact {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String?
+  email       String?
+  title       String?
+  companyName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  emails Email[]
+
+  @@index([userId])
+}
+
 model Email {
-  id         String   @id @default(cuid())
-  userLeadId String
-  userLead   UserLead @relation(fields: [userLeadId], references: [id])
-  contactId  String?
-  contact    Contact? @relation(fields: [contactId], references: [id])
-  subject    String?
-  body       String?  @db.Text
-  status     String   @default("draft")
-  sentAt     DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String         @id @default(cuid())
+  userLeadId      String?
+  userLead        UserLead?      @relation(fields: [userLeadId], references: [id])
+  contactId       String?
+  contact         Contact?       @relation(fields: [contactId], references: [id])
+  customContactId String?
+  customContact   CustomContact? @relation(fields: [customContactId], references: [id])
+  subject         String?
+  body            String?        @db.Text
+  status          String         @default("draft")
+  sentAt          DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([userLeadId])
   @@index([contactId])
+  @@index([customContactId])
 }
 
 model Template {
