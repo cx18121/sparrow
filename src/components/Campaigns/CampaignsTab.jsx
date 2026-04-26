@@ -14,13 +14,13 @@ import {
 
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
-  templateId: '', sequenceId: '', scheduledAt: '',
+  templateId: '', scheduledAt: '',
   filterIndustry: '', filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: '', filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10',
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, sequences, templates, workspaceConfig }) {
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -64,7 +64,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: c.subject || '',
       status: c.status,
       templateId: c.templateId || '',
-      sequenceId: c.sequenceId || '',
       scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : '',
       filterIndustry: c.filterIndustry || '',
       filterRegion: c.filterRegion || '',
@@ -86,7 +85,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: form.subject || null,
       status: form.status,
       templateId: form.templateId || null,
-      sequenceId: form.sequenceId || null,
       scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
       filterIndustry: form.filterIndustry || null,
       filterRegion: form.filterRegion || null,
@@ -130,7 +128,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: c.subject || null,
       status: 'draft',
       templateId: c.templateId || null,
-      sequenceId: c.sequenceId || null,
       scheduledAt: c.scheduledAt || null,
       filterIndustry: c.filterIndustry || null,
       filterRegion: c.filterRegion || null,
@@ -345,6 +342,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       </section>
 
       {/* Create / Edit modal */}
+<<<<<<< HEAD
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="lg">
         <div className="px-6 py-4 space-y-5">
           {/* Basic info */}
@@ -388,6 +386,25 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <input type="datetime-local" value={form.scheduledAt} onChange={e => field('scheduledAt', e.target.value)} className="input" />
               </div>
             </div>
+=======
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="md">
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <label className="label">Campaign name *</label>
+            <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. YC W24 Founders Outreach" className="input" required />
+          </div>
+          <div>
+            <label className="label">Subject line</label>
+            <input value={form.subject} onChange={e => field('subject', e.target.value)} placeholder="e.g. Quick question about {{company}}" className="input" />
+          </div>
+
+          <div>
+            <label className="label">Linked template</label>
+            <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+              <option value="">Select template…</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+>>>>>>> 0776ae0 (remove all sequences references from codebase)
           </div>
 
           {/* Lead filters */}

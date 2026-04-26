@@ -75,14 +75,6 @@ export const updateTemplate = (data) =>
 export const deleteTemplate = (id) =>
   request(`/templates${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchSequences = () => request('/sequences')
-export const createSequence = (data) =>
-  request('/sequences', { method: 'POST', body: JSON.stringify(data) })
-export const updateSequence = (data) =>
-  request('/sequences', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteSequence = (id) =>
-  request(`/sequences${qs({ id })}`, { method: 'DELETE' })
-
 export const fetchCampaigns = (params = {}) => request(`/campaigns${qs(params)}`)
 export const createCampaign = (data) =>
   request('/campaigns', { method: 'POST', body: JSON.stringify(data) })

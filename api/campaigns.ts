@@ -33,7 +33,6 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     },
     orderBy: { updatedAt: "desc" },
     include: {
-      sequence: { select: { id: true, name: true } },
       template: { select: { id: true, name: true } },
     },
   });
@@ -43,7 +42,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
   const {
-    name, subject, status, sequenceId, templateId, scheduledAt,
+    name, subject, status, templateId, scheduledAt,
     filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize,
   } = body ?? {};
@@ -61,7 +60,6 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       name: name as string,
       subject: (subject as string | null) ?? null,
       status: ((status as CampaignStatus) ?? "DRAFT"),
-      sequenceId: (sequenceId as string | null) ?? null,
       templateId: (templateId as string | null) ?? null,
       scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       filterIndustry: (filterIndustry as string | null) ?? null,
@@ -74,7 +72,6 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       batchSize: batchSize != null ? Math.min(Math.max(Number(batchSize), 1), 100) : 10,
     },
     include: {
-      sequence: { select: { id: true, name: true } },
       template: { select: { id: true, name: true } },
     },
   });
@@ -84,7 +81,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
   const {
-    id, name, subject, status, sequenceId, templateId, scheduledAt,
+    id, name, subject, status, templateId, scheduledAt,
     filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize,
   } = body ?? {};
@@ -107,7 +104,6 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(name !== undefined && { name: name as string }),
       ...(subject !== undefined && { subject: subject as string | null }),
       ...(status !== undefined && { status: status as CampaignStatus }),
-      ...(sequenceId !== undefined && { sequenceId: sequenceId as string | null }),
       ...(templateId !== undefined && { templateId: templateId as string | null }),
       ...(scheduledAt !== undefined && {
         scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
@@ -122,7 +118,6 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(batchSize !== undefined && { batchSize: Math.min(Math.max(Number(batchSize), 1), 100) }),
     },
     include: {
-      sequence: { select: { id: true, name: true } },
       template: { select: { id: true, name: true } },
     },
   });

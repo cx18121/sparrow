@@ -16,7 +16,6 @@ import { createWorkspaceConfig } from './lib/workspaceConfig'
 import {
   fetchProfile, saveProfile,
   fetchTemplates, createTemplate, updateTemplate, deleteTemplate,
-  fetchSequences, createSequence, updateSequence, deleteSequence,
   fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   fetchLeads, updateLead, deleteLead,
   apiGetAuth,
@@ -65,7 +64,6 @@ function AppShell() {
 
   // Server-backed resource state. Hydrated from /api/* once the user is known.
   const [campaigns, setCampaigns] = useState([])
-  const [sequences, setSequences] = useState([])
   const [leads, setLeads] = useState([])
   const [templates, setTemplates] = useState([])
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -145,7 +143,6 @@ function AppShell() {
     const effectiveUser = user || userId
     if (!effectiveUser) {
       setTemplates([])
-      setSequences([])
       setCampaigns([])
       setLeads([])
       setDataLoaded(false)
@@ -155,16 +152,11 @@ function AppShell() {
     let cancelled = false
     Promise.all([
       fetchTemplates().catch(e => { console.error('fetchTemplates failed:', e.message); return { items: [] } }),
-      fetchSequences().catch(e => { console.error('fetchSequences failed:', e.message); return { items: [] } }),
       fetchCampaigns().catch(e => { console.error('fetchCampaigns failed:', e.message); return { items: [] } }),
       fetchLeads().catch(e => { console.error('fetchLeads failed:', e.message); return { items: [] } }),
-    ]).then(([t, s, c, l]) => {
+    ]).then(([t, c, l]) => {
       if (cancelled) return
-      const { userId, accessToken } = apiGetAuth()
-      console.log('[data load] user:', user, '| userId:', userId, '| accessToken:', accessToken ? 'set' : 'null')
-      console.log('[data load] templates:', t?.items?.length, '| sequences:', s?.items?.length, '| campaigns:', c?.items?.length, '| leads:', l?.items?.length)
       setTemplates(t?.items || [])
-      setSequences(s?.items || [])
       setCampaigns((c?.items || []).map(campaignToUi))
       setLeads(l?.items || [])
       setDataLoaded(true)
@@ -206,43 +198,6 @@ function AppShell() {
       await deleteTemplate(id)
     } catch (err) {
       setTemplates(() => prev)
-      throw err
-    }
-  }
-
-  // ── Sequences ──
-  const createSequenceHandler = async (data) => {
-    const tempId = `temp-${Date.now()}`
-    const optimistic = { ...data, id: tempId }
-    setSequences(prev => [optimistic, ...prev])
-    try {
-      const created = await createSequence(data)
-      setSequences(prev => prev.map(s => s.id === tempId ? created : s))
-      return created
-    } catch (err) {
-      setSequences(prev => prev.filter(s => s.id !== tempId))
-      throw err
-    }
-  }
-  const updateSequenceHandler = async (data) => {
-    const prev = sequences
-    setSequences(curr => curr.map(s => s.id === data.id ? { ...s, ...data } : s))
-    try {
-      const updated = await updateSequence(data)
-      setSequences(curr => curr.map(s => s.id === updated.id ? updated : s))
-      return updated
-    } catch (err) {
-      setSequences(() => prev)
-      throw err
-    }
-  }
-  const deleteSequenceHandler = async (id) => {
-    const prev = sequences
-    setSequences(curr => curr.filter(s => s.id !== id))
-    try {
-      await deleteSequence(id)
-    } catch (err) {
-      setSequences(() => prev)
       throw err
     }
   }
@@ -502,7 +457,7 @@ function AppShell() {
                   onCreate={createCampaignHandler}
                   onUpdate={updateCampaignHandler}
                   onDelete={deleteCampaignHandler}
-                  sequences={sequences} templates={templates}
+                  templates={templates}
                   workspaceConfig={workspaceConfig}
                 />
               } />
