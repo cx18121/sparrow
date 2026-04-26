@@ -87,7 +87,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
     where: { id },
     include: { userLead: { select: { userId: true } } },
   });
-  if (!existing || existing.userLead.userId !== userId) {
+  if (!existing || !existing.userLead || existing.userLead.userId !== userId) {
     throw new HttpError(404, "Email not found");
   }
 
