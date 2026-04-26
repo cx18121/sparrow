@@ -44,7 +44,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const {
     name, subject, status, templateId, scheduledAt,
     filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize,
+    filterHeadcountMin, filterHeadcountMax, batchSize, tone,
   } = body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
 
@@ -70,6 +70,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null,
       filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null,
       batchSize: batchSize != null ? Math.min(Math.max(Number(batchSize), 1), 100) : 10,
+      tone: (tone as string | null) ?? null,
     },
     include: {
       template: { select: { id: true, name: true } },
@@ -83,7 +84,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const {
     id, name, subject, status, templateId, scheduledAt,
     filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize,
+    filterHeadcountMin, filterHeadcountMax, batchSize, tone,
   } = body ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
 
@@ -116,6 +117,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(filterHeadcountMin !== undefined && { filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null }),
       ...(filterHeadcountMax !== undefined && { filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null }),
       ...(batchSize !== undefined && { batchSize: Math.min(Math.max(Number(batchSize), 1), 100) }),
+      ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
     },
     include: {
       template: { select: { id: true, name: true } },

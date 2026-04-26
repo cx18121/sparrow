@@ -17,7 +17,7 @@ const INITIAL_FORM = {
   templateId: '', scheduledAt: '',
   filterIndustry: '', filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: '', filterHeadcountMin: '', filterHeadcountMax: '',
-  batchSize: '10',
+  batchSize: '10', tone: '',
 }
 
 export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig }) {
@@ -73,6 +73,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMin: c.filterHeadcountMin != null ? String(c.filterHeadcountMin) : '',
       filterHeadcountMax: c.filterHeadcountMax != null ? String(c.filterHeadcountMax) : '',
       batchSize: String(c.batchSize ?? 10),
+      tone: c.tone || '',
     })
     setModalOpen(true)
   }
@@ -94,6 +95,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMin: form.filterHeadcountMin ? Number(form.filterHeadcountMin) : null,
       filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
       batchSize: Number(form.batchSize) || 10,
+      tone: form.tone || null,
     }
     try {
       if (editing) {
@@ -137,6 +139,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMin: c.filterHeadcountMin ?? null,
       filterHeadcountMax: c.filterHeadcountMax ?? null,
       batchSize: c.batchSize ?? 10,
+      tone: c.tone || null,
     }).catch(err => console.error('Failed to duplicate campaign', err)))
   }
 
@@ -195,7 +198,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     setGeneratingEmail(lead.id)
     try {
       const templateId = batchModal.campaign?.templateId || null
-      const result = await generateEmail({ userLeadId: lead.id, templateId, save: false })
+      const tone = batchModal.campaign?.tone || undefined
+      const result = await generateEmail({ userLeadId: lead.id, templateId, tone, save: false })
       setEmailPreview({ open: true, lead, subject: result.subject || '', body: result.body || '', saving: false, error: null })
     } catch (err) {
       console.error('Failed to generate email', err)
@@ -358,16 +362,23 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <label className="label">Campaign name *</label>
               <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. YC W24 Founders Outreach" className="input" required />
             </div>
-            <div>
-              <label className="label">Subject line</label>
-              <input value={form.subject} onChange={e => field('subject', e.target.value)} placeholder="e.g. Quick question about {{company}}" className="input" />
-            </div>
-            <div>
-              <label className="label">Linked template</label>
-              <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-                <option value="">Select template…</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Linked template</label>
+                <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+                  <option value="">Select template…</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Tone hint (optional)</label>
+                <input
+                  value={form.tone}
+                  onChange={e => field('tone', e.target.value)}
+                  placeholder="e.g. curious, low-key, technical"
+                  className="input"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
