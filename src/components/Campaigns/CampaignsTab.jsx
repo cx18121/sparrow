@@ -228,7 +228,14 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     }
   }
 
-  const field = (key, value) => setForm(f => ({ ...f, [key]: value }))
+  const field = (key, value) => setForm(f => {
+    const next = { ...f, [key]: value }
+    if (key === 'templateId' && value) {
+      const tpl = templates.find(t => t.id === value)
+      if (tpl?.subject) next.subject = tpl.subject
+    }
+    return next
+  })
 
   const activeFilters = (c) => [
     c.filterIndustry,
