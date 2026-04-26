@@ -76,7 +76,9 @@ export function AuthProvider({ children }) {
 
   const signIn = async ({ email, password }) => {
     if (isDemo) {
-      const demoUser = { id: 'demo-user', email, user_metadata: { full_name: email.split('@')[0], avatar_url: null } }
+      const demoId = localStorage.getItem('cf_demo_id') || crypto.randomUUID()
+      localStorage.setItem('cf_demo_id', demoId)
+      const demoUser = { id: demoId, email, user_metadata: { full_name: email.split('@')[0], avatar_url: null } }
       setUser(demoUser)
       localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
       setApiUserId(demoUser.id)
@@ -92,7 +94,9 @@ export function AuthProvider({ children }) {
 
   const signUp = async ({ email, password, fullName }) => {
     if (isDemo) {
-      const demoUser = { id: 'demo-user', email, user_metadata: { full_name: fullName, avatar_url: null } }
+      const demoId = localStorage.getItem('cf_demo_id') || crypto.randomUUID()
+      localStorage.setItem('cf_demo_id', demoId)
+      const demoUser = { id: demoId, email, user_metadata: { full_name: fullName, avatar_url: null } }
       setUser(demoUser)
       localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
       setApiUserId(demoUser.id)
