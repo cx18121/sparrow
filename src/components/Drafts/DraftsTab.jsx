@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check } from 'lucide-react'
 import { fetchEmails, updateEmail } from '../../lib/api'
@@ -63,29 +63,29 @@ export default function DraftsTab() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
-  const cancelRef = useRef(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    cancelRef.current = false
-    try {
-      const res = await fetchEmails({ status: 'draft', limit: '200' })
-      if (!cancelRef.current) {
-        setDrafts(res?.items || [])
-        setSelected(new Set())
-      }
-    } catch (err) {
-      if (!cancelRef.current) setError(err.message)
-    } finally {
-      if (!cancelRef.current) setLoading(false)
-    }
-  }, [])
+  const [loadCount, setLoadCount] = useState(0)
 
   useEffect(() => {
-    load()
-    return () => { cancelRef.current = true }
-  }, [load])
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetchEmails({ status: 'draft', limit: '200' })
+      .then(res => {
+        if (!cancelled) {
+          setDrafts(res?.items || [])
+          setSelected(new Set())
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [loadCount])
+
+  const load = () => setLoadCount(c => c + 1)
 
   const openPreview = (draft) => {
     setPreview(draft)
