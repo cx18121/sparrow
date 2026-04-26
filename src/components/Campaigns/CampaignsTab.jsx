@@ -29,7 +29,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const [saving, setSaving] = useState(false)
   const [pendingActions, setPendingActions] = useState(new Set())
   const [options, setOptions] = useState({ industries: [], regions: [], stages: [], batches: [] })
-  const [batchModal, setBatchModal] = useState({ open: false, campaign: null, leads: [], loading: false, usingFallback: false, seenTotal: 0, currentBatch: 0 })
+  const [batchModal, setBatchModal] = useState({ open: false, campaign: null, leads: [], loading: false, usingFallback: false, seenTotal: 0, currentBatch: 0, generationAttempted: false })
   const [generatingEmail, setGeneratingEmail] = useState(null)
   const [resetTarget, setResetTarget] = useState(null)
   const [emailPreview, setEmailPreview] = useState({ open: false, lead: null, subject: '', body: '', saving: false, error: null })
@@ -152,7 +152,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       if (existing.currentBatch === 0) {
         // No batch yet — auto-generate the first one
         const data = await generateCampaignBatch(campaign.id)
-        setBatchModal(prev => ({ ...prev, leads: data.leads, loading: false, seenTotal: data.seenTotal, currentBatch: data.currentBatch, usingFallback: data.usingFallback ?? false }))
+        setBatchModal(prev => ({ ...prev, leads: data.leads, loading: false, seenTotal: data.seenTotal, currentBatch: data.currentBatch, usingFallback: data.usingFallback ?? false, generationAttempted: true }))
       } else {
         setBatchModal(prev => ({ ...prev, leads: existing.leads, loading: false, seenTotal: existing.seenTotal, currentBatch: existing.currentBatch }))
       }
@@ -174,6 +174,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
         seenTotal: data.seenTotal,
         currentBatch: data.currentBatch,
         leads: data.leads,
+        generationAttempted: true,
       }))
     } catch (err) {
       console.error('Failed to generate batch', err)
@@ -342,7 +343,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       </section>
 
       {/* Create / Edit modal */}
-<<<<<<< HEAD
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="lg">
         <div className="px-6 py-4 space-y-5">
           {/* Basic info */}
@@ -355,21 +355,12 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <label className="label">Subject line</label>
               <input value={form.subject} onChange={e => field('subject', e.target.value)} placeholder="e.g. Quick question about {{company}}" className="input" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Linked template</label>
-                <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-                  <option value="">Select template…</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Linked sequence</label>
-                <select value={form.sequenceId} onChange={e => field('sequenceId', e.target.value)} className="select">
-                  <option value="">Select sequence…</option>
-                  {sequences.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="label">Linked template</label>
+              <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+                <option value="">Select template…</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -386,25 +377,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <input type="datetime-local" value={form.scheduledAt} onChange={e => field('scheduledAt', e.target.value)} className="input" />
               </div>
             </div>
-=======
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="md">
-        <div className="px-6 py-4 space-y-4">
-          <div>
-            <label className="label">Campaign name *</label>
-            <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. YC W24 Founders Outreach" className="input" required />
-          </div>
-          <div>
-            <label className="label">Subject line</label>
-            <input value={form.subject} onChange={e => field('subject', e.target.value)} placeholder="e.g. Quick question about {{company}}" className="input" />
-          </div>
-
-          <div>
-            <label className="label">Linked template</label>
-            <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-              <option value="">Select template…</option>
-              {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
->>>>>>> 0776ae0 (remove all sequences references from codebase)
           </div>
 
           {/* Lead filters */}
@@ -545,7 +517,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               </div>
             ) : batchModal.leads.length === 0 ? (
               <div className="empty-state border-0 bg-transparent shadow-none py-16">
-                No leads yet. Click "Generate" to pull the first batch.
+                {batchModal.generationAttempted
+                  ? 'No companies match your current filters. Try broadening them (e.g. remove the stage or region filter).'
+                  : 'No leads yet. Click "Generate" to pull the first batch.'}
               </div>
             ) : (
               <div className="space-y-3">
