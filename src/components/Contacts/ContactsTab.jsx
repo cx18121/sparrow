@@ -60,6 +60,7 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
   const [generateTone, setGenerateTone] = useState('')
   const [generatedSubject, setGeneratedSubject] = useState('')
   const [generatedBody, setGeneratedBody] = useState('')
+  const [generatedEmailId, setGeneratedEmailId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [generateError, setGenerateError] = useState(null)
@@ -70,6 +71,7 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
     setGenerateTone('')
     setGeneratedSubject('')
     setGeneratedBody('')
+    setGeneratedEmailId(null)
     setGenerateError(null)
   }
 
@@ -91,6 +93,7 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
       })
       setGeneratedSubject(res.subject || '')
       setGeneratedBody(res.body || '')
+      setGeneratedEmailId(res.emailId || null)
     } catch (err) {
       setGenerateError(err.message || 'Failed to generate email')
     } finally {
@@ -103,12 +106,16 @@ export default function ContactsTab({ leads = [], templates = [], onUpdate, onDe
     setSaving(true)
     setGenerateError(null)
     try {
-      await createEmail({
-        userLeadId: generateTarget.id,
-        subject: generatedSubject,
-        body: generatedBody,
-        status: 'draft',
-      })
+      // generateEmail already saved the draft server-side and returned emailId —
+      // only call createEmail when it did not (e.g. generation without auto-save).
+      if (!generatedEmailId) {
+        await createEmail({
+          userLeadId: generateTarget.id,
+          subject: generatedSubject,
+          body: generatedBody,
+          status: 'draft',
+        })
+      }
       closeGenerate()
     } catch (err) {
       setGenerateError(err.message || 'Failed to save draft')
