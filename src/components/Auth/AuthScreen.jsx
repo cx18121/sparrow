@@ -11,6 +11,16 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const authErrorMessage = (message) => {
+    const lower = `${message || ''}`.toLowerCase()
+    if (lower.includes('invalid login credentials')) return 'That email and password do not match. Check them and try again.'
+    if (lower.includes('email not confirmed')) return 'Confirm your email before signing in. Check your inbox for the confirmation link.'
+    if (lower.includes('user already registered')) return 'An account already exists for this email. Sign in instead.'
+    if (lower.includes('password')) return 'Use a password with at least 6 characters.'
+    if (lower.includes('popup') || lower.includes('oauth')) return 'Google sign-in could not open. Allow popups for this site and try again.'
+    return message || 'We could not sign you in. Try again.'
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -21,13 +31,13 @@ export default function AuthScreen() {
       : await signUp({ email, password, fullName })
 
     setLoading(false)
-    if (result.error) setError(result.error.message)
+    if (result.error) setError(authErrorMessage(result.error.message))
   }
 
   const handleGoogle = async () => {
     setError('')
     const { error: authError } = await signInWithGoogle()
-    if (authError) setError(authError.message)
+    if (authError) setError(authErrorMessage(authError.message))
   }
 
   return (

@@ -19,6 +19,7 @@ const routes: Record<string, string> = {
   "/api/leads": "./api/leads.ts",
   "/api/emails": "./api/emails.ts",
   "/api/emails/generate": "./api/emails/generate.ts",
+  "/api/emails/send": "./api/emails/send.ts",
   "/api/templates": "./api/templates.ts",
   "/api/sequences": "./api/sequences.ts",
   "/api/campaigns": "./api/campaigns.ts",

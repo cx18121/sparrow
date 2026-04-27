@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { LogOut, ChevronDown, Snowflake } from 'lucide-react'
+import { LogOut, ChevronDown, Snowflake, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 export default function Sidebar({
   activeTab,
@@ -32,11 +32,13 @@ export default function Sidebar({
     return (
       <button
         key={tab.id}
+        type="button"
         onClick={() => onTabChange(tab.id)}
         title={collapsed ? tab.label : undefined}
-        className={`flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium transition-all duration-150 ${
+        aria-current={isActive ? 'page' : undefined}
+        className={`group flex min-h-9 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-primary text-white'
+            ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.18)]'
             : 'text-muted hover:bg-slate-50 hover:text-dark'
         } ${collapsed ? 'justify-center' : ''}`}
       >
@@ -47,24 +49,39 @@ export default function Sidebar({
   }
 
   return (
-    <aside className={`relative z-20 flex h-screen shrink-0 flex-col border-r border-slate-100 bg-white/80 backdrop-blur-xl transition-all duration-200 ${collapsed ? 'w-14' : 'w-52'}`}>
+    <>
+    <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-slate-100 bg-white/90 backdrop-blur-xl transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
       {/* Logo row */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
-        <Snowflake size={22} className="text-primary" strokeWidth={1.75} />
+        <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Snowflake size={18} strokeWidth={1.9} />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="truncate font-display text-sm font-semibold tracking-[-0.02em] text-dark">Coldflow</p>
+              <p className="truncate text-[10px] font-medium text-muted">Outreach desk</p>
+            </div>
+          )}
+        </div>
         {!collapsed && (
           <button
+            type="button"
             onClick={() => setCollapsed(true)}
-            className="text-[11px] font-medium text-muted/60 transition-colors hover:text-muted select-none"
+            className="btn-ghost p-1.5 text-muted/70 hover:text-dark"
+            title="Collapse sidebar"
           >
-            {'<<'}
+            <PanelLeftClose size={14} />
           </button>
         )}
         {collapsed && (
           <button
+            type="button"
             onClick={() => setCollapsed(false)}
-            className="absolute -right-3 top-4 flex h-6 w-6 items-center justify-center rounded-full border border-slate-100 bg-white text-[10px] font-medium text-muted shadow-sm transition-colors hover:text-dark"
+            className="absolute -right-3 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-slate-100 bg-white text-muted shadow-sm transition-colors hover:text-dark"
+            title="Expand sidebar"
           >
-            {'>>'}
+            <PanelLeftOpen size={13} />
           </button>
         )}
       </div>
@@ -82,9 +99,10 @@ export default function Sidebar({
         {user && (
           <div className="relative" ref={dropRef}>
             <button
+              type="button"
               onClick={() => setDropdownOpen(!dropdownOpen)}
               title={collapsed ? displayName : undefined}
-              className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150 hover:bg-slate-50 ${collapsed ? 'justify-center' : ''}`}
+              className={`flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150 hover:bg-slate-50 ${collapsed ? 'justify-center' : ''}`}
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="h-6 w-6 shrink-0 rounded-full object-cover" />
@@ -108,6 +126,7 @@ export default function Sidebar({
                   <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => { setDropdownOpen(false); signOut() }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50"
                 >
@@ -119,5 +138,28 @@ export default function Sidebar({
         )}
       </div>
     </aside>
+
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/96 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
+      <div className="grid grid-cols-6 gap-1">
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${
+                isActive ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.18)]' : 'text-muted hover:bg-slate-50 hover:text-dark'
+              }`}
+            >
+              <tab.icon size={16} />
+              <span className="max-w-full truncate">{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </nav>
+    </>
   )
 }

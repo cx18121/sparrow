@@ -141,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (profileError) return res.status(500).json({ error: profileError.message });
   if (!profile?.claude_api_key_encrypted) {
     return res.status(400).json({
-      error: "Claude API key not configured. Add one in Settings.",
+      error: "Add a Claude API key in Settings before generating emails.",
     });
   }
 
@@ -149,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     apiKey = decrypt(profile.claude_api_key_encrypted);
   } catch {
-    return res.status(500).json({ error: "Unable to decrypt Claude API key" });
+    return res.status(500).json({ error: "We could not read your saved Claude key. Re-enter it in Settings." });
   }
 
   const extraParts = [tone ? `Tone: ${tone}` : null, extraContext ?? null]

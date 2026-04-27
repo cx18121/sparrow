@@ -326,8 +326,34 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       )}
 
       {!loading && companies.length === 0 && (
-        <div className="empty-state border-0 bg-transparent py-12 shadow-none">
-          No companies found. Try adjusting your filters.
+        <div className="mx-auto flex max-w-md flex-col items-center py-14 text-center">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Search size={18} />
+          </div>
+          <p className="text-sm font-medium text-dark">
+            {search || selectedIndustries.size > 0 || isHiring ? 'No companies match these filters' : 'Start with a company search'}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {search || selectedIndustries.size > 0 || isHiring
+              ? 'Broaden the query, remove an industry filter, or include companies that are not currently hiring.'
+              : 'Search by company, domain, keyword, or choose an industry filter to find outreach targets.'}
+          </p>
+          {(search || selectedIndustries.size > 0 || isHiring) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('')
+                selectedIndustriesRef.current = new Set()
+                setSelectedIndustries(new Set())
+                setIsHiring(false)
+                setCompanies([])
+                setNextCursor(null)
+              }}
+              className="btn-secondary mt-4 text-xs"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
 

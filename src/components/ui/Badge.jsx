@@ -2,7 +2,10 @@ import React from 'react'
 
 const variants = {
   active:       'text-emerald-600',
+  ready:        'text-emerald-600',
+  sent:         'text-emerald-600',
   paused:       'text-amber-600',
+  failed:       'text-red-600',
   draft:        'text-gray-400',
   completed:    'text-blue-600',
   bounced:      'text-red-500',
@@ -16,7 +19,10 @@ const variants = {
 
 const dots = {
   active:       'bg-emerald-500',
+  ready:        'bg-emerald-500',
+  sent:         'bg-emerald-500',
   paused:       'bg-amber-500',
+  failed:       'bg-red-500',
   draft:        'bg-gray-300',
   completed:    'bg-blue-500',
   bounced:      'bg-red-500',

@@ -10,6 +10,57 @@ export function apiGetAuth() {
   return { userId: currentUserId, accessToken: currentAccessToken }
 }
 
+function extractServerError(text) {
+  if (!text) return ''
+  try {
+    const parsed = JSON.parse(text)
+    return parsed?.error || parsed?.message || text
+  } catch {
+    return text
+  }
+}
+
+function friendlyApiMessage({ status, path, method, serverError }) {
+  const normalized = `${serverError || ''}`.trim()
+  const lower = normalized.toLowerCase()
+
+  if (status === 401) return 'Sign in again to continue. Your session may have expired.'
+  if (status === 403) return 'You do not have access to this item.'
+
+  if (path === '/emails/send') {
+    if (status === 404) return 'We could not find that draft. Refresh Drafts and try again.'
+    if (lower.includes('gmail not connected')) return 'Connect Gmail in Settings before sending email.'
+    if (lower.includes('recipient')) return 'Add a recipient email address before sending this draft.'
+    if (lower.includes('gmail') || status === 502) {
+      return 'Gmail could not send this email. Check that Gmail API is enabled in Google Cloud, then reconnect Google in Settings.'
+    }
+  }
+
+  if (path === '/emails/generate') {
+    if (lower.includes('claude api key') || lower.includes('anthropic')) {
+      return 'Add a Claude API key in Settings before generating emails.'
+    }
+    if (status === 404) return 'We could not find that contact. Refresh Contacts and try again.'
+  }
+
+  if (path === '/apollo-search' || path === '/leads') {
+    if (lower.includes('apollo') || lower.includes('api key')) {
+      return 'Lead search is not configured yet. Add or check the Apollo key before searching contacts.'
+    }
+  }
+
+  if (path === '/profile') {
+    return 'We could not load your setup status. Refresh Settings or sign in again.'
+  }
+
+  if (status === 404) return 'We could not find what you asked for. Refresh the page and try again.'
+  if (status === 429) return 'Too many requests at once. Wait a minute, then try again.'
+  if (status >= 500) return 'The server could not finish that request. Try again in a moment.'
+  if (normalized) return normalized
+
+  return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
+}
+
 async function request(path, opts = {}) {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
@@ -23,7 +74,16 @@ async function request(path, opts = {}) {
   if (res.status === 204) return null
   if (!res.ok) {
     const text = await res.text()
-    throw Object.assign(new Error(`API ${res.status}: ${text || res.statusText}`), { status: res.status, path, method: opts.method || 'GET' })
+    const method = opts.method || 'GET'
+    const serverError = extractServerError(text || res.statusText)
+    const message = friendlyApiMessage({ status: res.status, path, method, serverError })
+    throw Object.assign(new Error(message), {
+      status: res.status,
+      path,
+      method,
+      serverError,
+      rawBody: text,
+    })
   }
   return res.json()
 }

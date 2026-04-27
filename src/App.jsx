@@ -70,7 +70,8 @@ function AppShell() {
   const [templates, setTemplates] = useState([])
   const [dataLoaded, setDataLoaded] = useState(false)
 
-  const activeTab = TABS.find(t => location.pathname.startsWith(t.path))?.id || 'campaigns'
+  const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
+  const activeTab = activeTabItem.id
 
   const handleTabChange = (tabId) => {
     const tab = TABS.find(t => t.id === tabId)
@@ -455,7 +456,7 @@ function AppShell() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface">
+    <div className="flex min-h-screen bg-surface md:h-screen md:overflow-hidden">
       <div className="dashboard-backdrop fixed inset-0" />
       <Sidebar
         activeTab={activeTab}
@@ -463,11 +464,19 @@ function AppShell() {
         onTabChange={handleTabChange}
       />
 
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex h-14 items-center border-b-2 border-slate-100 bg-white/80 px-8 backdrop-blur-xl">
-          <h1 className="font-display text-xl font-semibold tracking-[-0.03em] text-dark">
-            {TABS.find(t => t.id === activeTab)?.label ?? 'Dashboard'}
-          </h1>
+      <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
+        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-slate-100 bg-white/88 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
+              {activeTabItem.label}
+            </h1>
+          </div>
+          {dataLoaded && (
+            <div className="hidden items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-muted sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Synced
+            </div>
+          )}
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
           <Routes>
@@ -498,9 +507,10 @@ function AppShell() {
                   onCreateCustomContact={createCustomContactHandler}
                   onDeleteCustomContact={deleteCustomContactHandler}
                   workspaceConfig={workspaceConfig}
+                  onNavigate={handleTabChange}
                 />
               } />
-              <Route path="/drafts" element={<DraftsTab />} />
+              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} />} />
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}
@@ -516,6 +526,7 @@ function AppShell() {
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
                   onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                  onNavigate={handleTabChange}
                 />
               } />
               <Route path="*" element={<Navigate to="/campaigns" replace />} />

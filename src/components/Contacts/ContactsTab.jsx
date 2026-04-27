@@ -7,6 +7,7 @@ import Papa from 'papaparse'
 import Badge from '../ui/Badge'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import Toast from '../ui/Toast'
 import { format } from 'date-fns'
 import { generateEmail, createEmail } from '../../lib/api'
 
@@ -47,6 +48,7 @@ export default function ContactsTab({
   onCreateCustomContact,
   onDeleteCustomContact,
   workspaceConfig,
+  onNavigate,
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -65,6 +67,7 @@ export default function ContactsTab({
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [generateError, setGenerateError] = useState(null)
+  const [toast, setToast] = useState(null)
 
   // Add custom contact modal
   const [addOpen, setAddOpen] = useState(false)
@@ -127,6 +130,12 @@ export default function ContactsTab({
         await createEmail(payload)
       }
       closeGenerate()
+      setToast({
+        type: 'success',
+        title: 'Draft saved',
+        message: 'Review it in Drafts before sending.',
+        action: onNavigate ? { label: 'Open Drafts', onClick: () => onNavigate('drafts') } : null,
+      })
     } catch (err) {
       setGenerateError(err.message || 'Failed to save draft')
       setSaving(false)
@@ -236,6 +245,7 @@ export default function ContactsTab({
 
   return (
     <div className="page-shell">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Saved leads</p>
@@ -355,8 +365,37 @@ export default function ContactsTab({
             {paginated.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10">
-                  <div className="empty-state border-0 bg-transparent py-10 shadow-none">
-                    No contacts yet. Save leads from lead search or add a custom contact.
+                  <div className="mx-auto flex max-w-md flex-col items-center text-center">
+                    <p className="text-sm font-medium text-dark">
+                      {search || statusFilter !== 'all' ? 'No contacts match these filters' : 'No contacts yet'}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      {search || statusFilter !== 'all'
+                        ? 'Clear the search or status filter to see the rest of your saved contacts.'
+                        : 'Save leads from discovery or add someone manually to generate an email draft.'}
+                    </p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      {(search || statusFilter !== 'all') ? (
+                        <button
+                          type="button"
+                          onClick={() => { setSearch(''); setStatusFilter('all'); setPage(1) }}
+                          className="btn-secondary text-xs"
+                        >
+                          Clear filters
+                        </button>
+                      ) : (
+                        <>
+                          {onNavigate && (
+                            <button type="button" onClick={() => onNavigate('leads')} className="btn-primary text-xs">
+                              Discover leads
+                            </button>
+                          )}
+                          <button type="button" onClick={openAdd} className="btn-secondary text-xs">
+                            Add contact
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -424,8 +463,8 @@ export default function ContactsTab({
 
       {/* Add custom contact modal */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add custom contact" size="md">
-        <div className="px-6 py-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-4 px-4 py-4 sm:px-6">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Name</label>
               <input
@@ -493,7 +532,7 @@ export default function ContactsTab({
         title={generateTarget ? `Generate email to ${getName(generateTarget) || getEmail(generateTarget) || 'contact'}` : 'Generate email'}
         size="lg"
       >
-        <div className="px-6 py-4 space-y-4">
+        <div className="space-y-4 px-4 py-4 sm:px-6">
           {generateTarget && (
             <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-muted">
               <div>
@@ -504,7 +543,7 @@ export default function ContactsTab({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Base template (optional)</label>
               <select

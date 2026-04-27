@@ -19,6 +19,19 @@
     @apply box-border;
   }
 
+  button:focus {
+    outline: none;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgba(27, 110, 243, 0.72);
+    outline-offset: 2px;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -82,6 +95,10 @@
     transform: translateY(-1px);
   }
 
+  .btn-ghost:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
   .btn-danger {
     @apply inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2.5 text-sm font-medium text-white transition-all duration-150
            disabled:cursor-not-allowed disabled:opacity-50;
@@ -126,7 +143,7 @@
   }
 
   .page-shell {
-    @apply mx-auto w-full max-w-7xl px-6 pb-10 pt-6 sm:px-10 lg:px-14 space-y-5;
+    @apply mx-auto w-full max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-14 space-y-5;
   }
 
   .page-hero {
@@ -150,7 +167,11 @@
   }
 
   .table-shell {
-    @apply overflow-hidden;
+    @apply overflow-x-auto overflow-y-hidden;
+  }
+
+  .table-shell table {
+    min-width: 760px;
   }
 
   .empty-state {

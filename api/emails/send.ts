@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!profile?.google_refresh_token_encrypted) {
     return res.status(400).json({
-      error: "Gmail not connected. Sign in with Google in Settings to enable sending.",
+      error: "Connect Gmail in Settings before sending email.",
     });
   }
 
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     refreshToken = decrypt(profile.google_refresh_token_encrypted);
   } catch {
-    return res.status(500).json({ error: "Unable to decrypt Google credentials." });
+    return res.status(500).json({ error: "We could not read your saved Google connection. Reconnect Google in Settings." });
   }
 
   const oauth2 = new google.auth.OAuth2(

@@ -362,7 +362,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <label className="label">Campaign name *</label>
               <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. YC W24 Founders Outreach" className="input" required />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="label">Linked template</label>
                 <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
@@ -380,7 +380,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="label">Status</label>
                 <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
@@ -401,7 +401,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted/80">Lead filters</p>
             <div className="space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label">Industry</label>
                   <select value={form.filterIndustry} onChange={e => field('filterIndustry', e.target.value)} className="select">
@@ -417,7 +417,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label">Stage</label>
                   <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">
@@ -433,7 +433,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <label className="label">Hiring status</label>
                   <select value={form.filterIsHiring} onChange={e => field('filterIsHiring', e.target.value)} className="select">

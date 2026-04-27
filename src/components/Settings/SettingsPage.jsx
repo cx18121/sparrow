@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import {
   Plus, Trash2, Check, Mail, AlertCircle,
-  Building2, Briefcase, Target, Sparkles,
+  Building2, Briefcase, Target, Sparkles, CheckCircle2, Circle, RefreshCw,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import Toast from '../ui/Toast'
+import { fetchProfile } from '../../lib/api'
 
 function Section({ title, children }) {
   return (
@@ -14,6 +16,130 @@ function Section({ title, children }) {
         <h2 className="text-sm font-semibold text-dark">{title}</h2>
       </div>
       {children}
+    </div>
+  )
+}
+
+function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onNavigate, toast }) {
+  const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
+
+  const loadProfile = () => {
+    setProfileState(current => ({ ...current, loading: true, error: null }))
+    fetchProfile()
+      .then(res => setProfileState({ loading: false, profile: res?.profile || null, error: null }))
+      .catch(err => setProfileState({ loading: false, profile: null, error: err.message || 'Could not load setup status' }))
+  }
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profileState.profile?.hasClaudeKey
+  const hasGoogle = !!profileState.profile?.hasGoogleRefreshToken
+  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profileState.profile?.resumeText
+  const hasSender = !!workspaceConfig?.senderName?.trim()
+  const hasTemplate = !!workspaceConfig?.templateId || templates.length > 0
+
+  const items = [
+    {
+      label: 'Google connected',
+      detail: hasGoogle ? 'Gmail can request send access for this account.' : 'Sign in with Google again so the app can store Gmail send access.',
+      done: hasGoogle,
+      action: onGoToOnboarding ? { label: 'Reconnect', onClick: onGoToOnboarding } : null,
+    },
+    {
+      label: 'Gmail API ready',
+      detail: hasGoogle ? 'Confirm the Gmail API is enabled in the same Google Cloud project.' : 'Connect Google first, then enable Gmail API in Google Cloud.',
+      done: hasGoogle,
+      caution: hasGoogle,
+    },
+    {
+      label: 'Claude key configured',
+      detail: hasClaude ? 'Draft generation has model access.' : 'Add a Claude key so contacts can become drafts.',
+      done: hasClaude,
+    },
+    {
+      label: 'Resume or background added',
+      detail: hasResume ? 'Generated copy has sender context.' : 'Add resume, bio, offer, or positioning context.',
+      done: hasResume,
+    },
+    {
+      label: 'Default sender set',
+      detail: hasSender ? `${workspaceConfig.senderName} is the sender.` : 'Set the name that appears in generated outreach.',
+      done: hasSender,
+    },
+    {
+      label: 'Template path available',
+      detail: hasTemplate ? 'Drafts can use a default or custom template.' : 'Create a reusable starting template.',
+      done: hasTemplate,
+      action: onNavigate ? { label: 'Templates', onClick: () => onNavigate('templates') } : null,
+    },
+  ]
+
+  const completeCount = items.filter(item => item.done).length
+  const ready = completeCount === items.length
+
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white/82 px-5 py-4 shadow-card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Setup readiness</p>
+          <h2 className="mt-1 font-display text-xl font-semibold text-dark">
+            {ready ? 'Ready to send outreach' : `${completeCount} of ${items.length} setup checks complete`}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Keep this checklist green before relying on bulk send or generated drafts.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={loadProfile}
+          disabled={profileState.loading}
+          className="btn-ghost px-2 py-1 text-xs"
+          title="Refresh setup status"
+        >
+          <RefreshCw size={13} className={profileState.loading ? 'animate-spin' : ''} /> Refresh
+        </button>
+      </div>
+
+      {profileState.error && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertCircle size={13} /> {profileState.error}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {items.map(item => {
+          const Icon = item.done ? CheckCircle2 : Circle
+          return (
+            <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3">
+              <div className="flex items-start gap-2">
+                <Icon size={15} className={`mt-0.5 shrink-0 ${item.done ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-dark">{item.label}</p>
+                    {item.caution && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">verify</span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs leading-5 text-muted">{item.detail}</p>
+                  {item.action && !item.done && (
+                    <button type="button" onClick={item.action.onClick} className="mt-2 text-xs font-semibold text-primary hover:underline">
+                      {item.action.label}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {toast && (
+        <p className="mt-3 text-xs text-muted">
+          Changes saved here may take a moment to reflect in setup status. Use Refresh after saving credentials.
+        </p>
+      )}
     </div>
   )
 }
@@ -45,7 +171,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label">Uploaded file</label>
           <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary/5 transition-colors">
@@ -74,7 +200,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className="label">Sender name</label>
           <input value={form.senderName} onChange={e => field('senderName', e.target.value)} placeholder="Jordan Lee" className="input" />
@@ -141,7 +267,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
         {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} connected. These values come from onboarding and can be updated here.
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label">OpenAI</label>
           <input type="password" value={form.openai} onChange={e => setForm(current => ({ ...current, openai: e.target.value }))} placeholder="sk-..." className="input" />
@@ -158,7 +284,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
           <label className="label">Apollo</label>
           <input type="password" value={form.apollo} onChange={e => setForm(current => ({ ...current, apollo: e.target.value }))} placeholder="Lead source key" className="input" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="label">Serper</label>
           <input type="password" value={form.serper} onChange={e => setForm(current => ({ ...current, serper: e.target.value }))} placeholder="Research API key" className="input" />
         </div>
@@ -237,7 +363,7 @@ function SendingLimitsSection() {
 
   return (
     <Section title="Sending Limits">
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
         <div>
           <label className="label">Daily send limit</label>
           <div className="relative">
@@ -260,9 +386,16 @@ function SendingLimitsSection() {
   )
 }
 
-export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding }) {
+export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding, onNavigate }) {
+  const [toast, setToast] = useState(null)
+  const saveWorkspace = (updater, label = 'Settings saved') => {
+    onSaveWorkspaceConfig(updater)
+    setToast({ type: 'success', title: label, message: 'Setup status will refresh after the profile sync completes.' })
+  }
+
   return (
-    <div className="w-full max-w-3xl px-8 pb-10 pt-6 space-y-8">
+    <div className="w-full max-w-5xl space-y-6 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       {onGoToOnboarding && (
         <div className="flex justify-start">
           <button onClick={onGoToOnboarding} className="btn-secondary flex items-center gap-2 text-xs">
@@ -270,8 +403,22 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
           </button>
         </div>
       )}
-      <WorkspaceProfileSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} templates={templates} />
-      <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
+      <SetupReadinessPanel
+        workspaceConfig={workspaceConfig}
+        templates={templates}
+        onGoToOnboarding={onGoToOnboarding}
+        onNavigate={onNavigate}
+        toast={toast}
+      />
+      <WorkspaceProfileSection
+        workspaceConfig={workspaceConfig}
+        onSave={(updater) => saveWorkspace(updater, 'Workspace profile saved')}
+        templates={templates}
+      />
+      <ProviderKeysSection
+        workspaceConfig={workspaceConfig}
+        onSave={(updater) => saveWorkspace(updater, 'Provider keys saved')}
+      />
       <SendingLimitsSection />
     </div>
   )
