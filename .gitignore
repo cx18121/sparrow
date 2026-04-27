@@ -139,5 +139,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 CLAUDE.md
+REVIEW.md
 .vercel
 .handoff-*.md
