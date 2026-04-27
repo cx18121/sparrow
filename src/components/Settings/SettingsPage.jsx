@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Plus, Trash2, Eye, EyeOff, Check, Mail, AlertCircle,
+  Plus, Trash2, Check, Mail, AlertCircle,
   Building2, Briefcase, Target, Sparkles,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
@@ -15,54 +15,6 @@ function Section({ title, children }) {
       </div>
       {children}
     </div>
-  )
-}
-
-function SmtpSection() {
-  const [form, setForm] = useState({ host: '', port: '587', username: '', password: '', tls: true })
-  const [saved, setSaved] = useState(false)
-  const [showPass, setShowPass] = useState(false)
-  const f = (k, v) => setForm(x => ({ ...x, [k]: v }))
-
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
-
-  return (
-    <Section title="SMTP Configuration">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2">
-          <label className="label">Host</label>
-          <input value={form.host} onChange={e => f('host', e.target.value)} placeholder="smtp.gmail.com" className="input" />
-        </div>
-        <div>
-          <label className="label">Port</label>
-          <input value={form.port} onChange={e => f('port', e.target.value)} placeholder="587" className="input" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Username / Email</label>
-          <input value={form.username} onChange={e => f('username', e.target.value)} placeholder="you@example.com" className="input" />
-        </div>
-        <div>
-          <label className="label">Password</label>
-          <div className="relative">
-            <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => f('password', e.target.value)} placeholder="App password" className="input pr-9" />
-            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-dark">
-              {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
-            </button>
-          </div>
-        </div>
-      </div>
-      <label className="flex items-center gap-3 cursor-pointer">
-        <input type="checkbox" checked={form.tls} onChange={e => f('tls', e.target.checked)} className="w-4 h-4 rounded accent-primary" />
-        <span className="text-sm text-dark">Enable TLS / STARTTLS</span>
-      </label>
-      <div className="flex justify-end">
-        <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved!</> : 'Save SMTP settings'}
-        </button>
-      </div>
-    </Section>
   )
 }
 
@@ -299,7 +251,6 @@ function SendingLimitsSection() {
           <p className="text-xs text-muted mt-1">Time to wait between individual sends to avoid throttling.</p>
         </div>
       </div>
-      <p className="text-xs text-muted">Stay within your ESP's limits. Most providers recommend a delay of 30–60 seconds and a daily cap of 200–500 for new accounts.</p>
       <div className="flex justify-end">
         <button onClick={save} className="btn-primary">
           {saved ? <><Check size={14} /> Saved!</> : 'Save limits'}
@@ -321,7 +272,6 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       )}
       <WorkspaceProfileSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} templates={templates} />
       <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
-      <SmtpSection />
       <SendingLimitsSection />
     </div>
   )
