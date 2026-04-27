@@ -140,5 +140,8 @@ vite.config.ts.timestamp-*
 
 CLAUDE.md
 REVIEW.md
+DESIGN.json
+DESIGN.md
+PRODUCT.md
 .vercel
 .handoff-*.md
