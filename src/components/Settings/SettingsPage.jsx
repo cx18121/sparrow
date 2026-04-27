@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Plus, Trash2, Copy, Eye, EyeOff, Check, Mail, AlertCircle,
+  Plus, Trash2, Eye, EyeOff, Check, Mail, AlertCircle,
   Building2, Briefcase, Target, Sparkles,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
@@ -221,73 +221,6 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
   )
 }
 
-function ApiKeysSection() {
-  const [keys, setKeys] = useState([
-    { id: uuidv4(), name: 'Production', key: `cf_live_${uuidv4().replace(/-/g, '').slice(0, 32)}`, createdAt: new Date().toISOString(), lastUsed: new Date().toISOString() },
-  ])
-  const [newName, setNewName] = useState('')
-  const [revealed, setRevealed] = useState({})
-  const [copied, setCopied] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-
-  const generate = () => {
-    if (!newName.trim()) return
-    setKeys(prev => [...prev, {
-      id: uuidv4(), name: newName.trim(),
-      key: `cf_live_${uuidv4().replace(/-/g, '').slice(0, 32)}`,
-      createdAt: new Date().toISOString(), lastUsed: null,
-    }])
-    setNewName('')
-  }
-
-  const copy = (key, id) => {
-    navigator.clipboard.writeText(key)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
-  return (
-    <Section title="Public API Keys">
-      <div className="flex gap-2">
-        <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && generate()} placeholder="Key name (e.g. Production)" className="input flex-1" />
-        <button onClick={generate} disabled={!newName.trim()} className="btn-primary whitespace-nowrap"><Plus size={14} /> Generate key</button>
-      </div>
-      {keys.length === 0 ? (
-        <p className="text-sm text-muted text-center py-4">No API keys yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {keys.map(k => (
-            <div key={k.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-dark">{k.name}</p>
-                <p className="text-xs font-mono text-muted mt-0.5 truncate">
-                  {revealed[k.id] ? k.key : k.key.slice(0, 12) + '••••••••••••••••••••••••'}
-                </p>
-              </div>
-              <button onClick={() => setRevealed(r => ({ ...r, [k.id]: !r[k.id] }))} className="btn-ghost px-2 py-1 text-xs">
-                {revealed[k.id] ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-              <button onClick={() => copy(k.key, k.id)} className="btn-ghost px-2 py-1 text-xs">
-                {copied === k.id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-              </button>
-              <button onClick={() => setDeleteTarget(k.id)} className="btn-ghost px-2 py-1 text-xs hover:text-red-500">
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => { setKeys(prev => prev.filter(k => k.id !== deleteTarget)); setDeleteTarget(null) }}
-        title="Revoke API key"
-        message="Revoking this key will immediately disable any integrations using it. This cannot be undone."
-      />
-    </Section>
-  )
-}
-
 function TeamSection() {
   const [members, setMembers] = useState([
     { id: uuidv4(), email: 'you@example.com', role: 'admin', status: 'active' },
@@ -376,81 +309,6 @@ function SendingLimitsSection() {
   )
 }
 
-const WEBHOOK_EVENTS = ['email.sent', 'email.opened', 'email.replied', 'email.bounced', 'campaign.completed']
-
-function WebhooksSection() {
-  const [webhooks, setWebhooks] = useState([])
-  const [form, setForm] = useState({ url: '', events: [] })
-  const [addOpen, setAddOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-
-  const toggleEvent = (e) => setForm(f => ({
-    ...f,
-    events: f.events.includes(e) ? f.events.filter(x => x !== e) : [...f.events, e],
-  }))
-
-  const add = () => {
-    if (!form.url || form.events.length === 0) return
-    setWebhooks(prev => [...prev, { id: uuidv4(), ...form, createdAt: new Date().toISOString() }])
-    setForm({ url: '', events: [] })
-    setAddOpen(false)
-  }
-
-  return (
-    <Section title="Webhooks">
-      <button onClick={() => setAddOpen(!addOpen)} className="btn-secondary text-xs py-1.5"><Plus size={13} /> Add webhook endpoint</button>
-
-      {addOpen && (
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
-          <div>
-            <label className="label">Endpoint URL</label>
-            <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://your-app.com/webhook" className="input" />
-          </div>
-          <div>
-            <label className="label">Events</label>
-            <div className="flex flex-wrap gap-2">
-              {WEBHOOK_EVENTS.map(ev => (
-                <label key={ev} className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={form.events.includes(ev)} onChange={() => toggleEvent(ev)} className="w-3.5 h-3.5 rounded accent-primary" />
-                  <span className="text-xs text-dark font-mono">{ev}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setAddOpen(false)} className="btn-secondary text-xs">Cancel</button>
-            <button onClick={add} disabled={!form.url || form.events.length === 0} className="btn-primary text-xs">Add endpoint</button>
-          </div>
-        </div>
-      )}
-
-      {webhooks.length === 0 && !addOpen && (
-        <p className="text-sm text-muted text-center py-4">No webhooks configured.</p>
-      )}
-
-      {webhooks.map(w => (
-        <div key={w.id} className="flex items-start justify-between p-3 bg-white border border-gray-100 rounded-xl">
-          <div>
-            <p className="text-sm font-mono text-dark truncate max-w-xs">{w.url}</p>
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {w.events.map(ev => <span key={ev} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">{ev}</span>)}
-            </div>
-          </div>
-          <button onClick={() => setDeleteTarget(w.id)} className="btn-ghost px-2 py-1 hover:text-red-500"><Trash2 size={13} /></button>
-        </div>
-      ))}
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => { setWebhooks(prev => prev.filter(w => w.id !== deleteTarget)); setDeleteTarget(null) }}
-        title="Remove webhook"
-        message="Remove this endpoint? No further events will be delivered to it."
-      />
-    </Section>
-  )
-}
-
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding }) {
   return (
     <div className="w-full max-w-3xl px-8 pb-10 pt-6 space-y-8">
@@ -464,9 +322,7 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       <WorkspaceProfileSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} templates={templates} />
       <ProviderKeysSection workspaceConfig={workspaceConfig} onSave={onSaveWorkspaceConfig} />
       <SmtpSection />
-      <ApiKeysSection />
       <SendingLimitsSection />
-      <WebhooksSection />
     </div>
   )
 }
