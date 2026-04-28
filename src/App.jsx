@@ -121,13 +121,14 @@ function AppShell() {
           templates,
           data: {
             ...(res.profile.workspaceConfig || {}),
+            resumePath: res.profile.resumePath || res.profile.workspaceConfig?.resumePath || '',
             resumeText: res.profile.resumeText || '',
           },
         })
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
           loaded: true,
-          completed: !!res.profile.onboardingCompleted || localCompleted,
+          completed: parsed?.completed === false ? false : !!res.profile.onboardingCompleted || localCompleted,
           data: serverConfig,
         })
       })
@@ -337,7 +338,7 @@ function AppShell() {
       resumePath: normalized.resumePath || null,
       resumeText: normalized.resumeText || null,
       ...(claudeKey ? { claudeApiKey: claudeKey } : {}),
-      ...(completed ? { onboardingCompleted: true } : {}),
+      onboardingCompleted: completed,
     }).catch((err) => {
       console.error('Failed to persist workspace config', err)
     })
@@ -359,8 +360,8 @@ function AppShell() {
     }
 
     const next = {
-      completed: previous?.completed || false,
-      completedAt: previous?.completedAt || null,
+      completed: false,
+      completedAt: null,
       data: normalized,
     }
 
@@ -510,7 +511,7 @@ function AppShell() {
                   onNavigate={handleTabChange}
                 />
               } />
-              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} />} />
+              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} />} />
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}

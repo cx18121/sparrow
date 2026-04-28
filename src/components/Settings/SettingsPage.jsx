@@ -20,7 +20,7 @@ function Section({ title, children }) {
   )
 }
 
-function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onNavigate, toast }) {
+function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onNavigate }) {
   const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
 
   const loadProfile = () => {
@@ -43,34 +43,28 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onN
   const items = [
     {
       label: 'Google connected',
-      detail: hasGoogle ? 'Gmail can request send access for this account.' : 'Sign in with Google again so the app can store Gmail send access.',
+      detail: hasGoogle ? 'Coldflow can ask Gmail to send from this account.' : 'Reconnect Google so Coldflow can send Gmail drafts.',
       done: hasGoogle,
       action: onGoToOnboarding ? { label: 'Reconnect', onClick: onGoToOnboarding } : null,
     },
     {
-      label: 'Gmail API ready',
-      detail: hasGoogle ? 'Confirm the Gmail API is enabled in the same Google Cloud project.' : 'Connect Google first, then enable Gmail API in Google Cloud.',
-      done: hasGoogle,
-      caution: hasGoogle,
-    },
-    {
-      label: 'Claude key configured',
-      detail: hasClaude ? 'Draft generation has model access.' : 'Add a Claude key so contacts can become drafts.',
+      label: 'Claude key added',
+      detail: hasClaude ? 'Coldflow can generate drafts.' : 'Add a Claude key before generating drafts.',
       done: hasClaude,
     },
     {
-      label: 'Resume or background added',
-      detail: hasResume ? 'Generated copy has sender context.' : 'Add resume, bio, offer, or positioning context.',
+      label: 'Background added',
+      detail: hasResume ? 'Drafts can use your experience and offer.' : 'Add a resume, bio, offer, or positioning note.',
       done: hasResume,
     },
     {
-      label: 'Default sender set',
-      detail: hasSender ? `${workspaceConfig.senderName} is the sender.` : 'Set the name that appears in generated outreach.',
+      label: 'Sender set',
+      detail: hasSender ? `${workspaceConfig.senderName} will appear in drafts.` : 'Set the name that should appear in drafts.',
       done: hasSender,
     },
     {
-      label: 'Template path available',
-      detail: hasTemplate ? 'Drafts can use a default or custom template.' : 'Create a reusable starting template.',
+      label: 'Template selected',
+      detail: hasTemplate ? 'Drafts have a starting structure.' : 'Create a reusable starting template.',
       done: hasTemplate,
       action: onNavigate ? { label: 'Templates', onClick: () => onNavigate('templates') } : null,
     },
@@ -80,16 +74,13 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onN
   const ready = completeCount === items.length
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white/82 px-5 py-4 shadow-card">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="border-b border-slate-100 pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Setup readiness</p>
-          <h2 className="mt-1 font-display text-xl font-semibold text-dark">
-            {ready ? 'Ready to send outreach' : `${completeCount} of ${items.length} setup checks complete`}
+          <h2 className="mt-1 text-lg font-semibold text-dark">
+            {ready ? 'Ready' : `${completeCount} of ${items.length} complete`}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Keep this checklist green before relying on bulk send or generated drafts.
-          </p>
         </div>
         <button
           type="button"
@@ -108,38 +99,25 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onN
         </div>
       )}
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-4 divide-y divide-slate-100">
         {items.map(item => {
           const Icon = item.done ? CheckCircle2 : Circle
           return (
-            <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3">
-              <div className="flex items-start gap-2">
-                <Icon size={15} className={`mt-0.5 shrink-0 ${item.done ? 'text-emerald-600' : 'text-slate-300'}`} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-dark">{item.label}</p>
-                    {item.caution && (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">verify</span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs leading-5 text-muted">{item.detail}</p>
-                  {item.action && !item.done && (
-                    <button type="button" onClick={item.action.onClick} className="mt-2 text-xs font-semibold text-primary hover:underline">
-                      {item.action.label}
-                    </button>
-                  )}
-                </div>
+            <div key={item.label} className="flex items-start gap-3 py-3">
+              <Icon size={15} className={`mt-0.5 shrink-0 ${item.done ? 'text-emerald-600' : 'text-slate-300'}`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-dark">{item.label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted">{item.detail}</p>
               </div>
-            </div>
+              {item.action && !item.done && (
+                <button type="button" onClick={item.action.onClick} className="shrink-0 text-xs font-semibold text-primary hover:underline">
+                  {item.action.label}
+                </button>
+              )}
+              </div>
           )
         })}
       </div>
-
-      {toast && (
-        <p className="mt-3 text-xs text-muted">
-          Changes saved here may take a moment to reflect in setup status. Use Refresh after saving credentials.
-        </p>
-      )}
     </div>
   )
 }
@@ -160,20 +138,20 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   }
 
   return (
-    <Section title="AI Workspace Profile">
+    <Section title="Drafting Profile">
       <div>
-        <label className="label">Resume or background context</label>
+        <label className="label">Background</label>
         <textarea
           value={form.resumeText}
           onChange={e => field('resumeText', e.target.value)}
-          placeholder="Paste your founder bio, positioning, wins, and offer."
+          placeholder="Paste relevant experience, positioning, wins, and offer."
           className="input min-h-[140px] resize-y"
         />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">Uploaded file</label>
+          <label className="label">Uploaded resume or bio</label>
           <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary/5 transition-colors">
             <span className="truncate">{form.resumeFileName || 'Upload resume file'}</span>
             <input
@@ -185,7 +163,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
           </label>
         </div>
         <div>
-          <label className="label">Leads per generation</label>
+          <label className="label">Default lead batch size</label>
           <div className="relative">
             <Target size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -206,10 +184,10 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
           <input value={form.senderName} onChange={e => field('senderName', e.target.value)} placeholder="Jordan Lee" className="input" />
         </div>
         <div>
-          <label className="label">Company</label>
+          <label className="label">Organization</label>
           <div className="relative">
             <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input value={form.senderCompany} onChange={e => field('senderCompany', e.target.value)} placeholder="ColdFlow" className="input pl-8" />
+            <input value={form.senderCompany} onChange={e => field('senderCompany', e.target.value)} placeholder="Cornell Generative AI" className="input pl-8" />
           </div>
         </div>
         <div>
@@ -232,7 +210,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
 
       <div className="flex justify-end">
         <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved!</> : 'Save workspace profile'}
+          {saved ? <><Check size={14} /> Saved</> : 'Save drafting profile'}
         </button>
       </div>
     </Section>
@@ -262,9 +240,9 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
   const connectedCount = Object.values(form).filter(Boolean).length
 
   return (
-    <Section title="Model & Data Providers">
+    <Section title="Provider Keys">
       <p className="text-xs text-muted">
-        {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} connected. These values come from onboarding and can be updated here.
+        {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} saved. Add only the services you use.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -292,7 +270,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
 
       <div className="flex justify-end">
         <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved!</> : 'Save provider keys'}
+          {saved ? <><Check size={14} /> Saved</> : 'Save provider keys'}
         </button>
       </div>
     </Section>
@@ -379,7 +357,7 @@ function SendingLimitsSection() {
       </div>
       <div className="flex justify-end">
         <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved!</> : 'Save limits'}
+          {saved ? <><Check size={14} /> Saved</> : 'Save limits'}
         </button>
       </div>
     </Section>
@@ -390,7 +368,7 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
   const [toast, setToast] = useState(null)
   const saveWorkspace = (updater, label = 'Settings saved') => {
     onSaveWorkspaceConfig(updater)
-    setToast({ type: 'success', title: label, message: 'Setup status will refresh after the profile sync completes.' })
+    setToast({ type: 'success', title: label, message: 'Refresh setup readiness if the checklist does not update right away.' })
   }
 
   return (
@@ -399,7 +377,7 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       {onGoToOnboarding && (
         <div className="flex justify-start">
           <button onClick={onGoToOnboarding} className="btn-secondary flex items-center gap-2 text-xs">
-            Go back to Onboarding <Sparkles size={13} className="text-primary" />
+            Back to setup <Sparkles size={13} className="text-primary" />
           </button>
         </div>
       )}
@@ -408,7 +386,6 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         templates={templates}
         onGoToOnboarding={onGoToOnboarding}
         onNavigate={onNavigate}
-        toast={toast}
       />
       <WorkspaceProfileSection
         workspaceConfig={workspaceConfig}

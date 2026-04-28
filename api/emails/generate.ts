@@ -13,6 +13,7 @@ type GenerateBody = {
   interestHook?: string;
   tone?: string;
   extraContext?: string;
+  includeResumeBullet?: boolean;
   model?: string;
   save?: boolean; // default true — pass false to preview without persisting
 };
@@ -27,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const body = parseBody(req) as GenerateBody;
-  const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, save = true } = body;
+  const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = true } = body;
 
   if (!userLeadId && !customContactId) {
     return res.status(400).json({ error: "userLeadId or customContactId is required" });
@@ -152,11 +153,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "We could not read your saved Claude key. Re-enter it in Settings." });
   }
 
-  const extraParts = [tone ? `Tone: ${tone}` : null, extraContext ?? null]
+  const resumeBulletInstruction = includeResumeBullet
+    ? "Use one relevant detail from the sender's resume only if it strengthens the email. Make it specific and natural; do not list multiple bullets or invent experience."
+    : null
+  const extraParts = [tone ? `Tone: ${tone}` : null, resumeBulletInstruction, extraContext ?? null]
     .filter(Boolean)
     .join('. ')
 
   const ws = (profile.workspace_config ?? {}) as Record<string, any>
+  const styleInstruction = typeof ws.styleProfile?.prompt === "string"
+    ? ws.styleProfile.prompt
+    : Array.isArray(ws.styleProfile?.traits)
+      ? `Write in this preferred style: ${ws.styleProfile.traits.join(", ")}.`
+      : null
   const senderContext = buildSenderContext({
     name: ws.senderName ?? null,
     bio: [ws.senderRole, extraParts].filter(Boolean).join('. ') || null,
@@ -171,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       interestHook: interestHook ?? null,
       userTemplate: userTemplate?.body ?? null,
       senderContext,
+      styleInstruction,
       subjectTemplate: userTemplate?.subject ?? null,
       senderName: ws.senderName ?? null,
       apiKey,

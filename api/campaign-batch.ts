@@ -88,6 +88,14 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
     select: { companyId: true },
   });
   const seenIds = seen.map(s => s.companyId);
+  const existingCampaignLeads = await prisma.campaignLead.findMany({
+    where: { campaignId: campaignId as string },
+    select: { userLead: { select: { companyId: true } } },
+  });
+  const alreadyInCampaignIds = existingCampaignLeads
+    .map(row => row.userLead.companyId)
+    .filter((id): id is string => Boolean(id));
+  const excludedCompanyIds = Array.from(new Set([...seenIds, ...alreadyInCampaignIds]));
 
   const baseWhere = {
     source: "yc",
@@ -105,7 +113,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
   };
 
   let candidates = await prisma.company.findMany({
-    where: { ...baseWhere, ...(seenIds.length > 0 && { id: { notIn: seenIds } }) },
+    where: { ...baseWhere, ...(excludedCompanyIds.length > 0 && { id: { notIn: excludedCompanyIds } }) },
     select: { id: true },
   });
 

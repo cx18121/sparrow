@@ -19,6 +19,7 @@ export interface GenerateEmailParams {
   interestHook: string | null
   userTemplate: string | null
   senderContext: string
+  styleInstruction?: string | null
   subjectTemplate: string | null
   senderName: string | null
   apiKey: string

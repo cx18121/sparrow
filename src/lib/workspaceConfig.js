@@ -10,6 +10,8 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     senderCompany: '',
     senderRole: '',
     templateMode: 'existing',
+    styleChoices: {},
+    styleProfile: null,
     templateId: defaultTemplateId,
     customTemplate: {
       id: '',
@@ -35,6 +37,11 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       ...baseConfig.customTemplate,
       ...(data?.customTemplate || {}),
     },
+    styleChoices: {
+      ...baseConfig.styleChoices,
+      ...(data?.styleChoices || {}),
+    },
+    styleProfile: data?.styleProfile || baseConfig.styleProfile,
     apiKeys: {
       ...baseConfig.apiKeys,
       ...(data?.apiKeys || {}),

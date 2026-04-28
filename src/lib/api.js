@@ -128,8 +128,8 @@ export const updateEmail = (data) =>
   request('/emails', { method: 'PATCH', body: JSON.stringify(data) })
 export const generateEmail = (data) =>
   request('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
-export const sendEmail = (emailId) =>
-  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
+export const sendEmail = (emailId, options = {}) =>
+  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId, ...options }) })
 
 export const fetchProfile = () => request('/profile')
 export const saveProfile = (data) =>
@@ -158,3 +158,9 @@ export const generateCampaignBatch = (campaignId) =>
 export const resetCampaignSeen = (campaignId) =>
   request(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
 export const fetchCampaignOptions = () => request('/campaign-options')
+export const fetchCampaignLeads = (campaignId) =>
+  request(`/campaign-leads${qs({ campaignId })}`)
+export const addCampaignLead = (campaignId, userLeadId) =>
+  request('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
+export const deleteCampaignLead = (id) =>
+  request(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })

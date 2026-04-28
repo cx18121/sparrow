@@ -72,7 +72,7 @@ function canSendDraft(draft) {
   return getDraftReadiness(draft).label === 'Ready'
 }
 
-export default function DraftsTab({ onNavigate }) {
+export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [tab, setTab] = useState('draft')
   const [reviewFilter, setReviewFilter] = useState('all')
   const [drafts, setDrafts] = useState([])
@@ -81,6 +81,7 @@ export default function DraftsTab({ onNavigate }) {
   const [selected, setSelected] = useState(new Set())
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
+  const [attachResume, setAttachResume] = useState(false)
   const [toast, setToast] = useState(null)
   const [sortKey, setSortKey] = useState('createdAt')
   const [sortDir, setSortDir] = useState('desc')
@@ -231,6 +232,8 @@ export default function DraftsTab({ onNavigate }) {
     })
   }
 
+  const canAttachResume = Boolean(workspaceConfig?.resumePath)
+
   const markSent = async (ids) => {
     const sendableIds = ids.filter(id => {
       const draft = drafts.find(d => d.id === id)
@@ -257,7 +260,7 @@ export default function DraftsTab({ onNavigate }) {
 
     setSending(true)
     try {
-      const results = await Promise.allSettled(sendableIds.map(id => sendEmail(id)))
+      const results = await Promise.allSettled(sendableIds.map(id => sendEmail(id, { attachResume })))
       const failed = results
         .map((r, i) => r.status === 'rejected' ? (r.reason?.message || 'Send failed') : null)
         .filter(Boolean)
@@ -274,7 +277,9 @@ export default function DraftsTab({ onNavigate }) {
         setToast({
           type: 'success',
           title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
-          message: nextReviewDraft ? 'Moved to Sent. The next ready draft is open.' : 'Moved from Drafts to Sent.',
+          message: nextReviewDraft
+            ? `Moved to Sent${attachResume ? ' with resume attached' : ''}. The next ready draft is open.`
+            : `Moved from Drafts to Sent${attachResume ? ' with resume attached' : ''}.`,
           action: {
             label: 'View sent',
             onClick: () => {
@@ -330,6 +335,18 @@ export default function DraftsTab({ onNavigate }) {
               <p className="text-xs text-muted">
                 {readyCount} ready, {needsWorkCount} need{needsWorkCount === 1 ? 's' : ''} review
               </p>
+            )}
+            {tab === 'draft' && canAttachResume && (
+              <label className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-muted">
+                <input
+                  type="checkbox"
+                  checked={attachResume}
+                  onChange={e => setAttachResume(e.target.checked)}
+                  disabled={sending}
+                  className="rounded border-slate-300"
+                />
+                Attach resume
+              </label>
             )}
           </div>
           <div className="flex items-center gap-2">

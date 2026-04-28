@@ -20,7 +20,7 @@ export function buildSubjectLine(
   company?: { name: string }
 ): string {
   const tmpl = template ?? DEFAULT_SUBJECT_TEMPLATE
-  const firstName = contact.name?.split(' ')[0] ?? 'there'
+  const firstName = contact.name?.split(' ')[0] ?? ''
   return tmpl
     .replace(/\{\{firstName\}\}/g, firstName)
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
@@ -50,6 +50,10 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
     `\nContact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'professional'}${companyLabel}`,
     companyContext ? `Company context: ${companyContext}` : null,
     `Sender context: ${params.senderContext}`,
+    params.styleInstruction ? `Writing style: ${params.styleInstruction}` : null,
+    params.senderContext.includes('Use one relevant detail from the sender')
+      ? 'Resume detail rule: include at most one relevant resume detail, and only if it connects naturally to the recipient or company.'
+      : null,
     `\n${hookInstruction}`,
     '\nFill the template. Output ONLY the email body — no subject line.',
   ]
@@ -66,7 +70,9 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
     body: JSON.stringify({
       model: GENERATION_MODEL,
       max_tokens: 1024,
-      system: `${EMAIL_GENERATION_SYSTEM_PROMPT}\n${hookInstruction}`,
+      system: [EMAIL_GENERATION_SYSTEM_PROMPT, params.styleInstruction ? `Style preference: ${params.styleInstruction}` : null, hookInstruction]
+        .filter(Boolean)
+        .join('\n'),
       messages: [{ role: 'user', content: prompt }],
     }),
   })

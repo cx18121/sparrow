@@ -61,6 +61,7 @@ export default function ContactsTab({
   const [generateTarget, setGenerateTarget] = useState(null)
   const [generateTemplateId, setGenerateTemplateId] = useState(workspaceConfig?.templateId || '')
   const [generateTone, setGenerateTone] = useState('')
+  const [includeResumeBullet, setIncludeResumeBullet] = useState(false)
   const [generatedSubject, setGeneratedSubject] = useState('')
   const [generatedBody, setGeneratedBody] = useState('')
   const [generatedEmailId, setGeneratedEmailId] = useState(null)
@@ -85,6 +86,7 @@ export default function ContactsTab({
     setGenerateTarget(row)
     setGenerateTemplateId(workspaceConfig?.templateId || '')
     setGenerateTone('')
+    setIncludeResumeBullet(false)
     setGeneratedSubject('')
     setGeneratedBody('')
     setGeneratedEmailId(null)
@@ -103,8 +105,8 @@ export default function ContactsTab({
     setGenerateError(null)
     try {
       const payload = generateTarget._custom
-        ? { customContactId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined }
-        : { userLeadId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined }
+        ? { customContactId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined, includeResumeBullet }
+        : { userLeadId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined, includeResumeBullet }
       const res = await generateEmail(payload)
       setGeneratedSubject(res.subject || '')
       setGeneratedBody(res.body || '')
@@ -567,6 +569,22 @@ export default function ContactsTab({
               />
             </div>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-dark">
+            <input
+              type="checkbox"
+              checked={includeResumeBullet}
+              onChange={e => setIncludeResumeBullet(e.target.checked)}
+              disabled={generating}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium">Include one relevant resume detail</span>
+              <span className="mt-1 block text-xs leading-5 text-muted">
+                Coldflow will use one resume or bio detail only if it fits this contact.
+              </span>
+            </span>
+          </label>
 
           <div>
             <button

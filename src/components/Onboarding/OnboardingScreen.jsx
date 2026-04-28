@@ -1,43 +1,101 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowLeft, ArrowRight, Building2, FileText, Key,
+  ArrowLeft, ArrowRight, Building2, ClipboardList, FileText,
   LogOut,
-  Sparkles,
-  Target, Upload, User,
+  SlidersHorizontal, Upload, User,
 } from 'lucide-react'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
 
-const TOTAL_STEPS = 6
-const LEAD_PRESETS = [25, 50, 100, 250]
+const TOTAL_STEPS = 4
+const STEP_LABELS = ['Background', 'Sender', 'Style', 'Template']
 
-const API_FIELDS = [
+const STYLE_TESTS = [
   {
-    id: 'openai',
-    label: 'OpenAI API key',
-    placeholder: 'sk-...',
+    id: 'tone',
+    label: 'Tone',
+    dimension: 'Choose the voice that feels more natural for you.',
+    a: {
+      label: 'Straightforward',
+      traits: { directness: 3, warmth: 0, brevity: 1, specificity: 0, polish: 0 },
+      body: 'I noticed {{company}} and wanted to reach out because there may be a practical reason to connect.\n\nI have been working on a lightweight way to turn lead research into cleaner first drafts. Worth sending over a quick example?',
+    },
+    b: {
+      label: 'Warm',
+      traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
+      body: 'I came across {{company}} and your team stood out. The work looks close to areas I have been exploring lately.\n\nI have a short idea that may be useful for your outreach or recruiting workflow. Open to seeing it?',
+    },
   },
   {
-    id: 'claude',
-    label: 'Claude API key',
-    placeholder: 'Anthropic API key',
+    id: 'length',
+    label: 'Length',
+    dimension: 'Choose how much context you want before the ask.',
+    a: {
+      label: 'Concise',
+      traits: { directness: 1, warmth: 0, brevity: 3, specificity: 0, polish: 0 },
+      body: 'I noticed {{company}} and thought there may be a useful fit with my work on outbound research and draft generation.\n\nWould it be useful if I sent over a quick example?',
+    },
+    b: {
+      label: 'Contextual',
+      traits: { directness: 0, warmth: 1, brevity: 0, specificity: 3, polish: 1 },
+      body: 'I noticed {{company}} while looking at teams where targeted outreach seems especially important. My recent work has focused on turning scattered prospect research into clear first drafts.\n\nIf helpful, I can send a short example using a public company signal.',
+    },
   },
   {
-    id: 'gemini',
-    label: 'Gemini API key',
-    placeholder: 'Google AI Studio key',
+    id: 'ask',
+    label: 'Ask',
+    dimension: 'Choose the kind of call to action you prefer.',
+    a: {
+      label: 'Specific ask',
+      traits: { directness: 3, warmth: 0, brevity: 1, specificity: 1, polish: 0 },
+      body: 'I noticed {{company}} and thought there may be a useful fit with my work on practical outbound systems.\n\nWould you have 15 minutes next Tuesday or Wednesday for me to show you what I am building?',
+    },
+    b: {
+      label: 'Soft ask',
+      traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
+      body: 'I noticed {{company}} and thought there may be a useful fit with my work on practical outbound systems.\n\nWould it be helpful if I sent over the 3-line version first?',
+    },
   },
   {
-    id: 'apollo',
-    label: 'Lead source key',
-    placeholder: 'Apollo or enrichment provider key',
-  },
-  {
-    id: 'serper',
-    label: 'Research API key',
-    placeholder: 'Serper or research provider key',
+    id: 'personalization',
+    label: 'Personalization',
+    dimension: 'Choose how much research detail should appear in the first note.',
+    a: {
+      label: 'Light',
+      traits: { directness: 1, warmth: 0, brevity: 2, specificity: 0, polish: 0 },
+      body: 'I saw {{company}} and thought there could be a useful reason to connect.\n\nI am working on a tool that helps students move from lead research to reviewed first drafts faster. Worth sharing?',
+    },
+    b: {
+      label: 'Specific',
+      traits: { directness: 0, warmth: 0, brevity: 0, specificity: 3, polish: 1 },
+      body: 'I noticed {{company}} is in a market where timing and precise outreach matter. That caught my attention because my recent work is about turning public company signals into targeted first drafts.\n\nWould a short example be useful?',
+    },
   },
 ]
+
+const STYLE_LABELS = {
+  directness: 'direct',
+  warmth: 'warm',
+  brevity: 'concise',
+  specificity: 'specific',
+  polish: 'polished',
+}
+
+const DEFAULT_STYLE_PROFILE = {
+  name: 'Balanced outreach',
+  summary: 'Concise, clear, and easy to edit.',
+  prompt: 'Write concise, clear outreach with a specific reason for contact and one low-friction ask.',
+  traits: ['direct', 'concise', 'specific'],
+  scores: { directness: 1, warmth: 1, brevity: 1, specificity: 1, polish: 1 },
+}
+
+const STYLE_PROMPTS = {
+  direct: 'Use direct language. State the reason for reaching out early and include a clear ask.',
+  warm: 'Use a warm but professional tone. Keep the message human without adding filler.',
+  concise: 'Keep the email short. Prefer 70 to 100 words and remove unnecessary setup.',
+  specific: 'Include one concrete relevance signal about the company or recipient. Do not invent facts.',
+  polished: 'Keep phrasing professional and composed. Avoid slang, hype, and overfamiliar language.',
+}
 
 function fillVariables(content, data) {
   if (!content) return ''
@@ -54,60 +112,94 @@ function stripHtml(content) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+function scoreStyleChoices(choices = {}) {
+  const scores = { directness: 0, warmth: 0, brevity: 0, specificity: 0, polish: 0 }
+
+  STYLE_TESTS.forEach(test => {
+    const pick = choices[test.id]
+    const option = pick ? test[pick] : null
+    if (!option) return
+
+    Object.entries(option.traits).forEach(([trait, value]) => {
+      scores[trait] = (scores[trait] || 0) + value
+    })
+  })
+
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  const topTraits = ranked.filter(([, value]) => value > 0).slice(0, 3).map(([trait]) => STYLE_LABELS[trait])
+  const prompt = topTraits.length
+    ? topTraits.map(trait => STYLE_PROMPTS[trait]).filter(Boolean).join(' ')
+    : DEFAULT_STYLE_PROFILE.prompt
+
+  return {
+    name: topTraits.length ? `${topTraits.map(t => t[0].toUpperCase() + t.slice(1)).join(', ')} outreach` : DEFAULT_STYLE_PROFILE.name,
+    summary: topTraits.length
+      ? `Your drafts should feel ${topTraits.join(', ')}.`
+      : DEFAULT_STYLE_PROFILE.summary,
+    prompt,
+    traits: topTraits.length ? topTraits : DEFAULT_STYLE_PROFILE.traits,
+    scores,
+  }
+}
+
+function buildStyleTemplate(profile) {
+  const traits = profile?.traits || DEFAULT_STYLE_PROFILE.traits
+  const isDirect = traits.includes('direct')
+  const isWarm = traits.includes('warm')
+  const isSpecific = traits.includes('specific')
+  const isConcise = traits.includes('concise')
+  const sender = '{{sender_name}}'
+
+  const opening = isWarm
+    ? 'I came across {{company}} and your team stood out.'
+    : 'I noticed {{company}} and wanted to reach out.'
+  const context = isSpecific
+    ? 'My recent work has focused on turning research and outreach into clear, targeted first drafts.'
+    : 'I am working on practical outreach systems and thought there may be a useful fit.'
+  const ask = isDirect
+    ? 'Would you be open to a 15-minute conversation next week?'
+    : 'If useful, I would be glad to connect when timing is easy.'
+  const body = isConcise
+    ? `Hi {{first_name}},\n\n${opening} ${context}\n\n${ask}\n\nBest,\n${sender}`
+    : `Hi {{first_name}},\n\n${opening}\n\n${context}\n\n${ask}\n\nBest,\n${sender}`
+
+  return {
+    id: '',
+    name: 'Personal style template',
+    subject: isDirect ? 'Quick question about {{company}}' : 'Thought on {{company}}',
+    body,
+    isShared: false,
+  }
+}
+
+function withGeneratedStyleTemplate(data, { force = false } = {}) {
+  const styleProfile = data.styleProfile || scoreStyleChoices(data.styleChoices)
+  const shouldGenerate = force
+    || data.templateMode !== 'custom'
+    || !data.customTemplate?.subject
+    || !data.customTemplate?.body
+    || data.customTemplate?.name === 'Personal style template'
+
+  if (!shouldGenerate) {
+    return { ...data, styleProfile }
+  }
+
+  return {
+    ...data,
+    styleProfile,
+    templateMode: 'custom',
+    customTemplate: buildStyleTemplate(styleProfile),
+  }
+}
+
 function StepHeader({ step, total, title, description }) {
   return (
-    <div className="mb-6 text-center sm:mb-8">
+    <div className="mb-6 text-center sm:mb-7">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-        Step {step} of {total}
+        {STEP_LABELS[step - 1]} - Step {step} of {total}
       </p>
       <h1 className="mt-3 text-2xl font-display font-semibold text-dark sm:text-3xl">{title}</h1>
       <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted">{description}</p>
-    </div>
-  )
-}
-
-function WelcomeStep({ name }) {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="relative mb-8 flex justify-center sm:mb-10">
-        <div className="animate-welcome-breathe absolute top-4 h-28 w-28 rounded-full bg-primary/15 blur-3xl sm:h-36 sm:w-36" />
-        <div className="animate-welcome-float relative flex h-24 w-24 items-center justify-center rounded-full bg-primary text-white sm:h-28 sm:w-28">
-          <Sparkles size={28} className="animate-welcome-twinkle sm:h-8 sm:w-8" />
-        </div>
-
-        <div
-          className="animate-welcome-float absolute left-[calc(50%-88px)] top-5 h-2.5 w-2.5 rounded-full bg-primary/35"
-          style={{ animationDelay: '0.7s' }}
-        />
-        <div
-          className="animate-welcome-float absolute left-[calc(50%+76px)] top-16 h-3 w-3 rounded-full bg-sky-300/70"
-          style={{ animationDelay: '1.3s' }}
-        />
-        <div
-          className="animate-welcome-float absolute left-[calc(50%-72px)] top-20"
-          style={{ animationDelay: '1.8s' }}
-        >
-          <Sparkles size={14} className="text-primary/70" />
-        </div>
-      </div>
-
-      <div className="animate-welcome-rise" style={{ animationDelay: '80ms' }}>
-        <StepHeader
-          step={1}
-          total={TOTAL_STEPS}
-          title={name ? `Welcome, ${name}` : 'Welcome'}
-          description="This takes about a minute."
-        />
-      </div>
-
-      <div className="space-y-5 text-center">
-        <p
-          className="animate-welcome-rise mx-auto max-w-xl text-base leading-8 text-dark sm:text-lg"
-          style={{ animationDelay: '180ms' }}
-        >
-          Let&apos;s get your workspace ready so Coldflow feels personal from the start.
-        </p>
-      </div>
     </div>
   )
 }
@@ -116,41 +208,39 @@ function ResumeStep({ form, updateField, onUploadResume, uploadState }) {
   const statusLabel = uploadState.uploading
     ? 'Uploading…'
     : uploadState.error
-      ? `Upload failed: ${uploadState.error}`
-      : form.resumeFileName || 'Upload a resume file'
+      ? `Could not upload: ${uploadState.error}`
+      : form.resumeFileName || 'Upload resume or bio'
 
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
-        step={2}
+        step={1}
         total={TOTAL_STEPS}
-        title="Add your background"
-        description="Give the AI enough context to write outbound emails in your voice."
+        title="Add background"
+        description="Add the details Coldflow should use when writing in your voice."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="p-1">
+      <div className="space-y-4">
+        <div>
           <label className="label">Paste resume or bio</label>
           <textarea
             value={form.resumeText}
             onChange={e => updateField('resumeText', e.target.value)}
-            placeholder="Founder bio, resume highlights, offer, target market..."
-            className="input min-h-[140px] resize-none bg-white"
+            placeholder="Relevant experience, club role, offer, target audience, recent work..."
+            className="input min-h-[180px] resize-none bg-white"
           />
         </div>
 
-        <label className="flex cursor-pointer flex-col justify-between rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 transition-colors hover:border-primary/50 hover:bg-primary/10">
-          <div>
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-card">
-              <Upload size={18} />
-            </div>
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-dark">
               {statusLabel}
             </p>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              PDF, DOCX, or TXT. This is optional if you already pasted context.
+            <p className="mt-1 text-xs text-muted">
+              Optional: PDF, DOCX, or TXT.
             </p>
           </div>
+          <Upload size={18} className="shrink-0 text-primary" />
 
           <input
             type="file"
@@ -172,10 +262,10 @@ function SenderStep({ form, updateField, showNameError }) {
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
-        step={3}
+        step={2}
         total={TOTAL_STEPS}
-        title="Set the sender identity"
-        description="These details shape signatures, personalization, and the perspective the assistant writes from."
+        title="Set sender"
+        description="Choose the name and role that should appear in drafts."
       />
 
       <div className="space-y-4">
@@ -188,7 +278,7 @@ function SenderStep({ form, updateField, showNameError }) {
             <input
               value={form.senderName}
               onChange={e => updateField('senderName', e.target.value)}
-              placeholder="Sheldon J. Plankton"
+              placeholder="Maya Chen"
               className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
               aria-invalid={showNameError}
             />
@@ -205,7 +295,7 @@ function SenderStep({ form, updateField, showNameError }) {
             <input
               value={form.senderCompany}
               onChange={e => updateField('senderCompany', e.target.value)}
-              placeholder="The Chum Bucket"
+              placeholder="Cornell Generative AI"
               className="input pl-8"
             />
           </div>
@@ -220,6 +310,160 @@ function SenderStep({ form, updateField, showNameError }) {
             className="input"
           />
         </div>
+      </div>
+    </div>
+  )
+}
+
+function StyleStep({ form, updateStyleChoice, showMissing }) {
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const firstIncomplete = STYLE_TESTS.findIndex(test => !form.styleChoices?.[test.id])
+    return firstIncomplete >= 0 ? firstIncomplete : 0
+  })
+  const profile = form.styleProfile || DEFAULT_STYLE_PROFILE
+  const completed = STYLE_TESTS.filter(test => form.styleChoices?.[test.id]).length
+  const activeTest = STYLE_TESTS[activeIndex]
+  const selected = form.styleChoices?.[activeTest.id]
+  const sampleData = { first_name: 'Alex', last_name: 'Chen', company: 'Momentum AI', role: 'CEO', sender_name: form.senderName || 'Your Name' }
+  const nextIncompleteIndex = STYLE_TESTS.findIndex(test => !form.styleChoices?.[test.id])
+
+  const choose = (choice) => {
+    updateStyleChoice(activeTest.id, choice)
+    const followingIncomplete = STYLE_TESTS.findIndex((test, index) => index > activeIndex && !form.styleChoices?.[test.id])
+    if (followingIncomplete >= 0) {
+      setActiveIndex(followingIncomplete)
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-6xl">
+      <StepHeader
+        step={3}
+        total={TOTAL_STEPS}
+        title="Pick your email style"
+        description="Choose the sample you would rather send. Coldflow turns your picks into an editable template."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                Comparison {activeIndex + 1} of {STYLE_TESTS.length}
+              </p>
+              <h2 className="mt-1 text-xl font-semibold text-dark">{activeTest.label}</h2>
+              <p className="mt-1 text-sm text-muted">{activeTest.dimension}</p>
+            </div>
+            <div className="flex gap-1.5">
+              {STYLE_TESTS.map((test, index) => (
+                <button
+                  key={test.id}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  aria-label={`Show comparison ${index + 1}`}
+                  className={`h-2.5 rounded-full transition-all ${
+                    index === activeIndex
+                      ? 'w-8 bg-primary'
+                      : form.styleChoices?.[test.id]
+                        ? 'w-2.5 bg-primary/45'
+                        : 'w-2.5 bg-slate-300'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {['a', 'b'].map(key => {
+              const option = activeTest[key]
+              const isSelected = selected === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => choose(key)}
+                  aria-pressed={isSelected}
+                  className={`flex min-h-[300px] flex-col rounded-2xl border px-5 py-4 text-left transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-[0_14px_32px_rgba(27,110,243,0.12)]'
+                      : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card'
+                  }`}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Option {key.toUpperCase()}</p>
+                      <p className="mt-1 text-base font-semibold text-dark">{option.label}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      isSelected ? 'bg-primary text-white' : 'bg-slate-100 text-muted'
+                    }`}>
+                      {isSelected ? 'Selected' : 'Pick'}
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-line text-sm leading-6 text-dark">
+                    {fillVariables(option.body, sampleData)}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            {showMissing && completed < STYLE_TESTS.length ? (
+              <p className="text-xs font-medium text-red-500">Pick one option for each comparison before continuing.</p>
+            ) : (
+              <p className="text-xs text-muted">You can revise any pick before generating the template.</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : Math.min(activeIndex + 1, STYLE_TESTS.length - 1))}
+              className="btn-ghost px-3 py-2 text-xs"
+            >
+              {nextIncompleteIndex >= 0 ? 'Next unanswered' : 'Review picks'}
+            </button>
+          </div>
+        </div>
+
+        <aside className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <SlidersHorizontal size={17} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Style profile</p>
+              <p className="text-sm font-semibold text-dark">{completed} of {STYLE_TESTS.length} picked</p>
+            </div>
+          </div>
+
+          <p className="text-sm leading-6 text-dark">{profile.summary}</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {profile.traits.map(trait => (
+              <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {trait}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {STYLE_TESTS.map((test, index) => {
+              const pick = form.styleChoices?.[test.id]
+              return (
+                <button
+                  key={test.id}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-slate-50"
+                >
+                  <span className="text-xs font-medium text-dark">{test.label}</span>
+                  <span className={`text-xs font-semibold ${pick ? 'text-primary' : 'text-muted'}`}>
+                    {pick ? test[pick].label : 'Choose'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </aside>
       </div>
     </div>
   )
@@ -243,14 +487,15 @@ function TemplateStep({
   const previewTemplate = form.templateMode === 'custom'
     ? form.customTemplate
     : selectedTemplate
+  const hasTemplates = templates.length > 0
 
   return (
     <div className="mx-auto w-full max-w-5xl">
       <StepHeader
         step={4}
         total={TOTAL_STEPS}
-        title="Choose a starting template"
-        description="Pick one template now. You can rewrite or swap it later in the templates tab."
+        title="Review template"
+        description="Edit the generated template or use a saved one instead."
       />
 
       <div className="mb-4 flex gap-2">
@@ -263,7 +508,7 @@ function TemplateStep({
               : 'bg-white text-muted border border-gray-200 hover:text-dark'
           }`}
         >
-          Use existing
+          Use saved template
         </button>
         <button
           type="button"
@@ -274,39 +519,60 @@ function TemplateStep({
               : 'bg-white text-muted border border-gray-200 hover:text-dark'
           }`}
         >
-          Make custom
+          Write template
         </button>
       </div>
 
       {form.templateMode === 'existing' ? (
         <div className="space-y-4">
-          <div className="p-1">
-            <label className="label">Template</label>
-            <div className="relative">
-              <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <select
-                value={form.templateId}
-                onChange={e => updateField('templateId', e.target.value)}
-                className="select pl-8"
-              >
-                {templates.map(template => (
-                  <option key={template.id} value={template.id}>{template.name}</option>
-                ))}
-              </select>
+          {hasTemplates ? (
+            <div className="p-1">
+              <label className="label">Template</label>
+              <div className="relative">
+                <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <select
+                  value={form.templateId}
+                  onChange={e => updateField('templateId', e.target.value)}
+                  className="select pl-8"
+                >
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <ClipboardList size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-dark">No templates yet</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Write one now so new drafts have a starting structure.
+                  </p>
+                  <button type="button" onClick={() => setTemplateMode('custom')} className="mt-4 btn-primary">
+                    Write first template
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-          <div className="overflow-hidden">
-            <div className="border-b border-gray-100 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
-              <p className="mt-1 text-sm font-medium text-dark">
-                {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
-              </p>
+          {hasTemplates && (
+            <div className="overflow-hidden">
+              <div className="border-b border-gray-100 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
+                <p className="mt-1 text-sm font-medium text-dark">
+                  {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
+                </p>
+              </div>
+              <div className="px-4 py-4 text-sm leading-7 text-dark">
+                {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Choose or write a template to preview it.'}
+              </div>
             </div>
-            <div className="px-4 py-4 text-sm leading-7 text-dark">
-              {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Select or create a template to preview it.'}
-            </div>
-          </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
@@ -348,88 +614,11 @@ function TemplateStep({
               </p>
             </div>
             <div className="px-4 py-4 text-sm leading-7 text-dark">
-              {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Select or create a template to preview it.'}
+                {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Choose or write a template to preview it.'}
             </div>
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function LeadsStep({ form, updateField }) {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <StepHeader
-        step={5}
-        total={TOTAL_STEPS}
-        title="Choose your prospect count"
-        description="A lead is a person or company you may want to contact. Pick how many new prospects ColdFlow should generate per run."
-      />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {LEAD_PRESETS.map(value => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => updateField('leadsPerGeneration', value)}
-            className={`rounded-2xl border px-4 py-5 text-left transition-colors ${
-              form.leadsPerGeneration === value
-                ? 'border-primary bg-primary/5 text-primary'
-                : 'border-gray-100 bg-white text-dark hover:border-primary/30 hover:bg-gray-50'
-            }`}
-          >
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">New prospects per run</p>
-            <p className="mt-2 text-2xl font-display font-semibold">{value}</p>
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 p-1">
-        <label className="label">Custom prospect count</label>
-        <div className="relative max-w-[180px]">
-          <Target size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            type="number"
-            min={1}
-            max={1000}
-            value={form.leadsPerGeneration}
-            onChange={e => updateField('leadsPerGeneration', Math.max(1, Number(e.target.value) || 1))}
-            className="input pl-8"
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ApiKeysStep({ form, updateApiKey }) {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <StepHeader
-        step={6}
-        total={TOTAL_STEPS}
-        title="Add API keys"
-        description="Optional for now, but this is where AI, research, and lead-source providers connect."
-      />
-
-      <div className="space-y-4">
-        {API_FIELDS.map(field => (
-          <div key={field.id}>
-            <label className="label">{field.label}</label>
-            <div className="relative">
-              <Key size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                type="password"
-                value={form.apiKeys[field.id]}
-                onChange={e => updateApiKey(field.id, e.target.value)}
-                placeholder={field.placeholder}
-                className="input pl-8"
-              />
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -444,6 +633,7 @@ export default function OnboardingScreen({
 }) {
   const [stepIndex, setStepIndex] = useState(0)
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
+  const [styleAttempted, setStyleAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [resumeUpload, setResumeUpload] = useState({ uploading: false, error: null })
   const [form, setForm] = useState(() => {
@@ -472,6 +662,12 @@ export default function OnboardingScreen({
     }
   }, [form.senderName])
 
+  useEffect(() => {
+    if (STYLE_TESTS.every(test => form.styleChoices?.[test.id])) {
+      setStyleAttempted(false)
+    }
+  }, [form.styleChoices])
+
   const selectedTemplate = useMemo(
     () => templates.find(template => template.id === form.templateId) || templates[0] || null,
     [form.templateId, templates]
@@ -485,13 +681,20 @@ export default function OnboardingScreen({
       [key]: value,
     },
   }))
-  const updateApiKey = (key, value) => setForm(current => ({
-    ...current,
-    apiKeys: {
-      ...current.apiKeys,
-      [key]: value,
-    },
-  }))
+  const updateStyleChoice = (testId, choice) => {
+    setForm(current => {
+      const styleChoices = {
+        ...(current.styleChoices || {}),
+        [testId]: choice,
+      }
+      const styleProfile = scoreStyleChoices(styleChoices)
+      return withGeneratedStyleTemplate({
+        ...current,
+        styleChoices,
+        styleProfile,
+      })
+    })
+  }
   const handleUploadResume = async (file) => {
     if (!file) return
     setResumeUpload({ uploading: true, error: null })
@@ -537,7 +740,6 @@ export default function OnboardingScreen({
   }
 
   const steps = [
-    <WelcomeStep key="welcome" name={form.senderName || user?.user_metadata?.full_name || ''} />,
     <ResumeStep
       key="resume"
       form={form}
@@ -549,7 +751,13 @@ export default function OnboardingScreen({
       key="sender"
       form={form}
       updateField={updateField}
-      showNameError={stepIndex === 2 && senderNameAttempted && !form.senderName.trim()}
+      showNameError={stepIndex === 1 && senderNameAttempted && !form.senderName.trim()}
+    />,
+    <StyleStep
+      key="style"
+      form={form}
+      updateStyleChoice={updateStyleChoice}
+      showMissing={styleAttempted}
     />,
     <TemplateStep
       key="template"
@@ -560,37 +768,58 @@ export default function OnboardingScreen({
       updateCustomTemplate={updateCustomTemplate}
       setTemplateMode={setTemplateMode}
     />,
-    <LeadsStep key="leads" form={form} updateField={updateField} />,
-    <ApiKeysStep key="keys" form={form} updateApiKey={updateApiKey} />,
   ]
 
   const isFirstStep = stepIndex === 0
   const isLastStep = stepIndex === steps.length - 1
-  const contentWidthClass = stepIndex === 3 ? 'max-w-5xl' : 'max-w-3xl'
+  const contentWidthClass = stepIndex >= 2 ? 'max-w-6xl' : 'max-w-3xl'
   const isSenderNameValid = Boolean(form.senderName.trim())
+  const isStyleComplete = STYLE_TESTS.every(test => form.styleChoices?.[test.id])
 
   const nextStep = () => {
-    if (stepIndex === 2 && !isSenderNameValid) {
+    if (stepIndex === 1 && !isSenderNameValid) {
       setSenderNameAttempted(true)
       return
+    }
+    if (stepIndex === 2) {
+      if (!isStyleComplete) {
+        setStyleAttempted(true)
+        return
+      }
+      const nextForm = withGeneratedStyleTemplate(form, { force: true })
+      setForm(nextForm)
     }
     setStepIndex(index => Math.min(index + 1, steps.length - 1))
   }
   const prevStep = () => setStepIndex(index => Math.max(index - 1, 0))
   const goToStep = (index) => {
-    if (index > 2 && !isSenderNameValid) {
+    if (index > 1 && !isSenderNameValid) {
       setSenderNameAttempted(true)
+      setStepIndex(1)
+      return
+    }
+    if (index > 2 && !isStyleComplete) {
+      setStyleAttempted(true)
       setStepIndex(2)
       return
+    }
+    if (index === 3) {
+      setForm(current => withGeneratedStyleTemplate(current, { force: true }))
     }
 
     setStepIndex(index)
   }
 
   const finish = (skipped = false) => {
+    const needsGeneratedTemplate = !skipped && (
+      (form.templateMode === 'custom' && (!form.customTemplate?.subject || !form.customTemplate?.body))
+      || (form.templateMode !== 'custom' && !selectedTemplate)
+    )
+    const finalForm = needsGeneratedTemplate ? withGeneratedStyleTemplate(form, { force: true }) : form
+
     onComplete({
-      ...form,
-      templateId: selectedTemplate?.id || '',
+      ...finalForm,
+      templateId: finalForm.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
       skipped,
     })
   }
@@ -623,12 +852,12 @@ export default function OnboardingScreen({
             </button>
 
             <div>
-              <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">ColdFlow</p>
-              <p className="mt-1 text-sm text-muted">Onboarding</p>
+              <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">Coldflow</p>
+              <p className="mt-1 text-sm text-muted">Setup</p>
             </div>
           </div>
           <button type="button" onClick={() => finish(true)} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50">
-            Skip
+            Finish later
           </button>
         </div>
 
@@ -645,11 +874,20 @@ export default function OnboardingScreen({
                 key={index}
                 type="button"
                 onClick={() => goToStep(index)}
-                aria-label={`Go to step ${index + 1}`}
-                className={`h-2.5 rounded-full transition-all ${
-                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-gray-300 hover:bg-gray-400'
+                aria-label={`Go to ${STEP_LABELS[index]}`}
+                className={`group flex h-8 items-center rounded-full px-1 transition-all ${
+                  index === stepIndex ? 'bg-primary/10' : 'hover:bg-white/76'
                 }`}
-              />
+              >
+                <span className={`h-2.5 rounded-full transition-all ${
+                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-slate-300 group-hover:bg-slate-400'
+                }`} />
+                <span className={`hidden pl-2 pr-2 text-xs font-medium sm:inline ${
+                  index === stepIndex ? 'text-primary' : 'text-muted'
+                }`}>
+                  {STEP_LABELS[index]}
+                </span>
+              </button>
             ))}
           </div>
 
@@ -666,17 +904,13 @@ export default function OnboardingScreen({
               Back
             </button>
 
-            <p className="hidden text-sm text-muted sm:block">
-              Everything here can be edited later.
-            </p>
-
             {isLastStep ? (
               <button
                 type="button"
                 onClick={() => finish(false)}
                 className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
               >
-                Enter dashboard
+                Open dashboard
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
                   <ArrowRight size={14} />
                 </span>
