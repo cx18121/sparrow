@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
   Search, Trash2, ChevronUp, ChevronDown,
-  ChevronLeft, ChevronRight, Download, Sparkles, UserPlus,
+  ChevronLeft, ChevronRight, Download, Sparkles, UserPlus, CheckSquare, Square,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import Badge from '../ui/Badge'
@@ -27,6 +27,8 @@ const getName    = (row) => row._custom ? (row.name || '') : (row.contact?.name 
 const getEmail   = (row) => row._custom ? (row.email || '') : (row.contact?.email || '')
 const getCompany = (row) => row._custom ? (row.companyName || '') : (row.company?.name || '')
 const getTitle   = (row) => row._custom ? (row.title || '') : (row.contact?.title || '')
+const getRowKey  = (row) => `${row._custom ? 'cc' : 'lead'}-${row.id}`
+const canGenerateForRow = (row) => Boolean(getEmail(row) || row.apolloPersonId || row._custom)
 
 const getNotesName = (lead) => {
   if (lead._custom || lead.contact?.name) return getName(lead)
@@ -57,6 +59,9 @@ export default function ContactsTab({
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
   const [deleteTarget, setDeleteTarget] = useState(null) // { id, custom }
+  const [selectedKeys, setSelectedKeys] = useState(new Set())
+  const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Generate email modal
   const [generateTarget, setGenerateTarget] = useState(null)
@@ -222,10 +227,104 @@ export default function ContactsTab({
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const selectedRows = useMemo(() => {
+    const selected = new Set(selectedKeys)
+    return allRows.filter(row => selected.has(getRowKey(row)))
+  }, [allRows, selectedKeys])
+  const selectedEligibleRows = selectedRows.filter(canGenerateForRow)
+  const visibleKeys = paginated.map(getRowKey)
+  const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every(key => selectedKeys.has(key))
+  const allFilteredSelected = filtered.length > 0 && filtered.every(row => selectedKeys.has(getRowKey(row)))
+
+  const toggleOneSelected = (row) => {
+    const key = getRowKey(row)
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  const toggleVisibleSelected = () => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      if (allVisibleSelected) {
+        visibleKeys.forEach(key => next.delete(key))
+      } else {
+        visibleKeys.forEach(key => next.add(key))
+      }
+      return next
+    })
+  }
+
+  const selectAllFiltered = () => {
+    setSelectedKeys(new Set(filtered.map(getRowKey)))
+  }
+
+  const clearSelection = () => setSelectedKeys(new Set())
 
   const changeStatus = (lead, status) => {
     if (lead._custom || status === lead.status) return
     onUpdate({ id: lead.id, status }).catch(err => console.error('Failed to update lead', err))
+  }
+
+  const buildGeneratePayload = (row) => row._custom
+    ? {
+      customContactId: row.id,
+      templateId: workspaceConfig?.templateId || undefined,
+      includeResumeBullet: false,
+    }
+    : {
+      userLeadId: row.id,
+      templateId: workspaceConfig?.templateId || undefined,
+      includeResumeBullet: false,
+    }
+
+  const bulkGenerateDrafts = async () => {
+    if (bulkGenerating || selectedEligibleRows.length === 0) return
+    setBulkGenerating(true)
+    try {
+      const results = await Promise.allSettled(selectedEligibleRows.map(row => generateEmail(buildGeneratePayload(row))))
+      const succeeded = results.filter(result => result.status === 'fulfilled').length
+      const failed = results.length - succeeded
+      setToast({
+        type: failed ? 'info' : 'success',
+        title: `${succeeded} draft${succeeded !== 1 ? 's' : ''} generated`,
+        message: failed
+          ? `${failed} contact${failed !== 1 ? 's' : ''} could not be generated. Check missing emails or API settings.`
+          : 'Review and send them from Drafts.',
+        action: onNavigate && succeeded ? { label: 'Open Drafts', onClick: () => onNavigate('drafts') } : null,
+      })
+      if (succeeded) clearSelection()
+    } finally {
+      setBulkGenerating(false)
+    }
+  }
+
+  const bulkDeleteSelected = async () => {
+    if (bulkDeleting || selectedRows.length === 0) return
+    setBulkDeleting(true)
+    const rows = selectedRows
+    const results = await Promise.allSettled(rows.map(row =>
+      row._custom ? onDeleteCustomContact(row.id) : onDelete(row.id)
+    ))
+    const failed = results.filter(result => result.status === 'rejected').length
+    const removed = rows.length - failed
+    if (failed) {
+      setToast({
+        type: 'error',
+        title: `${failed} contact${failed !== 1 ? 's' : ''} could not be removed`,
+        message: removed ? `${removed} were removed successfully.` : 'Try again in a moment.',
+      })
+    } else {
+      setToast({
+        type: 'success',
+        title: `${removed} contact${removed !== 1 ? 's' : ''} removed`,
+        message: 'Your saved contacts list is updated.',
+      })
+    }
+    clearSelection()
+    setBulkDeleting(false)
   }
 
   const exportCSV = () => {
@@ -294,9 +393,58 @@ export default function ContactsTab({
       </div>
 
       <div className="table-shell">
+        {selectedRows.length > 0 && (
+          <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted">
+              <span className="font-medium text-dark">{selectedRows.length}</span> selected
+              {selectedEligibleRows.length !== selectedRows.length && (
+                <span className="ml-2 text-xs text-amber-600">
+                  {selectedRows.length - selectedEligibleRows.length} cannot generate yet
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!allFilteredSelected && filtered.length > paginated.length && (
+                <button type="button" onClick={selectAllFiltered} className="btn-ghost px-2 py-1 text-xs">
+                  Select all {filtered.length}
+                </button>
+              )}
+              <button type="button" onClick={clearSelection} className="btn-ghost px-2 py-1 text-xs" disabled={bulkGenerating || bulkDeleting}>
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={bulkGenerateDrafts}
+                disabled={bulkGenerating || selectedEligibleRows.length === 0 || bulkDeleting}
+                className="btn-primary px-3 py-1.5 text-xs"
+              >
+                <Sparkles size={12} /> {bulkGenerating ? 'Generating...' : `Generate ${selectedEligibleRows.length} draft${selectedEligibleRows.length !== 1 ? 's' : ''}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget({ bulk: true })}
+                disabled={bulkGenerating || bulkDeleting}
+                className="btn-danger px-3 py-1.5 text-xs"
+              >
+                <Trash2 size={12} /> Delete selected
+              </button>
+            </div>
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 bg-[rgba(248,250,252,0.86)]">
+              <th className="w-10 px-5 py-4 text-left">
+                <button
+                  type="button"
+                  onClick={toggleVisibleSelected}
+                  disabled={paginated.length === 0 || isLoading}
+                  className="inline-flex text-muted transition-colors hover:text-dark disabled:opacity-40"
+                  title={allVisibleSelected ? 'Deselect visible contacts' : 'Select visible contacts'}
+                >
+                  {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+                </button>
+              </th>
               {[
                 ['name', 'Name'],
                 ['email', 'Email'],
@@ -320,12 +468,21 @@ export default function ContactsTab({
           <tbody className="divide-y divide-slate-100">
             {isLoading && allRows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted">
+                <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted">
                   Loading contacts...
                 </td>
               </tr>
             ) : paginated.map(row => (
               <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
+                <td className="px-5 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedKeys.has(getRowKey(row))}
+                    onChange={() => toggleOneSelected(row)}
+                    className="rounded border-slate-300"
+                    aria-label={`Select ${getName(row) || getEmail(row) || 'contact'}`}
+                  />
+                </td>
                 <td className="px-5 py-4 font-medium text-dark">
                   <span className="flex items-center gap-2">
                     {getName(row) || getNotesName(row) || '—'}
@@ -375,7 +532,7 @@ export default function ContactsTab({
             ))}
             {!isLoading && paginated.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10">
+                <td colSpan={8} className="px-4 py-10">
                   <div className="mx-auto flex max-w-md flex-col items-center text-center">
                     <p className="text-sm font-medium text-dark">
                       {search || statusFilter !== 'all' ? 'No contacts match these filters' : 'No contacts yet'}
@@ -462,14 +619,21 @@ export default function ContactsTab({
         onConfirm={() => {
           const victim = deleteTarget
           setDeleteTarget(null)
+          if (victim.bulk) {
+            bulkDeleteSelected()
+            return
+          }
           if (victim.custom) {
             onDeleteCustomContact(victim.id).catch(err => console.error('Failed to delete custom contact', err))
           } else {
             onDelete(victim.id).catch(err => console.error('Failed to delete lead', err))
           }
         }}
-        title="Remove contact"
-        message="Remove this contact? This action cannot be undone."
+        title={deleteTarget?.bulk ? 'Remove selected contacts' : 'Remove contact'}
+        message={deleteTarget?.bulk
+          ? `Remove ${selectedRows.length} selected contact${selectedRows.length !== 1 ? 's' : ''}? This action cannot be undone.`
+          : 'Remove this contact? This action cannot be undone.'}
+        confirmLabel={deleteTarget?.bulk ? 'Remove selected' : 'Remove'}
       />
 
       {/* Add custom contact modal */}

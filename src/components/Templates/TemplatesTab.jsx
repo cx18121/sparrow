@@ -15,6 +15,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import { sampleContactData } from '../../lib/mockData'
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
+const SUBJECT_VARIABLES = ['{{first_name}}', '{{company}}']
 
 function fillVariables(html, data) {
   if (!html) return ''
@@ -23,6 +24,7 @@ function fillVariables(html, data) {
     .replace(/\{\{firstName\}\}/g, data.first_name || 'Alex')
     .replace(/\{\{last_name\}\}/g, data.last_name || 'Chen')
     .replace(/\{\{company\}\}/g, data.company || 'Momentum AI')
+    .replace(/\{\{company_name\}\}/g, data.company || 'Momentum AI')
     .replace(/\{\{companyName\}\}/g, data.company || 'Momentum AI')
     .replace(/\{\{role\}\}/g, data.role || 'CEO')
     .replace(/\{\{sender_name\}\}/g, data.sender_name || 'Your Name')
@@ -307,7 +309,12 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
               {view === 'edit' ? (
                 <div className="card p-6 space-y-5">
                   <div>
-                    <label className="label">Subject line</label>
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <label className="label mb-0">Subject line</label>
+                      <p className="text-xs text-muted">
+                        Use <span className="font-mono text-primary">{'{{company}}'}</span> to insert the company name.
+                      </p>
+                    </div>
                     <input
                       value={draft.id === selected.id ? draft.subject : (selected.subject || '')}
                       onChange={e => scheduleFlush({ ...draft, id: selected.id, subject: e.target.value })}
@@ -315,6 +322,23 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                       placeholder="e.g. Quick question about {{company}}"
                       className="input"
                     />
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                      <span>Subject variables:</span>
+                      {SUBJECT_VARIABLES.map(variable => (
+                        <button
+                          key={variable}
+                          type="button"
+                          onClick={() => scheduleFlush({
+                            ...draft,
+                            id: selected.id,
+                            subject: `${draft.id === selected.id ? draft.subject : (selected.subject || '')}${variable}`,
+                          })}
+                          className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+                        >
+                          {variable}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="label">Body</label>
@@ -350,7 +374,13 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
       <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Edit template info' : 'New template'} size="sm">
         <div className="px-6 py-4 space-y-3">
           <div><label className="label">Template name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Cold Intro — Startup Founder" className="input" /></div>
-          <div><label className="label">Subject line</label><input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Quick question about {{company}}" className="input" /></div>
+          <div>
+            <label className="label">Subject line</label>
+            <input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Quick question about {{company}}" className="input" />
+            <p className="mt-2 text-xs text-muted">
+              Use <span className="font-mono text-primary">{'{{company}}'}</span> for the company name, for example: Quick question about <span className="font-mono text-primary">{'{{company}}'}</span>
+            </p>
+          </div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setEditModal(false)} className="btn-secondary">Cancel</button>
             <button onClick={save} disabled={!form.name} className="btn-primary">{editingId ? 'Save' : 'Create template'}</button>

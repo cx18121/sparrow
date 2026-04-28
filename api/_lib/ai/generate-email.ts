@@ -25,6 +25,7 @@ export function buildSubjectLine(
     .replace(/\{\{firstName\}\}/g, firstName)
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
     .replace(/\{\{company\}\}/g, company?.name ?? '')
+    .replace(/\{\{company_name\}\}/g, company?.name ?? '')
     .replace(/\{\{companyName\}\}/g, company?.name ?? '')
 }
 
