@@ -60,7 +60,6 @@ export default function Sidebar({
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate font-display text-sm font-semibold tracking-[-0.02em] text-dark">Coldflow</p>
-              <p className="truncate text-[10px] font-medium text-muted">Outreach desk</p>
             </div>
           )}
         </div>
