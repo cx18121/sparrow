@@ -49,6 +49,7 @@ export default function ContactsTab({
   onDeleteCustomContact,
   workspaceConfig,
   onNavigate,
+  isLoading = false,
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -257,7 +258,7 @@ export default function ContactsTab({
           <button onClick={openAdd} className="btn-primary text-xs">
             <UserPlus size={13} /> Add Contact
           </button>
-          <button onClick={exportCSV} className="btn-secondary text-xs" disabled={filtered.length === 0}>
+          <button onClick={exportCSV} className="btn-secondary text-xs" disabled={isLoading || filtered.length === 0}>
             <Download size={13} /> Export CSV
           </button>
         </div>
@@ -285,7 +286,9 @@ export default function ContactsTab({
             </select>
           </div>
           <p className="text-sm text-muted">
-            {filtered.length} contact{filtered.length !== 1 ? 's' : ''} across {totalPages} page{totalPages !== 1 ? 's' : ''}
+            {isLoading && allRows.length === 0
+              ? 'Loading contacts...'
+              : `${filtered.length} contact${filtered.length !== 1 ? 's' : ''} across ${totalPages} page${totalPages !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>
@@ -315,7 +318,13 @@ export default function ContactsTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {paginated.map(row => (
+            {isLoading && allRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted">
+                  Loading contacts...
+                </td>
+              </tr>
+            ) : paginated.map(row => (
               <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
                 <td className="px-5 py-4 font-medium text-dark">
                   <span className="flex items-center gap-2">
@@ -364,7 +373,7 @@ export default function ContactsTab({
                 </td>
               </tr>
             ))}
-            {paginated.length === 0 && (
+            {!isLoading && paginated.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10">
                   <div className="mx-auto flex max-w-md flex-col items-center text-center">

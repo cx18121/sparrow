@@ -4,7 +4,7 @@ import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
 } from 'lucide-react'
-import { fetchEmails, updateEmail, sendEmail } from '../../lib/api'
+import { apiGetAuth, fetchEmails, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Toast from '../ui/Toast'
 
@@ -72,6 +72,31 @@ function canSendDraft(draft) {
   return getDraftReadiness(draft).label === 'Ready'
 }
 
+function getDraftCacheKey(tab) {
+  const { userId } = apiGetAuth()
+  return userId ? `cf_email_cache_${userId}_${tab}` : null
+}
+
+function readDraftCache(tab) {
+  const key = getDraftCacheKey(tab)
+  if (!key) return null
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'null')
+  } catch {
+    return null
+  }
+}
+
+function writeDraftCache(tab, items) {
+  const key = getDraftCacheKey(tab)
+  if (!key) return
+  try {
+    localStorage.setItem(key, JSON.stringify({ cachedAt: new Date().toISOString(), items }))
+  } catch {
+    // Cache writes should never block draft actions.
+  }
+}
+
 export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [tab, setTab] = useState('draft')
   const [reviewFilter, setReviewFilter] = useState('all')
@@ -97,14 +122,23 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
 
   useEffect(() => {
     let cancelled = false
+    const cached = readDraftCache(tab)
     setLoading(true)
     setError(null)
-    setDrafts([])
     setSelected(new Set())
-    setPreview(null)
+    if (cached?.items) {
+      setDrafts(cached.items)
+      setPreview(current => current && cached.items.some(draft => draft.id === current.id) ? current : null)
+    } else {
+      setDrafts([])
+      setPreview(null)
+    }
     fetchEmails({ status: tab, limit: '200' })
       .then(res => {
-        if (!cancelled) setDrafts(res?.items || [])
+        if (cancelled) return
+        const items = res?.items || []
+        setDrafts(items)
+        writeDraftCache(tab, items)
       })
       .catch(err => {
         if (!cancelled) setError(err.message)
@@ -114,6 +148,10 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
       })
     return () => { cancelled = true }
   }, [loadCount, tab])
+
+  useEffect(() => {
+    if (!loading) writeDraftCache(tab, drafts)
+  }, [drafts, loading, tab])
 
   const load = () => setLoadCount(c => c + 1)
 
@@ -329,7 +367,9 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
               <button onClick={() => setTab('sent')} className={`segmented-chip ${tab === 'sent' ? 'segmented-chip-active' : ''}`}>Sent</button>
             </div>
             <p className="text-sm text-muted">
-              {loading ? 'Loading…' : `${drafts.length} ${tab === 'sent' ? 'sent' : 'draft'}${drafts.length !== 1 ? 's' : ''}`}
+              {loading
+                ? drafts.length > 0 ? 'Refreshing...' : 'Loading...'
+                : `${drafts.length} ${tab === 'sent' ? 'sent' : 'draft'}${drafts.length !== 1 ? 's' : ''}`}
             </p>
             {tab === 'draft' && !loading && drafts.length > 0 && (
               <p className="text-xs text-muted">

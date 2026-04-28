@@ -20,7 +20,7 @@ const INITIAL_FORM = {
   batchSize: '10', tone: '',
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig }) {
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -461,13 +461,19 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             </button>
           </div>
           <p className="text-sm text-muted shrink-0">
-            {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
+            {isLoading && campaigns.length === 0
+              ? 'Loading campaigns...'
+              : search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </section>
 
       <section className="table-shell">
-        {filtered.length === 0 ? (
+        {isLoading && campaigns.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted">
+            Loading campaigns...
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="empty-state border-0 bg-transparent shadow-none">
             {search ? 'No campaigns match your search.' : 'No campaigns yet. Create your first one!'}
           </div>

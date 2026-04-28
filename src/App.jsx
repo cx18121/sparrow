@@ -44,6 +44,29 @@ const getOnboardingStorageKey = (user) => {
   return `cf_onboarding_${user.id || user.email}`
 }
 
+const getResourceCacheKey = (user) => {
+  if (!user) return null
+  return `cf_resource_cache_${typeof user === 'string' ? user : user.id || user.email}`
+}
+
+const readJsonCache = (key) => {
+  if (!key) return null
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'null')
+  } catch {
+    return null
+  }
+}
+
+const writeJsonCache = (key, data) => {
+  if (!key) return
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch {
+    // Cache writes should never block the app.
+  }
+}
+
 const formatTemplateBody = (body) => {
   if (!body) return ''
   if (body.includes('<')) return body
@@ -69,6 +92,7 @@ function AppShell() {
   const [customContacts, setCustomContacts] = useState([])
   const [templates, setTemplates] = useState([])
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [hasResourceCache, setHasResourceCache] = useState(false)
 
   const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
   const activeTab = activeTabItem.id
@@ -149,27 +173,64 @@ function AppShell() {
       setTemplates([])
       setCampaigns([])
       setLeads([])
+      setCustomContacts([])
       setDataLoaded(false)
+      setHasResourceCache(false)
       return
     }
 
     let cancelled = false
+    const cacheKey = getResourceCacheKey(effectiveUser)
+    const cached = readJsonCache(cacheKey)
+    const cachedData = cached?.data || null
+
+    if (cachedData) {
+      setTemplates(cachedData.templates || [])
+      setCampaigns((cachedData.campaigns || []).map(campaignToUi))
+      setLeads(cachedData.leads || [])
+      setCustomContacts(cachedData.customContacts || [])
+      setDataLoaded(true)
+      setHasResourceCache(true)
+    } else {
+      setDataLoaded(false)
+      setHasResourceCache(false)
+    }
+
+    const keepCachedOnError = (label, request) =>
+      request
+        .then(res => ({ ok: true, res }))
+        .catch(e => {
+          console.error(`${label} failed:`, e.message)
+          return { ok: false, res: null }
+        })
+
     Promise.all([
-      fetchTemplates().catch(e => { console.error('fetchTemplates failed:', e.message); return { items: [] } }),
-      fetchCampaigns().catch(e => { console.error('fetchCampaigns failed:', e.message); return { items: [] } }),
-      fetchLeads().catch(e => { console.error('fetchLeads failed:', e.message); return { items: [] } }),
-      fetchCustomContacts().catch(e => { console.error('fetchCustomContacts failed:', e.message); return { items: [] } }),
+      keepCachedOnError('fetchTemplates', fetchTemplates()),
+      keepCachedOnError('fetchCampaigns', fetchCampaigns()),
+      keepCachedOnError('fetchLeads', fetchLeads()),
+      keepCachedOnError('fetchCustomContacts', fetchCustomContacts()),
     ]).then(([t, c, l, cc]) => {
       if (cancelled) return
-      setTemplates(t?.items || [])
-      setCampaigns((c?.items || []).map(campaignToUi))
-      setLeads(l?.items || [])
-      setCustomContacts(cc?.items || [])
+      setTemplates(t.ok ? (t.res?.items || []) : (cachedData?.templates || []))
+      setCampaigns((c.ok ? (c.res?.items || []) : (cachedData?.campaigns || [])).map(campaignToUi))
+      setLeads(l.ok ? (l.res?.items || []) : (cachedData?.leads || []))
+      setCustomContacts(cc.ok ? (cc.res?.items || []) : (cachedData?.customContacts || []))
       setDataLoaded(true)
+      setHasResourceCache(true)
     })
 
     return () => { cancelled = true }
   }, [user])
+
+  useEffect(() => {
+    const { userId } = apiGetAuth()
+    const effectiveUser = user || userId
+    if (!effectiveUser || !dataLoaded) return
+    writeJsonCache(getResourceCacheKey(effectiveUser), {
+      cachedAt: new Date().toISOString(),
+      data: { templates, campaigns, leads, customContacts },
+    })
+  }, [campaigns, customContacts, dataLoaded, leads, templates, user])
 
   // ── Templates ──
   const createTemplateHandler = async (data) => {
@@ -490,6 +551,7 @@ function AppShell() {
                   onDelete={deleteCampaignHandler}
                   templates={templates}
                   workspaceConfig={workspaceConfig}
+                  isLoading={!dataLoaded && !hasResourceCache}
                 />
               } />
               <Route path="/leads" element={
@@ -509,6 +571,7 @@ function AppShell() {
                   onDeleteCustomContact={deleteCustomContactHandler}
                   workspaceConfig={workspaceConfig}
                   onNavigate={handleTabChange}
+                  isLoading={!dataLoaded && !hasResourceCache}
                 />
               } />
               <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} />} />
