@@ -239,6 +239,23 @@
   @apply italic;
 }
 
+.template-preview p {
+  @apply mb-4;
+}
+
+.template-preview ul,
+.template-preview ol {
+  @apply mb-4 pl-5;
+}
+
+.template-preview ul {
+  @apply list-disc;
+}
+
+.template-preview ol {
+  @apply list-decimal;
+}
+
 .tiptap-editor .ProseMirror .is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   @apply text-muted float-left h-0 pointer-events-none;

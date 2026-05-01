@@ -374,7 +374,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                     <p className="mt-2 text-sm font-medium text-dark">{fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}</p>
                   </div>
                   <div
-                    className="prose prose-sm max-w-none p-6 text-dark"
+                    className="template-preview prose prose-sm max-w-none p-6 text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                   <div className="border-t border-slate-100 bg-[rgba(248,250,252,0.82)] px-6 py-4 text-xs text-muted">
