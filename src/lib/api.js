@@ -1,3 +1,5 @@
+import { isDemo, supabase } from './supabase'
+
 const BASE = '/api'
 
 let currentUserId = null
@@ -8,6 +10,14 @@ export function setApiAccessToken(token) { currentAccessToken = token }
 
 export function apiGetAuth() {
   return { userId: currentUserId, accessToken: currentAccessToken }
+}
+
+async function ensureApiAuth() {
+  if (currentAccessToken || isDemo) return
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+  currentUserId = session.user?.id ?? currentUserId
+  currentAccessToken = session.access_token ?? currentAccessToken
 }
 
 function extractServerError(text) {
@@ -64,6 +74,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
 }
 
 async function request(path, opts = {}) {
+  await ensureApiAuth()
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
