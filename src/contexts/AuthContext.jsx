@@ -138,7 +138,13 @@ export function AuthProvider({ children }) {
       },
     }
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data: { session } } = await supabase.auth.getSession()
+    const hasGoogleIdentity = session?.user?.identities?.some(identity => identity.provider === 'google')
+    const authMethod = session && !hasGoogleIdentity
+      ? supabase.auth.linkIdentity
+      : supabase.auth.signInWithOAuth
+
+    const { data, error } = await authMethod.call(supabase.auth, {
       provider: 'google',
       options: authOptions,
     })
