@@ -100,6 +100,7 @@ export default function DashboardTab({
   dataLoading = false,
   onNavigate,
   onGoToOnboarding,
+  onConnectGoogle,
 }) {
   const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
   const [emailState, setEmailState] = useState({ loading: true, drafts: [], sent: [], error: null })
@@ -150,7 +151,7 @@ export default function DashboardTab({
       label: 'Google connected',
       detail: hasGoogle ? 'Gmail sending is connected.' : 'Connect Google so Coldflow can send reviewed drafts.',
       done: hasGoogle,
-      action: onGoToOnboarding ? { label: 'Setup', onClick: onGoToOnboarding } : null,
+      action: onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null,
     },
     {
       label: 'Claude key added',

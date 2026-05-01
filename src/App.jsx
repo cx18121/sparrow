@@ -85,7 +85,7 @@ const formatTemplateBody = (body) => {
 }
 
 function AppShell() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading, signOut, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
@@ -589,6 +589,7 @@ function AppShell() {
                   dataLoading={!dataLoaded && !hasResourceCache}
                   onNavigate={handleTabChange}
                   onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                  onConnectGoogle={signInWithGoogle}
                 />
               } />
               <Route path="/campaigns" element={
@@ -638,6 +639,7 @@ function AppShell() {
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
                   onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                  onConnectGoogle={signInWithGoogle}
                   onNavigate={handleTabChange}
                 />
               } />

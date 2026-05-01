@@ -20,7 +20,7 @@ function Section({ title, children }) {
   )
 }
 
-function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onNavigate }) {
+function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
 
   const loadProfile = () => {
@@ -45,7 +45,7 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onN
       label: 'Google connected',
       detail: hasGoogle ? 'Coldflow can ask Gmail to send from this account.' : 'Reconnect Google so Coldflow can send Gmail drafts.',
       done: hasGoogle,
-      action: onGoToOnboarding ? { label: 'Reconnect', onClick: onGoToOnboarding } : null,
+      action: onConnectGoogle ? { label: 'Reconnect', onClick: onConnectGoogle } : null,
     },
     {
       label: 'Claude key added',
@@ -401,7 +401,7 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
   )
 }
 
-export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding, onNavigate }) {
+export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [toast, setToast] = useState(null)
   const saveWorkspace = async (updater, label = 'Settings saved') => {
     try {
@@ -432,6 +432,7 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         workspaceConfig={workspaceConfig}
         templates={templates}
         onGoToOnboarding={onGoToOnboarding}
+        onConnectGoogle={onConnectGoogle}
         onNavigate={onNavigate}
       />
       <WorkspaceProfileSection

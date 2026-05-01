@@ -18,13 +18,15 @@ const persistedRefreshTokens = new Set()
 
 async function persistGoogleRefreshToken(session) {
   const token = session?.provider_refresh_token
-  if (!token || persistedRefreshTokens.has(token)) return
+  if (!token || persistedRefreshTokens.has(token)) return false
   persistedRefreshTokens.add(token)
   try {
     await saveProfile({ googleRefreshToken: token })
+    return true
   } catch (err) {
     persistedRefreshTokens.delete(token)
     console.error('Failed to persist Google refresh token', err)
+    return false
   }
 }
 
@@ -50,26 +52,29 @@ export function AuthProvider({ children }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         applySessionToApiClient(session)
-        persistGoogleRefreshToken(session)
+        await persistGoogleRefreshToken(session)
       }
+      setUser(session?.user ?? null)
+      setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // onAuthStateChange fires synchronously for INITIAL_SESSION before getSession resolves,
-      // and again for SIGNED_IN/TOKEN_REFRESHED. Only act on actual auth changes.
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        setUser(session?.user ?? null)
-        if (session) {
-          applySessionToApiClient(session)
-          persistGoogleRefreshToken(session)
-        } else {
-          applySessionToApiClient(null)
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Provider refresh tokens are emitted only once after the OAuth redirect.
+      // Persist whenever Supabase gives us a session so link/sign-in callbacks
+      // cannot miss the one-time Google token.
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        applySessionToApiClient(null)
+        return
+      }
+
+      if (session) {
+        applySessionToApiClient(session)
+        await persistGoogleRefreshToken(session)
+        setUser(session.user)
       }
     })
 
@@ -120,19 +125,22 @@ export function AuthProvider({ children }) {
     if (isDemo) {
       return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
     }
+
+    const authOptions = {
+      redirectTo: window.location.href,
+      scopes: GOOGLE_SCOPES,
+      // access_type=offline + prompt=consent forces Google to issue a
+      // refresh token even on repeat sign-ins, so we can send mail
+      // server-side without keeping the user on the page.
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+      },
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-        scopes: GOOGLE_SCOPES,
-        // access_type=offline + prompt=consent forces Google to issue a
-        // refresh token even on repeat sign-ins, so we can send mail
-        // server-side without keeping the user on the page.
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
+      options: authOptions,
     })
     if (!error && data?.session) {
       applySessionToApiClient(data.session)
