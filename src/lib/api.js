@@ -29,7 +29,9 @@ function friendlyApiMessage({ status, path, method, serverError }) {
 
   if (path === '/emails/send') {
     if (status === 404) return 'We could not find that draft. Refresh Drafts and try again.'
-    if (lower.includes('gmail not connected')) return 'Connect Gmail in Settings before sending email.'
+    if (lower.includes('gmail not connected') || lower.includes('connect gmail')) {
+      return 'Connect Gmail in Settings before sending email.'
+    }
     if (lower.includes('recipient')) return 'Add a recipient email address before sending this draft.'
     if (lower.includes('gmail') || status === 502) {
       return 'Gmail could not send this email. Check that Gmail API is enabled in Google Cloud, then reconnect Google in Settings.'

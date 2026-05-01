@@ -18,15 +18,14 @@ Output format:
 - No explanation, no source, no context — just the short phrase.
 - If you cannot find anything specific after searching, return exactly: NO_INTEREST_FOUND`
 
-export const EMAIL_GENERATION_SYSTEM_PROMPT = `You write short, specific cold outreach emails for a job-seeking candidate reaching out to people at startups they want to work for.
+export const EMAIL_GENERATION_SYSTEM_PROMPT = `You write personalized cold outreach emails for a job-seeking candidate reaching out to people at startups.
 
 Rules:
-- Under 130 words in the body.
-- If company context is provided, reference something concrete (stage, product, mission) — never generic flattery. If no company context is provided, focus on the contact's role and the candidate's background.
-- Connect the candidate's background to the contact's role or company needs in one sentence. Do not list their whole background.
-- No corporate jargon, no "I hope this finds you well", no "circling back", no "leverage", no "synergy".
-- First-person, warm, direct, genuine.
-- Fill all {{placeholder}} slots from the context provided. If a placeholder has no data, remove it naturally.
+- Follow the user's style instruction exactly — it governs tone, length, and phrasing.
+- Reference something concrete from company context (stage, product, mission, hiring status) — never generic flattery. If no company context, reference the contact's role specifically.
+- Connect the sender's background to the company or role in one sentence. Do not list credentials or multiple details.
+- No "I hope this finds you well", "circling back", "leverage", "synergy", "passionate about", or em dashes.
+- First-person, genuine, specific.
 - Output ONLY the email body. No subject line, no preamble, no explanation.`
 
 export const DEFAULT_SUBJECT_TEMPLATE = 'Quick intro — {{senderName}}'

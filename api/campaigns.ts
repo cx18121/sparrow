@@ -1,9 +1,44 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
+import { HttpError } from "./_lib/user.js";
 
 const ALLOWED_STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"] as const;
 type CampaignStatus = (typeof ALLOWED_STATUSES)[number];
+
+async function validateTemplateAccess(templateId: unknown, userId: string) {
+  if (!templateId) return null;
+  if (typeof templateId !== "string") return null;
+  const template = await prisma.template.findUnique({
+    where: { id: templateId },
+    select: { id: true, userId: true, isShared: true },
+  });
+  if (!template || (template.userId !== userId && !template.isShared)) {
+    throw new HttpError(404, "Template not found");
+  }
+  return template.id;
+}
+
+function parseNullableNumber(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new HttpError(400, "Invalid numeric value");
+  return parsed;
+}
+
+function parseBatchSize(value: unknown): number {
+  const parsed = value == null || value === "" ? 10 : Number(value);
+  if (!Number.isFinite(parsed)) throw new HttpError(400, "Invalid batch size");
+  return Math.min(Math.max(parsed, 1), 100);
+}
+
+function parseNullableBoolean(value: unknown): boolean | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new HttpError(400, "Invalid boolean value");
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -18,6 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     return res.status(500).json({ error: (err as Error).message });
   }
 }
@@ -43,7 +79,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
   const {
     name, subject, status, templateId, scheduledAt,
-    filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize, tone,
   } = body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
@@ -53,6 +89,12 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       error: `status must be one of ${ALLOWED_STATUSES.join(", ")}`,
     });
   }
+  let ownedTemplateId: string | null;
+  try {
+    ownedTemplateId = await validateTemplateAccess(templateId, userId);
+  } catch {
+    return res.status(404).json({ error: "Template not found" });
+  }
 
   const campaign = await prisma.campaign.create({
     data: {
@@ -60,16 +102,16 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       name: name as string,
       subject: (subject as string | null) ?? null,
       status: ((status as CampaignStatus) ?? "DRAFT"),
-      templateId: (templateId as string | null) ?? null,
+      templateId: ownedTemplateId,
       scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
-      filterIndustry: (filterIndustry as string | null) ?? null,
+      filterTags: Array.isArray(filterTags) ? (filterTags as string[]) : [],
       filterRegion: (filterRegion as string | null) ?? null,
       filterStage: (filterStage as string | null) ?? null,
       filterBatch: (filterBatch as string | null) ?? null,
-      filterIsHiring: filterIsHiring != null ? Boolean(filterIsHiring) : null,
-      filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null,
-      filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null,
-      batchSize: batchSize != null ? Math.min(Math.max(Number(batchSize), 1), 100) : 10,
+      filterIsHiring: parseNullableBoolean(filterIsHiring),
+      filterHeadcountMin: parseNullableNumber(filterHeadcountMin),
+      filterHeadcountMax: parseNullableNumber(filterHeadcountMax),
+      batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
     },
     include: {
@@ -83,7 +125,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
   const {
     id, name, subject, status, templateId, scheduledAt,
-    filterIndustry, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize, tone,
   } = body ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
@@ -98,6 +140,14 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   if (!existing || existing.userId !== userId) {
     return res.status(404).json({ error: "Campaign not found" });
   }
+  let ownedTemplateId: string | null | undefined = undefined;
+  if (templateId !== undefined) {
+    try {
+      ownedTemplateId = await validateTemplateAccess(templateId, userId);
+    } catch {
+      return res.status(404).json({ error: "Template not found" });
+    }
+  }
 
   const campaign = await prisma.campaign.update({
     where: { id: id as string },
@@ -105,18 +155,18 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(name !== undefined && { name: name as string }),
       ...(subject !== undefined && { subject: subject as string | null }),
       ...(status !== undefined && { status: status as CampaignStatus }),
-      ...(templateId !== undefined && { templateId: templateId as string | null }),
+      ...(templateId !== undefined && { templateId: ownedTemplateId }),
       ...(scheduledAt !== undefined && {
         scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       }),
-      ...(filterIndustry !== undefined && { filterIndustry: (filterIndustry as string | null) ?? null }),
+      ...(filterTags !== undefined && { filterTags: Array.isArray(filterTags) ? (filterTags as string[]) : [] }),
       ...(filterRegion !== undefined && { filterRegion: (filterRegion as string | null) ?? null }),
       ...(filterStage !== undefined && { filterStage: (filterStage as string | null) ?? null }),
       ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
-      ...(filterIsHiring !== undefined && { filterIsHiring: filterIsHiring != null ? Boolean(filterIsHiring) : null }),
-      ...(filterHeadcountMin !== undefined && { filterHeadcountMin: filterHeadcountMin != null ? Number(filterHeadcountMin) : null }),
-      ...(filterHeadcountMax !== undefined && { filterHeadcountMax: filterHeadcountMax != null ? Number(filterHeadcountMax) : null }),
-      ...(batchSize !== undefined && { batchSize: Math.min(Math.max(Number(batchSize), 1), 100) }),
+      ...(filterIsHiring !== undefined && { filterIsHiring: parseNullableBoolean(filterIsHiring) }),
+      ...(filterHeadcountMin !== undefined && { filterHeadcountMin: parseNullableNumber(filterHeadcountMin) }),
+      ...(filterHeadcountMax !== undefined && { filterHeadcountMax: parseNullableNumber(filterHeadcountMax) }),
+      ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
     },
     include: {

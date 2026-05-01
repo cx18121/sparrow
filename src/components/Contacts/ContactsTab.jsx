@@ -12,13 +12,14 @@ import { format } from 'date-fns'
 import { generateEmail, createEmail } from '../../lib/api'
 
 const PAGE_SIZE = 10
-const STATUSES = ['NEW', 'SAVED', 'EMAILED', 'REJECTED']
+const STATUSES = ['NEW', 'SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
 
 const STATUS_STYLE = {
-  NEW:      'bg-slate-100 text-slate-600',
-  SAVED:    'bg-emerald-50 text-emerald-700',
-  EMAILED:  'bg-blue-50 text-blue-700',
-  REJECTED: 'bg-red-50 text-red-600',
+  NEW:         'bg-slate-100 text-slate-600',
+  SAVED:       'bg-emerald-50 text-emerald-700',
+  EMAILED:     'bg-blue-50 text-blue-700',
+  NO_RESPONSE: 'bg-amber-50 text-amber-700',
+  DECLINED:    'bg-red-50 text-red-600',
 }
 
 // Normalised row shape — works for both UserLead rows and CustomContact rows.

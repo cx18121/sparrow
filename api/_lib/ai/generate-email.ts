@@ -1,6 +1,5 @@
 import { humanizeEmailBody } from './humanize.js'
 import {
-  BUILT_IN_DEFAULT_TEMPLATE,
   DEFAULT_SUBJECT_TEMPLATE,
   EMAIL_GENERATION_SYSTEM_PROMPT,
   GENERIC_FALLBACK_SUBJECT,
@@ -13,15 +12,15 @@ const GENERATION_MODEL = 'claude-haiku-4-5-20251001'
 
 export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
 
-export function buildSubjectLine(
-  template: string | null,
+// Substitutes all supported {{variable}} placeholders in a template string.
+export function substituteVariables(
+  text: string,
   contact: { name: string | null },
   senderName: string | null,
   company?: { name: string }
 ): string {
-  const tmpl = template ?? DEFAULT_SUBJECT_TEMPLATE
   const firstName = contact.name?.split(' ')[0] ?? ''
-  return tmpl
+  return text
     .replace(/\{\{firstName\}\}/g, firstName)
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
     .replace(/\{\{company\}\}/g, company?.name ?? '')
@@ -29,11 +28,30 @@ export function buildSubjectLine(
     .replace(/\{\{companyName\}\}/g, company?.name ?? '')
 }
 
+export function buildSubjectLine(
+  template: string | null,
+  contact: { name: string | null },
+  senderName: string | null,
+  company?: { name: string }
+): string {
+  return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company)
+}
+
 export async function generateEmailDraft(params: GenerateEmailParams): Promise<EmailDraft> {
-  const template = params.userTemplate ?? BUILT_IN_DEFAULT_TEMPLATE
-  const hookInstruction = params.interestHook
-    ? `Weave this interest hook naturally in the MIDDLE of the email: "${params.interestHook}"`
-    : 'No interest hook — write a warm, specific email. Do not invent interests.'
+  // When a user template is provided, use it verbatim — no AI body generation.
+  if (params.userTemplate != null) {
+    const body = substituteVariables(params.userTemplate, params.contact, params.senderName, params.company)
+    const subject = buildSubjectLine(params.subjectTemplate, params.contact, params.senderName, params.company)
+    return { subject, body }
+  }
+
+  const styleGuidance = params.styleInstruction
+    ? `Style (follow precisely):\n${params.styleInstruction}`
+    : 'Style: direct, concise, specific — 80–120 words.'
+
+  const hookNote = params.interestHook
+    ? `Interest hook — weave in naturally mid-email: "${params.interestHook}"`
+    : 'No interest hook — do not invent one.'
 
   const companyContext = [
     params.company.oneLiner ?? params.company.description,
@@ -47,16 +65,19 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
   const companyLabel = params.company.name ? ` at ${params.company.name}` : ''
 
   const prompt = [
-    `Template:\n${template}`,
-    `\nContact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'professional'}${companyLabel}`,
-    companyContext ? `Company context: ${companyContext}` : null,
-    `Sender context: ${params.senderContext}`,
-    params.styleInstruction ? `Writing style: ${params.styleInstruction}` : null,
-    params.senderContext.includes('Use one relevant detail from the sender')
-      ? 'Resume detail rule: include at most one relevant resume detail, and only if it connects naturally to the recipient or company.'
-      : null,
-    `\n${hookInstruction}`,
-    '\nFill the template. Output ONLY the email body — no subject line.',
+    styleGuidance,
+    '',
+    'Write a cold email with this structure:',
+    '1. Opening: a specific, concrete reason for reaching out based on the company context below. No generic flattery.',
+    '2. Bridge: one sentence connecting the sender to the company or role.',
+    '3. Ask: one low-friction request.',
+    '',
+    `Contact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'professional'}${companyLabel}`,
+    companyContext ? `Company: ${companyContext}` : null,
+    `Sender: ${params.senderContext}`,
+    hookNote,
+    '',
+    'Output only the email body — no subject line.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -71,9 +92,12 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
     body: JSON.stringify({
       model: GENERATION_MODEL,
       max_tokens: 1024,
-      system: [EMAIL_GENERATION_SYSTEM_PROMPT, params.styleInstruction ? `Style preference: ${params.styleInstruction}` : null, hookInstruction]
+      system: [
+        EMAIL_GENERATION_SYSTEM_PROMPT,
+        params.styleInstruction ? `User style preference:\n${params.styleInstruction}` : null,
+      ]
         .filter(Boolean)
-        .join('\n'),
+        .join('\n\n'),
       messages: [{ role: 'user', content: prompt }],
     }),
   })

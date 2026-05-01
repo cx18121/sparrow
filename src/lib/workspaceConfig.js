@@ -21,6 +21,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       isShared: false,
     },
     leadsPerGeneration: 50,
+    sendingLimits: {
+      dailyMax: 200,
+      delaySeconds: 30,
+    },
     apiKeys: {
       openai: '',
       claude: '',
@@ -40,6 +44,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     styleChoices: {
       ...baseConfig.styleChoices,
       ...(data?.styleChoices || {}),
+    },
+    sendingLimits: {
+      ...baseConfig.sendingLimits,
+      ...(data?.sendingLimits || {}),
     },
     styleProfile: data?.styleProfile || baseConfig.styleProfile,
     apiKeys: {

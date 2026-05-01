@@ -8,6 +8,12 @@ function encodeHeader(value: string): string {
   return value.replace(/[\r\n"]/g, "");
 }
 
+function encodeAddressHeader(name: string | null, email: string): string {
+  const cleanEmail = email.replace(/[\r\n<>]/g, "").trim();
+  const cleanName = name?.replace(/[\r\n"]/g, "").trim();
+  return cleanName ? `${cleanName} <${cleanEmail}>` : cleanEmail;
+}
+
 function chunkBase64(value: string): string {
   return value.match(/.{1,76}/g)?.join("\r\n") ?? value;
 }
@@ -82,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const subject = email.subject ?? "(no subject)";
   const htmlBody = email.body ?? "";
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
-  const toHeader = toName ? `${toName} <${toEmail}>` : toEmail;
+  const toHeader = encodeAddressHeader(toName, toEmail);
   const resumePath = typeof profile.resume_path === "string" ? profile.resume_path : null;
   const workspaceConfig = (profile.workspace_config ?? {}) as Record<string, unknown>;
   const resumeFileName = typeof workspaceConfig.resumeFileName === "string" && workspaceConfig.resumeFileName.trim()
@@ -117,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const altBoundary = `alt_${Date.now()}`;
         return [
           `To: ${toHeader}`,
-          `Subject: ${subject}`,
+          `Subject: ${encodeHeader(subject)}`,
           "MIME-Version: 1.0",
           `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
           "",
@@ -142,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })()
     : [
         `To: ${toHeader}`,
-        `Subject: ${subject}`,
+        `Subject: ${encodeHeader(subject)}`,
         "MIME-Version: 1.0",
         "Content-Type: text/html; charset=utf-8",
         "",

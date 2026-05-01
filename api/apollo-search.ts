@@ -74,7 +74,7 @@ async function searchCompanies(req: VercelRequest, res: VercelResponse) {
 
   const companies = await prisma.company.findMany({
     where: {
-      source: "yc",
+      isVerified: true,
       ...(region && { region }),
       ...(industry && { industry }),
       ...(isHiring && { isHiring: isHiring === "true" }),

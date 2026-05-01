@@ -120,6 +120,39 @@ export async function searchContacts(
   );
 }
 
+export interface ApolloOrganization {
+  id: string;
+  name: string;
+  primary_domain: string | null;
+  website_url: string | null;
+  industry: string | null;
+  estimated_num_employees: number | null;
+}
+
+/**
+ * Searches Apollo for an organization by name and returns the best match.
+ * Used to resolve a product name (e.g. from Product Hunt) to a real domain.
+ * This call does NOT consume reveal credits.
+ */
+export async function searchOrganization(
+  name: string,
+  apiKey: string
+): Promise<ApolloOrganization | null> {
+  return withRateLimitRetry(
+    `Apollo org search "${name}"`,
+    async () => {
+      const response = await axios.post(
+        "https://api.apollo.io/api/v1/mixed_companies/search",
+        { q_organization_name: name, per_page: 1 },
+        { headers: buildHeaders(apiKey), timeout: 15_000 }
+      );
+      const orgs: ApolloOrganization[] = response.data.organizations ?? [];
+      return orgs[0] ?? null;
+    },
+    null
+  );
+}
+
 /**
  * Reveals a person's full record (including email) by Apollo person id.
  * This call CONSUMES one Apollo reveal credit per successful invocation.

@@ -1,12 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import axios from "axios";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
 import { HttpError } from "./_lib/user.js";
-
-const APOLLO_SEARCH_URL = "https://api.apollo.io/api/v1/mixed_people/api_search";
-const APOLLO_MATCH_URL = "https://api.apollo.io/api/v1/people/match";
-const TARGET_TITLES = ["CEO", "CTO", "Founder", "Co-Founder", "Head of Engineering", "VP Engineering"];
+import { enrichDomain } from "./_lib/apollo-enrichment.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -88,54 +84,20 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
     select: { companyId: true },
   });
   const seenIds = seen.map(s => s.companyId);
-  const existingCampaignLeads = await prisma.campaignLead.findMany({
-    where: { campaignId: campaignId as string },
-    select: { userLead: { select: { companyId: true } } },
-  });
-  const alreadyInCampaignIds = existingCampaignLeads
-    .map(row => row.userLead.companyId)
-    .filter((id): id is string => Boolean(id));
-  const excludedCompanyIds = Array.from(new Set([...seenIds, ...alreadyInCampaignIds]));
 
-  const baseWhere = {
-    source: "yc",
-    ...(campaign.filterIndustry && { industry: campaign.filterIndustry }),
-    ...(campaign.filterRegion && { region: campaign.filterRegion }),
-    ...(campaign.filterStage && { stage: campaign.filterStage }),
-    ...(campaign.filterBatch && { batch: campaign.filterBatch }),
-    ...(campaign.filterIsHiring != null && { isHiring: campaign.filterIsHiring }),
-    ...((campaign.filterHeadcountMin != null || campaign.filterHeadcountMax != null) && {
-      headcount: {
-        ...(campaign.filterHeadcountMin != null && { gte: campaign.filterHeadcountMin }),
-        ...(campaign.filterHeadcountMax != null && { lte: campaign.filterHeadcountMax }),
-      },
-    }),
-  };
+  const { selectedIds, usingFallback } = await selectCandidateIds(
+    campaignId as string,
+    campaign,
+    seenIds,
+    batchSize
+  );
 
-  let candidates = await prisma.company.findMany({
-    where: { ...baseWhere, ...(excludedCompanyIds.length > 0 && { id: { notIn: excludedCompanyIds } }) },
-    select: { id: true },
-  });
-
-  const usingFallback = candidates.length === 0;
-  if (usingFallback) {
-    candidates = await prisma.company.findMany({ where: baseWhere, select: { id: true } });
-  }
-
-  if (candidates.length === 0) {
+  if (selectedIds.length === 0) {
     return res.status(200).json({
       leads: [], total: 0, currentBatch: campaign.currentBatch, seenTotal: seenIds.length,
       usingFallback: false,
     });
   }
-
-  // Fisher-Yates shuffle then take batchSize
-  const arr = candidates.slice();
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  const selectedIds = arr.slice(0, batchSize).map(c => c.id);
 
   const companies = await prisma.company.findMany({
     where: { id: { in: selectedIds } },
@@ -164,7 +126,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
 
     // If no existing contact and Apollo key is configured, enrich via Apollo
     if (!contact && apolloKey && company.domain) {
-      const enriched = await apolloEnrich(company.domain, apolloKey);
+      const enriched = await enrichDomain(company.domain, apolloKey);
       if (enriched) {
         apolloPersonId = enriched.personId;
         if (enriched.email) {
@@ -273,61 +235,68 @@ async function resetBatch(req: VercelRequest, res: VercelResponse, userId: strin
   res.status(200).json({ reset: true });
 }
 
-// Searches Apollo for the top decision-maker at a domain, then reveals their full contact.
-// Returns null if Apollo is unavailable, rate-limited, or finds nothing useful.
-async function apolloEnrich(domain: string, apiKey: string): Promise<{
-  personId: string;
-  name: string | null;
-  email: string | null;
-  title: string | null;
-  linkedinUrl: string | null;
-} | null> {
-  const headers = {
-    "x-api-key": apiKey,
-    "Content-Type": "application/json",
-    accept: "application/json",
+// Group a flat tag list by namespace prefix for AND-across-namespaces / OR-within logic.
+function buildTagFilters(tags: string[]) {
+  const byNs: Record<string, string[]> = {};
+  for (const t of tags) {
+    const idx = t.indexOf(":");
+    const ns = idx > 0 ? t.slice(0, idx) : "_";
+    (byNs[ns] ??= []).push(t);
+  }
+  return Object.values(byNs).map(group => ({ tags: { hasSome: group } }));
+}
+
+// Selects company IDs for the next batch, excluding already-seen companies.
+// Falls back to all matching companies if the unseen pool is exhausted.
+async function selectCandidateIds(
+  campaignId: string,
+  campaign: { filterTags: string[]; filterRegion: string | null; filterStage: string | null; filterBatch: string | null; filterIsHiring: boolean | null; filterHeadcountMin: number | null; filterHeadcountMax: number | null },
+  seenIds: string[],
+  batchSize: number
+): Promise<{ selectedIds: string[]; usingFallback: boolean }> {
+  const existingLeads = await prisma.campaignLead.findMany({
+    where: { campaignId },
+    select: { userLead: { select: { companyId: true } } },
+  });
+  const alreadyInCampaignIds = existingLeads
+    .map(row => row.userLead.companyId)
+    .filter((id): id is string => Boolean(id));
+  const excludedIds = Array.from(new Set([...seenIds, ...alreadyInCampaignIds]));
+
+  const tagFilters = buildTagFilters(campaign.filterTags ?? []);
+  const baseWhere = {
+    isVerified: true,
+    ...(tagFilters.length > 0 && { AND: tagFilters }),
+    ...(campaign.filterRegion && { region: campaign.filterRegion }),
+    ...(campaign.filterStage && { stage: campaign.filterStage }),
+    ...(campaign.filterBatch && { batch: campaign.filterBatch }),
+    ...(campaign.filterIsHiring != null && { isHiring: campaign.filterIsHiring }),
+    ...((campaign.filterHeadcountMin != null || campaign.filterHeadcountMax != null) && {
+      headcount: {
+        ...(campaign.filterHeadcountMin != null && { gte: campaign.filterHeadcountMin }),
+        ...(campaign.filterHeadcountMax != null && { lte: campaign.filterHeadcountMax }),
+      },
+    }),
   };
 
-  try {
-    // Step 1: find people at this domain with target titles
-    const searchRes = await axios.post(
-      APOLLO_SEARCH_URL,
-      { q_organization_domains_list: [domain], person_titles: TARGET_TITLES, per_page: 1 },
-      { headers, timeout: 10_000 }
-    );
+  let candidates = await prisma.company.findMany({
+    where: { ...baseWhere, ...(excludedIds.length > 0 && { id: { notIn: excludedIds } }) },
+    select: { id: true },
+  });
 
-    const people: Array<{ id: string; title: string }> = searchRes.data.people ?? [];
-    if (people.length === 0) return null;
-
-    const topPerson = people[0];
-
-    // Step 2: reveal full contact details
-    const matchRes = await axios.post(
-      APOLLO_MATCH_URL,
-      { id: topPerson.id, reveal_personal_emails: false },
-      { headers, timeout: 10_000 }
-    );
-
-    const person = matchRes.data.person;
-    if (!person) return null;
-
-    return {
-      personId: topPerson.id,
-      name: person.name ?? null,
-      email: person.email ?? null,
-      title: person.title ?? null,
-      linkedinUrl: person.linkedin_url ?? null,
-    };
-  } catch (err) {
-    if (axios.isAxiosError(err)) {
-      if (err.response?.status === 429) {
-        console.warn(`Apollo rate limit hit for domain: ${domain}`);
-      } else {
-        console.warn(`Apollo enrichment failed for ${domain}: ${err.response?.status} ${err.message}`);
-      }
-    }
-    return null;
+  const usingFallback = candidates.length === 0;
+  if (usingFallback) {
+    candidates = await prisma.company.findMany({ where: baseWhere, select: { id: true } });
   }
+
+  // Fisher-Yates shuffle then take batchSize
+  const arr = candidates.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
+  return { selectedIds: arr.slice(0, batchSize).map(c => c.id), usingFallback };
 }
 
 function parseBody(req: VercelRequest): Record<string, unknown> | null {

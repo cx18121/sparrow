@@ -4,9 +4,11 @@ import {
   Sparkles, CheckCircle, AlertCircle,
 } from 'lucide-react'
 import Modal from '../ui/Modal'
-import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchIndustries } from '../../lib/api'
+import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions } from '../../lib/api'
 
 const PAGE_SIZE = 20
+const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'investor', 'signal']
+const NS_LABELS = { stage: 'Stage', vertical: 'Sector', tech: 'Tech', investor: 'Investor', signal: 'Signal' }
 
 function CompanyRow({ company, apolloCount, onSelect }) {
   const contactCount = apolloCount
@@ -84,9 +86,9 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
 
 export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [search, setSearch] = useState('')
-  const [selectedIndustries, setSelectedIndustries] = useState(new Set())
-  const selectedIndustriesRef = useRef(new Set())
-  const [availableIndustries, setAvailableIndustries] = useState([])
+  const [selectedTags, setSelectedTags] = useState(new Set())
+  const selectedTagsRef = useRef(new Set())
+  const [tagOptions, setTagOptions] = useState({})
   const [hiringCount, setHiringCount] = useState(null)
   const [isHiring, setIsHiring] = useState(false)
   const [companies, setCompanies] = useState([])
@@ -107,17 +109,20 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [revealedEmails, setRevealedEmails] = useState({})
   const fetchGenRef = useRef(0)
 
-  const fetchCompanies = useCallback(async (cursor = null) => {
+  const fetchCompanies = useCallback(async (cursor = null, overrides = {}) => {
     const gen = ++fetchGenRef.current
     setLoading(true)
     setError(null)
+    const query = overrides.search ?? search
+    const hiringOnly = overrides.isHiring ?? isHiring
+    const tags = overrides.selectedTags ?? selectedTagsRef.current
     try {
       const params = {
-        search: search || undefined,
+        search: query || undefined,
         limit: PAGE_SIZE,
-        ...(search && { sort: 'name' }),
-        ...(selectedIndustriesRef.current.size > 0 && { industries: [...selectedIndustriesRef.current].join(',') }),
-        ...(isHiring && { isHiring: 'true' }),
+        ...(query && { sort: 'name' }),
+        ...(tags.size > 0 && { tags: [...tags].join(',') }),
+        ...(hiringOnly && { isHiring: 'true' }),
         ...(cursor && { cursor }),
       }
       const data = await apiFetchCompanies(params)
@@ -159,12 +164,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     fetchCompanies(null)
   }, [fetchCompanies])
 
-  const toggleIndustry = useCallback((name) => {
-    const next = new Set(selectedIndustriesRef.current)
-    if (next.has(name)) next.delete(name)
-    else next.add(name)
-    selectedIndustriesRef.current = next
-    setSelectedIndustries(new Set(next))
+  const toggleTag = useCallback((namespaced) => {
+    const next = new Set(selectedTagsRef.current)
+    if (next.has(namespaced)) next.delete(namespaced)
+    else next.add(namespaced)
+    selectedTagsRef.current = next
+    setSelectedTags(new Set(next))
     doSearch()
   }, [doSearch])
 
@@ -177,9 +182,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   useEffect(() => {
     initialMount.current = false
     fetchCompanies(null)
-    fetchIndustries()
+    fetchCampaignOptions()
       .then(data => {
-        setAvailableIndustries(data.industries.filter(({ count }) => count > 0))
+        setTagOptions(data.tags || {})
         setHiringCount(data.hiringCount ?? null)
       })
       .catch(() => {})
@@ -286,29 +291,35 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             </button>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setIsHiring(h => !h)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${isHiring ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
-          >
-            <span className={`h-2 w-2 rounded-full border ${isHiring ? 'bg-white border-white' : 'border-slate-300'}`} />
-            Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
-          </button>
-          {availableIndustries.length > 0 && (
-            <>
-              <span className="text-slate-300 select-none text-sm">|</span>
-              {availableIndustries.map(({ name, count }) => (
-                <button
-                  key={name}
-                  onClick={() => toggleIndustry(name)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${selectedIndustries.has(name) ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
-                >
-                  <span className={`h-2 w-2 rounded-full border ${selectedIndustries.has(name) ? 'bg-white border-white' : 'border-slate-300'}`} />
-                  {name}{count != null ? ` (${count})` : ''}
-                </button>
-              ))}
-            </>
-          )}
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsHiring(h => !h)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${isHiring ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
+            >
+              <span className={`h-2 w-2 rounded-full border ${isHiring ? 'bg-white border-white' : 'border-slate-300'}`} />
+              Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
+            </button>
+          </div>
+          {DISCOVERY_NS.map(ns => {
+            const tags = (tagOptions[ns] || []).slice(0, 8)
+            if (!tags.length) return null
+            return (
+              <div key={ns} className="flex flex-wrap items-center gap-2">
+                <span className="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/60">{NS_LABELS[ns]}</span>
+                {tags.map(({ name, count, namespaced }) => (
+                  <button
+                    key={namespaced}
+                    onClick={() => toggleTag(namespaced)}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${selectedTags.has(namespaced) ? 'bg-primary border-primary text-white' : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full border ${selectedTags.has(namespaced) ? 'bg-white border-white' : 'border-slate-300'}`} />
+                    {name}{count != null ? ` (${count})` : ''}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -331,23 +342,25 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             <Search size={18} />
           </div>
           <p className="text-sm font-medium text-dark">
-            {search || selectedIndustries.size > 0 || isHiring ? 'No companies match these filters' : 'Start with a company search'}
+            {search || selectedTags.size > 0 || isHiring ? 'No companies match these filters' : 'Start with a company search'}
           </p>
           <p className="mt-1 text-sm leading-6 text-muted">
-            {search || selectedIndustries.size > 0 || isHiring
-              ? 'Broaden the query, remove an industry filter, or include companies that are not currently hiring.'
-              : 'Search by company, domain, keyword, or choose an industry filter to find outreach targets.'}
+            {search || selectedTags.size > 0 || isHiring
+              ? 'Broaden the query, remove a filter, or include companies that are not currently hiring.'
+              : 'Search by company, domain, keyword, or choose a filter to find outreach targets.'}
           </p>
-          {(search || selectedIndustries.size > 0 || isHiring) && (
+          {(search || selectedTags.size > 0 || isHiring) && (
             <button
               type="button"
               onClick={() => {
+                const clearedTags = new Set()
                 setSearch('')
-                selectedIndustriesRef.current = new Set()
-                setSelectedIndustries(new Set())
+                selectedTagsRef.current = clearedTags
+                setSelectedTags(clearedTags)
                 setIsHiring(false)
                 setCompanies([])
                 setNextCursor(null)
+                fetchCompanies(null, { search: '', isHiring: false, selectedTags: clearedTags })
               }}
               className="btn-secondary mt-4 text-xs"
             >

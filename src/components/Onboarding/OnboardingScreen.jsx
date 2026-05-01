@@ -1,14 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ArrowLeft, ArrowRight, Building2, ClipboardList, FileText,
-  LogOut,
-  SlidersHorizontal, Upload, User,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, Building2, FileText, Upload, User } from 'lucide-react'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
 
-const TOTAL_STEPS = 4
-const STEP_LABELS = ['Background', 'Sender', 'Style', 'Template']
+const TOTAL_STEPS = 3
+const STEP_LABELS = ['About', 'Style', 'Template']
 
 const STYLE_TESTS = [
   {
@@ -99,7 +95,6 @@ const STYLE_PROMPTS = {
 
 function fillVariables(content, data) {
   if (!content) return ''
-
   return content
     .replace(/\{\{first_name\}\}/g, data.first_name)
     .replace(/\{\{last_name\}\}/g, data.last_name)
@@ -119,7 +114,6 @@ function scoreStyleChoices(choices = {}) {
     const pick = choices[test.id]
     const option = pick ? test[pick] : null
     if (!option) return
-
     Object.entries(option.traits).forEach(([trait, value]) => {
       scores[trait] = (scores[trait] || 0) + value
     })
@@ -196,15 +190,17 @@ function StepHeader({ step, total, title, description }) {
   return (
     <div className="mb-6 text-center sm:mb-7">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-        {STEP_LABELS[step - 1]} - Step {step} of {total}
+        {STEP_LABELS[step - 1]} — Step {step} of {total}
       </p>
       <h1 className="mt-3 text-2xl font-display font-semibold text-dark sm:text-3xl">{title}</h1>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted">{description}</p>
+      {description && (
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted">{description}</p>
+      )}
     </div>
   )
 }
 
-function ResumeStep({ form, updateField, onUploadResume, uploadState }) {
+function AboutStep({ form, updateField, onUploadResume, uploadState, showNameError }) {
   const statusLabel = uploadState.uploading
     ? 'Uploading…'
     : uploadState.error
@@ -216,76 +212,36 @@ function ResumeStep({ form, updateField, onUploadResume, uploadState }) {
       <StepHeader
         step={1}
         total={TOTAL_STEPS}
-        title="Add background"
-        description="Add the details Coldflow should use when writing in your voice."
+        title="About you"
       />
 
       <div className="space-y-4">
-        <div>
-          <label className="label">Paste resume or bio</label>
-          <textarea
-            value={form.resumeText}
-            onChange={e => updateField('resumeText', e.target.value)}
-            placeholder="Relevant experience, club role, offer, target audience, recent work..."
-            className="input min-h-[180px] resize-none bg-white"
-          />
-        </div>
-
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-dark">
-              {statusLabel}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Optional: PDF, DOCX, or TXT.
-            </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Name <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                value={form.senderName}
+                onChange={e => updateField('senderName', e.target.value)}
+                placeholder="Maya Chen"
+                className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+                aria-invalid={showNameError}
+              />
+            </div>
+            {showNameError && (
+              <p className="mt-2 text-xs text-red-500">Name is required.</p>
+            )}
           </div>
-          <Upload size={18} className="shrink-0 text-primary" />
-
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            className="hidden"
-            disabled={uploadState.uploading}
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) onUploadResume(file)
-            }}
-          />
-        </label>
-      </div>
-    </div>
-  )
-}
-
-function SenderStep({ form, updateField, showNameError }) {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <StepHeader
-        step={2}
-        total={TOTAL_STEPS}
-        title="Set sender"
-        description="Choose the name and role that should appear in drafts."
-      />
-
-      <div className="space-y-4">
-        <div>
-          <label className="label">
-            Name <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <div>
+            <label className="label">Role</label>
             <input
-              value={form.senderName}
-              onChange={e => updateField('senderName', e.target.value)}
-              placeholder="Maya Chen"
-              className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
-              aria-invalid={showNameError}
+              value={form.senderRole}
+              onChange={e => updateField('senderRole', e.target.value)}
+              placeholder="Founder, GTM Lead, SDR"
+              className="input"
             />
           </div>
-          {showNameError && (
-            <p className="mt-2 text-xs text-red-500">Sender name is required to continue.</p>
-          )}
         </div>
 
         <div>
@@ -302,14 +258,31 @@ function SenderStep({ form, updateField, showNameError }) {
         </div>
 
         <div>
-          <label className="label">Role</label>
-          <input
-            value={form.senderRole}
-            onChange={e => updateField('senderRole', e.target.value)}
-            placeholder="Founder, GTM Lead, SDR"
-            className="input"
+          <textarea
+            value={form.resumeText}
+            onChange={e => updateField('resumeText', e.target.value)}
+            placeholder="Relevant experience, club role, recent work..."
+            className="input min-h-[140px] resize-none bg-white"
           />
         </div>
+
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-dark">{statusLabel}</p>
+            <p className="mt-1 text-xs text-muted">Optional: PDF, DOCX, or TXT.</p>
+          </div>
+          <Upload size={18} className="shrink-0 text-primary" />
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.txt"
+            className="hidden"
+            disabled={uploadState.uploading}
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) onUploadResume(file)
+            }}
+          />
+        </label>
       </div>
     </div>
   )
@@ -336,20 +309,19 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-5xl">
       <StepHeader
-        step={3}
+        step={2}
         total={TOTAL_STEPS}
-        title="Pick your email style"
-        description="Choose the sample you would rather send. Coldflow turns your picks into an editable template."
+        title="Your email style"
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_200px]">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                Comparison {activeIndex + 1} of {STYLE_TESTS.length}
+                {activeIndex + 1} of {STYLE_TESTS.length}
               </p>
               <h2 className="mt-1 text-xl font-semibold text-dark">{activeTest.label}</h2>
               <p className="mt-1 text-sm text-muted">{activeTest.dimension}</p>
@@ -383,23 +355,13 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
                   type="button"
                   onClick={() => choose(key)}
                   aria-pressed={isSelected}
-                  className={`flex min-h-[300px] flex-col rounded-2xl border px-5 py-4 text-left transition-all ${
+                  className={`flex min-h-[260px] flex-col rounded-2xl border px-5 py-4 text-left transition-all ${
                     isSelected
                       ? 'border-primary bg-primary/5 shadow-[0_14px_32px_rgba(27,110,243,0.12)]'
                       : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card'
                   }`}
                 >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Option {key.toUpperCase()}</p>
-                      <p className="mt-1 text-base font-semibold text-dark">{option.label}</p>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      isSelected ? 'bg-primary text-white' : 'bg-slate-100 text-muted'
-                    }`}>
-                      {isSelected ? 'Selected' : 'Pick'}
-                    </span>
-                  </div>
+                  <p className="mb-3 text-base font-semibold text-dark">{option.label}</p>
                   <p className="whitespace-pre-line text-sm leading-6 text-dark">
                     {fillVariables(option.body, sampleData)}
                   </p>
@@ -410,9 +372,9 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             {showMissing && completed < STYLE_TESTS.length ? (
-              <p className="text-xs font-medium text-red-500">Pick one option for each comparison before continuing.</p>
+              <p className="text-xs font-medium text-red-500">Pick one option for each comparison to continue.</p>
             ) : (
-              <p className="text-xs text-muted">You can revise any pick before generating the template.</p>
+              <span />
             )}
             <button
               type="button"
@@ -424,28 +386,18 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
           </div>
         </div>
 
-        <aside className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <SlidersHorizontal size={17} />
+        <aside className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+          {profile.traits.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {profile.traits.map(trait => (
+                <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  {trait}
+                </span>
+              ))}
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Style profile</p>
-              <p className="text-sm font-semibold text-dark">{completed} of {STYLE_TESTS.length} picked</p>
-            </div>
-          </div>
+          )}
 
-          <p className="text-sm leading-6 text-dark">{profile.summary}</p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {profile.traits.map(trait => (
-              <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {trait}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-5 space-y-2">
+          <div className="space-y-1">
             {STYLE_TESTS.map((test, index) => {
               const pick = form.styleChoices?.[test.id]
               return (
@@ -469,14 +421,8 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
   )
 }
 
-function TemplateStep({
-  form,
-  templates,
-  selectedTemplate,
-  updateField,
-  updateCustomTemplate,
-  setTemplateMode,
-}) {
+function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode }) {
+  const hasTemplates = templates.length > 0
   const previewData = {
     first_name: 'Alex',
     last_name: 'Chen',
@@ -484,138 +430,102 @@ function TemplateStep({
     role: 'Co-founder & CEO',
     sender_name: form.senderName || 'Your Name',
   }
-  const previewTemplate = form.templateMode === 'custom'
-    ? form.customTemplate
-    : selectedTemplate
-  const hasTemplates = templates.length > 0
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="mx-auto w-full max-w-2xl">
       <StepHeader
-        step={4}
+        step={3}
         total={TOTAL_STEPS}
-        title="Review template"
-        description="Edit the generated template or use a saved one instead."
+        title="Your template"
       />
 
-      <div className="mb-4 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setTemplateMode('existing')}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            form.templateMode === 'existing'
-              ? 'bg-primary text-white'
-              : 'bg-white text-muted border border-gray-200 hover:text-dark'
-          }`}
-        >
-          Use saved template
-        </button>
-        <button
-          type="button"
-          onClick={() => setTemplateMode('custom')}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            form.templateMode === 'custom'
-              ? 'bg-primary text-white'
-              : 'bg-white text-muted border border-gray-200 hover:text-dark'
-          }`}
-        >
-          Write template
-        </button>
-      </div>
+      {hasTemplates && (
+        <div className="mb-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setTemplateMode('existing')}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              form.templateMode === 'existing'
+                ? 'bg-primary text-white'
+                : 'border border-gray-200 bg-white text-muted hover:text-dark'
+            }`}
+          >
+            Saved template
+          </button>
+          <button
+            type="button"
+            onClick={() => setTemplateMode('custom')}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              form.templateMode === 'custom'
+                ? 'bg-primary text-white'
+                : 'border border-gray-200 bg-white text-muted hover:text-dark'
+            }`}
+          >
+            Write template
+          </button>
+        </div>
+      )}
 
-      {form.templateMode === 'existing' ? (
+      {hasTemplates && form.templateMode === 'existing' ? (
         <div className="space-y-4">
-          {hasTemplates ? (
-            <div className="p-1">
-              <label className="label">Template</label>
-              <div className="relative">
-                <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                <select
-                  value={form.templateId}
-                  onChange={e => updateField('templateId', e.target.value)}
-                  className="select pl-8"
-                >
-                  {templates.map(template => (
-                    <option key={template.id} value={template.id}>{template.name}</option>
-                  ))}
-                </select>
-              </div>
+          <div>
+            <label className="label">Template</label>
+            <div className="relative">
+              <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <select
+                value={form.templateId}
+                onChange={e => updateField('templateId', e.target.value)}
+                className="select pl-8"
+              >
+                {templates.map(template => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <ClipboardList size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-dark">No templates yet</p>
-                  <p className="mt-1 text-sm leading-6 text-muted">
-                    Write one now so new drafts have a starting structure.
-                  </p>
-                  <button type="button" onClick={() => setTemplateMode('custom')} className="mt-4 btn-primary">
-                    Write first template
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
-          {hasTemplates && (
-            <div className="overflow-hidden">
-              <div className="border-b border-gray-100 px-4 py-3">
+          {selectedTemplate && (
+            <div className="rounded-xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
                 <p className="mt-1 text-sm font-medium text-dark">
-                  {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
+                  {fillVariables(selectedTemplate.subject, previewData)}
                 </p>
               </div>
               <div className="px-4 py-4 text-sm leading-7 text-dark">
-                {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Choose or write a template to preview it.'}
+                {stripHtml(fillVariables(selectedTemplate.body, previewData))}
               </div>
             </div>
           )}
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-          <div className="space-y-3 p-1">
-            <div>
-              <label className="label">Template name</label>
-              <input
-                value={form.customTemplate.name}
-                onChange={e => updateCustomTemplate('name', e.target.value)}
-                placeholder="Founder intro"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Subject</label>
-              <input
-                value={form.customTemplate.subject}
-                onChange={e => updateCustomTemplate('subject', e.target.value)}
-                placeholder="Quick thought about {{company}}"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Body</label>
-              <textarea
-                value={form.customTemplate.body}
-                onChange={e => updateCustomTemplate('body', e.target.value)}
-                placeholder={"Hi {{first_name}},\n\nWanted to reach out because...\n\nBest,\n{{sender_name}}"}
-                className="input min-h-[220px] resize-none"
-              />
-            </div>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Template name</label>
+            <input
+              value={form.customTemplate.name}
+              onChange={e => updateCustomTemplate('name', e.target.value)}
+              placeholder="Founder intro"
+              className="input"
+            />
           </div>
-
-          <div className="overflow-hidden">
-            <div className="border-b border-gray-100 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
-              <p className="mt-1 text-sm font-medium text-dark">
-                {previewTemplate?.subject ? fillVariables(previewTemplate.subject, previewData) : 'No template selected'}
-              </p>
-            </div>
-            <div className="px-4 py-4 text-sm leading-7 text-dark">
-                {previewTemplate?.body ? stripHtml(fillVariables(previewTemplate.body, previewData)) : 'Choose or write a template to preview it.'}
-            </div>
+          <div>
+            <label className="label">Subject</label>
+            <input
+              value={form.customTemplate.subject}
+              onChange={e => updateCustomTemplate('subject', e.target.value)}
+              placeholder="Quick thought about {{company}}"
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="label">Body</label>
+            <textarea
+              value={form.customTemplate.body}
+              onChange={e => updateCustomTemplate('body', e.target.value)}
+              placeholder={"Hi {{first_name}},\n\nWanted to reach out because...\n\nBest,\n{{sender_name}}"}
+              className="input min-h-[220px] resize-none"
+            />
           </div>
         </div>
       )}
@@ -636,9 +546,9 @@ export default function OnboardingScreen({
   const [styleAttempted, setStyleAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [resumeUpload, setResumeUpload] = useState({ uploading: false, error: null })
-  const [form, setForm] = useState(() => {
-    const config = createWorkspaceConfig({ user, templates, data: initialData })
 
+  const buildInitialForm = (data) => {
+    const config = createWorkspaceConfig({ user, templates, data })
     return {
       ...config,
       customTemplate: {
@@ -646,15 +556,25 @@ export default function OnboardingScreen({
         body: stripHtml(config.customTemplate.body || ''),
       },
     }
-  })
+  }
+  const [form, setForm] = useState(() => buildInitialForm(initialData))
+  const userEditedRef = useRef(false)
+  const syncMountedRef = useRef(false)
 
-  // Skip firing onSaveDraft on the initial mount to avoid overwriting the
-  // server-synced profile that AppShell may still be fetching concurrently.
   const saveDraftMounted = useRef(false)
   useEffect(() => {
     if (!saveDraftMounted.current) { saveDraftMounted.current = true; return }
     onSaveDraft?.(form)
   }, [form, onSaveDraft])
+
+  useEffect(() => {
+    if (!syncMountedRef.current) {
+      syncMountedRef.current = true
+      return
+    }
+    if (userEditedRef.current) return
+    setForm(buildInitialForm(initialData))
+  }, [initialData, templates, user])
 
   useEffect(() => {
     if (form.senderName.trim()) {
@@ -673,26 +593,24 @@ export default function OnboardingScreen({
     [form.templateId, templates]
   )
 
-  const updateField = (key, value) => setForm(current => ({ ...current, [key]: value }))
-  const updateCustomTemplate = (key, value) => setForm(current => ({
-    ...current,
-    customTemplate: {
-      ...current.customTemplate,
-      [key]: value,
-    },
-  }))
+  const markUserEdited = () => { userEditedRef.current = true }
+  const updateField = (key, value) => {
+    markUserEdited()
+    setForm(current => ({ ...current, [key]: value }))
+  }
+  const updateCustomTemplate = (key, value) => {
+    markUserEdited()
+    setForm(current => ({
+      ...current,
+      customTemplate: { ...current.customTemplate, [key]: value },
+    }))
+  }
   const updateStyleChoice = (testId, choice) => {
+    markUserEdited()
     setForm(current => {
-      const styleChoices = {
-        ...(current.styleChoices || {}),
-        [testId]: choice,
-      }
+      const styleChoices = { ...(current.styleChoices || {}), [testId]: choice }
       const styleProfile = scoreStyleChoices(styleChoices)
-      return withGeneratedStyleTemplate({
-        ...current,
-        styleChoices,
-        styleProfile,
-      })
+      return withGeneratedStyleTemplate({ ...current, styleChoices, styleProfile })
     })
   }
   const handleUploadResume = async (file) => {
@@ -700,7 +618,7 @@ export default function OnboardingScreen({
     setResumeUpload({ uploading: true, error: null })
 
     if (isDemo || !user?.id) {
-      // Demo mode: just record the filename so the UX still works.
+      markUserEdited()
       setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '' }))
       setResumeUpload({ uploading: false, error: null })
       return
@@ -716,11 +634,13 @@ export default function OnboardingScreen({
       return
     }
 
+    markUserEdited()
     setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path }))
     setResumeUpload({ uploading: false, error: null })
   }
 
   const setTemplateMode = (mode) => {
+    markUserEdited()
     setForm(current => {
       if (mode === 'custom' && !current.customTemplate.subject && selectedTemplate) {
         return {
@@ -734,24 +654,18 @@ export default function OnboardingScreen({
           },
         }
       }
-
       return { ...current, templateMode: mode }
     })
   }
 
   const steps = [
-    <ResumeStep
-      key="resume"
+    <AboutStep
+      key="about"
       form={form}
       updateField={updateField}
       onUploadResume={handleUploadResume}
       uploadState={resumeUpload}
-    />,
-    <SenderStep
-      key="sender"
-      form={form}
-      updateField={updateField}
-      showNameError={stepIndex === 1 && senderNameAttempted && !form.senderName.trim()}
+      showNameError={stepIndex === 0 && senderNameAttempted && !form.senderName.trim()}
     />,
     <StyleStep
       key="style"
@@ -772,16 +686,16 @@ export default function OnboardingScreen({
 
   const isFirstStep = stepIndex === 0
   const isLastStep = stepIndex === steps.length - 1
-  const contentWidthClass = stepIndex >= 2 ? 'max-w-6xl' : 'max-w-3xl'
+  const contentWidthClass = stepIndex === 1 ? 'max-w-5xl' : 'max-w-2xl'
   const isSenderNameValid = Boolean(form.senderName.trim())
   const isStyleComplete = STYLE_TESTS.every(test => form.styleChoices?.[test.id])
 
   const nextStep = () => {
-    if (stepIndex === 1 && !isSenderNameValid) {
+    if (stepIndex === 0 && !isSenderNameValid) {
       setSenderNameAttempted(true)
       return
     }
-    if (stepIndex === 2) {
+    if (stepIndex === 1) {
       if (!isStyleComplete) {
         setStyleAttempted(true)
         return
@@ -793,20 +707,19 @@ export default function OnboardingScreen({
   }
   const prevStep = () => setStepIndex(index => Math.max(index - 1, 0))
   const goToStep = (index) => {
-    if (index > 1 && !isSenderNameValid) {
+    if (index > 0 && !isSenderNameValid) {
       setSenderNameAttempted(true)
+      setStepIndex(0)
+      return
+    }
+    if (index > 1 && !isStyleComplete) {
+      setStyleAttempted(true)
       setStepIndex(1)
       return
     }
-    if (index > 2 && !isStyleComplete) {
-      setStyleAttempted(true)
-      setStepIndex(2)
-      return
-    }
-    if (index === 3) {
+    if (index === 2) {
       setForm(current => withGeneratedStyleTemplate(current, { force: true }))
     }
-
     setStepIndex(index)
   }
 
@@ -826,9 +739,7 @@ export default function OnboardingScreen({
 
   const handleLogout = async () => {
     if (!onLogout || isSigningOut) return
-
     setIsSigningOut(true)
-
     try {
       await onLogout()
     } finally {
@@ -838,7 +749,6 @@ export default function OnboardingScreen({
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-surface">
-
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 pt-8 pb-12 sm:px-10 sm:pb-14 lg:px-14">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 sm:gap-4">
@@ -846,17 +756,20 @@ export default function OnboardingScreen({
               type="button"
               onClick={handleLogout}
               disabled={isSigningOut}
-              className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5  hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
+              className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
             >
               {isSigningOut ? 'Signing out...' : 'Sign out'}
             </button>
-
             <div>
               <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">Coldflow</p>
               <p className="mt-1 text-sm text-muted">Setup</p>
             </div>
           </div>
-          <button type="button" onClick={() => finish(true)} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50">
+          <button
+            type="button"
+            onClick={() => finish(true)}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark"
+          >
             Finish later
           </button>
         </div>
@@ -928,7 +841,6 @@ export default function OnboardingScreen({
               </button>
             )}
           </div>
-
         </div>
       </div>
     </div>

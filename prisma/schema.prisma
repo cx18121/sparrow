@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["public"]
 }
 
 model Company {
@@ -23,6 +24,9 @@ model Company {
   batch         String?
   source        String
   sourceId      String?
+  tags          String[]  @default([])
+  isVerified    Boolean   @default(true)
+  qualityScore  Int?
   lastScrapedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -37,6 +41,10 @@ model Company {
   @@index([isHiring])
   @@index([source])
   @@index([headcount])
+  @@index([isVerified])
+  @@index([qualityScore])
+  @@index([tags], type: Gin)
+  @@schema("public")
 }
 
 model Contact {
@@ -59,6 +67,7 @@ model Contact {
   @@index([companyId])
   @@index([role])
   @@index([lastVerifiedAt])
+  @@schema("public")
 }
 
 model UserLead {
@@ -80,13 +89,17 @@ model UserLead {
   @@unique([userId, companyId, contactId])
   @@index([userId])
   @@index([status])
+  @@schema("public")
 }
 
 enum LeadStatus {
   NEW
   SAVED
   EMAILED
-  REJECTED
+  NO_RESPONSE
+  DECLINED
+
+  @@schema("public")
 }
 
 model CustomContact {
@@ -102,6 +115,7 @@ model CustomContact {
   emails Email[]
 
   @@index([userId])
+  @@schema("public")
 }
 
 model Email {
@@ -122,6 +136,7 @@ model Email {
   @@index([userLeadId])
   @@index([contactId])
   @@index([customContactId])
+  @@schema("public")
 }
 
 model Template {
@@ -137,6 +152,7 @@ model Template {
   campaigns Campaign[]
 
   @@index([userId])
+  @@schema("public")
 }
 
 model Campaign {
@@ -155,6 +171,7 @@ model Campaign {
   filterIsHiring     Boolean?
   filterHeadcountMin Int?
   filterHeadcountMax Int?
+  filterTags         String[]
   batchSize          Int            @default(10)
   currentBatch       Int            @default(0)
   tone               String?
@@ -167,6 +184,7 @@ model Campaign {
   @@index([userId])
   @@index([status])
   @@index([templateId])
+  @@schema("public")
 }
 
 model CampaignSeenCompany {
@@ -179,6 +197,7 @@ model CampaignSeenCompany {
 
   @@unique([campaignId, companyId])
   @@index([campaignId])
+  @@schema("public")
 }
 
 model CampaignLead {
@@ -193,6 +212,7 @@ model CampaignLead {
   @@unique([campaignId, batchNumber, userLeadId])
   @@index([campaignId])
   @@index([campaignId, batchNumber])
+  @@schema("public")
 }
 
 enum CampaignStatus {
@@ -200,4 +220,6 @@ enum CampaignStatus {
   ACTIVE
   PAUSED
   COMPLETED
+
+  @@schema("public")
 }

@@ -4,7 +4,7 @@ import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, updateEmail, sendEmail } from '../../lib/api'
+import { apiGetAuth, fetchEmails, fetchProfile, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Toast from '../ui/Toast'
 
@@ -108,6 +108,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [sending, setSending] = useState(false)
   const [attachResume, setAttachResume] = useState(false)
   const [toast, setToast] = useState(null)
+  const [gmailStatus, setGmailStatus] = useState('loading')
   const [sortKey, setSortKey] = useState('createdAt')
   const [sortDir, setSortDir] = useState('desc')
 
@@ -119,6 +120,20 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [saveError, setSaveError] = useState(null)
 
   const [loadCount, setLoadCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setGmailStatus('loading')
+    fetchProfile()
+      .then(res => {
+        if (cancelled) return
+        setGmailStatus(res?.profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected')
+      })
+      .catch(() => {
+        if (!cancelled) setGmailStatus('unknown')
+      })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -271,6 +286,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   }
 
   const canAttachResume = Boolean(workspaceConfig?.resumePath)
+  const gmailDisconnected = gmailStatus === 'disconnected'
 
   const markSent = async (ids) => {
     const sendableIds = ids.filter(id => {
@@ -284,6 +300,22 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
         type: 'info',
         title: 'Review needed before sending',
         message: 'Add a recipient, subject, and body before sending this draft.',
+      })
+      return
+    }
+
+    if (gmailDisconnected) {
+      setToast({
+        type: 'error',
+        title: 'Gmail not connected',
+        message: 'Connect Gmail in Settings before sending reviewed drafts.',
+        action: onNavigate ? {
+          label: 'Open Settings',
+          onClick: () => {
+            onNavigate('settings')
+            setToast(null)
+          },
+        } : null,
       })
       return
     }
@@ -413,6 +445,24 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        {tab === 'draft' && gmailDisconnected && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="flex min-w-0 items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <span>Gmail is not connected. Connect Gmail in Settings before sending drafts.</span>
+            </div>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('settings')}
+                className="shrink-0 text-xs font-semibold text-amber-900 underline-offset-2 hover:underline"
+              >
+                Open Settings
+              </button>
+            )}
+          </div>
         )}
 
         {tab === 'draft' && drafts.length > 0 && (

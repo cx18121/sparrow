@@ -67,6 +67,8 @@ export function AuthProvider({ children }) {
         if (session) {
           applySessionToApiClient(session)
           persistGoogleRefreshToken(session)
+        } else {
+          applySessionToApiClient(null)
         }
       }
     })
@@ -142,11 +144,11 @@ export function AuthProvider({ children }) {
     if (isDemo) {
       localStorage.removeItem('cf_demo_user')
       setUser(null)
-      setApiUserId(null)
+      applySessionToApiClient(null)
       return
     }
     await supabase.auth.signOut()
-    setApiUserId(null)
+    applySessionToApiClient(null)
   }
 
   const value = { user, loading, signIn, signUp, signInWithGoogle, signOut, isDemo }

@@ -3,6 +3,8 @@ import axios from "axios";
 import { pathToFileURL } from "node:url";
 import { upsertCompany } from "./_lib/upsert.js";
 import { prisma } from "./_lib/prisma.js";
+import { buildTags, isFreeHostingDomain } from "./_lib/tags.js";
+import { computeQualityScore } from "./_lib/quality-score.js";
 
 const YC_API_URL = "https://yc-oss.github.io/api/companies/all.json";
 
@@ -24,7 +26,7 @@ interface YCCompany {
 
 function extractDomain(url: string): string | null {
   try {
-    const hostname = new URL(url).hostname;
+    const hostname = new URL(url).hostname.toLowerCase();
     return hostname.replace(/^www\./, "");
   } catch {
     return null;
@@ -48,14 +50,23 @@ export async function ingestYC(): Promise<void> {
   const response = await axios.get<YCCompany[]>(YC_API_URL);
   const companies: YCCompany[] = response.data;
 
-  const MIN_BATCH_YEAR = 18; // drop batches before W18/S18
+  const MIN_BATCH_YEAR = 18; // drop batches before 2018
   const MAX_HEADCOUNT = 150;
+
+  // Batch format changed from "W18"/"S18" to "Winter 2018"/"Summer 2018"
+  const parseBatchYear = (batch: string): number => {
+    const fourDigit = batch.match(/\b(20\d{2})\b/);
+    if (fourDigit) return parseInt(fourDigit[1], 10) % 100;
+    const twoDigit = batch.match(/[WS](\d+)/i);
+    if (twoDigit) return parseInt(twoDigit[1], 10);
+    return 0;
+  };
 
   const active = companies.filter((c) => {
     if (c.status !== "Active" || !c.website) return false;
     if (c.team_size > MAX_HEADCOUNT) return false;
-    const batchYear = parseInt(c.batch.slice(1), 10);
-    if (isNaN(batchYear) || batchYear < MIN_BATCH_YEAR) return false;
+    const batchYear = parseBatchYear(c.batch);
+    if (batchYear < MIN_BATCH_YEAR) return false;
     return true;
   });
 
@@ -66,16 +77,32 @@ export async function ingestYC(): Promise<void> {
   let count = 0;
   for (const company of active) {
     const domain = extractDomain(company.website!);
-    if (!domain) continue;
+    if (!domain || isFreeHostingDomain(domain)) continue;
+
+    const stage = mapYCStage(company.stage);
+    const tags = buildTags({
+      industry: company.industry,
+      topics: company.subindustry ? [company.subindustry] : undefined,
+      stage,
+      headcount: company.team_size,
+      signals: ["yc-backed"],
+    });
+    const qualityScore = computeQualityScore({
+      isVerified: true,
+      headcount: company.team_size,
+      stage,
+      isHiring: company.isHiring,
+      industry: company.industry,
+    });
 
     try {
       await upsertCompany({
         domain,
         name: company.name,
-        description: company.long_description,
+        description: company.long_description || null,
         oneLiner: company.one_liner,
         website: company.website,
-        stage: mapYCStage(company.stage),
+        stage,
         industry: company.industry,
         subIndustry: company.subindustry,
         location: company.all_locations,
@@ -84,6 +111,9 @@ export async function ingestYC(): Promise<void> {
         batch: company.batch,
         source: "yc",
         sourceId: company.slug,
+        tags,
+        isVerified: true,
+        qualityScore,
       });
       count++;
     } catch (err) {
@@ -93,9 +123,8 @@ export async function ingestYC(): Promise<void> {
   }
 
   console.log(`Ingested ${count} YC companies`);
-  await prisma.$disconnect();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  ingestYC().catch(console.error);
+  ingestYC().finally(() => prisma.$disconnect()).catch(console.error);
 }

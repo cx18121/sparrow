@@ -62,13 +62,13 @@ describe("generateEmailDraft", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("includes interest hook instruction in system prompt when hook provided", async () => {
+  it("includes interest hook in user prompt when hook provided", async () => {
     const fetchMock = makeAnthropicMock("Hi Sarah, loved your post on scaling infra.");
     vi.stubGlobal("fetch", fetchMock);
     await generateEmailDraft({ ...baseParams, interestHook: "your post on scaling infra" });
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(options.body as string);
-    expect(body.system).toContain("your post on scaling infra");
+    expect(body.messages[0].content).toContain("your post on scaling infra");
   });
 
   it("instructs AI not to invent interests when hook is null", async () => {
@@ -77,7 +77,7 @@ describe("generateEmailDraft", () => {
     await generateEmailDraft({ ...baseParams, interestHook: null });
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(options.body as string);
-    expect(body.system).toContain("Do not invent interests");
+    expect(body.messages[0].content).toContain("do not invent one");
   });
 
   it("throws when Anthropic returns non-ok status", async () => {
@@ -133,6 +133,39 @@ describe("generateEmailDraft", () => {
     }));
     const draft = await generateEmailDraft(baseParams);
     expect(draft.body).toBe("Humanized body");
+  });
+
+  describe("verbatim template mode", () => {
+    it("returns template body verbatim without calling Anthropic", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const draft = await generateEmailDraft({
+        ...baseParams,
+        userTemplate: "Hi {{firstName}}, I wanted to reach out about {{company}}.",
+        subjectTemplate: "Hello from {{senderName}}",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(draft.body).toBe("Hi Sarah, I wanted to reach out about Acme AI.");
+      expect(draft.subject).toBe("Hello from Alex");
+    });
+
+    it("substitutes all supported variables in template body", async () => {
+      vi.stubGlobal("fetch", vi.fn());
+      const draft = await generateEmailDraft({
+        ...baseParams,
+        userTemplate: "{{firstName}} {{senderName}} {{company}} {{company_name}} {{companyName}}",
+      });
+      expect(draft.body).toBe("Sarah Alex Acme AI Acme AI Acme AI");
+    });
+
+    it("leaves unrecognised placeholders unchanged", async () => {
+      vi.stubGlobal("fetch", vi.fn());
+      const draft = await generateEmailDraft({
+        ...baseParams,
+        userTemplate: "Hi {{firstName}}, re: {{unknownVar}}",
+      });
+      expect(draft.body).toBe("Hi Sarah, re: {{unknownVar}}");
+    });
   });
 
   it("falls back to raw body when humanizer fails", async () => {

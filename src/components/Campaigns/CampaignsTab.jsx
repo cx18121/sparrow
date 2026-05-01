@@ -12,10 +12,13 @@ import {
   fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
 } from '../../lib/api'
 
+const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'function', 'investor', 'signal']
+const NS_LABELS = { stage: 'Stage', vertical: 'Sector', tech: 'Tech', function: 'Function', investor: 'Investor', signal: 'Signal' }
+
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
   templateId: '', scheduledAt: '',
-  filterIndustry: '', filterRegion: '', filterStage: '', filterBatch: '',
+  filterTags: [], filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: '', filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10', tone: '',
 }
@@ -28,7 +31,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [saving, setSaving] = useState(false)
   const [pendingActions, setPendingActions] = useState(new Set())
-  const [options, setOptions] = useState({ industries: [], regions: [], stages: [], batches: [] })
+  const [options, setOptions] = useState({ industries: [], regions: [], stages: [], batches: [], tags: {} })
   const [batchModal, setBatchModal] = useState({ open: false, campaign: null, leads: [], loading: false, usingFallback: false, seenTotal: 0, currentBatch: 0, generationAttempted: false })
   const [generatingEmail, setGeneratingEmail] = useState(null)
   const [resetTarget, setResetTarget] = useState(null)
@@ -113,7 +116,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       status: c.status,
       templateId: c.templateId || '',
       scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : '',
-      filterIndustry: c.filterIndustry || '',
+      filterTags: c.filterTags || [],
       filterRegion: c.filterRegion || '',
       filterStage: c.filterStage || '',
       filterBatch: c.filterBatch || '',
@@ -135,7 +138,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       status: form.status,
       templateId: form.templateId || null,
       scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
-      filterIndustry: form.filterIndustry || null,
+      filterTags: form.filterTags || [],
       filterRegion: form.filterRegion || null,
       filterStage: form.filterStage || null,
       filterBatch: form.filterBatch || null,
@@ -179,7 +182,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       status: 'draft',
       templateId: c.templateId || null,
       scheduledAt: c.scheduledAt || null,
-      filterIndustry: c.filterIndustry || null,
+      filterTags: c.filterTags || [],
       filterRegion: c.filterRegion || null,
       filterStage: c.filterStage || null,
       filterBatch: c.filterBatch || null,
@@ -297,8 +300,14 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     return next
   })
 
+  const toggleFilterTag = (namespaced) => setForm(f => {
+    const current = f.filterTags || []
+    const has = current.includes(namespaced)
+    return { ...f, filterTags: has ? current.filter(t => t !== namespaced) : [...current, namespaced] }
+  })
+
   const activeFilters = (c) => [
-    c.filterIndustry,
+    ...(c.filterTags?.length ? c.filterTags.map(t => t.split(':')[1]) : []),
     c.filterRegion,
     c.filterStage,
     c.filterBatch,
@@ -612,14 +621,39 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted/80">Matching filters</p>
             <div className="space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label">Industry</label>
-                  <select value={form.filterIndustry} onChange={e => field('filterIndustry', e.target.value)} className="select">
-                    <option value="">Any industry</option>
-                    {options.industries.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
+              {/* Tag multi-picker — AND across namespaces, OR within */}
+              <div>
+                <label className="label">Tags</label>
+                <div className="space-y-2">
+                  {CAMPAIGN_NS.map(ns => {
+                    const tags = options.tags?.[ns] || []
+                    if (!tags.length) return null
+                    return (
+                      <div key={ns} className="flex flex-wrap items-start gap-1.5">
+                        <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/60">{NS_LABELS[ns]}</span>
+                        {tags.map(({ name, namespaced }) => (
+                          <button
+                            key={namespaced}
+                            type="button"
+                            onClick={() => toggleFilterTag(namespaced)}
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                              (form.filterTags || []).includes(namespaced)
+                                ? 'bg-primary border-primary text-white'
+                                : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                            }`}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
+                    <p className="text-xs text-muted">Tags will appear here once companies have been ingested.</p>
+                  )}
                 </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <label className="label">Region</label>
                   <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
@@ -627,8 +661,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                     {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label">Stage</label>
                   <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">

@@ -6,11 +6,11 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     const [rows, hiringCount] = await Promise.all([
       prisma.company.groupBy({
         by: ["industry"],
-        where: { industry: { not: null }, source: "yc" },
+        where: { industry: { not: null }, isVerified: true },
         _count: { industry: true },
         orderBy: { industry: "asc" },
       }),
-      prisma.company.count({ where: { source: "yc", isHiring: true } }),
+      prisma.company.count({ where: { isHiring: true, isVerified: true } }),
     ]);
 
     const industries = rows

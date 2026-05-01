@@ -131,10 +131,16 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
   // subject/body keystrokes don't fire a PATCH per character.
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
   const flushTimerRef = useRef(null)
+  const draftRef = useRef(draft)
+  const draftDirtyRef = useRef(false)
   const previewData = useMemo(() => ({
     ...sampleContactData,
     sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
   }), [workspaceConfig?.senderName])
+
+  useEffect(() => {
+    draftRef.current = draft
+  }, [draft])
 
   useEffect(() => {
     if (!selectedId || !templates.some(template => template.id === selectedId)) {
@@ -146,11 +152,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
   useEffect(() => {
     const selectedTpl = templates.find(t => t.id === selectedId)
     if (!selectedTpl) {
+      draftDirtyRef.current = false
       setDraft({ id: null, subject: '', body: '' })
       return
     }
+    if (draftDirtyRef.current && draft.id === selectedTpl.id) return
+    draftDirtyRef.current = false
     setDraft({ id: selectedTpl.id, subject: selectedTpl.subject || '', body: selectedTpl.body || '' })
-  }, [selectedId, templates])
+  }, [draft.id, selectedId, templates])
 
   useEffect(() => () => {
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
@@ -161,17 +170,25 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
     }
-    const next = override || draft
+    const next = override || draftRef.current
     if (!next.id) return
     const selectedTpl = templates.find(t => t.id === next.id)
     if (!selectedTpl) return
     if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return
-    onUpdate({ id: next.id, subject: next.subject, body: next.body }).catch(err => {
-      console.error('Failed to save template', err)
-    })
+    onUpdate({ id: next.id, subject: next.subject, body: next.body })
+      .then(() => {
+        const latest = draftRef.current
+        if (latest.id === next.id && latest.subject === next.subject && latest.body === next.body) {
+          draftDirtyRef.current = false
+        }
+      })
+      .catch(err => {
+        console.error('Failed to save template', err)
+      })
   }
 
   const scheduleFlush = (next) => {
+    draftDirtyRef.current = true
     setDraft(next)
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
     flushTimerRef.current = setTimeout(() => flushDraft(next), 500)

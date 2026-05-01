@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
+type EmailStatus = (typeof ALLOWED_EMAIL_STATUSES)[number];
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, status, limit = "50", cursor } = req.query as Record<
@@ -69,6 +70,9 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, customContactId, subject, body, status = "draft" } = req.body ?? {};
+  if (!ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
+    throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
+  }
 
   if (!userLeadId && !customContactId) {
     throw new HttpError(400, "userLeadId or customContactId is required");
@@ -100,6 +104,9 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const { id, subject, body, status, sentAt } = req.body ?? {};
   if (!id) throw new HttpError(400, "id is required");
+  if (status && !ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
+    throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
+  }
 
   const existing = await prisma.email.findUnique({
     where: { id },

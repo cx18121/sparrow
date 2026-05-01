@@ -131,8 +131,9 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
     setForm(workspaceConfig)
   }, [workspaceConfig])
 
-  const save = () => {
-    onSave(current => ({ ...current, ...form }))
+  const save = async () => {
+    const ok = await onSave(current => ({ ...current, ...form }))
+    if (!ok) return
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -218,53 +219,73 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
 }
 
 function ProviderKeysSection({ workspaceConfig, onSave }) {
-  const [form, setForm] = useState(workspaceConfig.apiKeys)
+  const [form, setForm] = useState({ claude: workspaceConfig.apiKeys?.claude || '' })
+  const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    setForm(workspaceConfig.apiKeys)
+    setForm({ claude: workspaceConfig.apiKeys?.claude || '' })
   }, [workspaceConfig])
 
-  const save = () => {
-    onSave(current => ({
+  useEffect(() => {
+    let cancelled = false
+    setProfileState(current => ({ ...current, loading: true, error: null }))
+    fetchProfile()
+      .then(res => {
+        if (!cancelled) setProfileState({ loading: false, profile: res?.profile || null, error: null })
+      })
+      .catch(err => {
+        if (!cancelled) setProfileState({ loading: false, profile: null, error: err.message || 'Could not load saved keys' })
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const save = async () => {
+    const ok = await onSave(current => ({
       ...current,
       apiKeys: {
         ...current.apiKeys,
         ...form,
       },
     }))
+    if (!ok) return
+    if (form.claude) {
+      setProfileState(current => ({
+        ...current,
+        profile: { ...(current.profile || {}), hasClaudeKey: true },
+      }))
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const connectedCount = Object.values(form).filter(Boolean).length
+  const hasSavedClaude = !!profileState.profile?.hasClaudeKey
+  const connectedCount = Object.values(form).filter(Boolean).length + (hasSavedClaude && !form.claude ? 1 : 0)
 
   return (
     <Section title="Provider Keys">
       <p className="text-xs text-muted">
-        {connectedCount} provider key{connectedCount !== 1 ? 's' : ''} saved. Add only the services you use.
+        {connectedCount} Claude key{connectedCount !== 1 ? 's' : ''} saved. Saved secret fields are left blank; enter a new value only to replace one.
       </p>
+      {profileState.error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {profileState.error}
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">OpenAI</label>
-          <input type="password" value={form.openai} onChange={e => setForm(current => ({ ...current, openai: e.target.value }))} placeholder="sk-..." className="input" />
-        </div>
-        <div>
           <label className="label">Claude</label>
-          <input type="password" value={form.claude} onChange={e => setForm(current => ({ ...current, claude: e.target.value }))} placeholder="Anthropic API key" className="input" />
-        </div>
-        <div>
-          <label className="label">Gemini</label>
-          <input type="password" value={form.gemini} onChange={e => setForm(current => ({ ...current, gemini: e.target.value }))} placeholder="Google AI Studio key" className="input" />
-        </div>
-        <div>
-          <label className="label">Apollo</label>
-          <input type="password" value={form.apollo} onChange={e => setForm(current => ({ ...current, apollo: e.target.value }))} placeholder="Lead source key" className="input" />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="label">Serper</label>
-          <input type="password" value={form.serper} onChange={e => setForm(current => ({ ...current, serper: e.target.value }))} placeholder="Research API key" className="input" />
+          <input
+            type="password"
+            value={form.claude}
+            onChange={e => setForm(current => ({ ...current, claude: e.target.value }))}
+            placeholder={hasSavedClaude ? 'Saved key on file' : 'Anthropic API key'}
+            className="input"
+          />
+          {hasSavedClaude && !form.claude && (
+            <p className="mt-1 text-xs text-emerald-700">Claude key is saved. Leave blank to keep it.</p>
+          )}
         </div>
       </div>
 
@@ -333,11 +354,27 @@ function TeamSection() {
   )
 }
 
-function SendingLimitsSection() {
-  const [form, setForm] = useState({ dailyMax: 200, delaySeconds: 30 })
+function SendingLimitsSection({ workspaceConfig, onSave }) {
+  const [form, setForm] = useState(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })
   const [saved, setSaved] = useState(false)
   const f = (k, v) => setForm(x => ({ ...x, [k]: v }))
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+
+  useEffect(() => {
+    setForm(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })
+  }, [workspaceConfig])
+
+  const save = async () => {
+    const ok = await onSave(current => ({
+      ...current,
+      sendingLimits: {
+        ...current.sendingLimits,
+        ...form,
+      },
+    }))
+    if (!ok) return
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   return (
     <Section title="Sending Limits">
@@ -366,9 +403,19 @@ function SendingLimitsSection() {
 
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding, onNavigate }) {
   const [toast, setToast] = useState(null)
-  const saveWorkspace = (updater, label = 'Settings saved') => {
-    onSaveWorkspaceConfig(updater)
-    setToast({ type: 'success', title: label, message: 'Refresh setup readiness if the checklist does not update right away.' })
+  const saveWorkspace = async (updater, label = 'Settings saved') => {
+    try {
+      await onSaveWorkspaceConfig(updater)
+      setToast({ type: 'success', title: label, message: 'Refresh setup readiness if the checklist does not update right away.' })
+      return true
+    } catch (err) {
+      setToast({
+        type: 'error',
+        title: 'Settings could not be saved',
+        message: err.message || 'Try again in a moment.',
+      })
+      return false
+    }
   }
 
   return (
@@ -396,7 +443,10 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         workspaceConfig={workspaceConfig}
         onSave={(updater) => saveWorkspace(updater, 'Provider keys saved')}
       />
-      <SendingLimitsSection />
+      <SendingLimitsSection
+        workspaceConfig={workspaceConfig}
+        onSave={(updater) => saveWorkspace(updater, 'Sending limits saved')}
+      />
     </div>
   )
 }

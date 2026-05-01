@@ -147,11 +147,23 @@ function AppShell() {
     setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
 
     let cancelled = false
+    const profileFetchStartedAt = Date.now()
+
     fetchProfile()
       .then((res) => {
         if (cancelled || !res?.profile) return
         const latestStored = storageKey ? readJsonCache(storageKey) : null
         const latestForceOnboarding = forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+        const latestStoredUpdatedAt = latestStored?.updatedAt ? new Date(latestStored.updatedAt).getTime() : 0
+        if (latestStored?.data && latestStoredUpdatedAt > profileFetchStartedAt) {
+          setWorkspaceConfig(latestStored.data)
+          setOnboardingState({
+            loaded: true,
+            completed: latestForceOnboarding ? false : !!latestStored.completed,
+            data: latestStored.data,
+          })
+          return
+        }
         const shouldStayInOnboarding = latestForceOnboarding || latestStored?.completed === false
         const serverConfig = createWorkspaceConfig({
           user,
@@ -365,7 +377,7 @@ function AppShell() {
     }
   }
 
-  const persistWorkspaceConfig = (data, {
+  const persistWorkspaceConfig = async (data, {
     completed = onboardingState.completed,
     completeSession = false,
     templatesOverride = templates,
@@ -386,10 +398,20 @@ function AppShell() {
       }
     }
 
+    // Mirror to /api/profile so changes survive across devices.
+    // The Claude key is stripped from local/server workspace config and sent
+    // separately so /api/profile can encrypt it before insertion.
+    const claudeKey = normalized.apiKeys?.claude || null
+    const sanitizedConfig = {
+      ...normalized,
+      apiKeys: {}, // never persist any API keys in localStorage or workspace_config
+    }
+
     const next = {
       completed,
       completedAt: completed ? (completedAt || new Date().toISOString()) : completedAt,
-      data: normalized,
+      updatedAt: new Date().toISOString(),
+      data: sanitizedConfig,
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
@@ -399,27 +421,16 @@ function AppShell() {
     }
     if (sessionKey && completeSession) sessionStorage.setItem(sessionKey, 'true')
 
-    setWorkspaceConfig(normalized)
-    setOnboardingState({ loaded: true, completed, data: normalized })
+    setWorkspaceConfig(sanitizedConfig)
+    setOnboardingState({ loaded: true, completed, data: sanitizedConfig })
 
-    // Mirror to /api/profile so changes survive across devices.
-    // The Claude key is stripped from the cached config and sent
-    // separately so /api/profile can encrypt it before insertion.
-    const claudeKey = normalized.apiKeys?.claude || null
-    const sanitizedConfig = {
-      ...normalized,
-      apiKeys: {}, // never persist any API keys in the workspace_config column
-    }
-
-    saveProfile({
+    await saveProfile({
       workspaceConfig: sanitizedConfig,
       defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
       resumePath: normalized.resumePath || null,
       resumeText: normalized.resumeText || null,
       ...(claudeKey ? { claudeApiKey: claudeKey } : {}),
       onboardingCompleted: completed,
-    }).catch((err) => {
-      console.error('Failed to persist workspace config', err)
     })
   }
 
@@ -427,6 +438,10 @@ function AppShell() {
     if (!user) return
 
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
+    const sanitizedConfig = {
+      ...normalized,
+      apiKeys: {},
+    }
     const storageKey = getOnboardingStorageKey(user)
     const forceKey = getOnboardingForceKey(user)
     let previous = null
@@ -442,14 +457,15 @@ function AppShell() {
     const next = {
       completed: false,
       completedAt: null,
-      data: normalized,
+      updatedAt: new Date().toISOString(),
+      data: sanitizedConfig,
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
     if (forceKey) sessionStorage.setItem(forceKey, 'true')
 
-    setWorkspaceConfig(normalized)
-    setOnboardingState(current => ({ ...current, loaded: true, data: normalized }))
+    setWorkspaceConfig(sanitizedConfig)
+    setOnboardingState(current => ({ ...current, loaded: true, data: sanitizedConfig }))
   }, [templates, user])
 
   const syncOnboardingTemplate = async (data) => {
@@ -489,17 +505,17 @@ function AppShell() {
 
   const completeOnboarding = async (data) => {
     const { data: nextData, templatesOverride } = await syncOnboardingTemplate(data)
-    persistWorkspaceConfig(nextData, {
+    return persistWorkspaceConfig(nextData, {
       completed: true,
       completeSession: true,
       templatesOverride,
     })
   }
 
-  const updateWorkspaceConfig = (dataOrUpdater) => {
+  const updateWorkspaceConfig = async (dataOrUpdater) => {
     const current = workspaceConfig || createWorkspaceConfig({ user, templates })
     const nextData = typeof dataOrUpdater === 'function' ? dataOrUpdater(current) : dataOrUpdater
-    persistWorkspaceConfig(nextData)
+    return persistWorkspaceConfig(nextData)
   }
 
   if (loading) {

@@ -2,9 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
 import { HttpError } from "./_lib/user.js";
-import axios from "axios";
+import { revealAndUpsertContact } from "./_lib/apollo-enrichment.js";
 
-const ALLOWED_STATUSES = ["NEW", "SAVED", "EMAILED", "REJECTED"] as const;
+const ALLOWED_STATUSES = ["NEW", "SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"] as const;
 type LeadStatus = (typeof ALLOWED_STATUSES)[number];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -59,6 +59,22 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const { companyId, contactId, notes, apolloPersonId } = req.body ?? {};
   if (!companyId) throw new HttpError(400, "companyId is required");
 
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+  if (!company) throw new HttpError(404, "Company not found");
+
+  if (contactId) {
+    const contact = await prisma.contact.findUnique({
+      where: { id: contactId },
+      select: { companyId: true },
+    });
+    if (!contact || contact.companyId !== companyId) {
+      throw new HttpError(404, "Contact not found for this company");
+    }
+  }
+
   let resolvedContactId = contactId ?? null;
 
   // If an Apollo person ID is provided, reveal the contact and upsert it now
@@ -67,28 +83,8 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     const apolloKey = process.env.APOLLO_API_KEY;
     if (apolloKey) {
       try {
-        const revealed = await revealApolloContact(apolloPersonId, apolloKey);
-        if (revealed?.email) {
-          const saved = await prisma.contact.upsert({
-            where: { email: revealed.email },
-            create: {
-              companyId,
-              name: revealed.name ?? null,
-              email: revealed.email,
-              title: revealed.title ?? null,
-              role: null,
-              linkedinUrl: revealed.linkedin_url ?? null,
-              source: "apollo",
-            },
-            update: {
-              name: revealed.name ?? null,
-              title: revealed.title ?? null,
-              linkedinUrl: revealed.linkedin_url ?? null,
-              lastVerifiedAt: new Date(),
-            },
-          });
-          resolvedContactId = saved.id;
-        }
+        const saved = await revealAndUpsertContact(apolloPersonId, companyId, apolloKey);
+        if (saved) resolvedContactId = saved.id;
       } catch (err) {
         console.warn("Apollo reveal failed during save:", err);
       }
@@ -127,20 +123,6 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   }
 }
 
-async function revealApolloContact(personId: string, apiKey: string): Promise<{
-  name: string; email: string; title: string | null; linkedin_url: string | null;
-} | null> {
-  try {
-    const response = await axios.post(
-      "https://api.apollo.io/api/v1/people/match",
-      { id: personId, reveal_personal_emails: false },
-      { headers: { "x-api-key": apiKey, "Content-Type": "application/json", accept: "application/json" }, timeout: 10_000 }
-    );
-    return response.data.person ?? null;
-  } catch {
-    return null;
-  }
-}
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const { id, status, notes } = req.body ?? {};
