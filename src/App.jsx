@@ -51,6 +51,18 @@ const getOnboardingForceKey = (user) => {
   return storageKey ? `${storageKey}_editing` : null
 }
 
+const isExplicitOnboardingEdit = (value) => value === 'explicit'
+
+const hasSavedSetupData = (profile) => {
+  const config = profile?.workspaceConfig || {}
+  return Boolean(
+    config.senderName?.trim?.() ||
+    config.templateId ||
+    config.resumeText?.trim?.() ||
+    profile?.resumeText?.trim?.()
+  )
+}
+
 const getResourceCacheKey = (user) => {
   if (!user) return null
   return `cf_resource_cache_${typeof user === 'string' ? user : user.id || user.email}`
@@ -129,7 +141,9 @@ function AppShell() {
     if (googleConnectReturn && forceKey) sessionStorage.removeItem(forceKey)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const completedThisSession = sessionKey ? sessionStorage.getItem(sessionKey) === 'true' : false
-    const forceOnboarding = !googleConnectReturn && forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+    const forceOnboarding = !googleConnectReturn && forceKey
+      ? isExplicitOnboardingEdit(sessionStorage.getItem(forceKey))
+      : false
     let parsed = null
 
     if (stored) {
@@ -145,29 +159,42 @@ function AppShell() {
     // Optimistically hydrate from localStorage so the UI renders fast,
     // then reconcile against the server profile (cross-device source of truth).
     const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
-    const localCompleted = googleConnectReturn ? true : forceOnboarding ? false : parsed?.completed || completedThisSession
+    const hasLocalCompletionSignal = parsed?.completed === true || completedThisSession
+    const localCompleted = googleConnectReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal
+    const canUseLocalGate = googleConnectReturn || forceOnboarding || hasLocalCompletionSignal
     setWorkspaceConfig(localConfig)
-    setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
+    setOnboardingState({ loaded: canUseLocalGate, completed: localCompleted, data: localConfig })
 
     let cancelled = false
     const profileFetchStartedAt = Date.now()
 
     fetchProfile()
       .then((res) => {
-        if (cancelled || !res?.profile) return
+        if (cancelled) return
+        if (!res?.profile) {
+          setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
+          return
+        }
         const latestStored = storageKey ? readJsonCache(storageKey) : null
-        const latestForceOnboarding = !googleConnectReturn && forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+        const latestForceOnboarding = !googleConnectReturn && forceKey
+          ? isExplicitOnboardingEdit(sessionStorage.getItem(forceKey))
+          : false
         const latestStoredUpdatedAt = latestStored?.updatedAt ? new Date(latestStored.updatedAt).getTime() : 0
+        const serverCompleted = !!res.profile.onboardingCompleted || hasSavedSetupData(res.profile)
         if (latestStored?.data && latestStoredUpdatedAt > profileFetchStartedAt) {
           setWorkspaceConfig(latestStored.data)
           setOnboardingState({
             loaded: true,
-            completed: googleConnectReturn ? true : latestForceOnboarding ? false : !!latestStored.completed,
+            completed: googleConnectReturn
+              ? true
+              : latestForceOnboarding
+                ? false
+                : serverCompleted || !!latestStored.completed,
             data: latestStored.data,
           })
           return
         }
-        const shouldStayInOnboarding = !googleConnectReturn && (latestForceOnboarding || latestStored?.completed === false)
+        const shouldStayInOnboarding = !googleConnectReturn && latestForceOnboarding
         const serverConfig = createWorkspaceConfig({
           user,
           templates,
@@ -180,7 +207,7 @@ function AppShell() {
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
           loaded: true,
-          completed: googleConnectReturn ? true : shouldStayInOnboarding ? false : !!res.profile.onboardingCompleted || localCompleted,
+          completed: googleConnectReturn ? true : shouldStayInOnboarding ? false : serverCompleted || localCompleted,
           data: serverConfig,
         })
       })
@@ -420,7 +447,7 @@ function AppShell() {
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
     if (forceKey) {
       if (completed) sessionStorage.removeItem(forceKey)
-      else sessionStorage.setItem(forceKey, 'true')
+      else sessionStorage.setItem(forceKey, 'explicit')
     }
     if (sessionKey && completeSession) sessionStorage.setItem(sessionKey, 'true')
 
@@ -437,6 +464,13 @@ function AppShell() {
     })
   }
 
+  const enterOnboarding = () => {
+    if (!user) return
+    const forceKey = getOnboardingForceKey(user)
+    if (forceKey) sessionStorage.setItem(forceKey, 'explicit')
+    setOnboardingState({ loaded: true, completed: false, data: workspaceConfig })
+  }
+
   const saveOnboardingDraft = useCallback((data, templatesOverride = templates) => {
     if (!user) return
 
@@ -446,16 +480,6 @@ function AppShell() {
       apiKeys: {},
     }
     const storageKey = getOnboardingStorageKey(user)
-    const forceKey = getOnboardingForceKey(user)
-    let previous = null
-
-    if (storageKey) {
-      try {
-        previous = JSON.parse(localStorage.getItem(storageKey) || 'null')
-      } catch {
-        previous = null
-      }
-    }
 
     const next = {
       completed: false,
@@ -465,8 +489,6 @@ function AppShell() {
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
-    if (forceKey) sessionStorage.setItem(forceKey, 'true')
-
     setWorkspaceConfig(sanitizedConfig)
     setOnboardingState(current => ({ ...current, loaded: true, data: sanitizedConfig }))
   }, [templates, user])
@@ -591,7 +613,7 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   dataLoading={!dataLoaded && !hasResourceCache}
                   onNavigate={handleTabChange}
-                  onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                  onGoToOnboarding={enterOnboarding}
                   onConnectGoogle={connectGoogle}
                 />
               } />
@@ -641,7 +663,7 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
-                  onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                  onGoToOnboarding={enterOnboarding}
                   onConnectGoogle={connectGoogle}
                   onNavigate={handleTabChange}
                 />
