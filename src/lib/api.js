@@ -20,6 +20,20 @@ async function ensureApiAuth() {
   currentAccessToken = session.access_token ?? currentAccessToken
 }
 
+async function refreshApiAuth() {
+  if (isDemo) return false
+  const { data, error } = await supabase.auth.refreshSession()
+  const session = error ? null : data?.session
+  if (!session) {
+    currentUserId = null
+    currentAccessToken = null
+    return false
+  }
+  currentUserId = session.user?.id ?? null
+  currentAccessToken = session.access_token ?? null
+  return Boolean(currentAccessToken)
+}
+
 function extractServerError(text) {
   if (!text) return ''
   try {
@@ -73,7 +87,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
 }
 
-async function request(path, opts = {}) {
+async function request(path, opts = {}, retrying = false) {
   await ensureApiAuth()
   const res = await fetch(`${BASE}${path}`, {
     headers: {
@@ -85,6 +99,9 @@ async function request(path, opts = {}) {
     ...opts,
   })
   if (res.status === 204) return null
+  if (res.status === 401 && !retrying && await refreshApiAuth()) {
+    return request(path, opts, true)
+  }
   if (!res.ok) {
     const text = await res.text()
     const method = opts.method || 'GET'
