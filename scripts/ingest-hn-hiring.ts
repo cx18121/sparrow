@@ -139,53 +139,43 @@ export async function ingestHNHiring(maxThreads = 1): Promise<void> {
       const comment = await fetchItem(kidId);
       await new Promise(r => setTimeout(r, 120));
       processed++;
-      if (processed % 50 === 0) console.log(`[HN] ${processed}/${kids.length} processed — ${ingested} ingested so far`);
+      if (processed % 50 === 0) {
+        console.log(`[HN] ${processed}/${kids.length} processed — ${ingested} ingested so far`);
+      }
 
-  let ingested = 0;
-  let skipped = 0;
-  let processed = 0;
+      if (!comment || comment.dead || comment.deleted || !comment.text) {
+        skipped++;
+        continue;
+      }
 
-  for (const kidId of kids) {
-    const comment = await fetchItem(kidId);
-    await new Promise(r => setTimeout(r, 120)); // ~8 req/s — polite rate
-    processed++;
-    if (processed % 50 === 0) {
-      console.log(`[HN] ${processed}/${kids.length} processed — ${ingested} ingested so far`);
-    }
+      const parsed = parsePosting(comment.text);
+      if (!parsed?.website) { skipped++; continue; }
 
-    if (!comment || comment.dead || comment.deleted || !comment.text) {
-      skipped++;
-      continue;
-    }
+      const domain = extractDomain(parsed.website);
+      if (!domain || isFreeHostingDomain(domain)) { skipped++; continue; }
 
-    const parsed = parsePosting(comment.text);
-    if (!parsed?.website) { skipped++; continue; }
+      const tags = buildTags({ signals: ["hn-hiring"] });
+      const qualityScore = computeQualityScore({ isHiring: true });
 
-    const domain = extractDomain(parsed.website);
-    if (!domain || isFreeHostingDomain(domain)) { skipped++; continue; }
-
-    const tags = buildTags({ signals: ["hn-hiring"] });
-    const qualityScore = computeQualityScore({ isHiring: true });
-
-    try {
-      await upsertCompany({
-        domain,
-        name: parsed.name,
-        oneLiner: parsed.oneLiner,
-        website: parsed.website,
-        location: parsed.location,
-        isHiring: true,
-        source: "hn_hiring",
-        sourceId: String(comment.id),
-        tags,
-        isVerified: false,
-        qualityScore,
-      });
-      ingested++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[HN] Failed "${parsed.name}": ${msg}`);
-    }
+      try {
+        await upsertCompany({
+          domain,
+          name: parsed.name,
+          oneLiner: parsed.oneLiner,
+          website: parsed.website,
+          location: parsed.location,
+          isHiring: true,
+          source: "hn_hiring",
+          sourceId: String(comment.id),
+          tags,
+          isVerified: false,
+          qualityScore,
+        });
+        ingested++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[HN] Failed "${parsed.name}": ${msg}`);
+      }
     }
   }
 

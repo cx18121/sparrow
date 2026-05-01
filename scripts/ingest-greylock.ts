@@ -80,7 +80,7 @@ export async function ingestGreylock(): Promise<void> {
   let ingested = 0, skipped = 0;
 
   for (const c of companies) {
-    const status = c.portfolio_status?.toLowerCase() ?? "";
+    const status = typeof c.portfolio_status === "string" ? c.portfolio_status.toLowerCase() : "";
     if (["exited", "acquired", "ipo"].includes(status)) { skipped++; continue; }
 
     const website = extractWebsite(c.acf?.social_networks_portfolio_string ?? "");

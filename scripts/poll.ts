@@ -11,7 +11,6 @@ import { ingestHNHiring } from "./ingest-hn-hiring.js";
 import { ingestAccel } from "./ingest-accel.js";
 import { ingestKleinerPerkins } from "./ingest-kleinerperkins.js";
 import { ingestFirstRound } from "./ingest-firstround.js";
-import { ingestInitialized } from "./ingest-initialized.js";
 import { ingestA16z } from "./ingest-a16z.js";
 import { ingestGV } from "./ingest-gv.js";
 import { ingestBessemer } from "./ingest-bessemer.js";
@@ -29,7 +28,6 @@ const SKIP_HN_HIRING = process.env.SKIP_HN_HIRING === "true";
 const SKIP_ACCEL = process.env.SKIP_ACCEL === "true";
 const SKIP_KLEINERPERKINS = process.env.SKIP_KLEINERPERKINS === "true";
 const SKIP_FIRSTROUND = process.env.SKIP_FIRSTROUND === "true";
-const SKIP_INITIALIZED = process.env.SKIP_INITIALIZED === "true";
 const SKIP_A16Z = process.env.SKIP_A16Z === "true";
 const SKIP_GV = process.env.SKIP_GV === "true";
 const SKIP_BESSEMER = process.env.SKIP_BESSEMER === "true";
@@ -87,7 +85,6 @@ export async function runPollCycle(): Promise<void> {
     ["Accel", SKIP_ACCEL, ingestAccel],
     ["KleinerPerkins", SKIP_KLEINERPERKINS, ingestKleinerPerkins],
     ["FirstRound", SKIP_FIRSTROUND, ingestFirstRound],
-    ["Initialized", SKIP_INITIALIZED, ingestInitialized],
     ["a16z", SKIP_A16Z, ingestA16z],
     ["GV", SKIP_GV, ingestGV],
     ["Bessemer", SKIP_BESSEMER, ingestBessemer],

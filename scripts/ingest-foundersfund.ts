@@ -56,6 +56,37 @@ function extractIndustry(classList: string[] | undefined): string | null {
   return null;
 }
 
+const WP_API_BASE = "https://foundersfund.com/wp-json/wp/v2";
+const WP_POST_TYPES = ["company", "companies", "portfolio_company", "portfolio"];
+
+async function fetchViaWpApi(): Promise<FFCompany[]> {
+  for (const postType of WP_POST_TYPES) {
+    try {
+      const all: FFCompany[] = [];
+      let page = 1;
+      while (true) {
+        const { data, headers } = await axios.get(`${WP_API_BASE}/${postType}`, {
+          params: { per_page: 100, page, _fields: "id,title,content,class_list,profiles" },
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
+          timeout: 20_000,
+        });
+        if (!Array.isArray(data) || data.length === 0) break;
+        all.push(...data);
+        const totalPages = parseInt(headers["x-wp-totalpages"] ?? "1", 10);
+        if (page >= totalPages) break;
+        page++;
+      }
+      if (all.length > 0) {
+        console.log(`[FoundersFund] WP REST API (${postType}): ${all.length} entries`);
+        return all;
+      }
+    } catch {
+      // try next post type
+    }
+  }
+  return [];
+}
+
 export async function ingestFoundersFund(): Promise<void> {
   let html: string;
   try {
@@ -69,21 +100,27 @@ export async function ingestFoundersFund(): Promise<void> {
     return;
   }
 
-  const match = html.match(/window\.__data\s*=\s*(\{[\s\S]*?\});\s*\n/);
-  if (!match) {
-    console.error("[FoundersFund] Could not find window.__data");
-    return;
+  let companies: FFCompany[] = [];
+
+  const match = html.match(/window\.__data\s*=\s*(\{[\s\S]*?\})\s*;/);
+  if (match) {
+    try {
+      const raw: { companies?: FFCompany[] } = JSON.parse(match[1]);
+      companies = raw.companies ?? [];
+    } catch {
+      console.warn("[FoundersFund] Failed to parse window.__data — falling back to WP REST API");
+    }
   }
 
-  let raw: { companies?: FFCompany[] };
-  try {
-    raw = JSON.parse(match[1]);
-  } catch {
-    console.error("[FoundersFund] Failed to parse window.__data JSON");
-    return;
+  if (companies.length === 0) {
+    console.warn("[FoundersFund] window.__data not found — trying WP REST API");
+    companies = await fetchViaWpApi();
   }
 
-  const companies = raw.companies ?? [];
+  if (companies.length === 0) {
+    console.error("[FoundersFund] Could not retrieve portfolio data");
+    return;
+  }
   console.log(`[FoundersFund] ${companies.length} portfolio companies`);
 
   let ingested = 0, skipped = 0;

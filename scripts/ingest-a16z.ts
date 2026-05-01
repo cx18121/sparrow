@@ -50,7 +50,9 @@ function extractJsonArray(html: string, varName: string): any[] | null {
 }
 
 function mapStage(stages: string[] | undefined, stage: string | undefined): string | null {
-  const all = [...(stages ?? []), stage ?? ""].map(s => s.toLowerCase());
+  const all = [...(stages ?? []), stage ?? ""]
+    .filter((s): s is string => typeof s === "string")
+    .map(s => s.toLowerCase());
   if (all.includes("growth") || all.includes("late")) return "Series B";
   if (all.includes("early")) return "Seed";
   if (all.includes("seed")) return "Pre-Seed";
