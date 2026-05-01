@@ -538,6 +538,7 @@ export default function OnboardingScreen({
   templates,
   initialData,
   onSaveDraft,
+  onFinishLater,
   onComplete,
   onLogout,
 }) {
@@ -545,6 +546,8 @@ export default function OnboardingScreen({
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
   const [styleAttempted, setStyleAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [resumeUpload, setResumeUpload] = useState({ uploading: false, error: null })
 
   const buildInitialForm = (data) => {
@@ -596,10 +599,12 @@ export default function OnboardingScreen({
   const markUserEdited = () => { userEditedRef.current = true }
   const updateField = (key, value) => {
     markUserEdited()
+    setSaveError('')
     setForm(current => ({ ...current, [key]: value }))
   }
   const updateCustomTemplate = (key, value) => {
     markUserEdited()
+    setSaveError('')
     setForm(current => ({
       ...current,
       customTemplate: { ...current.customTemplate, [key]: value },
@@ -607,6 +612,7 @@ export default function OnboardingScreen({
   }
   const updateStyleChoice = (testId, choice) => {
     markUserEdited()
+    setSaveError('')
     setForm(current => {
       const styleChoices = { ...(current.styleChoices || {}), [testId]: choice }
       const styleProfile = scoreStyleChoices(styleChoices)
@@ -723,18 +729,32 @@ export default function OnboardingScreen({
     setStepIndex(index)
   }
 
-  const finish = (skipped = false) => {
+  const finish = async (skipped = false) => {
+    if (isSaving || resumeUpload.uploading) return
     const needsGeneratedTemplate = !skipped && (
       (form.templateMode === 'custom' && (!form.customTemplate?.subject || !form.customTemplate?.body))
       || (form.templateMode !== 'custom' && !selectedTemplate)
     )
     const finalForm = needsGeneratedTemplate ? withGeneratedStyleTemplate(form, { force: true }) : form
 
-    onComplete({
-      ...finalForm,
-      templateId: finalForm.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
-      skipped,
-    })
+    setSaveError('')
+    setIsSaving(true)
+    try {
+      const payload = {
+        ...finalForm,
+        templateId: finalForm.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
+        skipped,
+      }
+      if (skipped) {
+        await onFinishLater?.(payload)
+      } else {
+        await onComplete?.(payload)
+      }
+    } catch (err) {
+      setSaveError(err.message || 'Setup could not be saved. Try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -768,9 +788,10 @@ export default function OnboardingScreen({
           <button
             type="button"
             onClick={() => finish(true)}
+            disabled={isSaving || resumeUpload.uploading}
             className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark"
           >
-            Finish later
+            {isSaving ? 'Saving...' : 'Finish later'}
           </button>
         </div>
 
@@ -804,11 +825,17 @@ export default function OnboardingScreen({
             ))}
           </div>
 
+          {saveError && (
+            <div className="mx-auto mb-3 max-w-xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-3 rounded-[28px] px-3 py-3">
             <button
               type="button"
               onClick={prevStep}
-              disabled={isFirstStep}
+              disabled={isFirstStep || isSaving}
               className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-white hover:shadow-[0_16px_32px_rgba(15,23,42,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500">
@@ -821,9 +848,10 @@ export default function OnboardingScreen({
               <button
                 type="button"
                 onClick={() => finish(false)}
+                disabled={isSaving || resumeUpload.uploading}
                 className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
               >
-                Open dashboard
+                {isSaving ? 'Saving...' : 'Open dashboard'}
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
                   <ArrowRight size={14} />
                 </span>
@@ -832,6 +860,7 @@ export default function OnboardingScreen({
               <button
                 type="button"
                 onClick={nextStep}
+                disabled={isSaving || resumeUpload.uploading}
                 className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
               >
                 Next
