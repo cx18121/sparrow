@@ -18,12 +18,12 @@ const STYLE_TESTS = [
     a: {
       label: 'Straightforward',
       traits: { directness: 3, warmth: 0, brevity: 1, specificity: 0, polish: 0 },
-      body: 'I noticed {{company}} and wanted to reach out because there may be a practical reason to connect.\n\nI have been working on a lightweight way to turn lead research into cleaner first drafts. Worth sending over a quick example?',
+      body: 'Noticed {{company}} is working in a space where targeted outreach and timing matter.\n\nI am building a lightweight workflow that turns public company signals into cleaner first drafts, without making the message feel automated.\n\nWorth sending over a quick example?',
     },
     b: {
       label: 'Warm',
       traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
-      body: 'I came across {{company}} and your team stood out. The work looks close to areas I have been exploring lately.\n\nI have a short idea that may be useful for your outreach or recruiting workflow. Open to seeing it?',
+      body: 'I came across {{company}} while looking at teams doing thoughtful work in this market, and your focus stood out.\n\nI have been exploring how small teams can make first-touch outreach feel more researched without adding hours of manual writing.\n\nWould it be useful if I shared the short version?',
     },
   },
   {
@@ -33,12 +33,12 @@ const STYLE_TESTS = [
     a: {
       label: 'Concise',
       traits: { directness: 1, warmth: 0, brevity: 3, specificity: 0, polish: 0 },
-      body: 'I noticed {{company}} and thought there may be a useful fit with my work on outbound research and draft generation.\n\nWould it be useful if I sent over a quick example?',
+      body: 'Noticed {{company}} and thought my work on research-backed cold outreach might be relevant.\n\nCould I send over a quick example?',
     },
     b: {
       label: 'Contextual',
       traits: { directness: 0, warmth: 1, brevity: 0, specificity: 3, polish: 1 },
-      body: 'I noticed {{company}} while looking at teams where targeted outreach seems especially important. My recent work has focused on turning scattered prospect research into clear first drafts.\n\nIf helpful, I can send a short example using a public company signal.',
+      body: 'I noticed {{company}} while looking at teams where trust and timing seem important in outbound.\n\nMy recent work focuses on turning scattered prospect research into short, specific first drafts, especially when there is only one useful company signal to work from.\n\nIf helpful, I can send a brief example using a public signal from your site.',
     },
   },
   {
@@ -48,12 +48,12 @@ const STYLE_TESTS = [
     a: {
       label: 'Specific ask',
       traits: { directness: 3, warmth: 0, brevity: 1, specificity: 1, polish: 0 },
-      body: 'I noticed {{company}} and thought there may be a useful fit with my work on practical outbound systems.\n\nWould you have 15 minutes next Tuesday or Wednesday for me to show you what I am building?',
+      body: 'I noticed {{company}} and thought there may be a useful fit with my work on making cold outreach more specific and less manual.\n\nWould you be open to a 15-minute conversation next week so I can show you what I am building?',
     },
     b: {
       label: 'Soft ask',
       traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
-      body: 'I noticed {{company}} and thought there may be a useful fit with my work on practical outbound systems.\n\nWould it be helpful if I sent over the 3-line version first?',
+      body: 'I noticed {{company}} and thought there may be a useful fit with my work on making first-touch emails more relevant.\n\nNo need to book time yet. Would it be helpful if I sent over the 3-line version first?',
     },
   },
   {
@@ -63,12 +63,12 @@ const STYLE_TESTS = [
     a: {
       label: 'Light',
       traits: { directness: 1, warmth: 0, brevity: 2, specificity: 0, polish: 0 },
-      body: 'I saw {{company}} and thought there could be a useful reason to connect.\n\nI am working on a tool that helps students move from lead research to reviewed first drafts faster. Worth sharing?',
+      body: 'I saw {{company}} and thought there could be a useful reason to connect.\n\nI am working on a tool that helps students turn lead research into reviewed first drafts faster.\n\nWorth sharing?',
     },
     b: {
       label: 'Specific',
       traits: { directness: 0, warmth: 0, brevity: 0, specificity: 3, polish: 1 },
-      body: 'I noticed {{company}} is in a market where timing and precise outreach matter. That caught my attention because my recent work is about turning public company signals into targeted first drafts.\n\nWould a short example be useful?',
+      body: 'I noticed {{company}} is in a market where a generic first email would probably get ignored. That caught my attention because my recent work is about using public company signals to write a more relevant first draft.\n\nWould a short example using one signal from {{company}} be useful?',
     },
   },
 ]

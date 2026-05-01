@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox } from 'lucide-react'
+import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
+import DashboardTab from './components/Dashboard/DashboardTab'
 import LeadDiscoveryTab from './components/LeadDiscovery/LeadDiscoveryTab'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
 import ContactsTab from './components/Contacts/ContactsTab'
@@ -31,6 +32,7 @@ const campaignToApi = (c) => {
 }
 
 const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
   { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
@@ -42,6 +44,11 @@ const TABS = [
 const getOnboardingStorageKey = (user) => {
   if (!user) return null
   return `cf_onboarding_${user.id || user.email}`
+}
+
+const getOnboardingForceKey = (user) => {
+  const storageKey = getOnboardingStorageKey(user)
+  return storageKey ? `${storageKey}_editing` : null
 }
 
 const getResourceCacheKey = (user) => {
@@ -106,6 +113,7 @@ function AppShell() {
     if (!user) {
       if (previousOnboardingKeyRef.current) {
         sessionStorage.removeItem(`${previousOnboardingKeyRef.current}_session`)
+        sessionStorage.removeItem(`${previousOnboardingKeyRef.current}_editing`)
         previousOnboardingKeyRef.current = null
       }
       setWorkspaceConfig(createWorkspaceConfig({ user: null, templates }))
@@ -115,8 +123,10 @@ function AppShell() {
 
     const storageKey = getOnboardingStorageKey(user)
     const sessionKey = storageKey ? `${storageKey}_session` : null
+    const forceKey = getOnboardingForceKey(user)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const completedThisSession = sessionKey ? sessionStorage.getItem(sessionKey) === 'true' : false
+    const forceOnboarding = forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
     let parsed = null
 
     if (stored) {
@@ -132,7 +142,7 @@ function AppShell() {
     // Optimistically hydrate from localStorage so the UI renders fast,
     // then reconcile against the server profile (cross-device source of truth).
     const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
-    const localCompleted = parsed?.completed || completedThisSession
+    const localCompleted = forceOnboarding ? false : parsed?.completed || completedThisSession
     setWorkspaceConfig(localConfig)
     setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
 
@@ -140,6 +150,9 @@ function AppShell() {
     fetchProfile()
       .then((res) => {
         if (cancelled || !res?.profile) return
+        const latestStored = storageKey ? readJsonCache(storageKey) : null
+        const latestForceOnboarding = forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+        const shouldStayInOnboarding = latestForceOnboarding || latestStored?.completed === false
         const serverConfig = createWorkspaceConfig({
           user,
           templates,
@@ -152,7 +165,7 @@ function AppShell() {
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
           loaded: true,
-          completed: parsed?.completed === false ? false : !!res.profile.onboardingCompleted || localCompleted,
+          completed: shouldStayInOnboarding ? false : !!res.profile.onboardingCompleted || localCompleted,
           data: serverConfig,
         })
       })
@@ -361,6 +374,7 @@ function AppShell() {
 
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
     const storageKey = getOnboardingStorageKey(user)
+    const forceKey = getOnboardingForceKey(user)
     const sessionKey = storageKey ? `${storageKey}_session` : null
     let completedAt = null
 
@@ -379,6 +393,10 @@ function AppShell() {
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
+    if (forceKey) {
+      if (completed) sessionStorage.removeItem(forceKey)
+      else sessionStorage.setItem(forceKey, 'true')
+    }
     if (sessionKey && completeSession) sessionStorage.setItem(sessionKey, 'true')
 
     setWorkspaceConfig(normalized)
@@ -410,6 +428,7 @@ function AppShell() {
 
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
     const storageKey = getOnboardingStorageKey(user)
+    const forceKey = getOnboardingForceKey(user)
     let previous = null
 
     if (storageKey) {
@@ -427,6 +446,7 @@ function AppShell() {
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
+    if (forceKey) sessionStorage.setItem(forceKey, 'true')
 
     setWorkspaceConfig(normalized)
     setOnboardingState(current => ({ ...current, loaded: true, data: normalized }))
@@ -542,7 +562,19 @@ function AppShell() {
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
           <Routes>
-              <Route path="/" element={<Navigate to="/campaigns" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={
+                <DashboardTab
+                  campaigns={campaigns}
+                  leads={leads}
+                  customContacts={customContacts}
+                  templates={templates}
+                  workspaceConfig={workspaceConfig}
+                  dataLoading={!dataLoaded && !hasResourceCache}
+                  onNavigate={handleTabChange}
+                  onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
+                />
+              } />
               <Route path="/campaigns" element={
                 <CampaignsTab
                   campaigns={campaigns}
@@ -593,7 +625,7 @@ function AppShell() {
                   onNavigate={handleTabChange}
                 />
               } />
-              <Route path="*" element={<Navigate to="/campaigns" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           <footer className="mt-auto py-6 text-center text-xs text-muted">Made by Cornell Generative AI</footer>
         </div>
