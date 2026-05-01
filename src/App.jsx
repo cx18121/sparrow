@@ -85,7 +85,7 @@ const formatTemplateBody = (body) => {
 }
 
 function AppShell() {
-  const { user, loading, signOut, signInWithGoogle } = useAuth()
+  const { user, loading, signOut, connectGoogle } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
@@ -124,9 +124,12 @@ function AppShell() {
     const storageKey = getOnboardingStorageKey(user)
     const sessionKey = storageKey ? `${storageKey}_session` : null
     const forceKey = getOnboardingForceKey(user)
+    const searchParams = new URLSearchParams(location.search)
+    const googleConnectReturn = searchParams.has('google_connected') || searchParams.has('google_error')
+    if (googleConnectReturn && forceKey) sessionStorage.removeItem(forceKey)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const completedThisSession = sessionKey ? sessionStorage.getItem(sessionKey) === 'true' : false
-    const forceOnboarding = forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+    const forceOnboarding = !googleConnectReturn && forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
     let parsed = null
 
     if (stored) {
@@ -142,7 +145,7 @@ function AppShell() {
     // Optimistically hydrate from localStorage so the UI renders fast,
     // then reconcile against the server profile (cross-device source of truth).
     const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
-    const localCompleted = forceOnboarding ? false : parsed?.completed || completedThisSession
+    const localCompleted = googleConnectReturn ? true : forceOnboarding ? false : parsed?.completed || completedThisSession
     setWorkspaceConfig(localConfig)
     setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
 
@@ -153,18 +156,18 @@ function AppShell() {
       .then((res) => {
         if (cancelled || !res?.profile) return
         const latestStored = storageKey ? readJsonCache(storageKey) : null
-        const latestForceOnboarding = forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
+        const latestForceOnboarding = !googleConnectReturn && forceKey ? sessionStorage.getItem(forceKey) === 'true' : false
         const latestStoredUpdatedAt = latestStored?.updatedAt ? new Date(latestStored.updatedAt).getTime() : 0
         if (latestStored?.data && latestStoredUpdatedAt > profileFetchStartedAt) {
           setWorkspaceConfig(latestStored.data)
           setOnboardingState({
             loaded: true,
-            completed: latestForceOnboarding ? false : !!latestStored.completed,
+            completed: googleConnectReturn ? true : latestForceOnboarding ? false : !!latestStored.completed,
             data: latestStored.data,
           })
           return
         }
-        const shouldStayInOnboarding = latestForceOnboarding || latestStored?.completed === false
+        const shouldStayInOnboarding = !googleConnectReturn && (latestForceOnboarding || latestStored?.completed === false)
         const serverConfig = createWorkspaceConfig({
           user,
           templates,
@@ -177,7 +180,7 @@ function AppShell() {
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
           loaded: true,
-          completed: shouldStayInOnboarding ? false : !!res.profile.onboardingCompleted || localCompleted,
+          completed: googleConnectReturn ? true : shouldStayInOnboarding ? false : !!res.profile.onboardingCompleted || localCompleted,
           data: serverConfig,
         })
       })
@@ -187,7 +190,7 @@ function AppShell() {
       })
 
     return () => { cancelled = true }
-  }, [user, templates])
+  }, [location.search, user, templates])
 
   // Hydrate templates / sequences / campaigns / leads from the API after auth.
   // Check both React user state and module-level auth (set synchronously before state updates).
@@ -589,7 +592,7 @@ function AppShell() {
                   dataLoading={!dataLoaded && !hasResourceCache}
                   onNavigate={handleTabChange}
                   onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
-                  onConnectGoogle={signInWithGoogle}
+                  onConnectGoogle={connectGoogle}
                 />
               } />
               <Route path="/campaigns" element={
@@ -639,7 +642,7 @@ function AppShell() {
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
                   onGoToOnboarding={() => persistWorkspaceConfig(workspaceConfig, { completed: false })}
-                  onConnectGoogle={signInWithGoogle}
+                  onConnectGoogle={connectGoogle}
                   onNavigate={handleTabChange}
                 />
               } />

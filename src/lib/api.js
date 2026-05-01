@@ -136,6 +136,8 @@ export const sendEmail = (emailId, options = {}) =>
 export const fetchProfile = () => request('/profile')
 export const saveProfile = (data) =>
   request('/profile', { method: 'POST', body: JSON.stringify(data) })
+export const connectGoogle = (returnTo) =>
+  request('/google/connect', { method: 'POST', body: JSON.stringify({ returnTo }) })
 
 export const fetchTemplates = () => request('/templates')
 export const createTemplate = (data) =>

@@ -20,6 +20,8 @@ const routes: Record<string, string> = {
   "/api/emails": "./api/emails.ts",
   "/api/emails/generate": "./api/emails/generate.ts",
   "/api/emails/send": "./api/emails/send.ts",
+  "/api/google/connect": "./api/google/connect.ts",
+  "/api/google/callback": "./api/google/callback.ts",
   "/api/templates": "./api/templates.ts",
   "/api/campaigns": "./api/campaigns.ts",
   "/api/campaign-batch": "./api/campaign-batch.ts",

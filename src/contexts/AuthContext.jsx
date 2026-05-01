@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isDemo } from '../lib/supabase'
-import { setApiAccessToken, setApiUserId, saveProfile } from '../lib/api'
+import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId, saveProfile } from '../lib/api'
 
 const AuthContext = createContext(null)
 
@@ -154,6 +154,21 @@ export function AuthProvider({ children }) {
     return { error }
   }
 
+  const connectGoogle = async () => {
+    if (isDemo) {
+      return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
+    }
+
+    try {
+      const returnTo = `${window.location.pathname}${window.location.search}`
+      const res = await startGoogleConnect(returnTo)
+      if (res?.url) window.location.assign(res.url)
+      return { error: null }
+    } catch (err) {
+      return { error: { message: err.message || 'Google connection could not start.' } }
+    }
+  }
+
   const signOut = async () => {
     if (isDemo) {
       localStorage.removeItem('cf_demo_user')
@@ -165,7 +180,7 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
   }
 
-  const value = { user, loading, signIn, signUp, signInWithGoogle, signOut, isDemo }
+  const value = { user, loading, signIn, signUp, signInWithGoogle, connectGoogle, signOut, isDemo }
 
   return (
     <AuthContext.Provider value={value}>
