@@ -22,6 +22,8 @@ import {
   fetchLeads, updateLead, deleteLead,
   fetchCustomContacts, createCustomContact, updateCustomContact, deleteCustomContact,
   apiGetAuth,
+  fetchCompanies as apiFetchCompanies,
+  fetchCampaignOptions,
 } from './lib/api'
 
 // DB stores campaign status as UPPERCASE; the UI uses lowercase.
@@ -330,6 +332,34 @@ function AppShell() {
       data: { templates, campaigns, leads, customContacts },
     })
   }, [campaigns, customContacts, dataLoaded, leads, templates, user])
+
+  // Prefetch Discover page data in the background so the tab is populated on first visit.
+  useEffect(() => {
+    if (!dataLoaded) return
+    const existing = (() => { try { return JSON.parse(sessionStorage.getItem('cf_discover_state') || 'null') } catch { return null } })()
+    if (existing?.companies?.length > 0) return
+    Promise.all([
+      apiFetchCompanies({ limit: 20, random: 'true' }),
+      fetchCampaignOptions(),
+    ]).then(([companiesData, options]) => {
+      try {
+        sessionStorage.setItem('cf_discover_state', JSON.stringify({
+          companies: companiesData.items ?? [],
+          nextCursor: companiesData.nextCursor ?? null,
+          hasMore: companiesData.hasMore ?? false,
+          meta: { seenTotal: companiesData.seenTotal ?? 0, usingFallback: companiesData.usingFallback ?? false },
+          search: '',
+          isHiring: false,
+          regionFilter: null,
+          selectedTags: [],
+          tagOptions: options.tags || {},
+          hiringCount: options.hiringCount ?? null,
+          regionCounts: { us: options.usCount ?? null, intl: options.intlCount ?? null, remote: options.remoteCount ?? null },
+          pageSize: 20,
+        }))
+      } catch {}
+    }).catch(() => {})
+  }, [dataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Templates ──
   const createTemplateHandler = async (data) => {
@@ -672,7 +702,7 @@ function AppShell() {
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-warm-200 bg-warm-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="min-w-0">
             <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
               {activeTabItem.label}
