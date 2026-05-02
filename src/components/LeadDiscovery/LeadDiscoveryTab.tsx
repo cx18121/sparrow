@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
-  Search, Users, Globe,
+  Search, Users, Globe, Filter,
   CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
@@ -107,7 +107,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
+export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavigate }) {
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState(new Set())
   const selectedTagsRef = useRef(new Set())
@@ -120,6 +120,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  const [tagsOpen, setTagsOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
@@ -340,6 +341,15 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       setApolloResults([])
       setApolloError(null)
       onLeadSaved?.()
+      setToast({
+        type: 'success',
+        title: `${preview.firstName} saved`,
+        message: 'Generate an email from Contacts.',
+        action: onNavigate ? {
+          label: 'Go to Contacts',
+          onClick: () => { onNavigate('contacts'); setToast(null) },
+        } : null,
+      })
     } catch (err) {
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
@@ -378,7 +388,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
           >
             {loading
               ? <><Loader2 size={14} className="animate-spin" />Finding</>
-              : <><Shuffle size={14} />Random batch</>}
+              : <><Shuffle size={14} />Find companies</>}
           </button>
           <button
             onClick={resetSeen}
@@ -421,10 +431,21 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
                 {label}{count != null ? ` (${count})` : ''}
               </button>
             ))}
+            <button
+              onClick={() => setTagsOpen(o => !o)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
+                tagsOpen || selectedTags.size > 0
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+              }`}
+            >
+              <Filter size={11} />
+              {tagsOpen ? 'Hide filters' : selectedTags.size > 0 ? `More filters (${selectedTags.size})` : 'More filters'}
+            </button>
           </div>
 
-          {/* Tag filters */}
-          {DISCOVERY_NS.map(ns => {
+          {/* Tag filters — collapsed by default */}
+          {tagsOpen && DISCOVERY_NS.map(ns => {
             const tags = (tagOptions[ns] || []).filter(t => t.count >= 15).slice(0, 8)
             if (tags.length < 2) return null
             return (

@@ -835,7 +835,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                   value={editBody}
                   onChange={e => setEditBody(e.target.value)}
                   rows={16}
-                  className="input w-full resize-y font-mono text-sm leading-relaxed"
+                  className="input w-full resize-y text-sm leading-relaxed"
                   placeholder="Email body…"
                 />
               ) : (

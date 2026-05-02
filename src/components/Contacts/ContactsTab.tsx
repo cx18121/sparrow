@@ -16,6 +16,12 @@ import { generateEmail, createEmail } from '../../lib/api'
 
 const PAGE_SIZE = 10
 const STATUSES = ['SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
+const STATUS_LABELS: Record<string, string> = {
+  SAVED: 'Saved',
+  EMAILED: 'Emailed',
+  NO_RESPONSE: 'No response',
+  DECLINED: 'Declined',
+}
 
 const STATUS_STYLE = {
   SAVED:       VARIANT_STYLES.success,
@@ -384,7 +390,7 @@ export default function ContactsTab({
               className="select w-full sm:w-44"
             >
               <option value="all">All statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>)}
             </select>
           </div>
           <p className="text-sm text-muted">
@@ -490,7 +496,7 @@ export default function ContactsTab({
                   <span className="flex items-center gap-2">
                     {getName(row) || getNotesName(row) || '—'}
                     {row._custom && (
-                      <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600">custom</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">custom</span>
                     )}
                   </span>
                 </td>
@@ -506,7 +512,7 @@ export default function ContactsTab({
                       onChange={e => changeStatus(row, e.target.value)}
                       className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.SAVED}`}
                     >
-                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>)}
                     </select>
                   )}
                 </td>

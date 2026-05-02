@@ -681,6 +681,7 @@ function AppShell() {
                 <LeadDiscoveryTab
                   workspaceConfig={workspaceConfig}
                   onLeadSaved={refreshLeads}
+                  onNavigate={handleTabChange}
                 />
               } />
               <Route path="/contacts" element={

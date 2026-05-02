@@ -984,7 +984,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               value={emailPreview.body}
               onChange={e => setEmailPreview(prev => ({ ...prev, body: e.target.value }))}
               rows={14}
-              className="input resize-y font-mono text-xs leading-relaxed"
+              className="input resize-y text-sm leading-relaxed"
               placeholder="Email body..."
             />
           </div>

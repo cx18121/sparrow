@@ -64,7 +64,7 @@ function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoadi
     <div className="border-b border-slate-100 pb-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Setup readiness</p>
+          <p className="page-eyebrow">Setup readiness</p>
           <h2 className="mt-1 text-lg font-semibold text-dark">
             {ready ? 'Ready' : `${completeCount} of ${items.length} complete`}
           </h2>
