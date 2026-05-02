@@ -17,7 +17,6 @@ import Toast from '../ui/Toast'
 import { sampleContactData } from '../../lib/mockData'
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
-const SUBJECT_VARIABLES = ['{{first_name}}', '{{company}}']
 
 function fillVariables(html, data) {
   if (!html) return ''
@@ -340,7 +339,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                     />
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                       <span>Subject variables:</span>
-                      {SUBJECT_VARIABLES.map(variable => (
+                      {VARIABLES.map(variable => (
                         <button
                           key={variable}
                           type="button"
