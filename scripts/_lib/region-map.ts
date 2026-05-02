@@ -104,7 +104,6 @@ export const REGION_MAP: Record<string, string> = {
   "ventura": "Los Angeles",
   carlsbad: "Los Angeles",
   pasadena: "Los Angeles",
-  "los gatos": "Bay Area",        // (already above but ensure Bay Area wins)
 
   // ── Chicago ───────────────────────────────────────────────────────────────
   chicago: "Chicago",
