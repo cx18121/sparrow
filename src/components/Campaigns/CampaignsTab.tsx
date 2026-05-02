@@ -837,7 +837,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <div className="mt-3 space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
                 <div>
                   <label className="label">Tags</label>
-                  <p className="mb-2 text-xs text-muted">AND across rows, OR within. Pick at least one in each row you care about.</p>
+                  <p className="mb-2 text-xs text-muted">
+                    Choose tags to narrow your audience. If you pick multiple tags in one category, prospects can match any of them.
+                  </p>
                   <div className="space-y-2">
                     {CAMPAIGN_NS.map(ns => {
                       const tags = options.tags?.[ns] || []
