@@ -301,3 +301,28 @@ create table webhooks (
 alter table webhooks enable row level security;
 create policy "Users can manage own webhooks" on webhooks
   for all using (auth.uid() = user_id);
+
+-- ──────────────────────────────────────────────
+-- Server-side daily quotas
+-- ──────────────────────────────────────────────
+-- Used by API routes to enforce shared third-party API quotas across server
+-- instances. Browser clients must not be able to read or write quota rows.
+create table if not exists "DailyQuota" (
+  "scope" text not null,
+  "subjectId" text not null,
+  "action" text not null,
+  "day" text not null,
+  "count" integer not null default 0,
+  "updatedAt" timestamp(3) not null default current_timestamp,
+  constraint "DailyQuota_pkey" primary key ("scope", "subjectId", "action", "day")
+);
+
+create index if not exists "DailyQuota_day_idx" on "DailyQuota" ("day");
+
+alter table "DailyQuota" enable row level security;
+
+create policy "No client access to DailyQuota"
+  on "DailyQuota"
+  for all
+  using (false)
+  with check (false);

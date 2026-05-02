@@ -230,6 +230,19 @@ model CampaignLead {
   @@schema("public")
 }
 
+model DailyQuota {
+  scope     String
+  subjectId String
+  action    String
+  day       String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([scope, subjectId, action, day])
+  @@index([day])
+  @@schema("public")
+}
+
 enum CampaignStatus {
   DRAFT
   ACTIVE

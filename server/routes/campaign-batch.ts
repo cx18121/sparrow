@@ -5,7 +5,7 @@ import { HttpError } from "../lib/user.js";
 import { enrichContactFromDomain } from "../lib/apollo-enrichment.js";
 import { selectCandidateIds } from "../lib/campaign-batch-service.js";
 import { parseBody } from "../lib/parse-params.js";
-import { consumeDailyQuota, QuotaError } from "../lib/rate-limit.js";
+import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -129,7 +129,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
 
     if (!contact && apolloKey && company.domain) {
       try {
-        consumeDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50));
+        await consumeDurableDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50));
       } catch (err) {
         if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
         throw err;

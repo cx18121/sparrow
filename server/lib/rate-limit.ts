@@ -1,3 +1,5 @@
+import { prisma } from "./prisma.js";
+
 type DailyBucket = Record<string, number> & { day: string };
 
 const dailyBuckets = new Map<string, DailyBucket>();
@@ -29,4 +31,24 @@ export function consumeDailyQuota(
   }
   bucket[action] = used + 1;
   dailyBuckets.set(key, bucket);
+}
+
+export async function consumeDurableDailyQuota(
+  scope: string,
+  subjectId: string,
+  action: string,
+  limit: number,
+): Promise<void> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
+  const day = todayKey();
+  const row = await prisma.dailyQuota.upsert({
+    where: {
+      scope_subjectId_action_day: { scope, subjectId, action, day },
+    },
+    create: { scope, subjectId, action, day, count: 1 },
+    update: { count: { increment: 1 } },
+  });
+  if (row.count > safeLimit) {
+    throw new QuotaError(`Daily ${action} limit reached (${safeLimit}). Try again tomorrow.`);
+  }
 }

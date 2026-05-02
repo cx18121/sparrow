@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { searchContacts, revealPerson } from "../lib/apollo.js";
-import { consumeDailyQuota, QuotaError } from "../lib/rate-limit.js";
+import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 type ApolloAction = "search" | "reveal";
 
@@ -15,9 +15,9 @@ function quotaLimit(action: ApolloAction): number {
   return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : fallback;
 }
 
-function consumeApolloQuota(userId: string, action: ApolloAction) {
+async function consumeApolloQuota(userId: string, action: ApolloAction) {
   try {
-    consumeDailyQuota("apollo", userId, action, quotaLimit(action));
+    await consumeDurableDailyQuota("apollo", userId, action, quotaLimit(action));
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, `Daily Apollo ${action} limit reached (${quotaLimit(action)}). Try again tomorrow.`);
     throw err;
@@ -74,7 +74,7 @@ async function revealContact(req: VercelRequest, res: VercelResponse, userId: st
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
-  consumeApolloQuota(userId, "reveal");
+  await consumeApolloQuota(userId, "reveal");
   const revealed = await revealPerson(personId, apiKey);
   if (!revealed) {
     return res.status(200).json({ revealed: false });
@@ -156,7 +156,7 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
   try {
-    consumeApolloQuota(userId, "search");
+    await consumeApolloQuota(userId, "search");
     const people = await searchContacts(company.domain, apiKey, { retry: false });
 
     const previews = people.map((p) => ({
