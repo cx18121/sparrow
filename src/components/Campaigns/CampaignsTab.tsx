@@ -693,7 +693,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
-            icon={search ? Search : Mail}
+            icon={search ? Search : undefined}
             title={search ? 'No campaigns match' : 'No campaigns yet'}
             description={
               search
