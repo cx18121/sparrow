@@ -23,7 +23,7 @@ const startupsGalleryAdapter: IngestorAdapter = {
   source: "startups_gallery",
   async fetchAndParse(): Promise<CompanyRecord[]> {
     const { data } = await axios.get(BASE_URL, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SparrowBot/1.0)" },
       timeout: 20_000,
     });
 

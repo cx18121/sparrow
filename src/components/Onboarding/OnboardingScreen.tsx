@@ -692,7 +692,7 @@ export default function OnboardingScreen({
               {isSigningOut ? 'Signing out...' : 'Sign out'}
             </button>
             <div>
-              <p className="text-sm font-display font-semibold tracking-tight text-dark">Coldflow</p>
+              <p className="text-sm font-display font-semibold tracking-tight text-dark">Sparrow</p>
               <p className="mt-1 text-sm text-muted">Setup</p>
             </div>
           </div>

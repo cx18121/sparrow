@@ -51,7 +51,7 @@ function pathFromCatchAll(req: VercelRequest): string | null {
 
 export function getApiRoutePath(req: VercelRequest): string {
   const rawUrl = req.url ?? "";
-  const pathname = rawUrl ? new URL(rawUrl, "http://coldflow.local").pathname : "";
+  const pathname = rawUrl ? new URL(rawUrl, "http://sparrow.local").pathname : "";
   const routePath = pathname.startsWith("/api/") || pathname === "/api" ? pathname : pathFromCatchAll(req);
   const normalized = routePath || pathname || "/api";
   return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized;

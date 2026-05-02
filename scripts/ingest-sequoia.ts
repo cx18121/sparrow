@@ -49,7 +49,7 @@ interface ScrapedCompany {
 async function scrapePage(slug: string): Promise<ScrapedCompany | null> {
   try {
     const { data: html } = await axios.get(`${COMPANY_BASE}/${slug}/`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SparrowBot/1.0)" },
       timeout: 15_000,
       maxRedirects: 5,
     });

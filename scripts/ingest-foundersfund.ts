@@ -67,7 +67,7 @@ async function fetchViaWpApi(): Promise<FFCompany[]> {
       while (true) {
         const { data, headers } = await axios.get(`${WP_API_BASE}/${postType}`, {
           params: { per_page: 100, page, _fields: "id,title,content,class_list,profiles" },
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; SparrowBot/1.0)" },
           timeout: 20_000,
         });
         if (!Array.isArray(data) || data.length === 0) break;
@@ -95,7 +95,7 @@ const foundersFundAdapter: IngestorAdapter = {
 
     const { data: html } = await axios
       .get(BASE_URL, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; SparrowBot/1.0)" },
         timeout: 20_000,
       })
       .catch((err: any) => {

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { LogOut, ChevronDown, Snowflake, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LogOut, ChevronDown, Bird, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 export default function Sidebar({
   activeTab,
@@ -55,11 +55,11 @@ export default function Sidebar({
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
         <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Snowflake size={18} strokeWidth={1.9} />
+            <Bird size={18} strokeWidth={1.9} />
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate font-display text-sm font-semibold tracking-[-0.02em] text-dark">Coldflow</p>
+              <p className="truncate font-display text-sm font-semibold tracking-[-0.02em] text-dark">Sparrow</p>
             </div>
           )}
         </div>

@@ -1,22 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Snowflake icon matching Lucide's Snowflake, color #1460D0 -->
-  <!-- Central vertical bar -->
-  <line x1="16" y1="4" x2="16" y2="28" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Central horizontal bar -->
-  <line x1="4" y1="16" x2="28" y2="16" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Diagonal bars -->
-  <line x1="7.76" y1="7.76" x2="24.24" y2="24.24" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <line x1="24.24" y1="7.76" x2="7.76" y2="24.24" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Top branches -->
-  <line x1="16" y1="4" x2="13" y2="7" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <line x1="16" y1="4" x2="19" y2="7" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Bottom branches -->
-  <line x1="16" y1="28" x2="13" y2="25" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <line x1="16" y1="28" x2="19" y2="25" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Left branches -->
-  <line x1="4" y1="16" x2="7" y2="13" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <line x1="4" y1="16" x2="7" y2="19" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <!-- Right branches -->
-  <line x1="28" y1="16" x2="25" y2="13" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
-  <line x1="28" y1="16" x2="25" y2="19" stroke="#1460D0" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Sparrow bird silhouette -->
+  <!-- Body -->
+  <ellipse cx="15" cy="18" rx="7" ry="5" fill="#1460D0"/>
+  <!-- Head -->
+  <circle cx="22" cy="13" r="4" fill="#1460D0"/>
+  <!-- Beak -->
+  <polygon points="26,12.5 30,13 26,13.5" fill="#1460D0"/>
+  <!-- Tail -->
+  <path d="M8 18 Q4 15 3 20 Q6 19 8 21 Q9 19 12 20 Q10 17 8 18Z" fill="#1460D0"/>
+  <!-- Wing highlight -->
+  <path d="M10 16 Q15 12 20 15" stroke="#6ea8fe" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+  <!-- Eye -->
+  <circle cx="23" cy="12" r="1" fill="white"/>
 </svg>

@@ -110,7 +110,7 @@ export function decodeGoogleConnectState(value: unknown): GoogleConnectState | n
 }
 
 export function withGoogleConnectResult(returnTo: string, params: Record<string, string>): string {
-  const url = new URL(returnTo, "https://coldflow.local");
+  const url = new URL(returnTo, "https://sparrow.local");
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
   return `${url.pathname}${url.search}`;
 }

@@ -23,7 +23,7 @@ const CITY_SLUGS = [
   "toronto",
 ];
 
-const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" };
+const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; SparrowBot/1.0)" };
 
 const gregslistAdapter: IngestorAdapter = {
   name: "Gregslist",

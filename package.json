@@ -1,5 +1,5 @@
 {
-  "name": "coldflow",
+  "name": "sparrow",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/react": "^18.3.1",
+    "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.3",
     "typescript": "^5.0.0",
     "@vercel/node": "^5.7.13",
