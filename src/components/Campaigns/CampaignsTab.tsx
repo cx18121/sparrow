@@ -122,11 +122,11 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     loadCampaignDetail(campaign.id)
   }
 
-  const addLeadToCampaign = async () => {
-    if (!detailCampaign || !addLeadId || addingLead) return
+  const addLeadToCampaign = async (leadId: string) => {
+    if (!detailCampaign || !leadId || addingLead) return
     setAddingLead(true)
     try {
-      const added = await addCampaignLead(detailCampaign.id, addLeadId)
+      const added = await addCampaignLead(detailCampaign.id, leadId)
       setCampaignLeads(prev => prev.some(l => l.campaignLeadId === added.campaignLeadId) ? prev : [added, ...prev])
       setAddLeadId('')
     } catch (err) {
@@ -565,20 +565,20 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             <h2 className="text-sm font-semibold text-dark">Add a saved prospect</h2>
             <p className="mt-1 text-xs text-muted">Pull in a prospect you already saved from Contacts or Discover.</p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <select value={addLeadId} onChange={e => setAddLeadId(e.target.value)} className="select">
-                <option value="">Choose a saved prospect...</option>
-                {availableSavedLeads.map(lead => (
-                  <option key={lead.id} value={lead.id}>
-                    {lead.company?.name || 'Unknown company'}{lead.contact?.name ? ` · ${lead.contact.name}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="button" onClick={addLeadToCampaign} disabled={!addLeadId || addingLead} className="btn-secondary">
-              <Plus size={14} /> {addingLead ? 'Adding...' : 'Add prospect'}
-            </button>
+          <div className="relative">
+            <select
+              value={addLeadId}
+              onChange={e => { setAddLeadId(e.target.value); addLeadToCampaign(e.target.value) }}
+              disabled={addingLead}
+              className="select disabled:opacity-60"
+            >
+              <option value="">{addingLead ? 'Adding…' : 'Choose a saved prospect…'}</option>
+              {availableSavedLeads.map(lead => (
+                <option key={lead.id} value={lead.id}>
+                  {lead.company?.name || 'Unknown company'}{lead.contact?.name ? ` · ${lead.contact.name}` : ''}
+                </option>
+              ))}
+            </select>
           </div>
           {availableSavedLeads.length === 0 && (
             <p className="mt-2 text-xs text-muted">

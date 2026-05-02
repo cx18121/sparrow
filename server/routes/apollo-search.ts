@@ -24,6 +24,11 @@ async function consumeApolloQuota(userId: string, action: ApolloAction) {
   }
 }
 
+function requireApolloApiKey(): string {
+  const apiKey = process.env.APOLLO_API_KEY?.trim();
+  if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
+  return apiKey;
+}
 
 async function requireSearchableCompany(companyId: unknown, domain: unknown) {
   if (typeof companyId !== "string" || !companyId) throw new HttpError(400, "companyId is required");
@@ -63,8 +68,7 @@ async function revealContact(req: VercelRequest, res: VercelResponse, userId: st
   if (!personId) throw new HttpError(400, "personId is required");
   const company = await requireSearchableCompany(companyId, domain);
 
-  const apiKey = process.env.APOLLO_API_KEY;
-  if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
+  const apiKey = requireApolloApiKey();
 
   await consumeApolloQuota(userId, "reveal");
   const revealed = await revealPerson(personId, apiKey);
@@ -144,11 +148,10 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
   const { domain, companyId } = req.body ?? {};
   const company = await requireSearchableCompany(companyId, domain);
 
-  const apiKey = process.env.APOLLO_API_KEY;
-  if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
+  const apiKey = requireApolloApiKey();
 
+  await consumeApolloQuota(userId, "search");
   try {
-    await consumeApolloQuota(userId, "search");
     const people = await searchContacts(company.domain, apiKey, { retry: false });
 
     const previews = people.map((p) => ({
@@ -171,6 +174,7 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
       }
       return res.status(status ?? 500).json({ error: "Apollo API error" });
     }
+    if (err instanceof HttpError) throw err;
     return res.status(500).json({ error: "Apollo API error" });
   }
 }
