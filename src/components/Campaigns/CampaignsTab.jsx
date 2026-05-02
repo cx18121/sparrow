@@ -8,6 +8,7 @@ import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
+import Pill from '../ui/Pill'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import {
   fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions, generateEmail, createEmail,
@@ -354,9 +355,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           {detailFilters.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">
               {detailFilters.map(filter => (
-                <span key={filter} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                  <Filter size={10} /> {filter}
-                </span>
+                <Pill key={filter} icon={Filter} variant="neutral" className="text-xs px-2 py-1">
+                  {filter}
+                </Pill>
               ))}
             </div>
           )}
@@ -414,11 +415,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-dark">{lead.company?.name || 'Unknown company'}</p>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                          {sourceLabel(lead)}
-                        </span>
+                        <Pill variant="neutral">{sourceLabel(lead)}</Pill>
                         {lead.company?.isHiring && (
-                          <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">Hiring</span>
+                          <Pill variant="success">Hiring</Pill>
                         )}
                       </div>
                       {lead.company?.oneLiner && <p className="mt-1 text-sm text-muted">{lead.company.oneLiner}</p>}
@@ -434,9 +433,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {lead.emails?.length > 0 && (
-                        <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+                        <Pill variant="success" className="text-xs px-2 py-1">
                           Draft ready
-                        </span>
+                        </Pill>
                       )}
                       <button type="button" onClick={() => handleGenerateEmail(lead)} disabled={generatingEmail === lead.id || (!lead.contact && !lead.apolloPersonId)} className="btn-secondary text-xs">
                         <Mail size={11} /> {generatingEmail === lead.id ? 'Generating...' : 'Generate email'}
@@ -491,7 +490,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-[rgba(248,250,252,0.86)]">
+              <tr className="border-b border-slate-100 bg-slate-50/80">
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Name</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Filters</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Status</th>
@@ -506,7 +505,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   <tr
                     key={c.id}
                     onClick={() => openCampaign(c)}
-                    className="cursor-pointer transition-colors hover:bg-[rgba(248,250,252,0.72)]"
+                    className="cursor-pointer transition-colors hover:bg-slate-50/60"
                   >
                     <td className="px-5 py-4">
                       <button
@@ -525,9 +524,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                       {filters.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
                           {filters.map(f => (
-                            <span key={f} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                              <Filter size={9} />{f}
-                            </span>
+                            <Pill key={f} icon={Filter} variant="neutral" className="text-[11px]">
+                              {f}
+                            </Pill>
                           ))}
                         </div>
                       ) : (
@@ -621,7 +620,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
 
           {/* Lead filters */}
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted/80">Matching filters</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Matching filters</p>
             <div className="space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
               {/* Tag multi-picker — AND across namespaces, OR within */}
               <div>
@@ -632,7 +631,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                     if (!tags.length) return null
                     return (
                       <div key={ns} className="flex flex-wrap items-start gap-1.5">
-                        <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/60">{NS_LABELS[ns]}</span>
+                        <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">{NS_LABELS[ns]}</span>
                         {tags.map(({ name, namespaced }) => (
                           <button
                             key={namespaced}
@@ -793,7 +792,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-dark">{lead.company?.name}</p>
                           {lead.company?.isHiring && (
-                            <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">Hiring</span>
+                            <Pill variant="success">Hiring</Pill>
                           )}
                           {lead.company?.batch && (
                             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{lead.company.batch}</span>
@@ -823,9 +822,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
 
                       <div className="flex shrink-0 items-center gap-2">
                         {lead.emails?.length > 0 ? (
-                          <span className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                            <Mail size={10} /> Draft ready
-                          </span>
+                          <Pill icon={Mail} variant="success" className="text-xs px-2.5 py-1">
+                            Draft ready
+                          </Pill>
                         ) : (lead.contact || lead.apolloPersonId) ? (
                           <button
                             onClick={() => handleGenerateEmail(lead)}

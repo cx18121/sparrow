@@ -374,7 +374,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   }
 
   const SortIcon = ({ col }) => {
-    if (sortKey !== col) return <ChevronDown size={11} className="text-gray-300" />
+    if (sortKey !== col) return <ChevronDown size={11} className="text-muted/40" />
     return sortDir === 'asc'
       ? <ChevronUp size={11} className="text-muted" />
       : <ChevronDown size={11} className="text-muted" />

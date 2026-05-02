@@ -145,8 +145,9 @@ function AppShell() {
     const sessionKey = storageKey ? `${storageKey}_session` : null
     const forceKey = getOnboardingForceKey(user)
     const searchParams = new URLSearchParams(location.search)
-    const googleConnectReturn = searchParams.has('google_connected') || searchParams.has('google_error')
-    if (googleConnectReturn && forceKey) sessionStorage.removeItem(forceKey)
+    const googleConnectedReturn = searchParams.has('google_connected')
+    const googleConnectReturn = googleConnectedReturn || searchParams.has('google_error')
+    if (googleConnectedReturn && forceKey) sessionStorage.removeItem(forceKey)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const bypassedThisSession = sessionKey ? isOnboardingSessionBypass(sessionStorage.getItem(sessionKey)) : false
     const forceOnboarding = !googleConnectReturn && forceKey
@@ -169,7 +170,7 @@ function AppShell() {
     const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
     const localRecoverableSetup = hasRecoverableCompletedSetup({ workspaceConfig: parsed?.data || {} })
     const hasLocalCompletionSignal = parsed?.completed === true || bypassedThisSession
-    const localCompleted = googleConnectReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal || localRecoverableSetup
+    const localCompleted = googleConnectedReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal || localRecoverableSetup
     const canUseLocalGate = googleConnectReturn || forceOnboarding || hasLocalCompletionSignal || localRecoverableSetup
     setWorkspaceConfig(localConfig)
     setOnboardingState({ loaded: canUseLocalGate, completed: localCompleted, data: localConfig })
@@ -194,7 +195,7 @@ function AppShell() {
           setWorkspaceConfig(latestStored.data)
           setOnboardingState({
             loaded: true,
-            completed: googleConnectReturn
+            completed: googleConnectedReturn
               ? true
               : latestForceOnboarding
                 ? false
@@ -216,7 +217,7 @@ function AppShell() {
         setWorkspaceConfig(serverConfig)
         setOnboardingState({
           loaded: true,
-          completed: googleConnectReturn ? true : shouldStayInOnboarding ? false : serverCompleted || localCompleted,
+          completed: googleConnectedReturn ? true : shouldStayInOnboarding ? false : serverCompleted || localCompleted,
           data: serverConfig,
         })
       })

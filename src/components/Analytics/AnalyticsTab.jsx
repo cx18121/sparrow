@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus, Mail, Reply, XCircle, Target } from 'lucide-react'
 import { generateAnalyticsData, campaignStats } from '../../lib/mockData'
+import { VARIANT_STYLES } from '../ui/Pill'
 
 const analyticsData = generateAnalyticsData()
 
@@ -29,8 +30,8 @@ function StatCard({ metric, data }) {
           <Icon size={16} style={{ color: metric.color }} />
         </div>
         <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-          delta === 0 ? 'bg-gray-100 text-muted' :
-          positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+          delta === 0 ? VARIANT_STYLES.neutral :
+          positive ? VARIANT_STYLES.success : VARIANT_STYLES.danger
         }`}>
           {delta === 0 ? <Minus size={10} /> : positive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
           {Math.abs(delta).toFixed(1)}{metric.suffix}
@@ -45,7 +46,7 @@ function StatCard({ metric, data }) {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-white rounded-xl shadow-modal border border-gray-100 px-3 py-2 text-xs">
+    <div className="bg-white rounded-xl shadow-modal border border-slate-100 px-3 py-2 text-xs">
       <p className="font-medium text-dark mb-1.5">{label}</p>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-0.5">

@@ -81,7 +81,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
           disabled={saving || saved}
           className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed ${
             saved
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : saving
                 ? 'border-transparent bg-primary/80 text-white'
                 : 'border-transparent bg-primary text-white hover:brightness-105'
@@ -365,7 +365,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             if (!tags.length) return null
             return (
               <div key={ns} className="flex flex-wrap items-center gap-2">
-                <span className="w-14 shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted/60">
+                <span className="w-14 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">
                   {NS_LABELS[ns]}
                 </span>
                 {tags.map(({ name, count, namespaced }) => (

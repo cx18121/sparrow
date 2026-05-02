@@ -213,7 +213,7 @@ function StepHeader({ step, total, title, description }) {
   return (
     <div className="mb-6 text-center sm:mb-7">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-        {STEP_LABELS[step - 1]} — Step {step} of {total}
+        {STEP_LABELS[step - 1]} · Step {step} of {total}
       </p>
       <h1 className="mt-3 text-2xl font-display font-semibold text-dark sm:text-3xl">{title}</h1>
       {description && (
@@ -804,7 +804,7 @@ export default function OnboardingScreen({
               {isSigningOut ? 'Signing out...' : 'Sign out'}
             </button>
             <div>
-              <p className="text-sm font-display font-semibold tracking-[0.12em] text-dark">Coldflow</p>
+              <p className="text-sm font-display font-semibold tracking-tight text-dark">Coldflow</p>
               <p className="mt-1 text-sm text-muted">Setup</p>
             </div>
           </div>
@@ -859,7 +859,7 @@ export default function OnboardingScreen({
               disabled={isFirstStep || isSaving}
               className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-white hover:shadow-[0_16px_32px_rgba(15,23,42,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-muted">
                 <ArrowLeft size={14} />
               </span>
               Back

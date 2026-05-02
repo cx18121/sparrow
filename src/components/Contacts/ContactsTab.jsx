@@ -189,7 +189,7 @@ export default function ContactsTab({
   }
 
   const SortIcon = ({ col }) => {
-    if (sortKey !== col) return <ChevronUp size={11} className="text-gray-300" />
+    if (sortKey !== col) return <ChevronUp size={11} className="text-muted/40" />
     return sortDir === 'asc'
       ? <ChevronUp size={11} className="text-primary" />
       : <ChevronDown size={11} className="text-primary" />
@@ -436,7 +436,7 @@ export default function ContactsTab({
         )}
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-[rgba(248,250,252,0.86)]">
+            <tr className="border-b border-slate-100 bg-slate-50/80">
               <th className="w-10 px-5 py-4 text-left">
                 <button
                   type="button"
@@ -476,7 +476,7 @@ export default function ContactsTab({
                 </td>
               </tr>
             ) : paginated.map(row => (
-              <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-[rgba(248,250,252,0.72)]">
+              <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-slate-50/60">
                 <td className="px-5 py-4">
                   <input
                     type="checkbox"
@@ -594,7 +594,7 @@ export default function ContactsTab({
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                       p === page
                         ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.2)]'
-                        : 'text-muted hover:bg-white hover:text-dark'
+                        : 'text-muted hover:bg-slate-100/70 hover:text-dark'
                     }`}
                   >
                     {p}
@@ -726,7 +726,7 @@ export default function ContactsTab({
                 className="select"
                 disabled={generating}
               >
-                <option value="">None — generate from scratch</option>
+                <option value="">None: generate from scratch</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>

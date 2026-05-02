@@ -9,6 +9,8 @@ import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { fetchProfile } from '../../lib/api'
+import { supabase, isDemo } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 function Section({ title, children }) {
   return (
@@ -124,8 +126,10 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
 }
 
 function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
+  const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
   const [saved, setSaved] = useState(false)
+  const [uploadState, setUploadState] = useState({ uploading: false, error: null })
   const field = (key, value) => setForm(current => ({ ...current, [key]: value }))
 
   useEffect(() => {
@@ -137,6 +141,30 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
     if (!ok) return
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const uploadResume = async (file) => {
+    if (!file) return
+    setUploadState({ uploading: true, error: null })
+
+    if (isDemo || !user?.id) {
+      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '' }))
+      setUploadState({ uploading: false, error: null })
+      return
+    }
+
+    const path = `${user.id}/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage
+      .from('resumes')
+      .upload(path, file, { upsert: true, contentType: file.type || undefined })
+
+    if (error) {
+      setUploadState({ uploading: false, error: error.message })
+      return
+    }
+
+    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path }))
+    setUploadState({ uploading: false, error: null })
   }
 
   return (
@@ -155,14 +183,20 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
         <div>
           <label className="label">Uploaded resume or bio</label>
           <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary/5 transition-colors">
-            <span className="truncate">{form.resumeFileName || 'Upload resume file'}</span>
+            <span className="truncate">
+              {uploadState.uploading ? 'Uploading...' : form.resumeFileName || 'Upload resume file'}
+            </span>
             <input
               type="file"
               accept=".pdf,.doc,.docx,.txt"
               className="hidden"
-              onChange={e => field('resumeFileName', e.target.files?.[0]?.name || '')}
+              disabled={uploadState.uploading}
+              onChange={e => uploadResume(e.target.files?.[0])}
             />
           </label>
+          {uploadState.error && (
+            <p className="mt-1 text-xs text-red-500">Could not upload: {uploadState.error}</p>
+          )}
         </div>
         <div>
           <label className="label">Default lead batch size</label>
@@ -211,7 +245,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={save} className="btn-primary">
+        <button onClick={save} disabled={uploadState.uploading} className="btn-primary">
           {saved ? <><Check size={14} /> Saved</> : 'Save drafting profile'}
         </button>
       </div>

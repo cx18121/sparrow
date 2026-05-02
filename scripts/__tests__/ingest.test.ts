@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeRegion } from "../_lib/region-map.js";
+import { normalizeRole } from "../_lib/role-normalizer.js";
 
 describe("normalizeRegion", () => {
   it("maps 'San Francisco' to 'Bay Area'", () => {
@@ -41,15 +42,45 @@ describe("normalizeRegion", () => {
 });
 
 describe("normalizeRole", () => {
-  it.todo("maps 'CTO' to 'technical'");
-  it.todo("maps 'Co-Founder' to 'founder'");
-  it.todo("returns null for null input");
+  it("maps 'CTO' to 'technical'", () => {
+    expect(normalizeRole("CTO")).toBe("technical");
+  });
+
+  it("maps 'Co-Founder' to 'founder'", () => {
+    expect(normalizeRole("Co-Founder")).toBe("founder");
+  });
+
+  it("returns null for null input", () => {
+    expect(normalizeRole(null)).toBeNull();
+  });
+
+  it("maps 'CEO' to 'founder'", () => {
+    expect(normalizeRole("CEO")).toBe("founder");
+  });
+
+  it("maps 'Software Engineer' to 'technical'", () => {
+    expect(normalizeRole("Software Engineer")).toBe("technical");
+  });
+
+  it("maps 'VP of Sales' to 'business'", () => {
+    expect(normalizeRole("VP of Sales")).toBe("business");
+  });
+
+  it("maps unrecognized title to 'other'", () => {
+    expect(normalizeRole("Office Manager")).toBe("other");
+  });
 });
 
 describe("ingestYC", () => {
-  it.todo("exports ingestYC as a function");
+  it("exports ingestYC as a function", async () => {
+    const mod = await import("../ingest-yc.js");
+    expect(typeof mod.ingestYC).toBe("function");
+  });
 });
 
 describe("enrichApollo", () => {
-  it.todo("exports enrichApollo as a function");
+  it("exports enrichApollo as a function", async () => {
+    const mod = await import("../enrich-apollo.js");
+    expect(typeof mod.enrichApollo).toBe("function");
+  });
 });
