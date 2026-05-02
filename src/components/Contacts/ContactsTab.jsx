@@ -269,7 +269,7 @@ export default function ContactsTab({
 
   const changeStatus = (lead, status) => {
     if (lead._custom || status === lead.status) return
-    onUpdate({ id: lead.id, status }).catch(err => console.error('Failed to update lead', err))
+    onUpdate({ id: lead.id, status }).catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
   }
 
   const buildGeneratePayload = (row) => row._custom
@@ -625,9 +625,9 @@ export default function ContactsTab({
             return
           }
           if (victim.custom) {
-            onDeleteCustomContact(victim.id).catch(err => console.error('Failed to delete custom contact', err))
+            onDeleteCustomContact(victim.id).catch(err => setToast({ type: 'error', title: 'Could not delete contact', message: err?.message || 'Please try again.' }))
           } else {
-            onDelete(victim.id).catch(err => console.error('Failed to delete lead', err))
+            onDelete(victim.id).catch(err => setToast({ type: 'error', title: 'Could not delete contact', message: err?.message || 'Please try again.' }))
           }
         }}
         title={deleteTarget?.bulk ? 'Remove selected contacts' : 'Remove contact'}

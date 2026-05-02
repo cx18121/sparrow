@@ -13,6 +13,7 @@ import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import Toast from '../ui/Toast'
 import { sampleContactData } from '../../lib/mockData'
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
@@ -75,7 +76,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   if (!editor) return null
 
   return (
-    <div className="tiptap-editor overflow-hidden rounded-[28px] border border-white/80 bg-white/82 shadow-card backdrop-blur-sm">
+    <div className="tiptap-editor overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-card">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={13} />
@@ -131,6 +132,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
   // Local draft state for the inline editor — we debounce writes so that
   // subject/body keystrokes don't fire a PATCH per character.
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
+  const [toast, setToast] = useState(null)
   const flushTimerRef = useRef(null)
   const draftRef = useRef(draft)
   const draftDirtyRef = useRef(false)
@@ -184,7 +186,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
         }
       })
       .catch(err => {
-        console.error('Failed to save template', err)
+        setToast({ type: 'error', title: 'Could not save template', message: err?.message || 'Please try again.' })
       })
   }
 
@@ -240,6 +242,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
 
   return (
     <div className="page-shell space-y-6">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
         <aside className="flex h-fit flex-col gap-4 xl:sticky xl:top-6">
           <button onClick={openCreate} className="btn-primary w-full justify-center text-xs">
@@ -258,7 +261,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                 className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
                   selectedId === t.id
                     ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
-                    : 'border-white/70 bg-white/70 hover:-translate-y-0.5 hover:bg-white'
+                    : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -416,7 +419,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
             await onDelete(victim)
             setSelectedId(templates.find(t => t.id !== victim)?.id || null)
           } catch (err) {
-            console.error('Failed to delete template', err)
+            setToast({ type: 'error', title: 'Could not delete template', message: err?.message || 'Please try again.' })
           }
         }}
         title="Delete template"

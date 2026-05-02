@@ -50,7 +50,7 @@ export default function Sidebar({
 
   return (
     <>
-    <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-slate-100 bg-white/90 backdrop-blur-xl transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
+    <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-slate-100 bg-white transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
       {/* Logo row */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
         <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
@@ -119,7 +119,7 @@ export default function Sidebar({
             </button>
 
             {dropdownOpen && (
-              <div className={`absolute bottom-full z-50 mb-1 rounded-[18px] border border-white/80 bg-white/96 py-2 shadow-modal backdrop-blur-xl animate-fade-in ${collapsed ? 'left-10 w-48' : 'left-0 right-0'}`}>
+              <div className={`absolute bottom-full z-50 mb-1 rounded-[18px] border border-slate-100 bg-white py-2 shadow-modal animate-fade-in ${collapsed ? 'left-10 w-48' : 'left-0 right-0'}`}>
                 <div className="border-b border-slate-100 px-4 py-3">
                   <p className="truncate text-sm font-medium text-dark">{displayName}</p>
                   <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p>
@@ -138,7 +138,7 @@ export default function Sidebar({
       </div>
     </aside>
 
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/96 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/[0.98] px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden">
       <div
         className="grid gap-1 overflow-x-auto"
         style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(58px, 1fr))` }}

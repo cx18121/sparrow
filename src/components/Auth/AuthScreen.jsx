@@ -73,7 +73,7 @@ export default function AuthScreen() {
 
           <button
             onClick={handleGoogle}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200/80 bg-white/70 px-4 text-sm font-medium text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-colors hover:bg-white"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-dark transition-colors hover:bg-slate-50"
           >
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
@@ -113,7 +113,7 @@ export default function AuthScreen() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="h-14 w-full rounded-2xl border border-gray-200/80 bg-white/70 px-4 text-sm text-dark placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                className="input-lg"
               />
             </div>
 
@@ -126,7 +126,7 @@ export default function AuthScreen() {
                 placeholder="••••••••"
                 required
                 minLength={6}
-                className="h-14 w-full rounded-2xl border border-gray-200/80 bg-white/70 px-4 text-sm text-dark placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                className="input-lg"
               />
             </div>
 

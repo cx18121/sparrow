@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
+  Maximize2, Minimize2, Keyboard,
 } from 'lucide-react'
 import { apiGetAuth, fetchEmails, fetchProfile, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
@@ -121,6 +122,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [editBody, setEditBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [focusMode, setFocusMode] = useState(false)
 
   const [loadCount, setLoadCount] = useState(0)
 
@@ -172,6 +174,14 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   }, [drafts, loading, tab])
 
   const load = () => setLoadCount(c => c + 1)
+
+  useEffect(() => {
+    if (!preview) {
+      if (focusMode) setFocusMode(false)
+      return
+    }
+    return undefined
+  }, [preview, focusMode])
 
   const openPreview = (draft) => {
     setPreview(draft)
@@ -263,6 +273,62 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
     if (next) openPreview(next)
   }
 
+  useEffect(() => {
+    if (!preview) return
+    const handler = (e) => {
+      const tag = e.target.tagName
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !editing && tab === 'draft') {
+        if (canSendDraft(preview) && !sending) {
+          e.preventDefault()
+          markSent([preview.id])
+        }
+        return
+      }
+
+      if (isInput) return
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (editing) cancelEdit()
+        else if (focusMode) setFocusMode(false)
+        else setPreview(null)
+        return
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (editing) return
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowRight':
+          e.preventDefault()
+          movePreview(1)
+          break
+        case 'k':
+        case 'ArrowLeft':
+          e.preventDefault()
+          movePreview(-1)
+          break
+        case 'e':
+          e.preventDefault()
+          startEdit()
+          break
+        case 'f':
+          e.preventDefault()
+          setFocusMode(m => !m)
+          break
+        case 'x':
+          e.preventDefault()
+          toggleOne(preview.id)
+          break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [preview, editing, focusMode, tab, sending, sorted, previewIndex])
+
   const findNextReviewDraft = (sentIds) => {
     const remaining = sorted.filter(draft => !sentIds.includes(draft.id) && canSendDraft(draft))
     if (!remaining.length) return null
@@ -335,13 +401,22 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
     try {
       const results = await Promise.allSettled(sendableIds.map(id => sendEmail(id, { attachResume })))
       const failed = results
-        .map((r, i) => r.status === 'rejected' ? (r.reason?.message || 'Send failed') : null)
+        .map((r, i) => {
+          if (r.status !== 'rejected') return null
+          const draft = drafts.find(d => d.id === sendableIds[i])
+          return {
+            name: getRecipientName(draft) || getCompanyName(draft) || 'Unknown',
+            reason: r.reason?.message || 'Send failed',
+          }
+        })
         .filter(Boolean)
       if (failed.length) {
+        const names = failed.slice(0, 3).map(f => f.name).join(', ')
+        const overflow = failed.length > 3 ? `, and ${failed.length - 3} more` : ''
         setToast({
           type: 'error',
           title: `${failed.length} email${failed.length !== 1 ? 's' : ''} failed to send`,
-          message: failed.slice(0, 2).join(' '),
+          message: `${names}${overflow}. ${failed[0].reason}`,
         })
       }
       const succeeded = sendableIds.filter((_, i) => results[i].status === 'fulfilled')
@@ -394,7 +469,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
     <div className="flex min-h-full flex-col lg:flex-row">
       <Toast toast={toast} onClose={() => setToast(null)} />
       {/* Main list */}
-      <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-6 lg:p-8 ${preview ? 'lg:pr-4' : ''}`}>
+      <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-6 lg:p-8 ${preview ? 'lg:pr-4' : ''} ${focusMode ? 'hidden' : ''}`}>
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <div className="segmented-control">
@@ -412,7 +487,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
               </p>
             )}
             {tab === 'draft' && canAttachResume && (
-              <label className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-muted">
+              <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-muted">
                 <input
                   type="checkbox"
                   checked={attachResume}
@@ -477,7 +552,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   reviewFilter === option.id
                     ? 'bg-primary text-white'
-                    : 'bg-white/80 text-muted hover:bg-white hover:text-dark'
+                    : 'bg-white text-muted border border-slate-100 hover:bg-slate-50 hover:text-dark'
                 }`}
               >
                 {option.label} <span className={reviewFilter === option.id ? 'text-white/75' : 'text-muted/70'}>{option.count}</span>
@@ -621,7 +696,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
 
       {/* Preview / edit panel */}
       {preview && (
-        <div className="flex w-full shrink-0 flex-col border-t border-slate-100 bg-white lg:w-[480px] lg:border-l lg:border-t-0">
+        <div className={`flex shrink-0 flex-col border-t border-slate-100 bg-white lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[480px] lg:border-l'}`}>
           {/* Panel header */}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
@@ -644,7 +719,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                   onClick={() => movePreview(-1)}
                   disabled={!hasPreviousDraft}
                   className="btn-ghost p-1.5 disabled:opacity-30"
-                  title="Previous draft"
+                  title="Previous draft (←)"
                 >
                   <ChevronLeft size={13} />
                 </button>
@@ -653,11 +728,19 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                   onClick={() => movePreview(1)}
                   disabled={!hasNextDraft}
                   className="btn-ghost p-1.5 disabled:opacity-30"
-                  title="Next draft"
+                  title="Next draft (→)"
                 >
                   <ChevronRight size={13} />
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setFocusMode(m => !m)}
+                className="btn-ghost p-1.5 text-muted hover:text-dark"
+                title={focusMode ? 'Exit focus mode (esc)' : 'Focus mode (f)'}
+              >
+                {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              </button>
               {!editing ? (
                 <>
                   <button
@@ -798,8 +881,36 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
               )}
             </div>
           </div>
+          <ShortcutHint editing={editing} canSend={tab === 'draft' && canSendDraft(preview)} />
         </div>
       )}
     </div>
   )
+}
+
+function ShortcutHint({ editing, canSend }) {
+  if (editing) {
+    return (
+      <div className="hidden border-t border-slate-100 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:items-center sm:gap-3">
+        <Keyboard size={11} />
+        <Kbd>esc</Kbd> cancel
+        <Kbd>⌘</Kbd>+<Kbd>↵</Kbd> save (after exit)
+      </div>
+    )
+  }
+  return (
+    <div className="hidden border-t border-slate-100 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+      <Keyboard size={11} />
+      <span><Kbd>←</Kbd> <Kbd>→</Kbd> prev/next</span>
+      <span><Kbd>e</Kbd> edit</span>
+      {canSend && <span><Kbd>⌘</Kbd>+<Kbd>↵</Kbd> send</span>}
+      <span><Kbd>x</Kbd> select</span>
+      <span><Kbd>f</Kbd> focus</span>
+      <span><Kbd>esc</Kbd> close</span>
+    </div>
+  )
+}
+
+function Kbd({ children }) {
+  return <kbd className="rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-medium text-muted">{children}</kbd>
 }

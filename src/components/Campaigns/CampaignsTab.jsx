@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
-  Zap, RotateCcw, ChevronRight, Building2, MapPin, Users, Mail,
+  Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
   Filter, RefreshCw, ArrowLeft, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
@@ -10,6 +10,7 @@ import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import Toast from '../ui/Toast'
 import {
   fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions, generateEmail, createEmail,
   fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
@@ -24,6 +25,17 @@ const INITIAL_FORM = {
   filterTags: [], filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: '', filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10', tone: '',
+}
+
+function advancedSummary(form) {
+  const parts = []
+  if (form.filterTags?.length) parts.push(`${form.filterTags.length} tag${form.filterTags.length === 1 ? '' : 's'}`)
+  if (form.filterBatch) parts.push(form.filterBatch)
+  if (form.filterHeadcountMin || form.filterHeadcountMax) {
+    parts.push(`${form.filterHeadcountMin || 0}–${form.filterHeadcountMax || '∞'} employees`)
+  }
+  if (form.scheduledAt) parts.push('scheduled')
+  return parts.join(', ')
 }
 
 export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false }) {
@@ -43,6 +55,13 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const [campaignLeads, setCampaignLeads] = useState([])
   const [savedLeads, setSavedLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  const reportError = (title, err) => {
+    console.error(title, err)
+    setToast({ type: 'error', title, message: err?.message || 'Please try again.' })
+  }
   const [addLeadId, setAddLeadId] = useState('')
   const [addingLead, setAddingLead] = useState(false)
 
@@ -74,7 +93,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       setCampaignLeads(members?.items || [])
       setSavedLeads(saved?.items || [])
     } catch (err) {
-      console.error('Failed to load campaign detail', err)
+      reportError('Could not load campaign', err)
     } finally {
       setDetailLoading(false)
     }
@@ -94,25 +113,37 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       setCampaignLeads(prev => prev.some(l => l.campaignLeadId === added.campaignLeadId) ? prev : [added, ...prev])
       setAddLeadId('')
     } catch (err) {
-      console.error('Failed to add company to campaign', err)
+      reportError('Could not add prospect', err)
     } finally {
       setAddingLead(false)
     }
   }
 
   const removeLeadFromCampaign = async (campaignLeadId) => {
-    await deleteCampaignLead(campaignLeadId)
-    setCampaignLeads(prev => prev.filter(lead => lead.campaignLeadId !== campaignLeadId))
+    try {
+      await deleteCampaignLead(campaignLeadId)
+      setCampaignLeads(prev => prev.filter(lead => lead.campaignLeadId !== campaignLeadId))
+    } catch (err) {
+      reportError('Could not remove prospect', err)
+    }
   }
 
   const openCreate = () => {
     setEditing(null)
     setForm(getInitialForm())
+    setAdvancedOpen(false)
     setModalOpen(true)
   }
 
   const openEdit = (c) => {
     setEditing(c.id)
+    setAdvancedOpen(Boolean(
+      c.scheduledAt ||
+      c.filterTags?.length ||
+      c.filterBatch ||
+      c.filterHeadcountMin != null ||
+      c.filterHeadcountMax != null
+    ))
     setForm({
       name: c.name,
       subject: c.subject || '',
@@ -159,7 +190,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       }
       setModalOpen(false)
     } catch (err) {
-      console.error('Failed to save campaign', err)
+      reportError('Could not save campaign', err)
     } finally {
       setSaving(false)
     }
@@ -174,7 +205,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const toggleStatus = (c) => {
     if (pendingActions.has(c.id)) return
     const next = c.status === 'active' ? 'paused' : 'active'
-    withPending(c.id, () => onUpdate({ id: c.id, status: next }).catch(err => console.error('Failed to toggle campaign', err)))
+    withPending(c.id, () => onUpdate({ id: c.id, status: next }).catch(err => reportError(`Could not ${next === 'active' ? 'resume' : 'pause'} campaign`, err)))
   }
 
   const duplicate = (c) => {
@@ -194,12 +225,12 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMax: c.filterHeadcountMax ?? null,
       batchSize: c.batchSize ?? 10,
       tone: c.tone || null,
-    }).catch(err => console.error('Failed to duplicate campaign', err)))
+    }).catch(err => reportError('Could not duplicate campaign', err)))
   }
 
   const remove = (id) => {
     if (pendingActions.has(id)) return
-    withPending(id, () => onDelete(id).catch(err => console.error('Failed to delete campaign', err)))
+    withPending(id, () => onDelete(id).catch(err => reportError('Could not delete campaign', err)))
   }
 
   const openBatchModal = async (campaign) => {
@@ -215,7 +246,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
         setBatchModal(prev => ({ ...prev, leads: existing.leads, loading: false, seenTotal: existing.seenTotal, currentBatch: existing.currentBatch, generationAttempted: false }))
       }
     } catch (err) {
-      console.error('Failed to open batch', err)
+      reportError('Could not open batch', err)
       setBatchModal(prev => ({ ...prev, loading: false }))
     }
   }
@@ -236,7 +267,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       }))
       if (detailCampaignId === batchModal.campaign.id) loadCampaignDetail(batchModal.campaign.id)
     } catch (err) {
-      console.error('Failed to generate batch', err)
+      reportError('Could not generate batch', err)
       setBatchModal(prev => ({ ...prev, loading: false }))
     }
   }
@@ -259,7 +290,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       const result = await generateEmail({ userLeadId: lead.id, templateId, tone, includeResumeBullet: true, save: false })
       setEmailPreview({ open: true, lead, subject: result.subject || '', body: result.body || '', saving: false, error: null })
     } catch (err) {
-      console.error('Failed to generate email', err)
+      reportError('Could not generate email', err)
     } finally {
       setGeneratingEmail(null)
     }
@@ -327,6 +358,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
 
   return (
     <div className="page-shell">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       {detailCampaign ? (
         <>
         <section className="page-toolbar">
@@ -363,19 +395,150 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           )}
         </section>
 
-        <section className="border-b border-slate-100 pb-5">
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-dark">Build this campaign list</h2>
-              <p className="mt-1 text-xs text-muted">Add prospects you already saved, or find new matches from the campaign filters.</p>
+        {/* Inline batch panel — replaces the former modal-on-modal */}
+        {batchModal.open && batchModal.campaign?.id === detailCampaign.id && (
+          <section className="rounded-[24px] border border-slate-100 bg-slate-50/60 p-5">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Latest batch</p>
+                <p className="mt-1 text-sm text-muted">
+                  {batchModal.currentBatch === 0
+                    ? 'No batch generated yet.'
+                    : `${batchModal.leads.length} prospect${batchModal.leads.length !== 1 ? 's' : ''} in batch ${batchModal.currentBatch}.`}
+                  {batchModal.seenTotal > 0 && (
+                    <span className="ml-2 text-xs text-muted/70">{batchModal.seenTotal} seen across all batches.</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetTarget(batchModal.campaign?.id)}
+                  className="btn-ghost text-xs"
+                  title="Clear seen history to start fresh"
+                >
+                  <RotateCcw size={12} /> Reset history
+                </button>
+                <button
+                  type="button"
+                  onClick={runBatch}
+                  disabled={batchModal.loading}
+                  className="btn-primary text-xs"
+                >
+                  {batchModal.loading ? (
+                    <><RefreshCw size={12} className="animate-spin" /> Finding...</>
+                  ) : batchModal.currentBatch === 0 ? (
+                    <><Zap size={12} /> Find first matches</>
+                  ) : (
+                    <><Zap size={12} /> Find next matches</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchModal(prev => ({ ...prev, open: false }))}
+                  className="btn-ghost px-2 py-1 text-xs"
+                  title="Close batch panel"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
-            <button type="button" onClick={() => openBatchModal(detailCampaign)} className="btn-secondary text-xs">
-              <Zap size={13} /> Find matches
-            </button>
+
+            {batchModal.usingFallback && (
+              <Banner variant="warning" size="sm" className="mb-3">
+                All matching prospects have been seen. Showing previously seen prospects. Reset history to start fresh.
+              </Banner>
+            )}
+
+            {batchModal.loading && batchModal.leads.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted">
+                <RefreshCw size={16} className="animate-spin mr-2" /> Loading...
+              </div>
+            ) : batchModal.leads.length === 0 ? (
+              <EmptyState>
+                {batchModal.generationAttempted
+                  ? 'No prospects match these filters. Try broadening Stage or Region.'
+                  : 'Run the batch to load matches.'}
+              </EmptyState>
+            ) : (
+              <div className="space-y-3">
+                {batchModal.leads.map(lead => (
+                  <div key={lead.id} className="rounded-[20px] border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-dark">{lead.company?.name}</p>
+                          {lead.company?.isHiring && (
+                            <Pill variant="success">Hiring</Pill>
+                          )}
+                          {lead.company?.batch && (
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{lead.company.batch}</span>
+                          )}
+                        </div>
+                        {lead.company?.oneLiner && (
+                          <p className="mt-1 text-xs text-muted line-clamp-1">{lead.company.oneLiner}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted">
+                          {lead.company?.industry && (
+                            <span className="flex items-center gap-1"><Building2 size={10} />{lead.company.industry}</span>
+                          )}
+                          {lead.company?.region && (
+                            <span className="flex items-center gap-1"><MapPin size={10} />{lead.company.region}</span>
+                          )}
+                          {lead.contact ? (
+                            <span className="flex items-center gap-1 text-slate-700">
+                              <Users size={10} />
+                              {lead.contact.name || 'Contact'}{lead.contact.title ? ` · ${lead.contact.title}` : ''}
+                              {lead.contact.email && <span className="text-primary">· {lead.contact.email}</span>}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-amber-600"><Users size={10} /> No contact yet</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        {lead.emails?.length > 0 ? (
+                          <Pill icon={Mail} variant="success" className="text-xs px-2.5 py-1">
+                            Draft ready
+                          </Pill>
+                        ) : (lead.contact || lead.apolloPersonId) ? (
+                          <button
+                            onClick={() => handleGenerateEmail(lead)}
+                            disabled={generatingEmail === lead.id}
+                            className="btn-secondary text-xs"
+                          >
+                            {generatingEmail === lead.id ? (
+                              <><RefreshCw size={10} className="animate-spin" /> Generating...</>
+                            ) : (
+                              <><Mail size={10} /> Generate email</>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted">No contact found</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {lead.emails?.length > 0 && (
+                      <div className="mt-3 rounded-[12px] border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p className="text-xs font-medium text-dark">{lead.emails[0].subject}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        <section className="border-b border-slate-100 pb-5">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-dark">Add a saved prospect</h2>
+            <p className="mt-1 text-xs text-muted">Pull in a prospect you already saved from Contacts or Discover.</p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label className="label">Add saved prospect</label>
               <select value={addLeadId} onChange={e => setAddLeadId(e.target.value)} className="select">
                 <option value="">Choose a saved prospect...</option>
                 {availableSavedLeads.map(lead => (
@@ -385,7 +548,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 ))}
               </select>
             </div>
-            <button type="button" onClick={addLeadToCampaign} disabled={!addLeadId || addingLead} className="btn-primary">
+            <button type="button" onClick={addLeadToCampaign} disabled={!addLeadId || addingLead} className="btn-secondary">
               <Plus size={14} /> {addingLead ? 'Adding...' : 'Add prospect'}
             </button>
           </div>
@@ -410,7 +573,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           ) : (
             <div className="space-y-3">
               {campaignLeads.map(lead => (
-                <div key={lead.campaignLeadId} className="rounded-2xl border border-slate-100 bg-white/82 px-4 py-4">
+                <div key={lead.campaignLeadId} className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -581,7 +744,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           <div className="space-y-3">
             <div>
               <label className="label">Campaign name *</label>
-              <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. YC W24 Founders Outreach" className="input" required />
+              <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. Spring 2026 YC outreach" className="input" required />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -601,99 +764,42 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 />
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">Status</label>
-                <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Schedule (optional)</label>
-                <input type="datetime-local" value={form.scheduledAt} onChange={e => field('scheduledAt', e.target.value)} className="input" />
-              </div>
+            <div>
+              <label className="label">Status</label>
+              <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+              </select>
             </div>
           </div>
 
-          {/* Lead filters */}
+          {/* Lead filters — common */}
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Matching filters</p>
-            <div className="space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
-              {/* Tag multi-picker — AND across namespaces, OR within */}
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Who to find</p>
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <label className="label">Tags</label>
-                <div className="space-y-2">
-                  {CAMPAIGN_NS.map(ns => {
-                    const tags = options.tags?.[ns] || []
-                    if (!tags.length) return null
-                    return (
-                      <div key={ns} className="flex flex-wrap items-start gap-1.5">
-                        <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">{NS_LABELS[ns]}</span>
-                        {tags.map(({ name, namespaced }) => (
-                          <button
-                            key={namespaced}
-                            type="button"
-                            onClick={() => toggleFilterTag(namespaced)}
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                              (form.filterTags || []).includes(namespaced)
-                                ? 'bg-primary border-primary text-white'
-                                : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
-                            }`}
-                          >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  })}
-                  {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
-                    <p className="text-xs text-muted">Tags will appear here once companies have been ingested.</p>
-                  )}
-                </div>
+                <label className="label">Region</label>
+                <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
+                  <option value="">Any region</option>
+                  {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="label">Region</label>
-                  <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
-                    <option value="">Any region</option>
-                    {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Stage</label>
-                  <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">
-                    <option value="">Any stage</option>
-                    {options.stages.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">YC Batch</label>
-                  <select value={form.filterBatch} onChange={e => field('filterBatch', e.target.value)} className="select">
-                    <option value="">Any batch</option>
-                    {options.batches.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="label">Stage</label>
+                <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">
+                  <option value="">Any stage</option>
+                  {options.stages.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="label">Hiring status</label>
-                  <select value={form.filterIsHiring} onChange={e => field('filterIsHiring', e.target.value)} className="select">
-                    <option value="">Any</option>
-                    <option value="true">Actively hiring</option>
-                    <option value="false">Not hiring</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Min employees</label>
-                  <input type="number" min="0" value={form.filterHeadcountMin} onChange={e => field('filterHeadcountMin', e.target.value)} placeholder="e.g. 10" className="input" />
-                </div>
-                <div>
-                  <label className="label">Max employees</label>
-                  <input type="number" min="0" value={form.filterHeadcountMax} onChange={e => field('filterHeadcountMax', e.target.value)} placeholder="e.g. 200" className="input" />
-                </div>
+              <div>
+                <label className="label">Hiring</label>
+                <select value={form.filterIsHiring} onChange={e => field('filterIsHiring', e.target.value)} className="select">
+                  <option value="">Any</option>
+                  <option value="true">Actively hiring</option>
+                  <option value="false">Not hiring</option>
+                </select>
               </div>
             </div>
           </div>
@@ -708,8 +814,82 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 onChange={e => field('batchSize', e.target.value)}
                 className="input w-28"
               />
-              <p className="text-xs text-muted">How many prospects to find each time you run this campaign (max 100).</p>
+              <p className="text-xs text-muted">How many prospects to pull each time you run this campaign (max 100).</p>
             </div>
+          </div>
+
+          {/* Advanced disclosure */}
+          <div className="border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen(o => !o)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted hover:text-dark transition-colors"
+              aria-expanded={advancedOpen}
+            >
+              <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
+              Advanced filters
+              {!advancedOpen && advancedSummary(form) && (
+                <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">— {advancedSummary(form)}</span>
+              )}
+            </button>
+
+            {advancedOpen && (
+              <div className="mt-3 space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
+                <div>
+                  <label className="label">Tags</label>
+                  <p className="mb-2 text-xs text-muted">AND across rows, OR within. Pick at least one in each row you care about.</p>
+                  <div className="space-y-2">
+                    {CAMPAIGN_NS.map(ns => {
+                      const tags = options.tags?.[ns] || []
+                      if (!tags.length) return null
+                      return (
+                        <div key={ns} className="flex flex-wrap items-start gap-1.5">
+                          <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">{NS_LABELS[ns]}</span>
+                          {tags.map(({ name, namespaced }) => (
+                            <button
+                              key={namespaced}
+                              type="button"
+                              onClick={() => toggleFilterTag(namespaced)}
+                              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                (form.filterTags || []).includes(namespaced)
+                                  ? 'bg-primary border-primary text-white'
+                                  : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })}
+                    {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
+                      <p className="text-xs text-muted">Tags will appear here once companies have been ingested.</p>
+                    )}
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="label">YC Batch</label>
+                    <select value={form.filterBatch} onChange={e => field('filterBatch', e.target.value)} className="select">
+                      <option value="">Any batch</option>
+                      {options.batches.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Min employees</label>
+                    <input type="number" min="0" value={form.filterHeadcountMin} onChange={e => field('filterHeadcountMin', e.target.value)} placeholder="e.g. 10" className="input" />
+                  </div>
+                  <div>
+                    <label className="label">Max employees</label>
+                    <input type="number" min="0" value={form.filterHeadcountMax} onChange={e => field('filterHeadcountMax', e.target.value)} placeholder="e.g. 200" className="input" />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Schedule</label>
+                  <input type="datetime-local" value={form.scheduledAt} onChange={e => field('scheduledAt', e.target.value)} className="input" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
@@ -721,140 +901,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
         </div>
       </Modal>
 
-      {/* Batch results modal */}
-      <Modal
-        open={batchModal.open}
-        onClose={() => setBatchModal(prev => ({ ...prev, open: false }))}
-        title={batchModal.campaign
-          ? `${batchModal.campaign.name}${batchModal.currentBatch > 0 ? ` - Batch ${batchModal.currentBatch}` : ''}`
-          : 'Matching prospects'}
-        size="xl"
-      >
-        <div className="flex flex-col" style={{ maxHeight: '75vh' }}>
-          {/* Toolbar */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3">
-            <p className="text-sm text-muted">
-              {batchModal.currentBatch === 0
-                ? 'No batch generated yet'
-                : `${batchModal.leads.length} prospect${batchModal.leads.length !== 1 ? 's' : ''} in batch ${batchModal.currentBatch}`}
-              {batchModal.seenTotal > 0 && (
-                <span className="ml-2 text-xs text-muted/70">· {batchModal.seenTotal} prospects seen across all batches</span>
-              )}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setResetTarget(batchModal.campaign?.id)}
-                className="btn-ghost text-xs"
-                title="Clear all batches and seen history to start fresh"
-              >
-                <RotateCcw size={12} /> Reset all
-              </button>
-              <button
-                onClick={runBatch}
-                disabled={batchModal.loading}
-                className="btn-primary text-xs"
-              >
-                {batchModal.loading ? (
-                  <><RefreshCw size={12} className="animate-spin" /> Finding...</>
-                ) : batchModal.currentBatch === 0 ? (
-                  <><Zap size={12} /> Find first matches</>
-                ) : (
-                  <><Zap size={12} /> Find next matches</>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {batchModal.usingFallback && (
-            <Banner variant="warning" className="mx-6 mt-4">
-              All matching prospects have been seen. Showing previously seen prospects. Click "Reset all" to start fresh.
-            </Banner>
-          )}
-
-          {/* Lead list */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {batchModal.loading && batchModal.leads.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-sm text-muted">
-                <RefreshCw size={16} className="animate-spin mr-2" /> Loading...
-              </div>
-            ) : batchModal.leads.length === 0 ? (
-              <EmptyState>
-                {batchModal.generationAttempted
-                  ? 'No prospects match your current filters. Try broadening them, for example remove stage or region.'
-                  : 'No prospects found yet. Find the first matches to start this campaign.'}
-              </EmptyState>
-            ) : (
-              <div className="space-y-3">
-                {batchModal.leads.map(lead => (
-                  <div key={lead.id} className="rounded-[20px] border border-white/80 bg-white/82 p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-dark">{lead.company?.name}</p>
-                          {lead.company?.isHiring && (
-                            <Pill variant="success">Hiring</Pill>
-                          )}
-                          {lead.company?.batch && (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{lead.company.batch}</span>
-                          )}
-                        </div>
-                        {lead.company?.oneLiner && (
-                          <p className="mt-1 text-xs text-muted line-clamp-1">{lead.company.oneLiner}</p>
-                        )}
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted">
-                          {lead.company?.industry && (
-                            <span className="flex items-center gap-1"><Building2 size={10} />{lead.company.industry}</span>
-                          )}
-                          {lead.company?.region && (
-                            <span className="flex items-center gap-1"><MapPin size={10} />{lead.company.region}</span>
-                          )}
-                          {lead.contact ? (
-                            <span className="flex items-center gap-1 text-slate-700">
-                              <Users size={10} />
-                              {lead.contact.name || 'Contact'}{lead.contact.title ? ` - ${lead.contact.title}` : ''}
-                              {lead.contact.email && <span className="text-primary">· {lead.contact.email}</span>}
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-amber-600"><Users size={10} /> No contact yet</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-2">
-                        {lead.emails?.length > 0 ? (
-                          <Pill icon={Mail} variant="success" className="text-xs px-2.5 py-1">
-                            Draft ready
-                          </Pill>
-                        ) : (lead.contact || lead.apolloPersonId) ? (
-                          <button
-                            onClick={() => handleGenerateEmail(lead)}
-                            disabled={generatingEmail === lead.id}
-                            className="btn-secondary text-xs"
-                          >
-                            {generatingEmail === lead.id ? (
-                              <><RefreshCw size={10} className="animate-spin" /> Generating...</>
-                            ) : (
-                              <><Mail size={10} /> Generate email</>
-                            )}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted">No contact found</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {lead.emails?.length > 0 && (
-                      <div className="mt-3 rounded-[12px] border border-slate-100 bg-slate-50 px-3 py-2">
-                        <p className="text-xs font-medium text-dark">{lead.emails[0].subject}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </Modal>
+      {/* Batch results render inline inside the campaign detail view above. */}
 
       <ConfirmDialog
         open={!!deleteTarget}

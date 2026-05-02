@@ -7,6 +7,7 @@ import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
+import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen } from '../../lib/api'
 
 const PAGE_SIZE = 20
@@ -108,6 +109,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
@@ -295,7 +297,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       setApolloError(null)
       onLeadSaved?.()
     } catch (err) {
-      console.error('Failed to save lead', err)
+      setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
       setSavingIds(prev => { const n = new Set(prev); n.delete(preview.id); return n })
     }
@@ -305,6 +307,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
 
   return (
     <div className="page-shell">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="mb-5">
         <p className="page-eyebrow">Lead Discovery</p>
         <p className="mt-1 text-sm leading-6 text-muted">Browse companies and find contacts to add to your pipeline.</p>
