@@ -43,7 +43,7 @@ function StatCard({ metric, data }) {
   )
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active = false, payload = [], label = '' }) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white rounded-xl shadow-modal border border-slate-100 px-3 py-2 text-xs">

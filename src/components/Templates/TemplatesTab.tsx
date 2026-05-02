@@ -167,7 +167,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
   }, [])
 
-  const flushDraft = (override) => {
+  const flushDraft = (override = undefined) => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null

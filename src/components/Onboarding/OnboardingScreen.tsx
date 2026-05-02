@@ -209,7 +209,7 @@ function withGeneratedStyleTemplate(data, { force = false } = {}) {
   }
 }
 
-function StepHeader({ step, total, title, description }) {
+function StepHeader({ step, total, title, description = undefined }) {
   return (
     <div className="mb-6 text-center sm:mb-7">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
