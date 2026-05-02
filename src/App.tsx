@@ -207,7 +207,13 @@ function AppShell() {
     const localCompleted = googleConnectedReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal || localRecoverableSetup
     const canUseLocalGate = googleConnectReturn || forceOnboarding || hasLocalCompletionSignal || localRecoverableSetup
     setWorkspaceConfig(localConfig)
-    setOnboardingState({ loaded: canUseLocalGate, completed: localCompleted, data: localConfig })
+    // Never regress loaded from true→false on re-runs (e.g. token refresh causes user ref
+    // to change). Once the app is visible, keep it visible while the profile re-fetches.
+    setOnboardingState(prev => ({
+      loaded: canUseLocalGate || prev.loaded,
+      completed: localCompleted,
+      data: localConfig,
+    }))
 
     let cancelled = false
     const profileFetchStartedAt = Date.now()
@@ -243,7 +249,7 @@ function AppShell() {
         const shouldStayInOnboarding = !googleConnectReturn && latestForceOnboarding
         const serverConfig = createWorkspaceConfig({
           user,
-          templates,
+          templates: templatesRef.current,
           data: {
             ...(res.profile.workspaceConfig || {}),
             resumePath: res.profile.resumePath || res.profile.workspaceConfig?.resumePath || '',
