@@ -16,8 +16,18 @@ import {
   fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
 } from '../../lib/api'
 
-const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'function', 'investor', 'signal']
-const NS_LABELS = { stage: 'Stage', vertical: 'Sector', tech: 'Tech', function: 'Function', investor: 'Investor', signal: 'Signal' }
+const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'function', 'media', 'social', 'investor', 'signal']
+const NS_LABELS = {
+  stage: 'Stage',
+  vertical: 'Sector',
+  tech: 'Tech',
+  model: 'Model',
+  function: 'Function',
+  media: 'Media',
+  social: 'Social',
+  investor: 'Investor',
+  signal: 'Signal',
+}
 
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
@@ -340,9 +350,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     return { ...f, filterTags: has ? current.filter(t => t !== namespaced) : [...current, namespaced] }
   })
 
+  const REGION_LABELS = { '__US__': 'US companies', '__INTL__': 'International' }
+
   const activeFilters = (c) => [
     ...(c.filterTags?.length ? c.filterTags.map(t => t.split(':')[1]) : []),
-    c.filterRegion,
+    c.filterRegion ? (REGION_LABELS[c.filterRegion] || c.filterRegion) : null,
     c.filterStage,
     c.filterBatch,
     c.filterIsHiring != null ? (c.filterIsHiring ? 'Hiring' : 'Not hiring') : null,
@@ -783,6 +795,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <label className="label">Region</label>
                 <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
                   <option value="">Any region</option>
+                  <option value="__US__">US companies</option>
+                  <option value="__INTL__">International</option>
                   {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>

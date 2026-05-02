@@ -4,6 +4,7 @@ import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { enrichDomain } from "../lib/apollo.js";
 import { upsertContactFromReveal } from "../lib/apollo-enrichment.js";
+import { US_REGIONS } from "../../scripts/_lib/region-map.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -246,10 +247,20 @@ async function selectCandidateIds(
   const excludedIds = Array.from(new Set([...seenIds, ...alreadyInCampaignIds]));
 
   const tagFilters = buildTagFilters(campaign.filterTags ?? []);
+  const andConditions = [...tagFilters];
+  let regionWhere: Record<string, unknown> = {};
+  if (campaign.filterRegion === "__US__") {
+    regionWhere = { region: { in: [...US_REGIONS] } };
+  } else if (campaign.filterRegion === "__INTL__") {
+    andConditions.push({ region: { not: null } } as any);
+    andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
+  } else if (campaign.filterRegion) {
+    regionWhere = { region: campaign.filterRegion };
+  }
   const baseWhere = {
     isVerified: true,
-    ...(tagFilters.length > 0 && { AND: tagFilters }),
-    ...(campaign.filterRegion && { region: campaign.filterRegion }),
+    ...(andConditions.length > 0 && { AND: andConditions }),
+    ...regionWhere,
     ...(campaign.filterStage && { stage: campaign.filterStage }),
     ...(campaign.filterBatch && { batch: campaign.filterBatch }),
     ...(campaign.filterIsHiring != null && { isHiring: campaign.filterIsHiring }),

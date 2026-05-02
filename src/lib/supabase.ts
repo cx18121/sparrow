@@ -6,7 +6,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 // If env vars are not set, create a mock client for demo mode
 export const isDemo = !supabaseUrl || supabaseUrl === 'https://your-project.supabase.co'
 
-export const supabase = isDemo
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabase: any = isDemo
   ? createMockClient()
   : createClient(supabaseUrl, supabaseAnonKey)
 

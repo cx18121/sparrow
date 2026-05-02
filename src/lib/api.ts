@@ -88,7 +88,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
 }
 
-async function request(path, opts = {}, retrying = false) {
+async function request(path: string, opts: RequestInit = {}, retrying = false) {
   await ensureApiAuth()
   const res = await fetch(`${BASE}${path}`, {
     headers: {
@@ -119,10 +119,10 @@ async function request(path, opts = {}, retrying = false) {
   return res.json()
 }
 
-function qs(params) {
-  const s = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
-  ).toString()
+function qs(params: Record<string, unknown>) {
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '') as [string, string][]
+  const s = new URLSearchParams(entries).toString()
   return s ? `?${s}` : ''
 }
 

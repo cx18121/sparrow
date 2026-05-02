@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { groupTagsByNamespace } from "../../scripts/_lib/tags.js";
+import { US_REGIONS } from "../../scripts/_lib/region-map.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -17,6 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const {
     region,
+    regionType,
     batch,
     industry,
     industries,
@@ -48,16 +50,29 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const sourcesList = sources ? sources.split(",").map(s => s.trim()).filter(Boolean) : [];
   const minScoreNum = minScore ? parseInt(minScore, 10) : null;
 
+  // regionType=us → known US metro regions; regionType=international → everything else
+  // (excluding Remote). A plain ?region= exact-match still works when regionType is absent.
+  const andConditions = [...tagFilters];
+  let regionWhere: Record<string, unknown> = {};
+  if (regionType === "us") {
+    regionWhere = { region: { in: [...US_REGIONS] } };
+  } else if (regionType === "international") {
+    andConditions.push({ region: { not: null } } as any);
+    andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
+  } else if (region) {
+    regionWhere = { region };
+  }
+
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
   const baseWhere = {
     // Hide unverified companies (e.g. unresolved PH placeholders) — no opt-out
     // exposed to clients. Add an admin/service-auth gate if debug access is needed.
     isVerified: true,
-    ...(region && { region }),
+    ...regionWhere,
     ...(batch && { batch }),
     ...industryFilter,
     ...(isHiring && { isHiring: isHiring === "true" }),
-    ...(tagFilters.length > 0 && { AND: tagFilters }),
+    ...(andConditions.length > 0 && { AND: andConditions }),
     ...(sourcesList.length > 0 && { source: { in: sourcesList } }),
     ...(minScoreNum != null && { qualityScore: { gte: minScoreNum } }),
     ...(search && {

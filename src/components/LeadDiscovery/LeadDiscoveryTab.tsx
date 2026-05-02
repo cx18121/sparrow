@@ -11,8 +11,19 @@ import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen } from '../../lib/api'
 
 const PAGE_SIZE = 20
-const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'investor', 'signal']
-const NS_LABELS = { stage: 'Stage', vertical: 'Sector', tech: 'Tech', investor: 'Investor', signal: 'Signal' }
+const MAX_REPLACEMENT_ROUNDS = 5
+const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'function', 'media', 'social', 'investor', 'signal']
+const NS_LABELS = {
+  stage: 'Stage',
+  vertical: 'Sector',
+  tech: 'Tech',
+  model: 'Model',
+  function: 'Function',
+  media: 'Media',
+  social: 'Social',
+  investor: 'Investor',
+  signal: 'Signal',
+}
 
 function CompanyRow({ company, apolloCount, onSelect }) {
   return (
@@ -106,6 +117,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [tagOptions, setTagOptions] = useState({})
   const [hiringCount, setHiringCount] = useState(null)
   const [isHiring, setIsHiring] = useState(false)
+  const [regionFilter, setRegionFilter] = useState<'us' | 'international' | null>(null)
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -126,14 +138,16 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [revealedEmails, setRevealedEmails] = useState({})
   const fetchGenRef = useRef(0)
 
-  const fetchCompanies = useCallback(async (cursor = null, overrides = {}) => {
+  const fetchCompanies = useCallback(async (cursor = null, overrides: any = {}) => {
     const gen = ++fetchGenRef.current
     setLoading(true)
     setError(null)
     const query = overrides.search ?? search
     const hiringOnly = overrides.isHiring ?? isHiring
+    const rf = overrides.regionFilter !== undefined ? overrides.regionFilter : regionFilter
     const tags = overrides.selectedTags ?? selectedTagsRef.current
     const append = overrides.append ?? Boolean(cursor)
+    const replacementDepth = overrides.replacementDepth ?? 0
     try {
       const params = {
         search: query || undefined,
@@ -141,17 +155,52 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         random: 'true',
         ...(tags.size > 0 && { tags: [...tags].join(',') }),
         ...(hiringOnly && { isHiring: 'true' }),
+        ...(rf && { regionType: rf }),
         ...(cursor && { cursor }),
       }
       const data = await apiFetchCompanies(params)
       if (fetchGenRef.current !== gen) return
       const newItems = data.items ?? []
+      const uncached = newItems.filter(c => !(c.id in cachedPreviews))
+      if (uncached.length > 0) {
+        setApolloCounts(prev => {
+          const next = { ...prev }
+          uncached.forEach(c => { if (!(c.id in next)) next[c.id] = null })
+          return next
+        })
+      }
+
+      const checkedItems = await Promise.all(newItems.map(async (company) => {
+        const cached = cachedPreviews[company.id]
+        if (cached) return { company, hasContacts: cached.length > 0 }
+
+        try {
+          const result = await apolloSearch(company.domain, company.id)
+          const previews = result.previews ?? []
+          setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
+          setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
+          return { company, hasContacts: previews.length > 0 }
+        } catch {
+          setApolloCounts(prev => {
+            const next = { ...prev }
+            delete next[company.id]
+            return next
+          })
+          return { company, hasContacts: true }
+        }
+      }))
+
+      if (fetchGenRef.current !== gen) return
+      const displayItems = checkedItems
+        .filter(item => item.hasContacts)
+        .map(item => item.company)
+
       setCompanies(append && !data.usingFallback
         ? prev => {
             const existing = new Set(prev.map(c => c.id))
-            return [...prev, ...newItems.filter(c => !existing.has(c.id))]
+            return [...prev, ...displayItems.filter(c => !existing.has(c.id))]
           }
-        : newItems
+        : displayItems
       )
       setNextCursor(data.nextCursor)
       setHasMore(!data.usingFallback && newItems.length > 0)
@@ -159,23 +208,19 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         seenTotal: data.seenTotal ?? 0,
         usingFallback: data.usingFallback ?? false,
       })
-      const uncached = newItems.filter(c => !(c.id in apolloCounts))
-      if (uncached.length > 0) {
-        setApolloCounts(prev => {
-          const next = { ...prev }
-          uncached.forEach(c => { if (!(c.id in next)) next[c.id] = null })
-          return next
-        })
-        uncached.forEach(async (company) => {
-          try {
-            const result = await apolloSearch(company.domain, company.id)
-            const previews = result.previews ?? []
-            setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
-            setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
-          } catch {
-            setApolloCounts(prev => ({ ...prev, [company.id]: 0 }))
-          }
-        })
+
+      const removedCount = newItems.length - displayItems.length
+      if (!data.usingFallback && removedCount > 0 && replacementDepth < MAX_REPLACEMENT_ROUNDS) {
+        const currentCount = append ? companies.length + displayItems.length : displayItems.length
+        if (currentCount < PAGE_SIZE) {
+          await fetchCompanies(null, {
+            search: query,
+            isHiring: hiringOnly,
+            selectedTags: tags,
+            append: true,
+            replacementDepth: replacementDepth + 1,
+          })
+        }
       }
     } catch (err) {
       if (fetchGenRef.current !== gen) return
@@ -183,7 +228,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     } finally {
       if (fetchGenRef.current === gen) setLoading(false)
     }
-  }, [search, isHiring])
+  }, [search, isHiring, regionFilter, cachedPreviews, companies.length])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -205,7 +250,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   useEffect(() => {
     if (initialMount.current) return
     doSearch()
-  }, [isHiring]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHiring, regionFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initialMount.current = false
@@ -303,7 +348,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     }
   }
 
-  const hasActiveFilters = search || selectedTags.size > 0 || isHiring
+  const hasActiveFilters = search || selectedTags.size > 0 || isHiring || regionFilter
 
   return (
     <div className="page-shell">
@@ -347,7 +392,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
         </div>
 
         <div className="mt-3 space-y-2">
-          {/* Hiring filter */}
+          {/* Hiring + region filters */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setIsHiring(h => !h)}
@@ -360,6 +405,19 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
               <span className={`h-1.5 w-1.5 rounded-full ${isHiring ? 'bg-white' : 'bg-emerald-400'}`} />
               Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
             </button>
+            {(['us', 'international'] as const).map(rf => (
+              <button
+                key={rf}
+                onClick={() => setRegionFilter(prev => prev === rf ? null : rf)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
+                  regionFilter === rf
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                }`}
+              >
+                {rf === 'us' ? 'US only' : 'International'}
+              </button>
+            ))}
           </div>
 
           {/* Tag filters */}
@@ -432,9 +490,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
                 selectedTagsRef.current = clearedTags
                 setSelectedTags(clearedTags)
                 setIsHiring(false)
+                setRegionFilter(null)
                 setCompanies([])
                 setNextCursor(null)
-                fetchCompanies(null, { search: '', isHiring: false, selectedTags: clearedTags })
+                fetchCompanies(null, { search: '', isHiring: false, regionFilter: null, selectedTags: clearedTags })
               }}
               className="btn-secondary mt-4 text-xs"
             >

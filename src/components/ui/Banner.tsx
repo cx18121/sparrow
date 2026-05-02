@@ -23,7 +23,7 @@ const SIZES = {
 export default function Banner({
   children,
   variant = 'info',
-  icon: Icon,
+  icon: Icon = undefined,
   size = 'md',
   className = '',
   ...rest

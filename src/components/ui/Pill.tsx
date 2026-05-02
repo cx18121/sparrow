@@ -19,7 +19,7 @@ export const VARIANT_STYLES = {
 export default function Pill({
   children,
   variant = 'neutral',
-  icon: Icon,
+  icon: Icon = undefined,
   dot = false,
   className = '',
 }) {

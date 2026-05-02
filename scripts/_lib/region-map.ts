@@ -1,3 +1,8 @@
+export const US_REGIONS = new Set([
+  "Bay Area", "New York Metro", "Pacific Northwest",
+  "Boston / Cambridge", "Austin", "Los Angeles", "Chicago", "Denver / Boulder",
+]);
+
 export const REGION_MAP: Record<string, string> = {
   // Bay Area
   "san francisco": "Bay Area",

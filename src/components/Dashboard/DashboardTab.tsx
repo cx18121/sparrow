@@ -227,7 +227,7 @@ export default function DashboardTab({
 
     return [...campaignItems, ...leadItems, ...draftItems, ...sentItems]
       .filter(item => item.at)
-      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
       .slice(0, 7)
   }, [campaigns, emailState.drafts, emailState.sent, leads])
 

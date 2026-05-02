@@ -9,6 +9,7 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 // Each card has data-name, a Visit Website link, description, and sector.
 
 const BASE_URL = "https://www.bvp.com/portfolio";
+const LOCATION_SECTORS = new Set(["India"]);
 
 const bessemerAdapter: IngestorAdapter = {
   name: "Bessemer",
@@ -39,7 +40,8 @@ const bessemerAdapter: IngestorAdapter = {
       if (!websiteHref) return;
 
       const description = $(el).find("p").first().text().trim() || null;
-      const sector = $(el).find("[class*='roadmap']").first().text().trim() || null;
+      const rawSector = $(el).find("[class*='roadmap']").first().text().trim() || null;
+      const sector = rawSector && !LOCATION_SECTORS.has(rawSector) ? rawSector : null;
 
       out.push({
         name,

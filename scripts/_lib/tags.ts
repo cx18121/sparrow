@@ -37,10 +37,13 @@ const FREE_HOSTING_DOMAINS = new Set([
 // ─── Canonical category dictionaries ─────────────────────────────────────────
 
 const MODEL_DEFINITIONS: Record<string, string[]> = {
-  saas: ["saas", "software as a service", "software", "b2b / saas", "b2b/saas"],
-  b2b: ["b2b", "business", "enterprise software"],
-  consumer: ["b2c", "consumer", "consumer apps", "consumer software"],
-  marketplace: ["marketplace", "marketplaces"],
+  saas: ["saas", "software as a service", "software", "b2b / saas", "b2b/saas", "cloud / saas"],
+  b2b: ["b2b", "business", "enterprise", "enterprise software", "vertical software"],
+  consumer: [
+    "b2c", "consumer", "consumer apps", "consumer software",
+    "consumer goods", "consumergoods", "consumer internet media",
+  ],
+  marketplace: ["marketplace", "marketplaces", "commerce", "marketplace & commerce"],
 };
 
 const VERTICAL_DEFINITIONS: Record<string, string[]> = {
@@ -48,7 +51,7 @@ const VERTICAL_DEFINITIONS: Record<string, string[]> = {
     "fintech", "finance", "finance and accounting", "banking",
     "banking and exchanges", "payments", "lending", "lending and credit",
     "insurance", "asset management", "personal finance", "investing",
-    "trading", "wealth management", "accounting",
+    "trading", "wealth management", "accounting", "insurance tech",
   ],
   health: [
     "health", "healthcare", "health and fitness", "health-and-fitness",
@@ -58,7 +61,7 @@ const VERTICAL_DEFINITIONS: Record<string, string[]> = {
   biotech: [
     "biotech", "biotechnology", "pharmaceuticals", "pharma",
     "therapeutics and drug discovery", "healthcare and diagnostics",
-    "diagnostics",
+    "diagnostics", "life sciences", "biotechnology health", "science",
   ],
   education: [
     "education", "edtech", "ed tech", "learning", "online learning",
@@ -68,13 +71,13 @@ const VERTICAL_DEFINITIONS: Record<string, string[]> = {
   legal: ["legal", "legaltech", "legal tech", "law", "compliance"],
   realestate: [
     "real estate", "real estate and construction", "realestate",
-    "construction", "property", "proptech",
+    "construction", "property", "proptech", "real estate technology",
   ],
   govtech: ["government", "govtech", "civic tech", "public sector"],
   agriculture: ["agriculture", "agritech", "ag tech", "farming"],
   climate: [
     "climate", "climate tech", "sustainability", "carbon",
-    "cleantech", "clean tech",
+    "cleantech", "clean tech", "greentech",
   ],
   energy: ["energy", "renewable energy", "solar", "battery", "batteries"],
   industrial: [
@@ -106,7 +109,8 @@ const VERTICAL_DEFINITIONS: Record<string, string[]> = {
   dating: ["dating", "relationships"],
   automotive: [
     "automotive", "cars", "transportation", "mobility",
-    "drones", "aerospace and defense",
+    "drones", "aerospace", "aerospace transportation", "defense",
+    "aerospace and defense", "maritime",
   ],
 };
 
@@ -115,7 +119,9 @@ const TECH_DEFINITIONS: Record<string, string[]> = {
     "ai", "a.i.", "artificial intelligence", "artificial-intelligence",
     "machine learning", "ml", "llm", "llms", "gpt", "deep learning",
     "generative ai", "neural networks", "computer vision", "nlp",
-    "natural language processing", "chatbots", "ai assistants",
+    "natural language processing", "chatbots", "ai assistants", "ai & ml",
+    "advanced machines intelligence", "deep tech", "frontier tech",
+    "intelligent apps",
   ],
   crypto: [
     "crypto", "cryptocurrency", "blockchain", "web3", "defi",
@@ -125,12 +131,13 @@ const TECH_DEFINITIONS: Record<string, string[]> = {
     "developer tools", "developer-tools", "dev tools", "ides", "ide",
     "code editors", "programming", "developer experience",
     "frameworks", "libraries", "sdks", "engineering, product and design",
-    "documentation", "code",
+    "documentation", "code", "developer",
   ],
   devops: ["devops", "ci/cd", "deployment", "monitoring", "observability"],
   infrastructure: [
     "infrastructure", "cloud", "cloud computing", "hosting", "servers",
     "database", "databases", "storage", "cdn", "networking", "it",
+    "itsoftware",
   ],
   security: [
     "security", "cybersecurity", "privacy", "encryption", "auth",
@@ -141,7 +148,7 @@ const TECH_DEFINITIONS: Record<string, string[]> = {
     "data", "data science", "data engineering", "big data",
     "data analytics", "data infrastructure", "etl",
   ],
-  analytics: ["analytics", "business intelligence", "bi"],
+  analytics: ["analytics", "analytics software", "business intelligence", "bi"],
   nocode: ["no-code", "no code", "low-code", "low code", "nocode"],
   api: ["api", "apis", "api tools", "integrations", "webhooks", "plugins"],
   web: ["web", "web app", "web apps", "websites", "web development"],
@@ -153,7 +160,7 @@ const TECH_DEFINITIONS: Record<string, string[]> = {
   automation: ["automation", "workflow automation", "rpa"],
   iot: ["iot", "internet of things", "smart home", "smart devices"],
   xr: ["ar", "vr", "ar/vr", "augmented reality", "virtual reality", "xr"],
-  hardware: ["hardware"],
+  hardware: ["hardware", "hardtech"],
   robotics: ["robotics"],
 };
 
@@ -163,10 +170,10 @@ const FUNCTION_DEFINITIONS: Record<string, string[]> = {
     "marketing automation", "email marketing", "growth marketing",
   ],
   adtech: ["advertising", "ads", "ad tech", "adtech"],
-  sales: ["sales", "crm", "customer relationship management"],
+  sales: ["sales", "crm", "customer relationship management", "gtm", "go-to-market"],
   hr: [
     "hr", "human resources", "recruiting", "hiring", "jobs",
-    "career", "careers", "talent",
+    "career", "careers", "talent", "hr tech",
   ],
   "customer-support": [
     "customer service", "customer support", "help desk", "helpdesk",
@@ -177,7 +184,7 @@ const FUNCTION_DEFINITIONS: Record<string, string[]> = {
     "project management", "time tracking", "calendar", "calendars",
     "scheduling", "meetings", "video conferencing", "collaboration",
     "wikis", "knowledge bases", "knowledge management",
-    "documents", "spreadsheets", "office management",
+    "documents", "spreadsheets", "office management", "operations",
   ],
   design: [
     "design", "design tools", "design-tools", "graphic design",
@@ -187,12 +194,12 @@ const FUNCTION_DEFINITIONS: Record<string, string[]> = {
     "content", "blogging", "newsletters", "writing", "writing tools",
     "books", "reading",
   ],
-  communication: ["communication", "chat", "messaging", "email", "sms"],
+  communication: ["communication", "chat", "messaging", "email", "sms", "service", "services"],
   search: ["search", "search engines"],
 };
 
 const MEDIA_DEFINITIONS: Record<string, string[]> = {
-  video: ["video", "photo & video", "streaming"],
+  video: ["video", "photo & video", "streaming", "entertainment", "media"],
   audio: ["audio"],
   music: ["music"],
   podcast: ["podcast", "podcasts", "podcasting"],
@@ -225,6 +232,21 @@ const TOPIC_TO_NS_TAG: Record<string, string> = (() => {
   }
   return out;
 })();
+
+function normalizeTopicName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitCompoundTopic(name: string): string[] {
+  return normalizeTopicName(name)
+    .split(/\s*(?:,|&|\/|\+)\s*/g)
+    .map(part => part.trim())
+    .filter(Boolean);
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -265,7 +287,7 @@ export const TAG_NAMESPACES = Object.keys(CANONICAL_TAG_GROUPS) as Array<
 // the topic doesn't match any alias. Add aliases to the relevant DEFINITIONS
 // dict above when sources produce topics that should normalize.
 export function tagFromTopic(name: string): string | null {
-  const key = name.toLowerCase().trim();
+  const key = normalizeTopicName(name);
   return TOPIC_TO_NS_TAG[key] ?? null;
 }
 
@@ -273,7 +295,14 @@ export function tagsFromTopics(names: string[]): string[] {
   const out = new Set<string>();
   for (const n of names) {
     const t = tagFromTopic(n);
-    if (t) out.add(t);
+    if (t) {
+      out.add(t);
+      continue;
+    }
+    for (const part of splitCompoundTopic(n)) {
+      const partTag = tagFromTopic(part);
+      if (partTag) out.add(partTag);
+    }
   }
   return [...out];
 }

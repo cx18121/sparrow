@@ -14,13 +14,13 @@ import React from 'react'
 // so the user can keep moving.
 
 export default function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
+  icon: Icon = undefined,
+  title = undefined,
+  description = undefined,
+  action = undefined,
   align = 'center',
   className = '',
-  children,
+  children = undefined,
 }) {
   const isLeft = align === 'left'
   const body = description ?? children
