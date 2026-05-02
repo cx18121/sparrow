@@ -655,29 +655,36 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         </>
       ) : (
         <>
-      <section className="page-toolbar">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 items-center gap-3">
-            <div className="relative w-full max-w-md">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search campaigns..."
-                className="input pl-9"
-              />
-            </div>
-            <button onClick={openCreate} className="btn-primary shrink-0">
-              <Plus size={15} /> New campaign
-            </button>
+      <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="page-eyebrow">Your campaigns</h2>
+          <p className="page-subtitle mt-1">Group outreach by audience, set filters, and generate emails in bulk.</p>
+        </div>
+        <button onClick={openCreate} className="btn-primary shrink-0 self-start sm:self-auto">
+          <Plus size={15} /> New campaign
+        </button>
+      </div>
+
+      {(campaigns.length > 0 || search) && (
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search campaigns..."
+              className="input pl-9"
+            />
           </div>
           <p className="text-sm text-muted shrink-0">
             {isLoading && campaigns.length === 0
-              ? 'Loading campaigns...'
-              : search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
+              ? 'Loading...'
+              : search
+                ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`
+                : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-      </section>
+      )}
 
       <section className="table-shell">
         {isLoading && campaigns.length === 0 ? (
@@ -686,16 +693,17 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
+            icon={search ? Search : Mail}
             title={search ? 'No campaigns match' : 'No campaigns yet'}
             description={
               search
-                ? 'Clear your search to see all campaigns.'
-                : 'Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk.'
+                ? 'Try a different search term or clear to see all campaigns.'
+                : 'Create a campaign, set audience filters, then generate personalised emails in bulk.'
             }
             action={
               !search && (
                 <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
-                  <Plus size={15} /> Get started
+                  <Plus size={15} /> Create your first campaign
                 </button>
               )
             }
