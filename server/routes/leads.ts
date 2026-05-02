@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { revealAndUpsertContact } from "../lib/apollo-enrichment.js";
+import { consumeDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 const ALLOWED_STATUSES = ["SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"] as const;
 type LeadStatus = (typeof ALLOWED_STATUSES)[number];
@@ -22,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
     }
-    return res.status(500).json({ error: (err as Error).message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 
@@ -83,9 +84,11 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     const apolloKey = process.env.APOLLO_API_KEY;
     if (apolloKey) {
       try {
+        consumeDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50));
         const saved = await revealAndUpsertContact(apolloPersonId, companyId, apolloKey);
         if (saved) resolvedContactId = saved.id;
       } catch (err) {
+        if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
         console.warn("Apollo reveal failed during save:", err);
       }
     }

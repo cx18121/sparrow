@@ -42,14 +42,21 @@ function sign(payload: string): string {
 }
 
 export function getRequestBaseUrl(req: VercelRequest): string {
+  const explicitAppOrigin = process.env.APP_ORIGIN ?? process.env.PUBLIC_APP_ORIGIN;
+  if (explicitAppOrigin) return explicitAppOrigin.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("APP_ORIGIN or PUBLIC_APP_ORIGIN is required in production");
+  }
+
   const origin = req.headers.origin;
-  if (typeof origin === "string" && origin) return origin;
+  if (typeof origin === "string" && isLocalOrigin(origin)) return origin;
 
   const referer = req.headers.referer;
   const refererValue = Array.isArray(referer) ? referer[0] : referer;
   if (refererValue) {
     try {
-      return new URL(refererValue).origin;
+      const refererOrigin = new URL(refererValue).origin;
+      if (isLocalOrigin(refererOrigin)) return refererOrigin;
     } catch {
       // Fall back to forwarded host below.
     }
@@ -59,14 +66,20 @@ export function getRequestBaseUrl(req: VercelRequest): string {
   const hostValue = Array.isArray(host) ? host[0] : host;
   if (!hostValue) throw new Error("Could not determine request host");
 
-  const explicitAppOrigin = process.env.APP_ORIGIN ?? process.env.PUBLIC_APP_ORIGIN;
-  if (explicitAppOrigin) return explicitAppOrigin.replace(/\/+$/, "");
-
   const proto = req.headers["x-forwarded-proto"];
   const protoValue = Array.isArray(proto) ? proto[0] : proto;
   const inferredProto =
     protoValue ?? (hostValue.startsWith("localhost") || hostValue.startsWith("127.0.0.1") ? "http" : "https");
   return `${inferredProto}://${hostValue}`;
+}
+
+function isLocalOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
 }
 
 export function getOriginFromRedirectUri(redirectUri: string): string {

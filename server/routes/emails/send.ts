@@ -206,9 +206,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch (err: any) {
-    const gmailMsg = err?.response?.data?.error?.message ?? err?.message ?? "Gmail send failed";
     await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
-    return res.status(502).json({ error: gmailMsg });
+    return res.status(502).json({ error: "Gmail send failed" });
   }
 
   const updated = await prisma.email.update({

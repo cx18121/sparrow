@@ -28,6 +28,7 @@ export default {
       boxShadow: {
         card: '0 18px 50px rgba(15,23,42,0.08)',
         modal: '0 32px 90px rgba(15,23,42,0.22)',
+        active: '0 10px 24px rgba(27,110,243,0.18)',
       },
     },
   },

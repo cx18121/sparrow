@@ -60,7 +60,7 @@ describe("dispatchApiRequest", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "Not found" });
   });
 
-  it("handler that throws returns 500 with JSON error message", async () => {
+  it("handler that throws returns sanitized 500 JSON", async () => {
     const healthHandler = routeHandlers["/api/health"] as ReturnType<typeof vi.fn>;
     healthHandler.mockRejectedValue(new Error("Something exploded"));
 
@@ -68,7 +68,7 @@ describe("dispatchApiRequest", () => {
     const res = makeRes();
     await dispatchApiRequest(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: "Something exploded" });
+    expect(res.json).toHaveBeenCalledWith({ error: "Internal server error" });
   });
 
   it("strips `path` from req.query before dispatch", async () => {

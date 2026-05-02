@@ -116,7 +116,7 @@ describe("profile route — GET", () => {
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: "DB failure" });
+    expect(res.json).toHaveBeenCalledWith({ error: "Could not load profile" });
   });
 });
 
@@ -189,7 +189,7 @@ describe("profile route — POST", () => {
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: "upsert failed" });
+    expect(res.json).toHaveBeenCalledWith({ error: "Could not save profile" });
   });
 });
 

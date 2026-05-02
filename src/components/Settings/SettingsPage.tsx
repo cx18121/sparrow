@@ -241,6 +241,10 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   const uploadResume = async (file) => {
     if (!file) return
     setUploadState({ uploading: true, error: null })
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadState({ uploading: false, error: 'File must be under 10 MB.' })
+      return
+    }
 
     if (isDemo || !user?.id) {
       setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString() }))

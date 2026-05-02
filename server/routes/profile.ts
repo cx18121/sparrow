@@ -12,6 +12,38 @@ type ProfilePayload = {
   onboardingCompleted?: boolean;
 };
 
+const MAX_JSON_BYTES = 200_000;
+const MAX_RESUME_TEXT_LENGTH = 100_000;
+const MAX_PATH_LENGTH = 500;
+const MAX_SECRET_LENGTH = 10_000;
+
+function jsonSize(value: unknown): number {
+  return Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
+}
+
+function sanitizeWorkspaceConfig(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const sanitized = { ...(value as Record<string, unknown>) };
+  delete sanitized.apiKeys;
+  if (jsonSize(sanitized) > MAX_JSON_BYTES) {
+    throw new Error("workspaceConfig is too large");
+  }
+  return sanitized;
+}
+
+function sanitizeJsonObject(value: unknown, fieldName: string): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  if (jsonSize(value) > MAX_JSON_BYTES) throw new Error(`${fieldName} is too large`);
+  return value;
+}
+
+function nullableLimitedString(value: unknown, fieldName: string, maxLength: number): string | null {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") throw new Error(`${fieldName} must be a string`);
+  if (value.length > maxLength) throw new Error(`${fieldName} is too large`);
+  return value;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -34,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: "Could not load profile" });
 
     return res.status(200).json({
       profile: data
@@ -66,26 +98,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updated_at: new Date().toISOString(),
     };
 
-    if (body.workspaceConfig !== undefined) update.workspace_config = body.workspaceConfig;
-    if (body.defaultFilters !== undefined) update.default_filters = body.defaultFilters;
-    if (body.resumePath !== undefined) update.resume_path = body.resumePath;
-    if (body.resumeText !== undefined) update.resume_text = body.resumeText;
+    try {
+      if (body.workspaceConfig !== undefined) update.workspace_config = sanitizeWorkspaceConfig(body.workspaceConfig);
+      if (body.defaultFilters !== undefined) update.default_filters = sanitizeJsonObject(body.defaultFilters, "defaultFilters");
+      if (body.resumePath !== undefined) update.resume_path = nullableLimitedString(body.resumePath, "resumePath", MAX_PATH_LENGTH);
+      if (body.resumeText !== undefined) update.resume_text = nullableLimitedString(body.resumeText, "resumeText", MAX_RESUME_TEXT_LENGTH);
+      if (body.claudeApiKey !== undefined) {
+        const claudeApiKey = nullableLimitedString(body.claudeApiKey, "claudeApiKey", MAX_SECRET_LENGTH);
+        update.claude_api_key_encrypted = claudeApiKey ? encrypt(claudeApiKey) : null;
+      }
+      if (body.googleRefreshToken !== undefined) {
+        const googleRefreshToken = nullableLimitedString(body.googleRefreshToken, "googleRefreshToken", MAX_SECRET_LENGTH);
+        update.google_refresh_token_encrypted = googleRefreshToken ? encrypt(googleRefreshToken) : null;
+      }
+    } catch (err) {
+      return res.status(400).json({ error: (err as Error).message });
+    }
 
-    if (body.claudeApiKey !== undefined) {
-      update.claude_api_key_encrypted = body.claudeApiKey ? encrypt(body.claudeApiKey) : null;
-    }
-    if (body.googleRefreshToken !== undefined) {
-      update.google_refresh_token_encrypted = body.googleRefreshToken
-        ? encrypt(body.googleRefreshToken)
-        : null;
-    }
     if (body.onboardingCompleted !== undefined) {
+      if (typeof body.onboardingCompleted !== "boolean") {
+        return res.status(400).json({ error: "onboardingCompleted must be a boolean" });
+      }
       update.onboarding_completed = body.onboardingCompleted;
       if (body.onboardingCompleted) update.onboarding_completed_at = new Date().toISOString();
     }
 
     const { error } = await supabase.from("user_profiles").upsert(update, { onConflict: "user_id" });
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: "Could not save profile" });
 
     return res.status(204).end();
   }

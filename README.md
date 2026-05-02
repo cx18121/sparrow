@@ -1,4 +1,4 @@
-# GenAI-Internal-Project---Cold-Email-Automation
+# sparrow
 
 ### run frontend
 

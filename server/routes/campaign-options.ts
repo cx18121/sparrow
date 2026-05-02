@@ -97,6 +97,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       remoteCount,
     });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Could not load campaign options" });
   }
 }

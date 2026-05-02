@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
-    return res.status(500).json({ error: (err as Error).message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 
@@ -171,4 +171,3 @@ async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
   await prisma.campaign.delete({ where: { id } });
   res.status(204).end();
 }
-

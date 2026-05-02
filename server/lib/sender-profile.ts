@@ -69,6 +69,7 @@ export function buildSenderContextFromProfile(
 
   return buildSenderContext({
     name: profile.senderName,
+    company: profile.ws.senderCompany ?? null,
     bio: [profile.senderRole, extraParts].filter(Boolean).join(". ") || null,
     targetRole: profile.senderRole,
     resumeText: profile.resumeText,

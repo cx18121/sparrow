@@ -4,14 +4,9 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { searchContacts, revealPerson } from "../lib/apollo.js";
+import { consumeDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 type ApolloAction = "search" | "reveal";
-
-const quotaBuckets = new Map<string, { day: string; search: number; reveal: number }>();
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function quotaLimit(action: ApolloAction): number {
   const envName = action === "search" ? "APOLLO_SEARCH_DAILY_LIMIT" : "APOLLO_REVEAL_DAILY_LIMIT";
@@ -21,15 +16,12 @@ function quotaLimit(action: ApolloAction): number {
 }
 
 function consumeApolloQuota(userId: string, action: ApolloAction) {
-  const day = todayKey();
-  const bucket = quotaBuckets.get(userId);
-  const current = bucket?.day === day ? bucket : { day, search: 0, reveal: 0 };
-  const limit = quotaLimit(action);
-  if (current[action] >= limit) {
-    throw new HttpError(429, `Daily Apollo ${action} limit reached (${limit}). Try again tomorrow.`);
+  try {
+    consumeDailyQuota("apollo", userId, action, quotaLimit(action));
+  } catch (err) {
+    if (err instanceof QuotaError) throw new HttpError(429, `Daily Apollo ${action} limit reached (${quotaLimit(action)}). Try again tomorrow.`);
+    throw err;
   }
-  current[action] += 1;
-  quotaBuckets.set(userId, current);
 }
 
 function normalizeDomain(value: string): string {
@@ -70,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
     }
-    return res.status(500).json({ error: (err as Error).message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 
@@ -185,10 +177,8 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
           error: "Apollo rate limit reached. Please wait a moment and try again.",
         });
       }
-      return res.status(status ?? 500).json({
-        error: `Apollo API error: ${err.response?.status} ${err.message}`,
-      });
+      return res.status(status ?? 500).json({ error: "Apollo API error" });
     }
-    return res.status(500).json({ error: (err as Error).message });
+    return res.status(500).json({ error: "Apollo API error" });
   }
 }

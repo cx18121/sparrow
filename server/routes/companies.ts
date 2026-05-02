@@ -129,7 +129,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
     res.status(200).json({ items, nextCursor });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Could not load companies" });
   }
 }
 

@@ -115,6 +115,7 @@ const sequoiaAdapter: IngestorAdapter = {
         industry,
         sourceId: slug,
         topics: scraped.sectors,
+        investors: ["sequoia"],
         signals: ["vc-backed"],
         isVerified: true,
       });

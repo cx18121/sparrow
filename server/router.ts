@@ -18,6 +18,7 @@ import industries from "./routes/industries.js";
 import leads from "./routes/leads.js";
 import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
+import styleGuide from "./routes/style-guide.js";
 
 export type ApiHandler = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
@@ -40,6 +41,7 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/campaign-options": campaignOptions,
   "/api/apollo-search": apolloSearch,
   "/api/industries": industries,
+  "/api/style-guide": styleGuide,
 };
 
 function pathFromCatchAll(req: VercelRequest): string | null {
@@ -69,7 +71,6 @@ export async function dispatchApiRequest(req: VercelRequest, res: VercelResponse
   try {
     return await handler(req, res);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    if (!res.headersSent) res.status(500).json({ error: message });
+    if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
   }
 }

@@ -60,10 +60,18 @@ function draftFallback(input: FallbackDraftInput): EmailDraft {
   }
 }
 
+function stripPlaceholders(text: string): string {
+  return text.replace(/\{\{[^}]+\}\}/g, '[Company]')
+}
+
 function buildPrompt(input: AiDraftInput): string {
+  const exampleNote = input.exampleBodies?.length
+    ? `\n\nStyle example (match this voice and structure — do not copy content):\n${stripPlaceholders(input.exampleBodies[0])}`
+    : ''
+
   const styleGuidance = input.styleInstruction
-    ? `Style (follow precisely):\n${input.styleInstruction}`
-    : 'Style: direct, concise, specific — 80–120 words.'
+    ? `Style (follow precisely):\n${input.styleInstruction}${exampleNote}`
+    : `Style: direct, concise, specific — 80–120 words.${exampleNote}`
 
   const hookNote = input.interestHook
     ? `Interest hook — weave in naturally mid-email: "${input.interestHook}"`

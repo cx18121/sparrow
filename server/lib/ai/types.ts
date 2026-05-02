@@ -40,6 +40,7 @@ export interface AiDraftInput extends DraftBase {
   interestHook: string | null
   senderContext: string
   styleInstruction?: string | null
+  exampleBodies?: string[] | null
   apiKey: string
 }
 

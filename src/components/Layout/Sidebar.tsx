@@ -36,9 +36,9 @@ export default function Sidebar({
         onClick={() => onTabChange(tab.id)}
         title={collapsed ? tab.label : undefined}
         aria-current={isActive ? 'page' : undefined}
-        className={`group flex min-h-9 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
+        className={`group flex min-h-[44px] w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.18)]'
+            ? 'bg-primary text-white shadow-active'
             : 'text-muted hover:bg-slate-50 hover:text-dark'
         } ${collapsed ? 'justify-center' : ''}`}
       >
@@ -68,7 +68,7 @@ export default function Sidebar({
             type="button"
             onClick={() => setCollapsed(true)}
             className="btn-ghost p-1.5 text-muted/70 hover:text-dark"
-            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
           >
             <PanelLeftClose size={14} />
           </button>
@@ -78,7 +78,7 @@ export default function Sidebar({
             type="button"
             onClick={() => setCollapsed(false)}
             className="absolute -right-3 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-slate-100 bg-white text-muted shadow-sm transition-colors hover:text-dark"
-            title="Expand sidebar"
+            aria-label="Expand sidebar"
           >
             <PanelLeftOpen size={13} />
           </button>
@@ -100,8 +100,9 @@ export default function Sidebar({
             <button
               type="button"
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              title={collapsed ? displayName : undefined}
-              className={`flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150 hover:bg-slate-50 ${collapsed ? 'justify-center' : ''}`}
+              aria-label={`${displayName} menu`}
+              aria-expanded={dropdownOpen}
+              className={`flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150 hover:bg-slate-50 ${collapsed ? 'justify-center' : ''}`}
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="h-6 w-6 shrink-0 rounded-full object-cover" />
@@ -138,7 +139,7 @@ export default function Sidebar({
       </div>
     </aside>
 
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/[0.98] px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] md:hidden">
       <div
         className="grid gap-1 overflow-x-auto"
         style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(58px, 1fr))` }}
@@ -152,7 +153,7 @@ export default function Sidebar({
               onClick={() => onTabChange(tab.id)}
               aria-current={isActive ? 'page' : undefined}
               className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${
-                isActive ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.18)]' : 'text-muted hover:bg-slate-50 hover:text-dark'
+                isActive ? 'bg-primary text-white shadow-active' : 'text-muted hover:bg-slate-50 hover:text-dark'
               }`}
             >
               <tab.icon size={16} />

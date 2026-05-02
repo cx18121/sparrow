@@ -1,0 +1,1 @@
+ALTER TABLE "CustomContact" ADD COLUMN IF NOT EXISTS status "LeadStatus" NOT NULL DEFAULT 'SAVED';

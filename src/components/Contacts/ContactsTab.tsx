@@ -368,7 +368,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
       <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="page-eyebrow">Saved leads</p>
+          <h2 className="page-eyebrow">Saved leads</h2>
           <p className="page-subtitle">Manage and email saved leads.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -660,8 +660,9 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         <div className="space-y-4 px-4 py-4 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="label">Name</label>
+              <label htmlFor="add-contact-name" className="label">Name</label>
               <input
+                id="add-contact-name"
                 value={addForm.name}
                 onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Jane Smith"
@@ -670,8 +671,9 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
               />
             </div>
             <div>
-              <label className="label">Email</label>
+              <label htmlFor="add-contact-email" className="label">Email</label>
               <input
+                id="add-contact-email"
                 value={addForm.email}
                 onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="jane@acme.com"
@@ -681,8 +683,9 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
               />
             </div>
             <div>
-              <label className="label">Title <span className="text-muted">(optional)</span></label>
+              <label htmlFor="add-contact-title" className="label">Title <span className="text-muted">(optional)</span></label>
               <input
+                id="add-contact-title"
                 value={addForm.title}
                 onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="Head of Engineering"
@@ -691,8 +694,9 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
               />
             </div>
             <div>
-              <label className="label">Company <span className="text-muted">(optional)</span></label>
+              <label htmlFor="add-contact-company" className="label">Company <span className="text-muted">(optional)</span></label>
               <input
+                id="add-contact-company"
                 value={addForm.companyName}
                 onChange={e => setAddForm(f => ({ ...f, companyName: e.target.value }))}
                 placeholder="Acme Corp"

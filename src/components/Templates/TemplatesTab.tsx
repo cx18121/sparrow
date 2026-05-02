@@ -34,6 +34,19 @@ function fillVariables(html, data) {
     .replace(/\{\{senderName\}\}/g, data.sender_name || 'Your Name')
 }
 
+function normalizeSafeLinkUrl(value) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(candidate)
+    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:') return candidate
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 function ToolbarButton({ onClick, active, title, children }) {
   return (
     <button
@@ -80,8 +93,9 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   }
 
   const applyLink = () => {
-    if (linkUrl.trim()) {
-      editor?.chain().focus().extendMarkRange('link').setLink({ href: linkUrl.trim() }).run()
+    const safeUrl = normalizeSafeLinkUrl(linkUrl)
+    if (safeUrl) {
+      editor?.chain().focus().extendMarkRange('link').setLink({ href: safeUrl }).run()
     } else {
       editor?.chain().focus().extendMarkRange('link').unsetLink().run()
     }

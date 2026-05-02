@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
   Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
-  Filter, RefreshCw, ArrowLeft, X,
+  Filter, RefreshCw, ArrowLeft, X, Megaphone,
 } from 'lucide-react'
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
@@ -423,7 +423,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
 
         {/* Inline batch panel — replaces the former modal-on-modal */}
         {batchModal.open && batchModal.campaign?.id === detailCampaign.id && (
-          <section className="rounded-[24px] border border-slate-100 bg-slate-50/60 p-5">
+          <section className="py-2">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="page-eyebrow">Latest batch</p>
@@ -441,7 +441,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   type="button"
                   onClick={() => setResetTarget(batchModal.campaign?.id)}
                   className="btn-ghost text-xs"
-                  title="Clear seen history to start fresh"
+                  aria-label="Reset batch history"
                 >
                   <RotateCcw size={12} /> Reset history
                 </button>
@@ -463,7 +463,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   type="button"
                   onClick={() => setBatchModal(prev => ({ ...prev, open: false }))}
                   className="btn-ghost px-2 py-1 text-xs"
-                  title="Close batch panel"
+                  aria-label="Close batch results"
                 >
                   <X size={12} />
                 </button>
@@ -650,6 +650,24 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         </section>
 
         </>
+      ) : isLoading && campaigns.length === 0 ? (
+        <section className="table-shell">
+          <div className="py-12 text-center text-sm text-muted">Loading campaigns...</div>
+        </section>
+      ) : !search && campaigns.length === 0 ? (
+        <section className="table-shell">
+          <EmptyState
+            icon={Megaphone}
+            title="No campaigns yet"
+            description="Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk."
+            action={
+              <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
+                <Plus size={15} /> New campaign
+              </button>
+            }
+            className="py-24"
+          />
+        </section>
       ) : (
         <>
       <section className="page-toolbar">
@@ -669,33 +687,16 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             </button>
           </div>
           <p className="text-sm text-muted shrink-0">
-            {isLoading && campaigns.length === 0
-              ? 'Loading campaigns...'
-              : search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
+            {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </section>
 
       <section className="table-shell">
-        {isLoading && campaigns.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted">
-            Loading campaigns...
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <EmptyState
-            title={search ? 'No campaigns match' : 'No campaigns yet'}
-            description={
-              search
-                ? 'Clear your search to see all campaigns.'
-                : 'Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk.'
-            }
-            action={
-              !search && (
-                <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
-                  <Plus size={15} /> Get started
-                </button>
-              )
-            }
+            title="No campaigns match"
+            description="Try a different search term."
           />
         ) : (
           <table className="w-full text-sm">
@@ -719,7 +720,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   >
                     <td className="px-5 py-4">
                       <p className="font-medium text-dark">{c.name}</p>
-                      {c.subject && <p className="mt-0.5 text-xs text-muted truncate max-w-[220px]">{c.subject}</p>}
+                      {c.subject && <p className="mt-0.5 text-xs text-muted truncate max-w-[160px] sm:max-w-[220px]">{c.subject}</p>}
                     </td>
                     <td className="px-5 py-4">
                       {filters.length > 0 ? (

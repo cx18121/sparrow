@@ -533,6 +533,10 @@ export default function OnboardingScreen({
   const handleUploadResume = async (file) => {
     if (!file) return
     setResumeUpload({ uploading: true, error: null })
+    if (file.size > 10 * 1024 * 1024) {
+      setResumeUpload({ uploading: false, error: 'File must be under 10 MB.' })
+      return
+    }
 
     if (isDemo || !user?.id) {
       markUserEdited()

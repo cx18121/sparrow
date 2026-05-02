@@ -261,7 +261,7 @@ const STAGE_TAG_MAP: Record<string, string> = {
 };
 
 const STAGE_TAGS = ["pre-seed", "seed", "series-a", "series-b", "series-c-plus", "growth"] as const;
-const INVESTOR_TAGS = ["accel", "kleinerperkins", "firstround", "initialized", "a16z", "gv", "bessemer", "greylock", "foundersfund"] as const;
+const INVESTOR_TAGS = ["accel", "kleinerperkins", "firstround", "initialized", "a16z", "gv", "bessemer", "greylock", "foundersfund", "sequoia"] as const;
 const SIZE_TAGS = ["solo-founder", "small-team", "mid-team", "big-team", "mega-team"] as const;
 const SIGNAL_TAGS = ["multi-source", "yc-backed", "ph-launched", "curated", "hn-hiring", "vc-backed", "unicorn"] as const;
 

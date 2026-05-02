@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
+import { HttpError } from "../lib/user.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -15,8 +16,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
-    return res.status(500).json({ error: (err as Error).message });
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
+}
+
+function trimLimited(value: string, maxLength: number): string {
+  return value.trim().slice(0, maxLength);
 }
 
 async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
@@ -31,18 +37,21 @@ async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { name, subject, body: content, isShared } = body ?? {};
+  const { name, subject, body: content } = body ?? {};
   if (typeof name !== "string" || typeof subject !== "string" || typeof content !== "string") {
     return res.status(400).json({ error: "name, subject, and body are required" });
+  }
+  if (name.length > 120 || subject.length > 300 || content.length > 50_000) {
+    return res.status(400).json({ error: "Template fields are too large" });
   }
 
   const template = await prisma.template.create({
     data: {
       userId,
-      name,
-      subject,
-      body: content,
-      isShared: !!isShared,
+      name: trimLimited(name, 120),
+      subject: trimLimited(subject, 300),
+      body: content.slice(0, 50_000),
+      isShared: false,
     },
   });
   res.status(201).json(template);
@@ -50,7 +59,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { id, name, subject, body: content, isShared } = body ?? {};
+  const { id, name, subject, body: content } = body ?? {};
   if (typeof id !== "string") return res.status(400).json({ error: "id is required" });
   if (name !== undefined && typeof name !== "string") {
     return res.status(400).json({ error: "name must be a string" });
@@ -60,6 +69,13 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   }
   if (content !== undefined && typeof content !== "string") {
     return res.status(400).json({ error: "body must be a string" });
+  }
+  if (
+    (typeof name === "string" && name.length > 120) ||
+    (typeof subject === "string" && subject.length > 300) ||
+    (typeof content === "string" && content.length > 50_000)
+  ) {
+    return res.status(400).json({ error: "Template fields are too large" });
   }
 
   const existing = await prisma.template.findUnique({ where: { id } });
@@ -73,7 +89,6 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(name !== undefined && { name }),
       ...(subject !== undefined && { subject }),
       ...(content !== undefined && { body: content }),
-      ...(isShared !== undefined && { isShared: !!isShared }),
     },
   });
   res.status(200).json(template);

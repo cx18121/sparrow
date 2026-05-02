@@ -2,61 +2,61 @@ export const STYLE_TESTS = [
   {
     id: 'tone',
     label: 'Tone',
-    dimension: 'Choose the voice that feels more natural for you.',
+    dimension: 'Choose the opening voice that feels more natural for you.',
     a: {
-      label: 'Straightforward',
+      label: 'Direct',
       traits: { directness: 3, warmth: 0, brevity: 1, specificity: 0, polish: 0 },
-      body: 'Noticed {{company}} is working in a space where targeted outreach and timing matter.\n\nI am building a lightweight workflow that turns public company signals into cleaner first drafts, without making the message feel automated.\n\nWorth sending over a quick example?',
+      body: "I'm a junior at Cornell studying CS, and I've been following {{company}}'s work for the past few months.\n\nI'd like to connect with someone on the team to learn more about what you're building. Would a quick call this week work?",
     },
     b: {
       label: 'Warm',
       traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
-      body: 'I came across {{company}} while looking at teams doing thoughtful work in this market, and your focus stood out.\n\nI have been exploring how small teams can make first-touch outreach feel more researched without adding hours of manual writing.\n\nWould it be useful if I shared the short version?',
+      body: "I came across {{company}} while looking at teams doing thoughtful work in this space, and your approach stood out to me.\n\nI'm a junior at Cornell studying CS and would genuinely love to hear more about the direction you're taking. Would anyone on the team be open to a conversation?",
     },
   },
   {
     id: 'length',
     label: 'Length',
-    dimension: 'Choose how much context you want before the ask.',
+    dimension: 'Choose how much context you want to give before the ask.',
     a: {
       label: 'Concise',
       traits: { directness: 1, warmth: 0, brevity: 3, specificity: 0, polish: 0 },
-      body: 'Noticed {{company}} and thought my work on research-backed cold outreach might be relevant.\n\nCould I send over a quick example?',
+      body: "I'm a Cornell CS junior interested in what {{company}} is building.\n\nWould a quick call make sense?",
     },
     b: {
       label: 'Contextual',
       traits: { directness: 0, warmth: 1, brevity: 0, specificity: 3, polish: 1 },
-      body: 'I noticed {{company}} while looking at teams where trust and timing seem important in outbound.\n\nMy recent work focuses on turning scattered prospect research into short, specific first drafts, especially when there is only one useful company signal to work from.\n\nIf helpful, I can send a brief example using a public signal from your site.',
+      body: "I've been following {{company}} for the past couple months. I'm a junior at Cornell studying CS, and I've been spending most of my time outside class on ML infrastructure and systems.\n\nI'd love to hear more about what the team is focused on right now. Would a 20-minute call make sense?",
     },
   },
   {
     id: 'ask',
-    label: 'Ask',
-    dimension: 'Choose the kind of call to action you prefer.',
+    label: 'The Ask',
+    dimension: 'Choose the call to action that feels more like you.',
     a: {
-      label: 'Specific ask',
+      label: 'Direct ask',
       traits: { directness: 3, warmth: 0, brevity: 1, specificity: 1, polish: 0 },
-      body: 'I noticed {{company}} and thought there may be a useful fit with my work on making cold outreach more specific and less manual.\n\nWould you be open to a 15-minute conversation next week so I can show you what I am building?',
+      body: "I've been following {{company}}'s work and think there's a real fit with my background.\n\nWould you be open to a 20-minute call next week? I'm free Tuesday or Wednesday afternoon.",
     },
     b: {
       label: 'Soft ask',
       traits: { directness: 0, warmth: 3, brevity: 0, specificity: 0, polish: 1 },
-      body: 'I noticed {{company}} and thought there may be a useful fit with my work on making first-touch emails more relevant.\n\nNo need to book time yet. Would it be helpful if I sent over the 3-line version first?',
+      body: "I've been following {{company}}'s work and think there's a real fit with my background.\n\nNo pressure to schedule anything yet — would it be helpful if I sent over a bit more context on what I've been working on first?",
     },
   },
   {
     id: 'personalization',
-    label: 'Personalization',
-    dimension: 'Choose how much research detail should appear in the first note.',
+    label: 'Research depth',
+    dimension: 'Choose how much you want to reference about them in the opening.',
     a: {
-      label: 'Light',
+      label: 'Light touch',
       traits: { directness: 1, warmth: 0, brevity: 2, specificity: 0, polish: 0 },
-      body: 'I saw {{company}} and thought there could be a useful reason to connect.\n\nI am working on a tool that helps students turn lead research into reviewed first drafts faster.\n\nWorth sharing?',
+      body: "I came across {{company}} and thought there could be a good reason to connect.\n\nI'm a Cornell CS student working on ML tooling. Worth a quick conversation?",
     },
     b: {
       label: 'Specific',
       traits: { directness: 0, warmth: 0, brevity: 0, specificity: 3, polish: 1 },
-      body: 'I noticed {{company}} is in a market where a generic first email would probably get ignored. That caught my attention because my recent work is about using public company signals to write a more relevant first draft.\n\nWould a short example using one signal from {{company}} be useful?',
+      body: "I've been following {{company}}'s work closely — the infrastructure approach you're taking is something I've been thinking about through my own projects.\n\nI'm a junior at Cornell studying CS, and I'd love to hear how the team is approaching that problem. Would a quick call make sense?",
     },
   },
 ] as const
@@ -91,6 +91,7 @@ export interface StyleProfile {
   prompt: string
   traits: string[]
   scores: Record<string, number>
+  examples?: string[]
 }
 
 export function scoreStyleChoices(choices: Record<string, string> = {}): StyleProfile {
@@ -111,6 +112,13 @@ export function scoreStyleChoices(choices: Record<string, string> = {}): StylePr
     ? topTraits.map(t => STYLE_PROMPTS[t]).filter(Boolean).join(' ')
     : DEFAULT_STYLE_PROFILE.prompt
 
+  const examples = STYLE_TESTS
+    .map(test => {
+      const pick = choices[test.id] as 'a' | 'b' | undefined
+      return pick ? test[pick].body : null
+    })
+    .filter(Boolean) as string[]
+
   return {
     name: topTraits.length
       ? `${topTraits.map(t => t[0].toUpperCase() + t.slice(1)).join(', ')} outreach`
@@ -121,5 +129,6 @@ export function scoreStyleChoices(choices: Record<string, string> = {}): StylePr
     prompt,
     traits: topTraits.length ? topTraits : DEFAULT_STYLE_PROFILE.traits,
     scores,
+    examples,
   }
 }

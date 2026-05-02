@@ -60,6 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.status(200).json({ items, nextCursor });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Could not load contacts" });
   }
 }

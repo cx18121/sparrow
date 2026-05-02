@@ -35,6 +35,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     if (err instanceof GenerationError) return res.status(err.status).json({ error: err.message });
     if (err instanceof ProfileError) return res.status(err.status).json({ error: err.message });
-    return res.status(500).json({ error: (err as Error).message });
+    return res.status(500).json({ error: "Could not generate email" });
   }
 }

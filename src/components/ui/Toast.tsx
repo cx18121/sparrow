@@ -33,7 +33,12 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
   const Icon = tone.icon
 
   return (
-    <div className="pointer-events-none fixed right-5 top-16 z-50 w-[min(380px,calc(100vw-2.5rem))]">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="pointer-events-none fixed right-5 top-16 z-50 w-[min(380px,calc(100vw-2.5rem))]"
+    >
       <div className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-card ${tone.className}`}>
         <Icon size={17} className={`mt-0.5 shrink-0 ${tone.iconClassName}`} />
         <div className="min-w-0 flex-1">
@@ -52,8 +57,8 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 rounded p-0.5 opacity-70 transition-opacity hover:opacity-100"
-          title="Dismiss"
+          aria-label="Dismiss"
+          className="shrink-0 -m-1 rounded-lg p-2 opacity-70 transition-opacity hover:opacity-100"
         >
           <X size={14} />
         </button>
