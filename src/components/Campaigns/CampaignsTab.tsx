@@ -28,25 +28,23 @@ const NS_LABELS = {
 
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
-  templateId: '', scheduledAt: '',
+  templateId: '',
   filterTags: [], filterRegion: '', filterStage: '', filterBatch: '',
-  filterIsHiring: '', filterHeadcountMin: '', filterHeadcountMax: '',
+  filterIsHiring: false, filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10', tone: '',
 }
 
 function advancedSummary(form) {
   const parts = []
-  if (form.filterTags?.length) parts.push(`${form.filterTags.length} tag${form.filterTags.length === 1 ? '' : 's'}`)
   if (form.filterBatch) parts.push(form.filterBatch)
   if (form.filterHeadcountMin || form.filterHeadcountMax) {
     parts.push(`${form.filterHeadcountMin || 0}–${form.filterHeadcountMax || '∞'} employees`)
   }
-  if (form.scheduledAt) parts.push('scheduled')
   if (form.tone) parts.push('tone set')
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate }) {
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate, onEnterCampaign }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -146,8 +144,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const openEdit = (c) => {
     setEditing(c.id)
     setAdvancedOpen(Boolean(
-      c.scheduledAt ||
-      c.filterTags?.length ||
       c.filterBatch ||
       c.filterHeadcountMin != null ||
       c.filterHeadcountMax != null
@@ -157,12 +153,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: c.subject || '',
       status: c.status,
       templateId: c.templateId || '',
-      scheduledAt: c.scheduledAt ? c.scheduledAt.slice(0, 16) : '',
       filterTags: c.filterTags || [],
       filterRegion: c.filterRegion || '',
       filterStage: c.filterStage || '',
       filterBatch: c.filterBatch || '',
-      filterIsHiring: c.filterIsHiring == null ? '' : String(c.filterIsHiring),
+      filterIsHiring: c.filterIsHiring === true,
       filterHeadcountMin: c.filterHeadcountMin != null ? String(c.filterHeadcountMin) : '',
       filterHeadcountMax: c.filterHeadcountMax != null ? String(c.filterHeadcountMax) : '',
       batchSize: String(c.batchSize ?? 10),
@@ -179,12 +174,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: form.subject || null,
       status: form.status,
       templateId: form.templateId || null,
-      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
       filterTags: form.filterTags || [],
       filterRegion: form.filterRegion || null,
       filterStage: form.filterStage || null,
       filterBatch: form.filterBatch || null,
-      filterIsHiring: form.filterIsHiring === '' ? null : form.filterIsHiring === 'true',
+      filterIsHiring: form.filterIsHiring || null,
       filterHeadcountMin: form.filterHeadcountMin ? Number(form.filterHeadcountMin) : null,
       filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
       batchSize: Number(form.batchSize) || 10,
@@ -228,7 +222,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       subject: c.subject || null,
       status: 'draft',
       templateId: c.templateId || null,
-      scheduledAt: c.scheduledAt || null,
       filterTags: c.filterTags || [],
       filterRegion: c.filterRegion || null,
       filterStage: c.filterStage || null,
@@ -394,6 +387,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <button type="button" onClick={() => openEdit(detailCampaign)} className="btn-secondary text-xs">
                 <Edit2 size={13} /> Edit settings
               </button>
+              {onEnterCampaign && (
+                <button type="button" onClick={() => onEnterCampaign(detailCampaign)} className="btn-secondary text-xs">
+                  <Search size={13} /> Browse in Discover
+                </button>
+              )}
               <button type="button" onClick={() => openBatchModal(detailCampaign)} className="btn-primary text-xs">
                 <Zap size={13} /> Find matching prospects
               </button>
@@ -680,8 +678,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             }
             action={
               !search && (
-                <button type="button" onClick={openCreate} className="btn-primary text-xs">
-                  <Plus size={13} /> New campaign
+                <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
+                  <Plus size={15} /> Get started
                 </button>
               )
             }
@@ -786,35 +784,75 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             )}
           </div>
 
-          {/* Lead filters */}
-          <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="label">Region</label>
-                <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
-                  <option value="">Any region</option>
-                  <option value="__US__">US companies</option>
-                  <option value="__INTL__">International</option>
-                  <option value="__REMOTE__">Remote</option>
-                  {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Stage</label>
-                <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">
-                  <option value="">Any stage</option>
-                  {/* e.g. Seed, Series A, Series B */}
-                  {options.stages.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-                <p className="mt-1 text-xs text-muted">Seed, Series A, etc. Blank = all stages.</p>
-              </div>
-              <div>
-                <label className="label">Hiring</label>
-                <select value={form.filterIsHiring} onChange={e => field('filterIsHiring', e.target.value)} className="select">
-                  <option value="">Any</option>
-                  <option value="true">Actively hiring</option>
-                  <option value="false">Not hiring</option>
-                </select>
-              </div>
+          {/* Audience filters — pill toggles matching Discover */}
+          <div className="space-y-3">
+            <label className="label">Audience filters</label>
+            <div className="flex flex-wrap gap-2">
+              {/* Hiring toggle */}
+              <button
+                type="button"
+                onClick={() => field('filterIsHiring', !form.filterIsHiring)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                  form.filterIsHiring
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-white' : 'bg-emerald-400'}`} />
+                Hiring only
+              </button>
+              {/* Region toggles */}
+              {([
+                { value: '__US__', label: 'US' },
+                { value: '__INTL__', label: 'International' },
+                { value: '__REMOTE__', label: 'Remote' },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                    form.filterRegion === value
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tags — always visible, same layout as Discover */}
+            <div className="space-y-2 pt-1">
+              {CAMPAIGN_NS.map(ns => {
+                const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
+                if (tags.length < 2) return null
+                return (
+                  <div key={ns} className="flex flex-wrap items-center gap-2">
+                    <span className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">
+                      {NS_LABELS[ns]}
+                    </span>
+                    {tags.map(({ name, namespaced }) => (
+                      <button
+                        key={namespaced}
+                        type="button"
+                        onClick={() => toggleFilterTag(namespaced)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                          (form.filterTags || []).includes(namespaced)
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+              {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
+                <p className="text-xs text-muted">Tags load once companies are ingested.</p>
+              )}
+            </div>
           </div>
 
           {/* Batch size */}
@@ -822,16 +860,16 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             <label className="label">Batch size</label>
             <div className="flex items-center gap-3">
               <input
-                type="number" min="1" max="100"
+                type="number" min="1" max="50"
                 value={form.batchSize}
                 onChange={e => field('batchSize', e.target.value)}
                 className="input w-28"
               />
-              <p className="text-xs text-muted">Prospects pulled each time you click "Find matches" (max 100).</p>
+              <p className="text-xs text-muted">Prospects pulled each time you click "Find matches" (max 50).</p>
             </div>
           </div>
 
-          {/* Advanced disclosure */}
+          {/* Advanced — YC batch, headcount, tone */}
           <div className="border-t border-slate-100 pt-4">
             <button
               type="button"
@@ -840,7 +878,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               aria-expanded={advancedOpen}
             >
               <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
-              Advanced filters
+              Advanced
               {!advancedOpen && advancedSummary(form) && (
                 <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">— {advancedSummary(form)}</span>
               )}
@@ -848,40 +886,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
 
             {advancedOpen && (
               <div className="mt-3 space-y-3">
-                <div>
-                  <label className="label">Tags</label>
-                  <p className="mb-2 text-xs text-muted">
-                    Choose tags to narrow your audience. If you pick multiple tags in one category, prospects can match any of them.
-                  </p>
-                  <div className="space-y-2">
-                    {CAMPAIGN_NS.map(ns => {
-                      const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15)
-                      if (tags.length < 2) return null
-                      return (
-                        <div key={ns} className="flex flex-wrap items-start gap-1.5">
-                          <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">{NS_LABELS[ns]}</span>
-                          {tags.map(({ name, namespaced }) => (
-                            <button
-                              key={namespaced}
-                              type="button"
-                              onClick={() => toggleFilterTag(namespaced)}
-                              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                                (form.filterTags || []).includes(namespaced)
-                                  ? 'bg-primary border-primary text-white'
-                                  : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
-                              }`}
-                            >
-                              {name}
-                            </button>
-                          ))}
-                        </div>
-                      )
-                    })}
-                    {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
-                      <p className="text-xs text-muted">Tags will appear here once companies have been ingested.</p>
-                    )}
-                  </div>
-                </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <label className="label">YC Batch</label>
@@ -897,30 +901,6 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   <div>
                     <label className="label">Max employees</label>
                     <input type="number" min="0" value={form.filterHeadcountMax} onChange={e => field('filterHeadcountMax', e.target.value)} placeholder="e.g. 200" className="input" />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Schedule (optional)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      value={form.scheduledAt ? form.scheduledAt.slice(0, 10) : ''}
-                      onChange={e => {
-                        const time = form.scheduledAt ? form.scheduledAt.slice(11, 16) : '09:00'
-                        field('scheduledAt', e.target.value ? `${e.target.value}T${time}` : '')
-                      }}
-                      className="input"
-                    />
-                    <input
-                      type="time"
-                      value={form.scheduledAt ? form.scheduledAt.slice(11, 16) : ''}
-                      onChange={e => {
-                        const date = form.scheduledAt ? form.scheduledAt.slice(0, 10) : ''
-                        if (date) field('scheduledAt', `${date}T${e.target.value}`)
-                      }}
-                      disabled={!form.scheduledAt?.slice(0, 10)}
-                      className="input disabled:opacity-40"
-                    />
                   </div>
                 </div>
                 <div>
