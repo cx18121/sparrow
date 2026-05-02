@@ -13,7 +13,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import {
   fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions, generateEmail, createEmail,
-  fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
+  fetchCampaignLeads, deleteCampaignLead,
 } from '../../lib/api'
 import { useAppData } from '../../contexts/AppDataContext'
 
@@ -69,7 +69,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const [resetTarget, setResetTarget] = useState(null)
   const [emailPreview, setEmailPreview] = useState({ open: false, lead: null, subject: '', body: '', saving: false, error: null })
   const [campaignLeads, setCampaignLeads] = useState([])
-  const [savedLeads, setSavedLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
 
   // Detail view is driven by the global activeCampaign prop, not local state.
@@ -83,8 +82,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     console.error(title, err)
     setToast({ type: 'error', title, message: err?.message || 'Please try again.' })
   }
-  const [addLeadId, setAddLeadId] = useState('')
-  const [addingLead, setAddingLead] = useState(false)
 
   const workspaceTemplate = templates.find(t => t.id === workspaceConfig?.templateId)
 
@@ -106,12 +103,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const loadCampaignDetail = async (campaignId) => {
     setDetailLoading(true)
     try {
-      const [members, saved] = await Promise.all([
-        fetchCampaignLeads(campaignId),
-        fetchLeads({ limit: '200' }),
-      ])
+      const members = await fetchCampaignLeads(campaignId)
       setCampaignLeads(members?.items || [])
-      setSavedLeads(saved?.items || [])
     } catch (err) {
       reportError('Could not load campaign', err)
     } finally {
@@ -122,27 +115,11 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   // Load campaign leads whenever the active campaign changes.
   useEffect(() => {
     if (activeCampaign?.id) {
-      setAddLeadId('')
       loadCampaignDetail(activeCampaign.id)
     } else {
       setCampaignLeads([])
-      setSavedLeads([])
     }
   }, [activeCampaign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const addLeadToCampaign = async (leadId: string) => {
-    if (!detailCampaign || !leadId || addingLead) return
-    setAddingLead(true)
-    try {
-      const added = await addCampaignLead(detailCampaign.id, leadId)
-      setCampaignLeads(prev => prev.some(l => l.campaignLeadId === added.campaignLeadId) ? prev : [added, ...prev])
-      setAddLeadId('')
-    } catch (err) {
-      reportError('Could not add prospect', err)
-    } finally {
-      setAddingLead(false)
-    }
-  }
 
   const removeLeadFromCampaign = async (campaignLeadId) => {
     try {
@@ -380,8 +357,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       : null,
   ].filter(Boolean)
 
-  const availableSavedLeads = savedLeads.filter(lead => !campaignLeads.some(member => member.id === lead.id))
-
   const detailFilters = detailCampaign ? activeFilters(detailCampaign) : []
   const sourceLabel = (lead) => lead.batchNumber > 0 ? `Batch ${lead.batchNumber}` : 'Added manually'
 
@@ -564,40 +539,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             )}
           </section>
         )}
-
-        <section className="border-b border-warm-200 pb-5">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-dark">Add a saved prospect</h2>
-            <p className="mt-1 text-xs text-muted">Pull in a prospect you already saved from Contacts or Discover.</p>
-          </div>
-          <div className="relative">
-            <select
-              value={addLeadId}
-              onChange={e => { setAddLeadId(e.target.value); addLeadToCampaign(e.target.value) }}
-              disabled={addingLead}
-              className="select disabled:opacity-60"
-            >
-              <option value="">{addingLead ? 'Adding…' : 'Choose a saved prospect…'}</option>
-              {availableSavedLeads.map(lead => (
-                <option key={lead.id} value={lead.id}>
-                  {lead.company?.name || 'Unknown company'}{lead.contact?.name ? ` · ${lead.contact.name}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          {availableSavedLeads.length === 0 && (
-            <p className="mt-2 text-xs text-muted">
-              No saved prospects yet.{' '}
-              {onNavigate ? (
-                <button type="button" onClick={() => onNavigate('contacts')} className="font-medium text-primary hover:underline">
-                  Go to Contacts
-                </button>
-              ) : (
-                'Save prospects from Contacts or Discover first.'
-              )}
-            </p>
-          )}
-        </section>
 
         <section>
           <div className="mb-4 flex items-center justify-between">
