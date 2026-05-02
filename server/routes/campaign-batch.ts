@@ -254,6 +254,8 @@ async function selectCandidateIds(
   } else if (campaign.filterRegion === "__INTL__") {
     andConditions.push({ region: { not: null } } as any);
     andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
+  } else if (campaign.filterRegion === "__REMOTE__") {
+    regionWhere = { region: "Remote" };
   } else if (campaign.filterRegion) {
     regionWhere = { region: campaign.filterRegion };
   }

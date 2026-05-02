@@ -59,6 +59,8 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   } else if (regionType === "international") {
     andConditions.push({ region: { not: null } } as any);
     andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
+  } else if (regionType === "remote") {
+    regionWhere = { region: "Remote" };
   } else if (region) {
     regionWhere = { region };
   }

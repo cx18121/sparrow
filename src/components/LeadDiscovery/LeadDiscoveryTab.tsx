@@ -12,15 +12,12 @@ import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetch
 
 const PAGE_SIZE = 20
 const MAX_REPLACEMENT_ROUNDS = 5
-const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'function', 'media', 'social', 'investor', 'signal']
+const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 const NS_LABELS = {
   stage: 'Stage',
   vertical: 'Sector',
   tech: 'Tech',
   model: 'Model',
-  function: 'Function',
-  media: 'Media',
-  social: 'Social',
   investor: 'Investor',
   signal: 'Signal',
 }
@@ -116,8 +113,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const selectedTagsRef = useRef(new Set())
   const [tagOptions, setTagOptions] = useState({})
   const [hiringCount, setHiringCount] = useState(null)
+  const [regionCounts, setRegionCounts] = useState<{ us: number | null; intl: number | null; remote: number | null }>({ us: null, intl: null, remote: null })
   const [isHiring, setIsHiring] = useState(false)
-  const [regionFilter, setRegionFilter] = useState<'us' | 'international' | null>(null)
+  const [regionFilter, setRegionFilter] = useState<'us' | 'international' | 'remote' | null>(null)
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -259,6 +257,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       .then(data => {
         setTagOptions(data.tags || {})
         setHiringCount(data.hiringCount ?? null)
+        setRegionCounts({ us: data.usCount ?? null, intl: data.intlCount ?? null, remote: data.remoteCount ?? null })
       })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -405,7 +404,11 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
               <span className={`h-1.5 w-1.5 rounded-full ${isHiring ? 'bg-white' : 'bg-emerald-400'}`} />
               Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
             </button>
-            {(['us', 'international'] as const).map(rf => (
+            {([
+              { key: 'us', label: 'US only', count: regionCounts.us },
+              { key: 'international', label: 'International', count: regionCounts.intl },
+              { key: 'remote', label: 'Remote', count: regionCounts.remote },
+            ] as const).map(({ key: rf, label, count }) => (
               <button
                 key={rf}
                 onClick={() => setRegionFilter(prev => prev === rf ? null : rf)}
@@ -415,18 +418,18 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
                     : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
                 }`}
               >
-                {rf === 'us' ? 'US only' : 'International'}
+                {label}{count != null ? ` (${count})` : ''}
               </button>
             ))}
           </div>
 
           {/* Tag filters */}
           {DISCOVERY_NS.map(ns => {
-            const tags = (tagOptions[ns] || []).slice(0, 8)
-            if (!tags.length) return null
+            const tags = (tagOptions[ns] || []).filter(t => t.count >= 15).slice(0, 8)
+            if (tags.length < 2) return null
             return (
               <div key={ns} className="flex flex-wrap items-center gap-2">
-                <span className="w-14 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">
+                <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">
                   {NS_LABELS[ns]}
                 </span>
                 {tags.map(({ name, count, namespaced }) => (

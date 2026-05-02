@@ -14,7 +14,7 @@ import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
-import { sampleContactData } from '../../lib/mockData'
+const sampleContactData = { first_name: 'Alex', last_name: 'Chen', company: 'Momentum AI', role: 'Co-founder & CEO', sender_name: 'Your Name' }
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
 

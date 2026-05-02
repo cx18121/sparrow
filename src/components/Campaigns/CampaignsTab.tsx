@@ -16,15 +16,12 @@ import {
   fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
 } from '../../lib/api'
 
-const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'function', 'media', 'social', 'investor', 'signal']
+const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 const NS_LABELS = {
   stage: 'Stage',
   vertical: 'Sector',
   tech: 'Tech',
   model: 'Model',
-  function: 'Function',
-  media: 'Media',
-  social: 'Social',
   investor: 'Investor',
   signal: 'Signal',
 }
@@ -350,7 +347,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     return { ...f, filterTags: has ? current.filter(t => t !== namespaced) : [...current, namespaced] }
   })
 
-  const REGION_LABELS = { '__US__': 'US companies', '__INTL__': 'International' }
+  const REGION_LABELS = { '__US__': 'US companies', '__INTL__': 'International', '__REMOTE__': 'Remote' }
 
   const activeFilters = (c) => [
     ...(c.filterTags?.length ? c.filterTags.map(t => t.split(':')[1]) : []),
@@ -797,6 +794,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   <option value="">Any region</option>
                   <option value="__US__">US companies</option>
                   <option value="__INTL__">International</option>
+                  <option value="__REMOTE__">Remote</option>
                   {options.regions.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
@@ -856,8 +854,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   </p>
                   <div className="space-y-2">
                     {CAMPAIGN_NS.map(ns => {
-                      const tags = options.tags?.[ns] || []
-                      if (!tags.length) return null
+                      const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15)
+                      if (tags.length < 2) return null
                       return (
                         <div key={ns} className="flex flex-wrap items-start gap-1.5">
                           <span className="mt-0.5 w-16 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">{NS_LABELS[ns]}</span>

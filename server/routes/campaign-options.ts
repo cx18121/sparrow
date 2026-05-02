@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { CANONICAL_TAG_GROUPS, TAG_NAMESPACES } from "../../scripts/_lib/tags.js";
+import { US_REGIONS } from "../../scripts/_lib/region-map.js";
 
 interface TagFacet {
   name: string;            // e.g. "fintech"
@@ -19,7 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const verifiedFilter = { isVerified: true };
 
   try {
-    const [industries, regions, stages, batches, sources, tagRows, hiringCount] = await Promise.all([
+    const usRegions = [...US_REGIONS];
+    const [industries, regions, stages, batches, sources, tagRows, hiringCount, usCount, intlCount, remoteCount] = await Promise.all([
       prisma.company.findMany({
         where: { ...verifiedFilter, industry: { not: null } },
         distinct: ["industry"],
@@ -58,6 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ORDER BY count DESC, tag ASC
       `,
       prisma.company.count({ where: { isVerified: true, isHiring: true } }),
+      prisma.company.count({ where: { isVerified: true, region: { in: usRegions } } }),
+      prisma.company.count({ where: { isVerified: true, region: { not: null, notIn: [...usRegions, "Remote"] } } }),
+      prisma.company.count({ where: { isVerified: true, region: "Remote" } }),
     ]);
 
     // Bucket realized tags by namespace prefix. Anything without a colon
@@ -87,6 +92,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       canonicalTags: CANONICAL_TAG_GROUPS,
       tagNamespaces: TAG_NAMESPACES,
       hiringCount,
+      usCount,
+      intlCount,
+      remoteCount,
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
