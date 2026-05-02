@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import {
   Plus, Check,
-  Building2, Briefcase, Target, ArrowLeft, CheckCircle2, Circle, RefreshCw, Loader2,
+  Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2,
 } from 'lucide-react'
+import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
@@ -336,6 +337,128 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
   )
 }
 
+const SAMPLE = { company: 'Momentum AI' }
+function fillSample(text) {
+  return text.replace(/\{\{company\}\}/g, SAMPLE.company)
+}
+
+function StyleSection({ workspaceConfig, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [choices, setChoices] = useState<Record<string, string>>(workspaceConfig?.styleChoices || {})
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  const currentTraits = workspaceConfig?.styleProfile?.traits || []
+  const activeTest = STYLE_TESTS[activeIndex]
+  const selected = choices[activeTest.id]
+
+  const choose = (key: string) => {
+    const next = { ...choices, [activeTest.id]: key }
+    setChoices(next)
+    const nextUnanswered = STYLE_TESTS.findIndex((t, i) => i > activeIndex && !next[t.id])
+    if (nextUnanswered >= 0) setActiveIndex(nextUnanswered)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    const newProfile = scoreStyleChoices(choices)
+    await onSave((current) => ({ ...current, styleProfile: newProfile, styleChoices: choices }))
+    setSaving(false)
+    setEditing(false)
+  }
+
+  const cancel = () => {
+    setChoices(workspaceConfig?.styleChoices || {})
+    setActiveIndex(0)
+    setEditing(false)
+  }
+
+  return (
+    <Section title="Email Style">
+      {!editing ? (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            {currentTraits.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentTraits.map(trait => (
+                    <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">{trait}</span>
+                  ))}
+                </div>
+                {workspaceConfig?.styleProfile?.summary && (
+                  <p className="mt-2 text-xs text-muted">{workspaceConfig.styleProfile.summary}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-muted">No style configured. Reconfigure to set your drafting voice.</p>
+            )}
+          </div>
+          <button type="button" onClick={() => setEditing(true)} className="btn-secondary shrink-0 text-xs">
+            Reconfigure
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                {activeIndex + 1} of {STYLE_TESTS.length}
+              </p>
+              <h3 className="mt-1 text-base font-semibold text-dark">{activeTest.label}</h3>
+              <p className="mt-0.5 text-sm text-muted">{activeTest.dimension}</p>
+            </div>
+            <div className="flex gap-1.5">
+              {STYLE_TESTS.map((test, i) => (
+                <button
+                  key={test.id}
+                  type="button"
+                  onClick={() => setActiveIndex(i)}
+                  className={`h-2.5 rounded-full transition-all ${
+                    i === activeIndex ? 'w-8 bg-primary' : choices[test.id] ? 'w-2.5 bg-primary/45' : 'w-2.5 bg-slate-300'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {(['a', 'b'] as const).map(key => {
+              const option = activeTest[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => choose(key)}
+                  className={`flex flex-col rounded-2xl border px-4 py-3 text-left transition-all ${
+                    selected === key
+                      ? 'border-primary bg-primary/5 shadow-[0_8px_24px_rgba(27,110,243,0.1)]'
+                      : 'border-slate-200 bg-white hover:border-primary/40'
+                  }`}
+                >
+                  <p className="mb-2 text-sm font-semibold text-dark">{option.label}</p>
+                  <p className="whitespace-pre-line text-xs leading-5 text-muted">{fillSample(option.body)}</p>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={cancel} className="btn-ghost text-xs">Cancel</button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || Object.keys(choices).length < STYLE_TESTS.length}
+              className="btn-primary text-xs"
+            >
+              {saving ? <><Loader2 size={13} className="animate-spin" /> Saving</> : <><Check size={13} /> Save style</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, profile, profileLoading, onRefreshProfile, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [toast, setToast] = useState(null)
   const saveWorkspace = async (updater, label = 'Settings saved') => {
@@ -356,13 +479,8 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
   return (
     <div className="w-full max-w-3xl space-y-6 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
         <h1 className="text-xl font-semibold text-dark">Settings</h1>
-        {onGoToOnboarding && (
-          <button onClick={onGoToOnboarding} className="btn-ghost flex items-center gap-1.5 text-xs">
-            <ArrowLeft size={13} /> Back to setup
-          </button>
-        )}
       </div>
       <SetupReadinessPanel
         workspaceConfig={workspaceConfig}
@@ -378,6 +496,10 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         workspaceConfig={workspaceConfig}
         onSave={(updater) => saveWorkspace(updater, 'Workspace profile saved')}
         templates={templates}
+      />
+      <StyleSection
+        workspaceConfig={workspaceConfig}
+        onSave={(updater) => saveWorkspace(updater, 'Style saved')}
       />
       <ProviderKeysSection
         workspaceConfig={workspaceConfig}
