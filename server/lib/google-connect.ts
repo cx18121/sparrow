@@ -87,9 +87,16 @@ export function getOriginFromRedirectUri(redirectUri: string): string {
 }
 
 export function sanitizeReturnTo(value: unknown): string {
-  if (typeof value !== "string") return "/settings";
-  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/api/")) return "/settings";
-  return value;
+  const safe = "/settings";
+  if (typeof value !== "string") return safe;
+  try {
+    const url = new URL(value, "https://sparrow.local");
+    const path = url.pathname;
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/api/") || path.includes("..")) return safe;
+    return `${path}${url.search}`;
+  } catch {
+    return safe;
+  }
 }
 
 export function encodeGoogleConnectState(state: GoogleConnectState): string {
@@ -103,8 +110,8 @@ export function decodeGoogleConnectState(value: unknown): GoogleConnectState | n
   if (!payload || !signature) return null;
 
   const expected = sign(payload);
-  const providedBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(signature, "ascii");
+  const expectedBuffer = Buffer.from(expected, "ascii");
   if (
     providedBuffer.length !== expectedBuffer.length ||
     !timingSafeEqual(providedBuffer, expectedBuffer)
@@ -115,7 +122,7 @@ export function decodeGoogleConnectState(value: unknown): GoogleConnectState | n
   try {
     const parsed = JSON.parse(fromBase64Url(payload)) as GoogleConnectState;
     if (!parsed.userId || !parsed.returnTo || !parsed.redirectUri || !parsed.iat) return null;
-    if (Date.now() - parsed.iat > 10 * 60 * 1000) return null;
+    if (Date.now() - parsed.iat > 2 * 60 * 1000) return null;
     return { ...parsed, returnTo: sanitizeReturnTo(parsed.returnTo) };
   } catch {
     return null;

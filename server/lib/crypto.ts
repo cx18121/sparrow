@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -9,13 +9,16 @@ let cachedKey: Buffer | null = null;
 function getKey(): Buffer {
   if (cachedKey) return cachedKey;
   const secret = process.env.ENCRYPTION_KEY;
-  if (!secret) {
-    throw new Error("ENCRYPTION_KEY is not set");
+  if (!secret) throw new Error("ENCRYPTION_KEY is not set");
+  // ENCRYPTION_KEY must be exactly 64 hex chars (32 bytes).
+  // Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  const keyBuf = Buffer.from(secret, "hex");
+  if (keyBuf.length !== KEY_LENGTH) {
+    throw new Error(
+      `ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes). Got ${secret.length} chars → ${keyBuf.length} bytes.`
+    );
   }
-  // Derive a 32-byte key deterministically from whatever the operator
-  // dropped in env. scrypt with a fixed salt is fine here — the secret
-  // itself is the entropy source, and we never store the derived key.
-  cachedKey = scryptSync(secret, "coldflow.profile.v1", KEY_LENGTH);
+  cachedKey = keyBuf;
   return cachedKey;
 }
 

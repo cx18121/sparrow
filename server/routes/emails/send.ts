@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { randomBytes } from "node:crypto";
 import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getSupabaseAdmin, getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
@@ -35,8 +36,8 @@ function buildMimeMessage(
       htmlBody,
     ].join("\r\n");
   }
-  const mixedBoundary = `mixed_${Date.now()}`;
-  const altBoundary = `alt_${Date.now()}`;
+  const mixedBoundary = `mixed_${randomBytes(8).toString("hex")}`;
+  const altBoundary = `alt_${randomBytes(8).toString("hex")}`;
   const lines = [
     `To: ${toHeader}`,
     `Subject: ${encodedSubject}`,
@@ -140,7 +141,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
   const subject = email.subject ?? "(no subject)";
-  const htmlBody = email.body ?? "";
+  // Strip dangerous HTML before embedding in MIME to prevent stored XSS
+  // reaching the recipient's email client.
+  const rawBody = email.body ?? "";
+  const htmlBody = rawBody
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\bhref\s*=\s*["']?\s*javascript:/gi, 'href="about:blank"');
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
   const toHeader = encodeAddressHeader(toName, toEmail);
   const workspaceConfig = parseWorkspaceConfig(profile.workspace_config);

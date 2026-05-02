@@ -4,8 +4,13 @@ const BASE = '/api'
 
 let currentUserId = null
 let currentAccessToken = null
+let explicitlySignedOut = false
 
-export function setApiUserId(id) { currentUserId = id }
+export function setApiUserId(id) {
+  currentUserId = id
+  if (id === null) explicitlySignedOut = true
+  else explicitlySignedOut = false
+}
 export function setApiAccessToken(token) { currentAccessToken = token }
 
 export function apiGetAuth() {
@@ -14,6 +19,10 @@ export function apiGetAuth() {
 
 async function ensureApiAuth() {
   if (currentAccessToken || isDemo) return
+  // Never restore from a Supabase session after an explicit sign-out —
+  // doing so would re-populate a signed-out user's token for a brief window
+  // while supabase.auth.signOut() is still in flight.
+  if (explicitlySignedOut) return
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return
   currentUserId = session.user?.id ?? currentUserId
@@ -94,7 +103,6 @@ async function request(path: string, opts: RequestInit = {}, retrying = false) {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(currentUserId ? { 'x-user-id': currentUserId } : {}),
       ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
       ...(opts.headers || {}),
     },

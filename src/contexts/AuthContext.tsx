@@ -53,6 +53,13 @@ export function AuthProvider({ children }) {
     }
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      // Re-check: onAuthStateChange may have fired SIGNED_OUT before this resolves.
+      const { data: { session: current } } = await supabase.auth.getSession()
+      if (!current) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
       if (session) {
         applySessionToApiClient(session)
         await persistGoogleRefreshToken(session)
