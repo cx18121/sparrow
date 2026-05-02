@@ -9,51 +9,13 @@ dotenvConfig({ path: resolve(__dirname, ".env") });
 
 import express from "express";
 import { createServer } from "http";
+import type { ApiHandler } from "./server/router.js";
 
-const routes: Record<string, string> = {
-  "/api/health": "./api/health.ts",
-  "/api/profile": "./api/profile.ts",
-  "/api/companies": "./api/companies.ts",
-  "/api/contacts": "./api/contacts.ts",
-  "/api/custom-contacts": "./api/custom-contacts.ts",
-  "/api/leads": "./api/leads.ts",
-  "/api/emails": "./api/emails.ts",
-  "/api/emails/generate": "./api/emails/generate.ts",
-  "/api/emails/send": "./api/emails/send.ts",
-  "/api/google/connect": "./api/google/connect.ts",
-  "/api/google/callback": "./api/google/callback.ts",
-  "/api/templates": "./api/templates.ts",
-  "/api/campaigns": "./api/campaigns.ts",
-  "/api/campaign-batch": "./api/campaign-batch.ts",
-  "/api/campaign-leads": "./api/campaign-leads.ts",
-  "/api/campaign-options": "./api/campaign-options.ts",
-  "/api/apollo-search": "./api/apollo-search.ts",
-  "/api/industries": "./api/industries.ts",
-};
-
-async function loadHandler(filePath: string) {
-  const mod = await import(filePath);
-  return mod.default;
-}
-
-async function buildHandlers() {
-  const handlers: Record<string, any> = {};
-  for (const [route, filePath] of Object.entries(routes)) {
-    try {
-      handlers[route] = await loadHandler(resolve(__dirname, filePath));
-      console.log(`✓ Loaded ${route}`);
-    } catch (err: any) {
-      console.warn(`✗ Skipped ${route}: ${err.message}`);
-    }
-  }
-  return handlers;
-}
-
-function wrapHandler(handler: (req: any, res: any) => Promise<void>) {
+function wrapHandler(handler: ApiHandler) {
   return async (req: express.Request, res: express.Response) => {
     const vercelReq = {
       method: req.method,
-      url: req.url,
+      url: req.originalUrl,
       query: req.query,
       headers: req.headers,
       body: req.body,
@@ -80,13 +42,17 @@ function wrapHandler(handler: (req: any, res: any) => Promise<void>) {
 }
 
 async function start() {
+  const { routeHandlers } = await import("./server/router.js");
+
   const app = express();
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  const handlers = await buildHandlers();
+  for (const route of Object.keys(routeHandlers)) {
+    console.log(`✓ Loaded ${route}`);
+  }
 
-  for (const [route, handler] of Object.entries(handlers)) {
+  for (const [route, handler] of Object.entries(routeHandlers)) {
     app.all(route, wrapHandler(handler));
   }
 
@@ -99,7 +65,7 @@ async function start() {
   createServer(app).listen(PORT, () => {
     console.log(`\n🚀 Local API server running at http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/api/health`);
-    console.log(`   ${Object.keys(handlers).length} route(s) loaded\n`);
+    console.log(`   ${Object.keys(routeHandlers).length} route(s) loaded\n`);
   });
 }
 
