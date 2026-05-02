@@ -634,12 +634,6 @@ function AppShell() {
               {activeTabItem.label}
             </h1>
           </div>
-          {dataLoaded && (
-            <div className="hidden items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-muted sm:flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Synced
-            </div>
-          )}
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
           <Routes>
