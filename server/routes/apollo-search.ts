@@ -5,14 +5,65 @@ import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { searchContacts, revealPerson } from "../lib/apollo.js";
 
+type ApolloAction = "search" | "reveal";
+
+const quotaBuckets = new Map<string, { day: string; search: number; reveal: number }>();
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function quotaLimit(action: ApolloAction): number {
+  const envName = action === "search" ? "APOLLO_SEARCH_DAILY_LIMIT" : "APOLLO_REVEAL_DAILY_LIMIT";
+  const fallback = action === "search" ? 100 : 50;
+  const parsed = Number(process.env[envName] ?? fallback);
+  return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : fallback;
+}
+
+function consumeApolloQuota(userId: string, action: ApolloAction) {
+  const day = todayKey();
+  const bucket = quotaBuckets.get(userId);
+  const current = bucket?.day === day ? bucket : { day, search: 0, reveal: 0 };
+  const limit = quotaLimit(action);
+  if (current[action] >= limit) {
+    throw new HttpError(429, `Daily Apollo ${action} limit reached (${limit}). Try again tomorrow.`);
+  }
+  current[action] += 1;
+  quotaBuckets.set(userId, current);
+}
+
+function normalizeDomain(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
+}
+
+async function requireSearchableCompany(companyId: unknown, domain: unknown) {
+  if (typeof companyId !== "string" || !companyId) throw new HttpError(400, "companyId is required");
+  if (typeof domain !== "string" || !domain) throw new HttpError(400, "domain is required");
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, domain: true, isVerified: true },
+  });
+  if (!company || !company.isVerified) throw new HttpError(404, "Company not found");
+  if (normalizeDomain(company.domain) !== normalizeDomain(domain)) {
+    throw new HttpError(400, "domain does not match companyId");
+  }
+  return company;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     if (req.method === "GET") return searchCompanies(req, res);
-    if (req.method === "POST") return apolloSearch(req, res);
-    if (req.method === "PUT") return revealContact(req, res);
+    if (req.method === "POST") return apolloSearch(req, res, userId);
+    if (req.method === "PUT") return revealContact(req, res, userId);
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
@@ -23,16 +74,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function revealContact(req: VercelRequest, res: VercelResponse) {
-  const { personId } = req.body ?? {};
+async function revealContact(req: VercelRequest, res: VercelResponse, userId: string) {
+  const { personId, companyId, domain } = req.body ?? {};
   if (!personId) throw new HttpError(400, "personId is required");
+  const company = await requireSearchableCompany(companyId, domain);
 
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
+  consumeApolloQuota(userId, "reveal");
   const revealed = await revealPerson(personId, apiKey);
   if (!revealed) {
     return res.status(200).json({ revealed: false });
+  }
+  const revealedDomain = revealed.organization?.primary_domain
+    ? normalizeDomain(revealed.organization.primary_domain)
+    : null;
+  if (revealedDomain && revealedDomain !== normalizeDomain(company.domain)) {
+    throw new HttpError(403, "Apollo person does not belong to the requested company");
   }
   return res.status(200).json({
     revealed: true,
@@ -97,15 +156,16 @@ async function searchCompanies(req: VercelRequest, res: VercelResponse) {
   res.status(200).json({ items, nextCursor });
 }
 
-async function apolloSearch(req: VercelRequest, res: VercelResponse) {
+async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: string) {
   const { domain, companyId } = req.body ?? {};
-  if (!domain) throw new HttpError(400, "domain is required");
+  const company = await requireSearchableCompany(companyId, domain);
 
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
   try {
-    const people = await searchContacts(domain, apiKey, { retry: false });
+    consumeApolloQuota(userId, "search");
+    const people = await searchContacts(company.domain, apiKey, { retry: false });
 
     const previews = people.map((p) => ({
       id: p.id,

@@ -136,8 +136,8 @@ export const fetchIndustries = () => request('/industries')
 export const apolloSearch = (domain, companyId) =>
   request('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
 
-export const revealApolloContact = (personId) =>
-  request('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId }) })
+export const revealApolloContact = (personId, companyId, domain) =>
+  request('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })
 
 export const fetchContacts = (params = {}) => request(`/contacts${qs(params)}`)
 

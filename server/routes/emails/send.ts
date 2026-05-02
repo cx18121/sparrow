@@ -103,6 +103,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const ownerUserId = email.userLead?.userId ?? email.customContact?.userId;
   if (ownerUserId !== userId) return res.status(404).json({ error: "Email not found" });
+  if (email.status === "sent") return res.status(409).json({ error: "Email has already been sent." });
+  if (email.status !== "draft" && email.status !== "failed") {
+    return res.status(409).json({ error: "Email is already being sent. Refresh Drafts and try again." });
+  }
 
   const toEmail = email.contact?.email ?? email.customContact?.email ?? null;
   if (!toEmail) return res.status(400).json({ error: "No recipient email address on this draft." });
@@ -158,6 +162,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  const claimed = await prisma.email.updateMany({
+    where: { id: emailId as string, status: { in: ["draft", "failed"] } },
+    data: { status: "sending" },
+  });
+  if (claimed.count !== 1) {
+    return res.status(409).json({ error: "Email is already being sent or was sent. Refresh Drafts and try again." });
+  }
+
   // Build attachment list from email.attachmentIds + file library in workspace_config
   const fileLibrary = workspaceConfig.files ?? [];
   const emailAttachmentIds = Array.isArray(email.attachmentIds) ? (email.attachmentIds as string[]) : [];
@@ -167,13 +179,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const fileId of emailAttachmentIds) {
     const meta = fileLibrary.find(f => f.id === fileId);
     if (!meta) {
+      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
       return res.status(400).json({ error: `Attachment "${fileId}" not found in your file library. Remove it from this draft and try again.` });
     }
     if (!meta.path.startsWith(ownedPrefix)) {
+      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
       return res.status(403).json({ error: "One or more attachment paths are invalid. Re-upload your files in Settings." });
     }
     const { data: file, error } = await supabase.storage.from("resumes").download(meta.path);
     if (error || !file) {
+      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
       return res.status(400).json({ error: `Could not read "${meta.fileName}". Re-upload it in Settings and try again.` });
     }
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -192,6 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch (err: any) {
     const gmailMsg = err?.response?.data?.error?.message ?? err?.message ?? "Gmail send failed";
+    await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
     return res.status(502).json({ error: gmailMsg });
   }
 

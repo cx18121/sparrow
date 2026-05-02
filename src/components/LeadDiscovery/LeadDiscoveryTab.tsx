@@ -352,7 +352,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
       previews.forEach(async (p) => {
         if (!p.hasEmail) { setRevealedEmails(prev => ({ ...prev, [p.id]: null })); return }
         try {
-          const result = await revealApolloContact(p.id)
+          const result = await revealApolloContact(p.id, company.id, company.domain)
           setRevealedEmails(prev => ({ ...prev, [p.id]: result.contact?.email ?? null }))
         } catch {
           setRevealedEmails(prev => ({ ...prev, [p.id]: null }))

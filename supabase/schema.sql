@@ -239,28 +239,52 @@ create policy "Users can upload own resume"
   on storage.objects for insert
   with check (
     bucket_id = 'resumes'
-    and auth.uid()::text = (storage.foldername(name))[1]
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or (
+        (storage.foldername(name))[1] = 'files'
+        and auth.uid()::text = (storage.foldername(name))[2]
+      )
+    )
   );
 
 create policy "Users can read own resume"
   on storage.objects for select
   using (
     bucket_id = 'resumes'
-    and auth.uid()::text = (storage.foldername(name))[1]
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or (
+        (storage.foldername(name))[1] = 'files'
+        and auth.uid()::text = (storage.foldername(name))[2]
+      )
+    )
   );
 
 create policy "Users can replace own resume"
   on storage.objects for update
   using (
     bucket_id = 'resumes'
-    and auth.uid()::text = (storage.foldername(name))[1]
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or (
+        (storage.foldername(name))[1] = 'files'
+        and auth.uid()::text = (storage.foldername(name))[2]
+      )
+    )
   );
 
 create policy "Users can delete own resume"
   on storage.objects for delete
   using (
     bucket_id = 'resumes'
-    and auth.uid()::text = (storage.foldername(name))[1]
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or (
+        (storage.foldername(name))[1] = 'files'
+        and auth.uid()::text = (storage.foldername(name))[2]
+      )
+    )
   );
 
 -- ──────────────────────────────────────────────
