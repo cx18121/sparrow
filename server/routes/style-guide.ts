@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { resolveProfileForGeneration, ProfileError } from "../lib/sender-profile.js";
+import { callClaude } from "../lib/ai/anthropic.js";
 
-const ANTHROPIC_VERSION = "2023-06-01";
 const MODEL = "claude-haiku-4-5-20251001";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -48,26 +48,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const prompt = `Here are ${validExamples.length} email samples that represent a user's preferred writing style. They chose these from a style quiz:\n\n${exampleText}\n\nWrite a 2–3 sentence style guide that captures what makes this style distinct. Be specific and concrete about: sentence length, how the email opens, tone, and how the ask is framed. This guide will instruct an AI to write emails in this exact style. Output only the style guide, nothing else.`;
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": profile.apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 200,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!resp.ok) {
+  let guide: string;
+  try {
+    guide = await callClaude({ apiKey: profile.apiKey, model: MODEL, userContent: prompt, maxTokens: 200 });
+  } catch {
     return res.status(502).json({ error: "Could not generate style guide" });
   }
-
-  const data = (await resp.json()) as { content?: Array<{ type: string; text?: string }> };
-  const guide = data.content?.find((c) => c.type === "text")?.text?.trim() ?? null;
 
   if (!guide) return res.status(500).json({ error: "Empty response from Claude" });
 

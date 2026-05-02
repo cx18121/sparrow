@@ -2,10 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
-import { enrichContactFromDomain } from "../lib/apollo-enrichment.js";
-import { selectCandidateIds } from "../lib/campaign-batch-service.js";
+import { generateCampaignBatch } from "../lib/campaign-batch.js";
 import { parseBody } from "../lib/parse-params.js";
-import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -67,137 +65,18 @@ async function getBatch(req: VercelRequest, res: VercelResponse, userId: string)
   });
 }
 
-// Generates the NEXT batch. Apollo is called to enrich each company with a contact.
-// Companies never overlap across batches. If all matching companies are already seen,
-// returns seen ones as a fallback instead of returning nothing.
+// Generates the next Batch — delegates fully to lib/campaign-batch.ts.
 async function generateBatch(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
   const { campaignId } = body ?? {};
-  if (!campaignId) throw new HttpError(400, "campaignId is required");
+  if (!campaignId) throw new HttpError(400, 'campaignId is required');
 
-  const campaign = await prisma.campaign.findUnique({ where: { id: campaignId as string } });
-  if (!campaign || campaign.userId !== userId) throw new HttpError(404, "Campaign not found");
-
-  const newBatchNumber = campaign.currentBatch + 1;
-  const batchSize = Math.min(campaign.batchSize ?? 10, 50);
-  const apolloKey = process.env.APOLLO_API_KEY ?? null;
-
-  const seen = await prisma.campaignSeenCompany.findMany({
-    where: { campaignId: campaignId as string },
-    select: { companyId: true },
-  });
-  const seenIds = seen.map(s => s.companyId);
-
-  const { selectedIds, usingFallback } = await selectCandidateIds(
+  const result = await generateCampaignBatch(
     campaignId as string,
-    campaign,
-    seenIds,
-    batchSize
+    userId,
+    process.env.APOLLO_API_KEY ?? null
   );
-
-  if (selectedIds.length === 0) {
-    return res.status(200).json({
-      leads: [], total: 0, currentBatch: campaign.currentBatch, seenTotal: seenIds.length,
-      usingFallback: false,
-    });
-  }
-
-  const companies = await prisma.company.findMany({
-    where: { id: { in: selectedIds } },
-    include: {
-      contacts: {
-        where: { email: { not: null } },
-        orderBy: { lastVerifiedAt: "desc" },
-        take: 1,
-        select: { id: true, name: true, email: true, title: true },
-      },
-    },
-  });
-
-  if (!usingFallback) {
-    await prisma.campaignSeenCompany.createMany({
-      data: selectedIds.map(companyId => ({ campaignId: campaignId as string, companyId })),
-      skipDuplicates: true,
-    });
-  }
-
-  const createdLeads = [];
-  for (const company of companies) {
-    let contact: { id: string; name: string | null; email: string | null; title: string | null } | null =
-      company.contacts[0] ?? null;
-    let apolloPersonId: string | null = null;
-
-    if (!contact && apolloKey && company.domain) {
-      try {
-        await consumeDurableDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50));
-      } catch (err) {
-        if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
-        throw err;
-      }
-      const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey);
-      contact = enriched.contact;
-      apolloPersonId = enriched.apolloPersonId;
-    }
-
-    const contactId = contact?.id ?? null;
-
-    let userLead = await prisma.userLead.findFirst({
-      where: { userId, companyId: company.id, contactId },
-    });
-    if (!userLead) {
-      userLead = await prisma.userLead.create({
-        data: {
-          userId,
-          companyId: company.id,
-          contactId,
-          apolloPersonId: apolloPersonId ?? undefined,
-          status: "SAVED",
-          notes: `Added via campaign: ${campaign.name}`,
-        },
-      });
-    } else if (apolloPersonId && !userLead.apolloPersonId) {
-      await prisma.userLead.update({
-        where: { id: userLead.id },
-        data: { apolloPersonId },
-      });
-    }
-
-    await prisma.campaignLead.upsert({
-      where: {
-        campaignId_batchNumber_userLeadId: {
-          campaignId: campaignId as string,
-          batchNumber: newBatchNumber,
-          userLeadId: userLead.id,
-        },
-      },
-      create: { campaignId: campaignId as string, userLeadId: userLead.id, batchNumber: newBatchNumber },
-      update: {},
-    });
-
-    createdLeads.push({
-      ...userLead,
-      emails: [],
-      company: {
-        id: company.id, name: company.name, domain: company.domain, oneLiner: company.oneLiner,
-        industry: company.industry, region: company.region, stage: company.stage,
-        batch: company.batch, isHiring: company.isHiring,
-      },
-      contact,
-    });
-  }
-
-  await prisma.campaign.update({
-    where: { id: campaignId as string },
-    data: { currentBatch: newBatchNumber },
-  });
-
-  return res.status(200).json({
-    leads: createdLeads,
-    total: createdLeads.length,
-    currentBatch: newBatchNumber,
-    seenTotal: usingFallback ? seenIds.length : seenIds.length + selectedIds.length,
-    usingFallback,
-  });
+  return res.status(200).json(result);
 }
 
 // Clears all batch history for a campaign so it starts fresh.

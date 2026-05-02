@@ -1,3 +1,4 @@
+import { callClaude } from './anthropic.js'
 import { humanizeEmailBody } from './humanize.js'
 import {
   DEFAULT_SUBJECT_TEMPLATE,
@@ -15,7 +16,6 @@ import type {
   TemplateDraftInput,
 } from './types.js'
 
-const ANTHROPIC_VERSION = '2023-06-01'
 const GENERATION_MODEL = 'claude-haiku-4-5-20251001'
 
 export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
@@ -108,35 +108,20 @@ function buildPrompt(input: AiDraftInput): string {
 }
 
 async function draftFromAi(input: AiDraftInput): Promise<EmailDraft> {
-  const prompt = buildPrompt(input)
+  const system = [
+    EMAIL_GENERATION_SYSTEM_PROMPT,
+    input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': input.apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify({
-      model: GENERATION_MODEL,
-      max_tokens: 1024,
-      system: [
-        EMAIL_GENERATION_SYSTEM_PROMPT,
-        input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-      messages: [{ role: 'user', content: prompt }],
-    }),
+  const rawBody = await callClaude({
+    apiKey: input.apiKey,
+    model: GENERATION_MODEL,
+    system,
+    userContent: buildPrompt(input),
+    maxTokens: 1024,
   })
-
-  if (!resp.ok) {
-    const text = await resp.text()
-    throw new Error(`Anthropic API ${resp.status}: ${text}`)
-  }
-
-  const data = (await resp.json()) as { content?: Array<{ type: string; text?: string }> }
-  const rawBody = data.content?.find((c) => c.type === 'text')?.text?.trim() ?? ''
 
   const body = await humanizeEmailBody(rawBody, input.apiKey)
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)

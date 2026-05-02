@@ -3,7 +3,7 @@ import axios from "axios";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
-import { searchContacts, revealPerson } from "../lib/apollo.js";
+import { searchContacts, revealPerson, normalizeDomain } from "../lib/apollo.js";
 import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
 
 type ApolloAction = "search" | "reveal";
@@ -24,14 +24,6 @@ async function consumeApolloQuota(userId: string, action: ApolloAction) {
   }
 }
 
-function normalizeDomain(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .replace(/\/.*$/, "");
-}
 
 async function requireSearchableCompany(companyId: unknown, domain: unknown) {
   if (typeof companyId !== "string" || !companyId) throw new HttpError(400, "companyId is required");

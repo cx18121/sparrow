@@ -3,6 +3,17 @@ import axios from "axios";
 // Single Apollo HTTP module. All search/reveal/health primitives live here with
 // shared headers, retry, and error logging. Imports nothing from Prisma so it
 // is safe to load from CLI scripts without spinning up a serverless DB client.
+
+// Strips protocol, www prefix, and path so callers can pass raw website URLs
+// or already-clean domains interchangeably.
+export function normalizeDomain(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/.*$/, '')
+}
 //
 // Search calls (searchContacts, searchOrganization) are FREE.
 // Reveal calls (revealPerson, enrichDomain) consume one Apollo credit each.
@@ -185,7 +196,7 @@ export async function enrichDomain(
   domain: string,
   apiKey: string
 ): Promise<EnrichResult | null> {
-  const previews = await searchContacts(domain, apiKey);
+  const previews = await searchContacts(normalizeDomain(domain), apiKey);
   if (previews.length === 0) return null;
 
   const personId = previews[0].id;

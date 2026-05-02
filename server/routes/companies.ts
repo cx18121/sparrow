@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { groupTagsByNamespace } from "../../scripts/_lib/tags.js";
 import { US_REGIONS } from "../../scripts/_lib/region-map.js";
+import { shuffle } from "../lib/company-selection.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -216,11 +217,3 @@ function companySelect(withContact: boolean) {
   };
 }
 
-function shuffle<T>(items: T[]): T[] {
-  const arr = items.slice();
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
