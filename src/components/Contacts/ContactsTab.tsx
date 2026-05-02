@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react'
+import { useAppData } from '../../contexts/AppDataContext'
+import { useToast } from '../../hooks/useToast'
 import {
   Search, Trash2, ChevronUp, ChevronDown,
   ChevronLeft, ChevronRight, Download, Sparkles, UserPlus, CheckSquare, Square,
@@ -50,19 +52,20 @@ const getNotesTitle = (lead) => {
   return m ? m[1] : ''
 }
 
-export default function ContactsTab({
-  leads = [],
-  customContacts = [],
-  templates = [],
-  onUpdate,
-  onDelete,
-  onCreateCustomContact,
-  onUpdateCustomContact,
-  onDeleteCustomContact,
-  workspaceConfig,
-  onNavigate,
-  isLoading = false,
-}) {
+export default function ContactsTab({ workspaceConfig, onNavigate }) {
+  const {
+    leads,
+    customContacts,
+    templates,
+    updateLead: onUpdate,
+    deleteLead: onDelete,
+    createCustomContact: onCreateCustomContact,
+    updateCustomContact: onUpdateCustomContact,
+    deleteCustomContact: onDeleteCustomContact,
+    dataLoaded,
+    hasResourceCache,
+  } = useAppData()
+  const isLoading = !dataLoaded && !hasResourceCache
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortKey, setSortKey] = useState('name')
@@ -85,7 +88,7 @@ export default function ContactsTab({
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [generateError, setGenerateError] = useState(null)
-  const [toast, setToast] = useState(null)
+  const { toast, setToast } = useToast()
 
   // Add custom contact modal
   const [addOpen, setAddOpen] = useState(false)

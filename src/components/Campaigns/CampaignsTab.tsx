@@ -4,6 +4,8 @@ import {
   Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
   Filter, RefreshCw, ArrowLeft, X,
 } from 'lucide-react'
+import { useAppData } from '../../contexts/AppDataContext'
+import { useToast } from '../../hooks/useToast'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
@@ -45,7 +47,17 @@ function advancedSummary(form) {
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate, onEnterCampaign }) {
+export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign }) {
+  const {
+    campaigns,
+    templates,
+    createCampaign: onCreate,
+    updateCampaign: onUpdate,
+    deleteCampaign: onDelete,
+    dataLoaded,
+    hasResourceCache,
+  } = useAppData()
+  const isLoading = !dataLoaded && !hasResourceCache
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -62,13 +74,8 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
   const [campaignLeads, setCampaignLeads] = useState([])
   const [savedLeads, setSavedLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const [toast, setToast] = useState(null)
+  const { toast, setToast, reportError } = useToast()
   const [advancedOpen, setAdvancedOpen] = useState(false)
-
-  const reportError = (title, err) => {
-    console.error(title, err)
-    setToast({ type: 'error', title, message: err?.message || 'Please try again.' })
-  }
   const [addLeadId, setAddLeadId] = useState('')
   const [addingLead, setAddingLead] = useState(false)
 

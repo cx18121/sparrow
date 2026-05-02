@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { useAppData } from '../../contexts/AppDataContext'
 import DOMPurify from 'dompurify'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -172,7 +173,8 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
 
 const isLibraryTemplate = (t) => t.userId === '__library__'
 
-export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, workspaceConfig }) {
+export default function TemplatesTab({ workspaceConfig }) {
+  const { templates, createTemplate: onCreate, updateTemplate: onUpdate, deleteTemplate: onDelete } = useAppData()
   const [search, setSearch] = useState('')
   const defaultTemplateId = workspaceConfig?.templateId && templates.some(t => t.id === workspaceConfig.templateId)
     ? workspaceConfig.templateId

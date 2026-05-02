@@ -6,6 +6,7 @@ import {
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip,
 } from 'lucide-react'
 import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
+import { useToast } from '../../hooks/useToast'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -111,7 +112,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
-  const [toast, setToast] = useState(null)
+  const { toast, setToast } = useToast()
   const [gmailStatus, setGmailStatus] = useState(() =>
     profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
   )

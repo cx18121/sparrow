@@ -9,6 +9,8 @@ import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
+import { useAppData } from '../../contexts/AppDataContext'
+import { useToast } from '../../hooks/useToast'
 
 const MAX_REPLACEMENT_ROUNDS = 5
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
@@ -118,7 +120,9 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavigate, activeCampaign = null, onExitCampaign = null }) {
+export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCampaign = null, onExitCampaign = null }) {
+  const { refreshLeads } = useAppData()
+  const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState(new Set())
   const selectedTagsRef = useRef(new Set())
@@ -134,7 +138,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [toast, setToast] = useState(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
@@ -392,7 +395,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
       setSelectedCompany(null)
       setApolloResults([])
       setApolloError(null)
-      onLeadSaved?.()
+      refreshLeads()
       if (activeCampaign) {
         setToast({
           type: 'success',

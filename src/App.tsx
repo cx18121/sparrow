@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox } from 'lucide-react'
+import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, X } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
@@ -13,13 +13,14 @@ import SettingsPage from './components/Settings/SettingsPage'
 import DraftsTab from './components/Drafts/DraftsTab'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
 
+import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
 import {
   fetchProfile, saveProfile,
   fetchTemplates, createTemplate, updateTemplate, deleteTemplate,
   fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   fetchLeads, updateLead, deleteLead,
-  fetchCustomContacts, createCustomContact, deleteCustomContact,
+  fetchCustomContacts, createCustomContact, updateCustomContact, deleteCustomContact,
   apiGetAuth,
 } from './lib/api'
 
@@ -122,6 +123,9 @@ function AppShell() {
   const [hasResourceCache, setHasResourceCache] = useState(false)
   const [serverProfile, setServerProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  const [activeCampaign, setActiveCampaign] = useState<{ id: string; name: string } | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem('cf_active_campaign') || 'null') } catch { return null }
+  })
 
   const refreshProfile = useCallback(() => {
     setProfileLoading(true)
@@ -138,6 +142,18 @@ function AppShell() {
     if (tab) navigate(tab.path)
   }
 
+  const enterCampaign = useCallback((campaign: { id: string; name: string }) => {
+    const entry = { id: campaign.id, name: campaign.name }
+    try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
+    setActiveCampaign(entry)
+    navigate('/leads')
+  }, [navigate])
+
+  const exitCampaign = useCallback(() => {
+    try { sessionStorage.removeItem('cf_active_campaign') } catch {}
+    setActiveCampaign(null)
+  }, [])
+
   useEffect(() => {
     if (!user) {
       if (previousOnboardingKeyRef.current) {
@@ -145,6 +161,8 @@ function AppShell() {
         sessionStorage.removeItem(`${previousOnboardingKeyRef.current}_editing`)
         previousOnboardingKeyRef.current = null
       }
+      try { sessionStorage.removeItem('cf_active_campaign') } catch {}
+      setActiveCampaign(null)
       setWorkspaceConfig(createWorkspaceConfig({ user: null, templates }))
       setOnboardingState({ loaded: true, completed: false, data: null })
       setServerProfile(null)
@@ -422,6 +440,18 @@ function AppShell() {
     setCustomContacts(prev => [created, ...prev])
     return created
   }
+  const updateCustomContactHandler = async (data) => {
+    const prev = customContacts
+    setCustomContacts(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
+    try {
+      const updated = await updateCustomContact(data)
+      setCustomContacts(curr => curr.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+      return updated
+    } catch (err) {
+      setCustomContacts(() => prev)
+      throw err
+    }
+  }
   const deleteCustomContactHandler = async (id) => {
     const prev = customContacts
     setCustomContacts(curr => curr.filter(c => c.id !== id))
@@ -648,18 +678,43 @@ function AppShell() {
               {activeTabItem.label}
             </h1>
           </div>
+          {activeCampaign && (
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 pl-2.5 pr-1.5 py-1 text-xs font-medium text-primary">
+              <Mail size={11} />
+              <span className="max-w-[140px] truncate">{activeCampaign.name}</span>
+              <button
+                type="button"
+                onClick={exitCampaign}
+                className="ml-0.5 rounded-full p-0.5 text-primary/60 transition-colors hover:bg-primary/20 hover:text-primary"
+                title="Exit campaign context"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+          <AppDataProvider value={{
+            campaigns, leads, customContacts, templates,
+            dataLoaded, hasResourceCache,
+            createCampaign: createCampaignHandler,
+            updateCampaign: updateCampaignHandler,
+            deleteCampaign: deleteCampaignHandler,
+            refreshLeads,
+            updateLead: updateLeadHandler,
+            deleteLead: deleteLeadHandler,
+            createCustomContact: createCustomContactHandler,
+            updateCustomContact: updateCustomContactHandler,
+            deleteCustomContact: deleteCustomContactHandler,
+            createTemplate: createTemplateHandler,
+            updateTemplate: updateTemplateHandler,
+            deleteTemplate: deleteTemplateHandler,
+          }}>
           <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
                 <DashboardTab
-                  campaigns={campaigns}
-                  leads={leads}
-                  customContacts={customContacts}
-                  templates={templates}
                   workspaceConfig={workspaceConfig}
-                  dataLoading={!dataLoaded && !hasResourceCache}
                   profile={serverProfile}
                   profileLoading={profileLoading}
                   onNavigate={handleTabChange}
@@ -668,46 +723,28 @@ function AppShell() {
               } />
               <Route path="/campaigns" element={
                 <CampaignsTab
-                  campaigns={campaigns}
-                  onCreate={createCampaignHandler}
-                  onUpdate={updateCampaignHandler}
-                  onDelete={deleteCampaignHandler}
-                  templates={templates}
                   workspaceConfig={workspaceConfig}
-                  isLoading={!dataLoaded && !hasResourceCache}
                   onNavigate={handleTabChange}
+                  onEnterCampaign={enterCampaign}
                 />
               } />
               <Route path="/leads" element={
                 <LeadDiscoveryTab
                   workspaceConfig={workspaceConfig}
-                  onLeadSaved={refreshLeads}
                   onNavigate={handleTabChange}
+                  activeCampaign={activeCampaign}
+                  onExitCampaign={exitCampaign}
                 />
               } />
               <Route path="/contacts" element={
                 <ContactsTab
-                  leads={leads}
-                  customContacts={customContacts}
-                  templates={templates}
-                  onUpdate={updateLeadHandler}
-                  onDelete={deleteLeadHandler}
-                  onCreateCustomContact={createCustomContactHandler}
-                  onDeleteCustomContact={deleteCustomContactHandler}
                   workspaceConfig={workspaceConfig}
                   onNavigate={handleTabChange}
-                  isLoading={!dataLoaded && !hasResourceCache}
                 />
               } />
               <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />} />
               <Route path="/templates" element={
-                <TemplatesTab
-                  templates={templates}
-                  onCreate={createTemplateHandler}
-                  onUpdate={updateTemplateHandler}
-                  onDelete={deleteTemplateHandler}
-                  workspaceConfig={workspaceConfig}
-                />
+                <TemplatesTab workspaceConfig={workspaceConfig} />
               } />
               <Route path="/settings" element={
                 <SettingsPage
@@ -724,6 +761,7 @@ function AppShell() {
               } />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
+          </AppDataProvider>
           <footer className="mt-auto py-6 text-center text-xs text-muted">
             Made by{' '}
             <a

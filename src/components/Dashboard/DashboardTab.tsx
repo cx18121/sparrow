@@ -6,6 +6,7 @@ import {
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import { fetchEmails } from '../../lib/api'
+import { useAppData } from '../../contexts/AppDataContext'
 
 const EMAIL_CACHE_KEY = 'cf_dash_emails'
 const CACHE_TTL = 5 * 60 * 1000
@@ -129,18 +130,9 @@ function SetupItem({ item, primary }) {
   )
 }
 
-export default function DashboardTab({
-  campaigns = [],
-  leads = [],
-  customContacts = [],
-  templates = [],
-  workspaceConfig,
-  dataLoading = false,
-  profile = null,
-  profileLoading = true,
-  onNavigate,
-  onConnectGoogle,
-}) {
+export default function DashboardTab({ workspaceConfig, profile = null, profileLoading = true, onNavigate, onConnectGoogle }) {
+  const { campaigns, leads, customContacts, templates, dataLoaded, hasResourceCache } = useAppData()
+  const dataLoading = !dataLoaded && !hasResourceCache
   const cached = readEmailCache()
   const [drafts, setDrafts] = useState<any[]>(cached?.drafts || [])
   const [sent, setSent] = useState<any[]>(cached?.sent || [])
