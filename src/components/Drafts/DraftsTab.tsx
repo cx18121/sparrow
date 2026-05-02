@@ -5,7 +5,7 @@ import {
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
   Maximize2, Minimize2, Keyboard,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, fetchProfile, updateEmail, sendEmail } from '../../lib/api'
+import { apiGetAuth, fetchEmails, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
@@ -101,7 +101,7 @@ function writeDraftCache(tab, items) {
   }
 }
 
-export default function DraftsTab({ onNavigate, workspaceConfig }) {
+export default function DraftsTab({ onNavigate, workspaceConfig, profile = null, profileLoading = true }) {
   const [tab, setTab] = useState('draft')
   const [reviewFilter, setReviewFilter] = useState('all')
   const [drafts, setDrafts] = useState([])
@@ -112,7 +112,9 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [sending, setSending] = useState(false)
   const [attachResume, setAttachResume] = useState(false)
   const [toast, setToast] = useState(null)
-  const [gmailStatus, setGmailStatus] = useState('loading')
+  const [gmailStatus, setGmailStatus] = useState(() =>
+    profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
+  )
   const [sortKey, setSortKey] = useState('createdAt')
   const [sortDir, setSortDir] = useState('desc')
 
@@ -127,31 +129,23 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
   const [loadCount, setLoadCount] = useState(0)
 
   useEffect(() => {
-    let cancelled = false
-    setGmailStatus('loading')
-    fetchProfile()
-      .then(res => {
-        if (cancelled) return
-        setGmailStatus(res?.profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected')
-      })
-      .catch(() => {
-        if (!cancelled) setGmailStatus('unknown')
-      })
-    return () => { cancelled = true }
-  }, [])
+    if (profileLoading) return
+    setGmailStatus(profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected')
+  }, [profile, profileLoading])
 
   useEffect(() => {
     let cancelled = false
     const cached = readDraftCache(tab)
-    setLoading(true)
     setError(null)
     setSelected(new Set())
     if (cached?.items) {
       setDrafts(cached.items)
+      setLoading(false)
       setPreview(current => current && cached.items.some(draft => draft.id === current.id) ? current : null)
     } else {
       setDrafts([])
       setPreview(null)
+      setLoading(true)
     }
     fetchEmails({ status: tab, limit: '200' })
       .then(res => {

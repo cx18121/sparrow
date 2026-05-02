@@ -13,6 +13,17 @@ import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetch
 const PAGE_SIZE = 20
 const MAX_REPLACEMENT_ROUNDS = 5
 const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
+
+const DISCOVER_CACHE_KEY = 'cf_discover_state'
+function readDiscoverCache() {
+  try { return JSON.parse(sessionStorage.getItem(DISCOVER_CACHE_KEY) || 'null') } catch { return null }
+}
+function writeDiscoverCache(state: object) {
+  try { sessionStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(state)) } catch {}
+}
+function clearDiscoverCache() {
+  try { sessionStorage.removeItem(DISCOVER_CACHE_KEY) } catch {}
+}
 const NS_LABELS = {
   stage: 'Stage',
   vertical: 'Sector',
@@ -253,15 +264,42 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
 
   useEffect(() => {
     initialMount.current = false
-    fetchCompanies(null)
-    fetchCampaignOptions()
-      .then(data => {
-        setTagOptions(data.tags || {})
-        setHiringCount(data.hiringCount ?? null)
-        setRegionCounts({ us: data.usCount ?? null, intl: data.intlCount ?? null, remote: data.remoteCount ?? null })
-      })
-      .catch(() => {})
+    const cached = readDiscoverCache()
+    if (cached?.companies?.length > 0) {
+      setCompanies(cached.companies)
+      setNextCursor(cached.nextCursor ?? null)
+      setHasMore(cached.hasMore ?? false)
+      setDiscoveryMeta(cached.meta || { seenTotal: 0, usingFallback: false })
+      setSearch(cached.search || '')
+      setIsHiring(cached.isHiring || false)
+      setRegionFilter(cached.regionFilter || null)
+      const tags = new Set<string>(cached.selectedTags || [])
+      setSelectedTags(tags)
+      selectedTagsRef.current = tags
+      setTagOptions(cached.tagOptions || {})
+      setHiringCount(cached.hiringCount ?? null)
+      setRegionCounts(cached.regionCounts || { us: null, intl: null, remote: null })
+    } else {
+      fetchCompanies(null)
+      fetchCampaignOptions()
+        .then(data => {
+          setTagOptions(data.tags || {})
+          setHiringCount(data.hiringCount ?? null)
+          setRegionCounts({ us: data.usCount ?? null, intl: data.intlCount ?? null, remote: data.remoteCount ?? null })
+        })
+        .catch(() => {})
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (companies.length === 0) return
+    writeDiscoverCache({
+      companies, nextCursor, hasMore, meta: discoveryMeta,
+      search, isHiring, regionFilter,
+      selectedTags: [...selectedTags],
+      tagOptions, hiringCount, regionCounts,
+    })
+  }, [companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, selectedTags, tagOptions, hiringCount, regionCounts])
 
   const loadMore = useCallback(() => {
     fetchCompanies(nextCursor, { append: true })
@@ -270,6 +308,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
   const resetSeen = useCallback(async () => {
     setLoading(true)
     setError(null)
+    clearDiscoverCache()
     try {
       await resetDiscoverySeen()
       setCompanies([])

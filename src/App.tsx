@@ -698,7 +698,7 @@ function AppShell() {
                   isLoading={!dataLoaded && !hasResourceCache}
                 />
               } />
-              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} />} />
+              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />} />
               <Route path="/templates" element={
                 <TemplatesTab
                   templates={templates}
