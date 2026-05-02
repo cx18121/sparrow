@@ -15,6 +15,7 @@ import {
   fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions, generateEmail, createEmail,
   fetchCampaignLeads, addCampaignLead, deleteCampaignLead, fetchLeads,
 } from '../../lib/api'
+import { useAppData } from '../../contexts/AppDataContext'
 
 const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 const NS_LABELS = {
@@ -45,7 +46,16 @@ function advancedSummary(form) {
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate, onEnterCampaign }) {
+export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign }) {
+  const {
+    campaigns,
+    templates,
+    dataLoaded,
+    createCampaign: onCreate,
+    updateCampaign: onUpdate,
+    deleteCampaign: onDelete,
+  } = useAppData()
+  const isLoading = !dataLoaded
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
