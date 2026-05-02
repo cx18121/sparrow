@@ -5,7 +5,6 @@ import {
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
 import { generateStyleGuide } from '../../lib/api'
-import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { supabase, isDemo } from '../../lib/supabase'
@@ -468,9 +467,6 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
 
   return (
     <Section title="Sending Limits">
-      <Banner variant="warning" size="sm">
-        These limits are saved but not yet enforced server-side — emails send immediately regardless of these values. Enforcement is planned.
-      </Banner>
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
         <div>
           <label className="label">Daily send limit</label>
@@ -503,10 +499,26 @@ function StyleSection({ workspaceConfig, onSave }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'scoring' | 'generating' | 'done'>('idle')
+  const [promptDraft, setPromptDraft] = useState(workspaceConfig?.styleProfile?.prompt || '')
+  const [savingPrompt, setSavingPrompt] = useState(false)
+
+  useEffect(() => {
+    setPromptDraft(workspaceConfig?.styleProfile?.prompt || '')
+  }, [workspaceConfig?.styleProfile?.prompt])
 
   const styleGuide: string | null = workspaceConfig?.styleProfile?.prompt || null
   const currentTraits: string[] = workspaceConfig?.styleProfile?.traits || []
   const hasStyle = styleGuide || currentTraits.length > 0
+  const promptChanged = promptDraft.trim() !== (styleGuide || '').trim()
+
+  const savePrompt = async () => {
+    setSavingPrompt(true)
+    await onSave((current) => ({
+      ...current,
+      styleProfile: { ...(current.styleProfile || {}), prompt: promptDraft.trim() },
+    }))
+    setSavingPrompt(false)
+  }
 
   const activeTest = STYLE_TESTS[activeIndex]
   const selected = choices[activeTest.id]
@@ -560,28 +572,35 @@ function StyleSection({ workspaceConfig, onSave }) {
   return (
     <Section title="Email Style">
       {!editing ? (
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            {hasStyle ? (
-              <>
-                {styleGuide && (
-                  <p className="text-sm leading-6 text-dark">{styleGuide}</p>
-                )}
-                {currentTraits.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {currentTraits.map(trait => (
-                      <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">{trait}</span>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-muted">No style configured. Take the quiz to set your drafting voice.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Style instructions</label>
+            <textarea
+              value={promptDraft}
+              onChange={e => setPromptDraft(e.target.value)}
+              rows={3}
+              className="input resize-none text-sm leading-relaxed"
+              placeholder="e.g. Be direct and concise. State the reason for reaching out early. End with one clear, low-friction ask."
+            />
+            <p className="mt-1 text-xs text-muted">Sent to the AI on every draft. Edit freely, or retake the quiz to regenerate.</p>
+          </div>
+          {currentTraits.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {currentTraits.map(trait => (
+                <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">{trait}</span>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={() => setEditing(true)} className="btn-ghost text-xs">
+              Retake quiz
+            </button>
+            {promptChanged && (
+              <button type="button" onClick={savePrompt} disabled={savingPrompt} className="btn-primary text-xs">
+                {savingPrompt ? <><Loader2 size={13} className="animate-spin" /> Saving</> : 'Save'}
+              </button>
             )}
           </div>
-          <button type="button" onClick={() => setEditing(true)} className="btn-secondary shrink-0 text-xs">
-            {hasStyle ? 'Reconfigure' : 'Take quiz'}
-          </button>
         </div>
       ) : (
         <div className="space-y-4">
