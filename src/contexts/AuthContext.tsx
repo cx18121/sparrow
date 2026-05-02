@@ -126,27 +126,19 @@ export function AuthProvider({ children }) {
       return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
     }
 
-    const authOptions = {
-      redirectTo: window.location.href,
-      scopes: GOOGLE_SCOPES,
-      // access_type=offline + prompt=consent forces Google to issue a
-      // refresh token even on repeat sign-ins, so we can send mail
-      // server-side without keeping the user on the page.
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-      },
-    }
-
-    const { data: { session } } = await supabase.auth.getSession()
-    const hasGoogleIdentity = session?.user?.identities?.some(identity => identity.provider === 'google')
-    const authMethod = session && !hasGoogleIdentity
-      ? supabase.auth.linkIdentity
-      : supabase.auth.signInWithOAuth
-
-    const { data, error } = await authMethod.call(supabase.auth, {
+    // signInWithGoogle is only called from AuthScreen (user is always signed out).
+    // Always use signInWithOAuth — never linkIdentity, which requires an active session
+    // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: authOptions,
+      options: {
+        redirectTo: window.location.origin,
+        scopes: GOOGLE_SCOPES,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     })
     if (!error && data?.session) {
       applySessionToApiClient(data.session)
@@ -170,14 +162,18 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
+    // Clear immediately — don't wait for onAuthStateChange to avoid stale UI.
+    setUser(null)
+    applySessionToApiClient(null)
+    // Clear cross-user session caches so a new sign-in starts fresh.
+    try { sessionStorage.removeItem('cf_discover_state') } catch {}
+    persistedRefreshTokens.clear()
+
     if (isDemo) {
       localStorage.removeItem('cf_demo_user')
-      setUser(null)
-      applySessionToApiClient(null)
       return
     }
     await supabase.auth.signOut()
-    applySessionToApiClient(null)
   }
 
   const value = { user, loading, signIn, signUp, signInWithGoogle, connectGoogle, signOut, isDemo }
