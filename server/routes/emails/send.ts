@@ -3,6 +3,7 @@ import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getSupabaseAdmin, getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
 import { decrypt } from "../../lib/crypto.js";
+import { parseWorkspaceConfig } from "../../lib/workspace-config.js";
 
 function encodeHeader(value: string): string {
   return value.replace(/[\r\n"]/g, "");
@@ -16,6 +17,55 @@ function encodeAddressHeader(name: string | null, email: string): string {
 
 function chunkBase64(value: string): string {
   return value.match(/.{1,76}/g)?.join("\r\n") ?? value;
+}
+
+function buildMimeMessage(
+  toHeader: string,
+  encodedSubject: string,
+  htmlBody: string,
+  attachments: Array<{ fileName: string; contentType: string; contentBase64: string }>
+): string {
+  if (attachments.length === 0) {
+    return [
+      `To: ${toHeader}`,
+      `Subject: ${encodedSubject}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      htmlBody,
+    ].join("\r\n");
+  }
+  const mixedBoundary = `mixed_${Date.now()}`;
+  const altBoundary = `alt_${Date.now()}`;
+  const lines = [
+    `To: ${toHeader}`,
+    `Subject: ${encodedSubject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+    "",
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    "",
+    `--${altBoundary}`,
+    "Content-Type: text/html; charset=utf-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    htmlBody,
+    "",
+    `--${altBoundary}--`,
+  ];
+  for (const att of attachments) {
+    lines.push(
+      `--${mixedBoundary}`,
+      `Content-Type: ${att.contentType}; name="${encodeHeader(att.fileName)}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${encodeHeader(att.fileName)}"`,
+      "",
+      att.contentBase64,
+    );
+  }
+  lines.push(`--${mixedBoundary}--`);
+  return lines.join("\r\n");
 }
 
 function mimeFromFileName(fileName: string | null | undefined): string {
@@ -37,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-  const { emailId, attachResume = false } = body ?? {};
+  const { emailId } = body ?? {};
   if (!emailId) return res.status(400).json({ error: "emailId is required" });
 
   const email = await prisma.email.findUnique({
@@ -89,71 +139,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const htmlBody = email.body ?? "";
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
   const toHeader = encodeAddressHeader(toName, toEmail);
-  const resumePath = typeof profile.resume_path === "string" ? profile.resume_path : null;
-  const workspaceConfig = (profile.workspace_config ?? {}) as Record<string, unknown>;
-  const resumeFileName = typeof workspaceConfig.resumeFileName === "string" && workspaceConfig.resumeFileName.trim()
-    ? workspaceConfig.resumeFileName
-    : resumePath?.split("/").pop() ?? "resume";
+  const workspaceConfig = parseWorkspaceConfig(profile.workspace_config);
+  const rawDailyMax = Number(workspaceConfig.sendingLimits?.dailyMax ?? 100);
+  const dailyMax = Number.isFinite(rawDailyMax) ? Math.min(500, Math.max(1, Math.round(rawDailyMax))) : 100;
 
-  let attachment:
-    | { fileName: string; contentType: string; contentBase64: string }
-    | null = null;
-
-  if (attachResume) {
-    if (!resumePath) {
-      return res.status(400).json({ error: "Upload a resume in Settings before attaching it." });
-    }
-
-    const { data: file, error } = await supabase.storage.from("resumes").download(resumePath);
-    if (error || !file) {
-      return res.status(400).json({ error: "We could not read your saved resume. Upload it again in Settings." });
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    attachment = {
-      fileName: resumeFileName,
-      contentType: file.type || mimeFromFileName(resumeFileName),
-      contentBase64: chunkBase64(buffer.toString("base64")),
-    };
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+  const sentToday = await prisma.email.count({
+    where: {
+      status: "sent",
+      sentAt: { gte: startOfToday },
+      OR: [{ userLead: { userId } }, { customContact: { userId } }],
+    },
+  });
+  if (sentToday >= dailyMax) {
+    return res.status(429).json({
+      error: `Daily send limit reached (${sentToday}/${dailyMax}). Try again tomorrow.`,
+    });
   }
 
-  const message = attachment
-    ? (() => {
-        const mixedBoundary = `mixed_${Date.now()}`;
-        const altBoundary = `alt_${Date.now()}`;
-        return [
-          `To: ${toHeader}`,
-          `Subject: ${encodeHeader(subject)}`,
-          "MIME-Version: 1.0",
-          `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-          "",
-          `--${mixedBoundary}`,
-          `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-          "",
-          `--${altBoundary}`,
-          "Content-Type: text/html; charset=utf-8",
-          "Content-Transfer-Encoding: 7bit",
-          "",
-          htmlBody,
-          "",
-          `--${altBoundary}--`,
-          `--${mixedBoundary}`,
-          `Content-Type: ${attachment.contentType}; name="${encodeHeader(attachment.fileName)}"`,
-          "Content-Transfer-Encoding: base64",
-          `Content-Disposition: attachment; filename="${encodeHeader(attachment.fileName)}"`,
-          "",
-          attachment.contentBase64,
-          `--${mixedBoundary}--`,
-        ].join("\r\n");
-      })()
-    : [
-        `To: ${toHeader}`,
-        `Subject: ${encodeHeader(subject)}`,
-        "MIME-Version: 1.0",
-        "Content-Type: text/html; charset=utf-8",
-        "",
-        htmlBody,
-      ].join("\r\n");
+  // Build attachment list from email.attachmentIds + file library in workspace_config
+  const fileLibrary = workspaceConfig.files ?? [];
+  const emailAttachmentIds = Array.isArray(email.attachmentIds) ? (email.attachmentIds as string[]) : [];
+
+  const attachments: Array<{ fileName: string; contentType: string; contentBase64: string }> = [];
+  for (const fileId of emailAttachmentIds) {
+    const meta = fileLibrary.find(f => f.id === fileId);
+    if (!meta) continue;
+    const { data: file, error } = await supabase.storage.from("resumes").download(meta.path);
+    if (error || !file) continue;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    attachments.push({
+      fileName: meta.fileName,
+      contentType: meta.mimeType || mimeFromFileName(meta.fileName),
+      contentBase64: chunkBase64(buffer.toString("base64")),
+    });
+  }
+
+  const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
 
   const raw = Buffer.from(message).toString("base64url");
 

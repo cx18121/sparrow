@@ -2,9 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
-import { enrichDomain } from "../lib/apollo.js";
-import { upsertContactFromReveal } from "../lib/apollo-enrichment.js";
-import { US_REGIONS } from "../../scripts/_lib/region-map.js";
+import { enrichContactFromDomain } from "../lib/apollo-enrichment.js";
+import { selectCandidateIds } from "../lib/campaign-batch-service.js";
+import { parseBody } from "../lib/parse-params.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -78,7 +78,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
   if (!campaign || campaign.userId !== userId) throw new HttpError(404, "Campaign not found");
 
   const newBatchNumber = campaign.currentBatch + 1;
-  const batchSize = Math.min(campaign.batchSize ?? 10, 100);
+  const batchSize = Math.min(campaign.batchSize ?? 10, 50);
   const apolloKey = process.env.APOLLO_API_KEY ?? null;
 
   const seen = await prisma.campaignSeenCompany.findMany({
@@ -126,13 +126,10 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
       company.contacts[0] ?? null;
     let apolloPersonId: string | null = null;
 
-    // If no existing contact and Apollo key is configured, enrich via Apollo
     if (!contact && apolloKey && company.domain) {
-      const enriched = await enrichDomain(company.domain, apolloKey);
-      if (enriched) {
-        apolloPersonId = enriched.personId;
-        contact = await upsertContactFromReveal(enriched, company.id);
-      }
+      const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey);
+      contact = enriched.contact;
+      apolloPersonId = enriched.apolloPersonId;
     }
 
     const contactId = contact?.id ?? null;
@@ -146,7 +143,6 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
           userId,
           companyId: company.id,
           contactId,
-          // Store apolloPersonId so generate-email can auto-reveal if contact email is missing
           apolloPersonId: apolloPersonId ?? undefined,
           status: "SAVED",
           notes: `Added via campaign: ${campaign.name}`,
@@ -175,15 +171,9 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
       ...userLead,
       emails: [],
       company: {
-        id: company.id,
-        name: company.name,
-        domain: company.domain,
-        oneLiner: company.oneLiner,
-        industry: company.industry,
-        region: company.region,
-        stage: company.stage,
-        batch: company.batch,
-        isHiring: company.isHiring,
+        id: company.id, name: company.name, domain: company.domain, oneLiner: company.oneLiner,
+        industry: company.industry, region: company.region, stage: company.stage,
+        batch: company.batch, isHiring: company.isHiring,
       },
       contact,
     });
@@ -216,88 +206,4 @@ async function resetBatch(req: VercelRequest, res: VercelResponse, userId: strin
   await prisma.campaign.update({ where: { id: campaignId }, data: { currentBatch: 0 } });
 
   res.status(200).json({ reset: true });
-}
-
-// Group a flat tag list by namespace prefix for AND-across-namespaces / OR-within logic.
-function buildTagFilters(tags: string[]) {
-  const byNs: Record<string, string[]> = {};
-  for (const t of tags) {
-    const idx = t.indexOf(":");
-    const ns = idx > 0 ? t.slice(0, idx) : "_";
-    (byNs[ns] ??= []).push(t);
-  }
-  return Object.values(byNs).map(group => ({ tags: { hasSome: group } }));
-}
-
-// Selects company IDs for the next batch, excluding already-seen companies.
-// Falls back to all matching companies if the unseen pool is exhausted.
-async function selectCandidateIds(
-  campaignId: string,
-  campaign: { filterTags: string[]; filterRegion: string | null; filterStage: string | null; filterBatch: string | null; filterIsHiring: boolean | null; filterHeadcountMin: number | null; filterHeadcountMax: number | null },
-  seenIds: string[],
-  batchSize: number
-): Promise<{ selectedIds: string[]; usingFallback: boolean }> {
-  const existingLeads = await prisma.campaignLead.findMany({
-    where: { campaignId },
-    select: { userLead: { select: { companyId: true } } },
-  });
-  const alreadyInCampaignIds = existingLeads
-    .map(row => row.userLead.companyId)
-    .filter((id): id is string => Boolean(id));
-  const excludedIds = Array.from(new Set([...seenIds, ...alreadyInCampaignIds]));
-
-  const tagFilters = buildTagFilters(campaign.filterTags ?? []);
-  const andConditions = [...tagFilters];
-  let regionWhere: Record<string, unknown> = {};
-  if (campaign.filterRegion === "__US__") {
-    regionWhere = { region: { in: [...US_REGIONS] } };
-  } else if (campaign.filterRegion === "__INTL__") {
-    andConditions.push({ region: { not: null } } as any);
-    andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
-  } else if (campaign.filterRegion === "__REMOTE__") {
-    regionWhere = { region: "Remote" };
-  } else if (campaign.filterRegion) {
-    regionWhere = { region: campaign.filterRegion };
-  }
-  const baseWhere = {
-    isVerified: true,
-    ...(andConditions.length > 0 && { AND: andConditions }),
-    ...regionWhere,
-    ...(campaign.filterStage && { stage: campaign.filterStage }),
-    ...(campaign.filterBatch && { batch: campaign.filterBatch }),
-    ...(campaign.filterIsHiring != null && { isHiring: campaign.filterIsHiring }),
-    ...((campaign.filterHeadcountMin != null || campaign.filterHeadcountMax != null) && {
-      headcount: {
-        ...(campaign.filterHeadcountMin != null && { gte: campaign.filterHeadcountMin }),
-        ...(campaign.filterHeadcountMax != null && { lte: campaign.filterHeadcountMax }),
-      },
-    }),
-  };
-
-  let candidates = await prisma.company.findMany({
-    where: { ...baseWhere, ...(excludedIds.length > 0 && { id: { notIn: excludedIds } }) },
-    select: { id: true },
-  });
-
-  const usingFallback = candidates.length === 0;
-  if (usingFallback) {
-    candidates = await prisma.company.findMany({ where: baseWhere, select: { id: true } });
-  }
-
-  // Fisher-Yates shuffle then take batchSize
-  const arr = candidates.slice();
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-
-  return { selectedIds: arr.slice(0, batchSize).map(c => c.id), usingFallback };
-}
-
-function parseBody(req: VercelRequest): Record<string, unknown> | null {
-  if (!req.body) return null;
-  if (typeof req.body === "string") {
-    try { return JSON.parse(req.body); } catch { return null; }
-  }
-  return req.body as Record<string, unknown>;
 }

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
+import { parseNullableNumber, parseBatchSize, parseNullableBoolean, parseBody } from "../lib/parse-params.js";
 
 const ALLOWED_STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"] as const;
 type CampaignStatus = (typeof ALLOWED_STATUSES)[number];
@@ -19,26 +20,6 @@ async function validateTemplateAccess(templateId: unknown, userId: string) {
   return template.id;
 }
 
-function parseNullableNumber(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) throw new HttpError(400, "Invalid numeric value");
-  return parsed;
-}
-
-function parseBatchSize(value: unknown): number {
-  const parsed = value == null || value === "" ? 10 : Number(value);
-  if (!Number.isFinite(parsed)) throw new HttpError(400, "Invalid batch size");
-  return Math.min(Math.max(parsed, 1), 100);
-}
-
-function parseNullableBoolean(value: unknown): boolean | null {
-  if (value === undefined || value === null || value === "") return null;
-  if (typeof value === "boolean") return value;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  throw new HttpError(400, "Invalid boolean value");
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -80,7 +61,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const {
     name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize, tone,
+    filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
   } = body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
 
@@ -113,6 +94,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       filterHeadcountMax: parseNullableNumber(filterHeadcountMax),
       batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
+      attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [],
     },
     include: {
       template: { select: { id: true, name: true } },
@@ -126,7 +108,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const {
     id, name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize, tone,
+    filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
   } = body ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
 
@@ -168,6 +150,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(filterHeadcountMax !== undefined && { filterHeadcountMax: parseNullableNumber(filterHeadcountMax) }),
       ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
+      ...(attachmentIds !== undefined && { attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [] }),
     },
     include: {
       template: { select: { id: true, name: true } },
@@ -189,14 +172,3 @@ async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
   res.status(204).end();
 }
 
-function parseBody(req: VercelRequest): Record<string, unknown> | null {
-  if (!req.body) return null;
-  if (typeof req.body === "string") {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return null;
-    }
-  }
-  return req.body as Record<string, unknown>;
-}
