@@ -81,7 +81,10 @@ export function AuthProvider({ children }) {
       if (session) {
         applySessionToApiClient(session)
         await persistGoogleRefreshToken(session)
-        setUser(session.user)
+        // Use functional update to preserve referential stability on TOKEN_REFRESHED —
+        // if the user ID hasn't changed, keep the existing object so downstream
+        // useEffect([user]) deps don't fire on every token refresh.
+        setUser(prev => prev?.id === session.user.id ? prev : session.user)
       }
     })
 
