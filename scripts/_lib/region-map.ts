@@ -12,14 +12,15 @@ export const US_REGIONS = new Set([
 // Strings matching these are treated as null in normalizeRegion.
 const JOB_TITLE_SIGNALS = [
   "engineer", "developer", "designer", "manager", "founder", "scientist",
-  "researcher", "analyst", "executive", "director", "president", "lead",
-  "intern", "officer", "architect", "specialist", "consultant", "partner",
+  "researcher", "analyst", "executive", "director", "president",
+  // "intern" and "lead" omitted — false-positive on "international" / "Cleveland"
+  "officer", "architect", "specialist", "consultant", "partner",
   "associate", "coordinator", "recruiter", "advisor", "strategist",
   // salary / compensation strings
   "salary", "equity", "benefits", "k+",
-  // catch-all role noise
-  "full stack", "fullstack", "backend", "frontend", "devops", "swe",
-  "aes", "csms",
+  // catch-all role noise (avoid "swe" — false-positive on "Sweden")
+  "full stack", "fullstack", "backend", "frontend", "devops",
+  "aes,", "csms,",
 ];
 
 export const REGION_MAP: Record<string, string> = {
