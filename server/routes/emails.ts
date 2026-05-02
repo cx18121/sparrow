@@ -11,6 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") return list(req, res, userId);
     if (req.method === "POST") return create(req, res, userId);
     if (req.method === "PATCH") return update(req, res, userId);
+    if (req.method === "DELETE") return remove(req, res, userId);
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
@@ -132,4 +133,34 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   });
 
   res.status(200).json(email);
+}
+
+async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
+  const { id, ids } = req.query as { id?: string; ids?: string };
+
+  const targetIds: string[] = ids
+    ? ids.split(",").map(s => s.trim()).filter(Boolean)
+    : id
+    ? [id]
+    : [];
+
+  if (!targetIds.length) throw new HttpError(400, "id or ids is required");
+
+  const emails = await prisma.email.findMany({
+    where: { id: { in: targetIds } },
+    include: {
+      userLead: { select: { userId: true } },
+      customContact: { select: { userId: true } },
+    },
+  });
+
+  const ownedIds = emails
+    .filter(e => (e.userLead?.userId ?? e.customContact?.userId) === userId)
+    .map(e => e.id);
+
+  if (!ownedIds.length) throw new HttpError(404, "Email not found");
+
+  await prisma.email.deleteMany({ where: { id: { in: ownedIds } } });
+
+  res.status(200).json({ deleted: ownedIds });
 }

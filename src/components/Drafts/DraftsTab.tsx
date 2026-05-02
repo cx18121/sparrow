@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
-  Maximize2, Minimize2, Keyboard,
+  Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, updateEmail, sendEmail } from '../../lib/api'
+import { apiGetAuth, fetchEmails, updateEmail, sendEmail, deleteEmails } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
+import ConfirmDialog from '../ui/ConfirmDialog'
 import EmptyState from '../ui/EmptyState'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
@@ -127,6 +128,12 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const [focusMode, setFocusMode] = useState(false)
 
   const [loadCount, setLoadCount] = useState(0)
+  const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [batchSendConfirm, setBatchSendConfirm] = useState<string[] | null>(null)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
+  const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (profileLoading) return
@@ -276,7 +283,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !editing && tab === 'draft') {
         if (canSendDraft(preview) && !sending) {
           e.preventDefault()
-          markSent([preview.id])
+          initiateSend([preview.id])
         }
         return
       }
@@ -442,6 +449,68 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     }
   }
 
+  useEffect(() => () => {
+    if (pendingSendTimerRef.current) clearTimeout(pendingSendTimerRef.current)
+  }, [])
+
+  const cancelPendingSend = () => {
+    if (pendingSendTimerRef.current) {
+      clearTimeout(pendingSendTimerRef.current)
+      pendingSendTimerRef.current = null
+    }
+    setToast(null)
+  }
+
+  const scheduleSend = (ids: string[]) => {
+    cancelPendingSend()
+    const targetDraft = ids.length === 1 ? drafts.find(d => d.id === ids[0]) : null
+    const label = targetDraft ? getRecipientName(targetDraft) : null
+    setToast({
+      type: 'info',
+      title: label ? `Sending to ${label} in 5 seconds…` : `Sending ${ids.length} emails in 5 seconds…`,
+      message: '',
+      duration: 5500,
+      action: { label: 'Undo', onClick: cancelPendingSend },
+    })
+    pendingSendTimerRef.current = setTimeout(() => {
+      pendingSendTimerRef.current = null
+      setToast(null)
+      markSent(ids)
+    }, 5000)
+  }
+
+  const initiateSend = (ids: string[]) => {
+    if (ids.length > 1) {
+      setBatchSendConfirm(ids)
+    } else {
+      scheduleSend(ids)
+    }
+  }
+
+  const deleteDrafts = async (ids: string[]) => {
+    setDeleting(true)
+    try {
+      await deleteEmails(ids)
+      setDrafts(prev => prev.filter(d => !ids.includes(d.id)))
+      setSelected(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
+      if (preview && ids.includes(preview.id)) {
+        const nextDraft = sorted.find(d => !ids.includes(d.id) && d.id !== preview.id)
+        setPreview(nextDraft || null)
+        setEditing(false)
+      }
+      setToast({
+        type: 'success',
+        title: ids.length === 1 ? 'Draft deleted' : `${ids.length} drafts deleted`,
+        message: '',
+      })
+    } catch (err: any) {
+      setToast({ type: 'error', title: 'Could not delete', message: err?.message || 'Please try again.' })
+    } finally {
+      setDeleting(false)
+      setDeleteConfirm(null)
+    }
+  }
+
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return <ChevronDown size={11} className="text-muted/40" />
     return sortDir === 'asc'
@@ -494,15 +563,34 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
             )}
           </div>
           <div className="flex items-center gap-2">
-            {tab === 'draft' && selectedArr.length > 0 && (
+            {tab === 'draft' && sorted.length > 0 && (
               <button
-                onClick={() => markSent(selectedArr)}
-                disabled={sending}
-                className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3"
+                type="button"
+                onClick={toggleAll}
+                className="btn-ghost text-xs text-muted hover:text-dark"
               >
-                <Send size={13} />
-                {sending ? 'Sending…' : `Send ${selectedArr.length}`}
+                {allSelected ? 'Deselect all' : 'Select all'}
               </button>
+            )}
+            {tab === 'draft' && selectedArr.length > 0 && (
+              <>
+                <button
+                  onClick={() => initiateSend(selectedArr)}
+                  disabled={sending || deleting}
+                  className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3"
+                >
+                  <Send size={13} />
+                  {sending ? 'Sending…' : `Send ${selectedArr.length}`}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(selectedArr)}
+                  disabled={sending || deleting}
+                  className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 size={13} />
+                  {deleting ? 'Deleting…' : `Delete ${selectedArr.length}`}
+                </button>
+              </>
             )}
             <button
               onClick={load}
@@ -666,14 +754,24 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                   <td className="px-4 py-3 text-muted whitespace-nowrap">{formatDate(tab === 'sent' ? draft.sentAt : draft.createdAt)}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     {tab === 'draft' && (
-                      <button
-                        onClick={() => markSent([draft.id])}
-                        disabled={sending || !canSendDraft(draft)}
-                        title={canSendDraft(draft) ? 'Send email' : 'Review needed before sending'}
-                        className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 ml-auto hover:text-primary disabled:opacity-40"
-                      >
-                        <Send size={11} /> Send
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => initiateSend([draft.id])}
+                          disabled={sending || !canSendDraft(draft)}
+                          title={canSendDraft(draft) ? 'Send email' : 'Review needed before sending'}
+                          className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 hover:text-primary disabled:opacity-40"
+                        >
+                          <Send size={11} /> Send
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm([draft.id])}
+                          disabled={deleting}
+                          title="Delete draft"
+                          className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 hover:text-red-500 disabled:opacity-40"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     )}
                     {tab === 'sent' && (
                       <span className="inline-flex items-center justify-end gap-1 text-xs font-medium text-emerald-700">
@@ -707,6 +805,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 lg:ml-3">
+              {/* Navigation */}
               <div className="flex items-center rounded-full bg-slate-50 p-0.5">
                 <button
                   type="button"
@@ -727,33 +826,15 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                   <ChevronRight size={13} />
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setFocusMode(m => !m)}
-                className="btn-ghost p-1.5 text-muted hover:text-dark"
-                title={focusMode ? 'Exit focus mode (esc)' : 'Focus mode (f)'}
-              >
-                {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-              </button>
+
+              {/* Edit / Save / Cancel */}
               {!editing ? (
-                <>
-                  <button
-                    onClick={startEdit}
-                    className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-2.5 text-muted hover:text-dark"
-                  >
-                    <Pencil size={11} /> Edit
-                  </button>
-                  {tab === 'draft' && (
-                    <button
-                      onClick={() => markSent([preview.id])}
-                      disabled={sending || !canSendDraft(preview)}
-                      title={canSendDraft(preview) ? 'Send email' : 'Review needed before sending'}
-                      className="btn-primary flex items-center gap-1.5 text-xs py-1 px-2.5"
-                    >
-                      <Send size={11} /> Send
-                    </button>
-                  )}
-                </>
+                <button
+                  onClick={startEdit}
+                  className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-2.5 text-muted hover:text-dark"
+                >
+                  <Pencil size={11} /> Edit
+                </button>
               ) : (
                 <>
                   <button
@@ -772,6 +853,57 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                   </button>
                 </>
               )}
+
+              {/* Send */}
+              {tab === 'draft' && !editing && (
+                <button
+                  onClick={() => initiateSend([preview.id])}
+                  disabled={sending || !canSendDraft(preview)}
+                  title={canSendDraft(preview) ? 'Send email (⌘↵)' : 'Review needed before sending'}
+                  className="btn-primary flex items-center gap-1.5 text-xs py-1 px-2.5"
+                >
+                  <Send size={11} /> Send
+                </button>
+              )}
+
+              {/* More: focus mode + delete */}
+              <div className="relative" ref={moreMenuRef}>
+                {moreMenuOpen && (
+                  <div className="fixed inset-0 z-10" onClick={() => setMoreMenuOpen(false)} />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMoreMenuOpen(o => !o)}
+                  className="btn-ghost p-1.5 text-muted hover:text-dark"
+                  title="More options"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+                {moreMenuOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-card">
+                    <button
+                      type="button"
+                      onClick={() => { setFocusMode(m => !m); setMoreMenuOpen(false) }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-slate-50 hover:text-dark"
+                    >
+                      {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                      {focusMode ? 'Exit focus mode' : 'Focus mode'}
+                    </button>
+                    {tab === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => { setDeleteConfirm([preview.id]); setMoreMenuOpen(false) }}
+                        disabled={deleting}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                      >
+                        <Trash2 size={13} /> Delete draft
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Close */}
               <button
                 onClick={() => { setPreview(null); setEditing(false) }}
                 className="btn-ghost p-1 text-muted hover:text-dark"
@@ -878,6 +1010,24 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
           <ShortcutHint editing={editing} canSend={tab === 'draft' && canSendDraft(preview)} />
         </div>
       )}
+      <ConfirmDialog
+        open={!!batchSendConfirm}
+        onClose={() => setBatchSendConfirm(null)}
+        onConfirm={() => { const ids = batchSendConfirm; setBatchSendConfirm(null); if (ids) markSent(ids) }}
+        title={`Send ${batchSendConfirm?.length} emails`}
+        message={`This will send ${batchSendConfirm?.length} emails via Gmail. Only drafts marked Ready will be sent.`}
+      />
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => deleteConfirm && deleteDrafts(deleteConfirm)}
+        title={deleteConfirm?.length === 1 ? 'Delete draft' : `Delete ${deleteConfirm?.length} drafts`}
+        message={
+          deleteConfirm?.length === 1
+            ? 'This draft will be permanently deleted.'
+            : `These ${deleteConfirm?.length} drafts will be permanently deleted.`
+        }
+      />
     </div>
   )
 }

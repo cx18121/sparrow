@@ -369,15 +369,17 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                         <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
                       </button>
                     </div>
-                    {view === 'edit' && (
-                      <button onClick={saveExplicit} disabled={savingExplicit} className="btn-primary text-xs">
-                        {savingExplicit
-                          ? <><Loader2 size={13} className="animate-spin" /> Saving</>
-                          : saved
-                          ? <><Check size={13} /> Saved</>
-                          : <><Save size={13} /> Save</>}
-                      </button>
-                    )}
+                    <button
+                      onClick={saveExplicit}
+                      disabled={savingExplicit || view !== 'edit'}
+                      className={`btn-primary text-xs ${view !== 'edit' ? 'invisible' : ''}`}
+                    >
+                      {savingExplicit
+                        ? <><Loader2 size={13} className="animate-spin" /> Saving</>
+                        : saved
+                        ? <><Check size={13} /> Saved</>
+                        : <><Save size={13} /> Save</>}
+                    </button>
                     <button onClick={() => duplicate(selected)} className="btn-ghost text-xs">
                       <Copy size={13} /> Duplicate
                     </button>
@@ -403,23 +405,6 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                       placeholder="e.g. Quick question about {{company}}"
                       className="input"
                     />
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                      <span>Subject variables:</span>
-                      {VARIABLES.map(variable => (
-                        <button
-                          key={variable}
-                          type="button"
-                          onClick={() => scheduleFlush({
-                            ...draft,
-                            id: selected.id,
-                            subject: `${draft.id === selected.id ? draft.subject : (selected.subject || '')}${variable}`,
-                          })}
-                          className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
-                        >
-                          {variable}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                   <div>
                     <label className="label">Body</label>

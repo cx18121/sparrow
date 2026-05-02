@@ -143,6 +143,8 @@ export const fetchContacts = (params = {}) => request(`/contacts${qs(params)}`)
 export const fetchCustomContacts = () => request('/custom-contacts')
 export const createCustomContact = (data) =>
   request('/custom-contacts', { method: 'POST', body: JSON.stringify(data) })
+export const updateCustomContact = (data) =>
+  request('/custom-contacts', { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteCustomContact = (id) =>
   request(`/custom-contacts${qs({ id })}`, { method: 'DELETE' })
 
@@ -162,6 +164,8 @@ export const generateEmail = (data) =>
   request('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
 export const sendEmail = (emailId, options = {}) =>
   request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId, ...options }) })
+export const deleteEmails = (ids: string[]) =>
+  request(`/emails${qs({ ids: ids.join(',') })}`, { method: 'DELETE' })
 
 export const fetchProfile = () => request('/profile')
 export const saveProfile = (data) =>

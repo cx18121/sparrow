@@ -20,11 +20,12 @@ const styles = {
 }
 
 export default function Toast({ toast, onClose, duration = 4500 }) {
+  const effectiveDuration = toast?.duration ?? duration
   useEffect(() => {
-    if (!toast || !duration) return
-    const timer = window.setTimeout(onClose, duration)
+    if (!toast || !effectiveDuration) return
+    const timer = window.setTimeout(onClose, effectiveDuration)
     return () => window.clearTimeout(timer)
-  }, [duration, onClose, toast])
+  }, [effectiveDuration, onClose, toast])
 
   if (!toast) return null
 
