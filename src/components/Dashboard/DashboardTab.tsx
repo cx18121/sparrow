@@ -5,7 +5,15 @@ import {
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
-import { fetchEmails, fetchProfile } from '../../lib/api'
+import { fetchEmails } from '../../lib/api'
+
+const EMAIL_CACHE_KEY = 'cf_dash_emails'
+function readEmailCache() {
+  try { return JSON.parse(sessionStorage.getItem(EMAIL_CACHE_KEY) || 'null') } catch { return null }
+}
+function writeEmailCache(data) {
+  try { sessionStorage.setItem(EMAIL_CACHE_KEY, JSON.stringify(data)) } catch {}
+}
 
 function formatRelative(value) {
   if (!value) return ''
@@ -105,44 +113,41 @@ export default function DashboardTab({
   templates = [],
   workspaceConfig,
   dataLoading = false,
+  profile = null,
+  profileLoading = true,
   onNavigate,
   onConnectGoogle,
 }) {
-  const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
-  const [emailState, setEmailState] = useState({ loading: true, drafts: [], sent: [], error: null })
+  const cached = readEmailCache()
+  const [emailState, setEmailState] = useState(
+    cached
+      ? { loading: false, drafts: cached.drafts || [], sent: cached.sent || [], error: null }
+      : { loading: true, drafts: [], sent: [], error: null }
+  )
 
   useEffect(() => {
     let cancelled = false
-    setProfileState(current => ({ ...current, loading: true, error: null }))
-    fetchProfile()
-      .then(res => {
-        if (!cancelled) setProfileState({ loading: false, profile: res?.profile || null, error: null })
-      })
-      .catch(err => {
-        if (!cancelled) setProfileState({ loading: false, profile: null, error: err.message || 'Could not load setup status' })
-      })
-    return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    setEmailState(current => ({ ...current, loading: true, error: null }))
+    if (!cached) setEmailState(s => ({ ...s, loading: true, error: null }))
     Promise.all([
       fetchEmails({ status: 'draft', limit: '8' }),
       fetchEmails({ status: 'sent', limit: '50' }),
     ])
       .then(([drafts, sent]) => {
-        if (!cancelled) setEmailState({ loading: false, drafts: drafts?.items || [], sent: sent?.items || [], error: null })
+        if (!cancelled) {
+          const next = { drafts: drafts?.items || [], sent: sent?.items || [] }
+          setEmailState({ loading: false, ...next, error: null })
+          writeEmailCache(next)
+        }
       })
       .catch(err => {
-        if (!cancelled) setEmailState({ loading: false, drafts: [], sent: [], error: err.message || 'Could not load email activity' })
+        if (!cancelled) setEmailState(s => ({ ...s, loading: false, error: err.message || 'Could not load email activity' }))
       })
     return () => { cancelled = true }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profileState.profile?.hasClaudeKey
-  const hasGoogle = !!profileState.profile?.hasGoogleRefreshToken
-  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profileState.profile?.resumeText
+  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profile?.hasClaudeKey
+  const hasGoogle = !!profile?.hasGoogleRefreshToken
+  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
   const hasTemplate = !!workspaceConfig?.templateId || templates.length > 0
   const activeCampaigns = campaigns.filter(campaign => campaign.status === 'active').length
@@ -194,7 +199,7 @@ export default function DashboardTab({
   const completedSetup = setupItems.filter(item => item.done).length
   // Don't evaluate until profile has loaded — avoids the checklist flickering
   // in as "incomplete" then immediately disappearing once hasGoogle/hasClaude resolve.
-  const setupReady = !profileState.loading
+  const setupReady = !profileLoading
   const setupComplete = setupReady && completedSetup === setupItems.length
   const firstIncompleteIndex = setupItems.findIndex(item => !item.done)
 
@@ -252,9 +257,9 @@ export default function DashboardTab({
         </div>
       </section>
 
-      {(profileState.error || emailState.error) && (
+      {emailState.error && (
         <Banner variant="warning" icon={AlertCircle}>
-          {profileState.error || emailState.error}
+          {emailState.error}
         </Banner>
       )}
 
