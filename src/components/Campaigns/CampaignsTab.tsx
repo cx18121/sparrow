@@ -42,10 +42,11 @@ function advancedSummary(form) {
     parts.push(`${form.filterHeadcountMin || 0}–${form.filterHeadcountMax || '∞'} employees`)
   }
   if (form.scheduledAt) parts.push('scheduled')
+  if (form.tone) parts.push('tone set')
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false }) {
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -194,6 +195,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
         await onUpdate({ id: editing, ...payload })
       } else {
         await onCreate(payload)
+        setToast({
+          type: 'success',
+          title: `"${form.name}" created`,
+          message: 'Open it to find matching prospects.',
+        })
       }
       setModalOpen(false)
     } catch (err) {
@@ -409,7 +415,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           <section className="rounded-[24px] border border-slate-100 bg-slate-50/60 p-5">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Latest batch</p>
+                <p className="page-eyebrow">Latest batch</p>
                 <p className="mt-1 text-sm text-muted">
                   {batchModal.currentBatch === 0
                     ? 'No batch generated yet.'
@@ -562,7 +568,16 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             </button>
           </div>
           {availableSavedLeads.length === 0 && (
-            <p className="mt-2 text-xs text-muted">Save prospects from Contacts or Discover, then add them here.</p>
+            <p className="mt-2 text-xs text-muted">
+              No saved prospects yet.{' '}
+              {onNavigate ? (
+                <button type="button" onClick={() => onNavigate('contacts')} className="font-medium text-primary hover:underline">
+                  Go to Contacts
+                </button>
+              ) : (
+                'Save prospects from Contacts or Discover first.'
+              )}
+            </p>
           )}
         </section>
 
@@ -656,9 +671,21 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             Loading campaigns...
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState>
-            {search ? 'No campaigns match your search.' : 'No campaigns yet. Create your first one!'}
-          </EmptyState>
+          <EmptyState
+            title={search ? 'No campaigns match' : 'No campaigns yet'}
+            description={
+              search
+                ? 'Clear your search to see all campaigns.'
+                : 'Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk.'
+            }
+            action={
+              !search && (
+                <button type="button" onClick={openCreate} className="btn-primary text-xs">
+                  <Plus size={13} /> New campaign
+                </button>
+              )
+            }
+          />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -666,7 +693,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Name</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Filters</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Status</th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Finds</th>
+                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Batch</th>
                 <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Actions</th>
               </tr>
             </thead>
@@ -680,16 +707,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                     className="cursor-pointer transition-colors hover:bg-slate-50/60"
                   >
                     <td className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation()
-                          openCampaign(c)
-                        }}
-                        className="text-left font-medium text-dark hover:text-primary"
-                      >
-                        {c.name}
-                      </button>
+                      <p className="font-medium text-dark">{c.name}</p>
                       {c.subject && <p className="mt-0.5 text-xs text-muted truncate max-w-[220px]">{c.subject}</p>}
                     </td>
                     <td className="px-5 py-4">
@@ -709,17 +727,10 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                       <Badge variant={c.status}>{c.status}</Badge>
                     </td>
                     <td className="px-5 py-4 text-muted text-xs">
-                      {c.batchSize ?? 10} prospects/run
+                      {c.batchSize ?? 10}/run
                     </td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => openCampaign(c)}
-                          className="btn-primary px-2.5 py-1 text-xs"
-                          title="Open campaign"
-                        >
-                          <ChevronRight size={12} /> Open
-                        </button>
                         <button onClick={() => openEdit(c)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
                           <Edit2 size={13} />
                         </button>
@@ -755,39 +766,28 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               <label className="label">Campaign name *</label>
               <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. Spring 2026 YC outreach" className="input" required />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">Linked template</label>
-                <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-                  <option value="">Select template...</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Tone hint (optional)</label>
-                <input
-                  value={form.tone}
-                  onChange={e => field('tone', e.target.value)}
-                  placeholder="e.g. curious, low-key, technical"
-                  className="input"
-                />
-              </div>
-            </div>
             <div>
-              <label className="label">Status</label>
-              <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="completed">Completed</option>
+              <label className="label">Template</label>
+              <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+                <option value="">Select template...</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
+            {editing && (
+              <div>
+                <label className="label">Status</label>
+                <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Lead filters — common */}
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Who to find</p>
-            <div className="grid gap-3 sm:grid-cols-3">
+          {/* Lead filters */}
+          <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <label className="label">Region</label>
                 <select value={form.filterRegion} onChange={e => field('filterRegion', e.target.value)} className="select">
@@ -802,8 +802,10 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <label className="label">Stage</label>
                 <select value={form.filterStage} onChange={e => field('filterStage', e.target.value)} className="select">
                   <option value="">Any stage</option>
+                  {/* e.g. Seed, Series A, Series B */}
                   {options.stages.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
+                <p className="mt-1 text-xs text-muted">Seed, Series A, etc. Blank = all stages.</p>
               </div>
               <div>
                 <label className="label">Hiring</label>
@@ -813,12 +815,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   <option value="false">Not hiring</option>
                 </select>
               </div>
-            </div>
           </div>
 
           {/* Batch size */}
           <div>
-            <label className="label">Prospects per run</label>
+            <label className="label">Batch size</label>
             <div className="flex items-center gap-3">
               <input
                 type="number" min="1" max="100"
@@ -826,7 +827,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 onChange={e => field('batchSize', e.target.value)}
                 className="input w-28"
               />
-              <p className="text-xs text-muted">How many prospects to pull each time you run this campaign (max 100).</p>
+              <p className="text-xs text-muted">Prospects pulled each time you click "Find matches" (max 100).</p>
             </div>
           </div>
 
@@ -846,7 +847,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             </button>
 
             {advancedOpen && (
-              <div className="mt-3 space-y-3 rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
+              <div className="mt-3 space-y-3">
                 <div>
                   <label className="label">Tags</label>
                   <p className="mb-2 text-xs text-muted">
@@ -899,8 +900,38 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                   </div>
                 </div>
                 <div>
-                  <label className="label">Schedule</label>
-                  <input type="datetime-local" value={form.scheduledAt} onChange={e => field('scheduledAt', e.target.value)} className="input" />
+                  <label className="label">Schedule (optional)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={form.scheduledAt ? form.scheduledAt.slice(0, 10) : ''}
+                      onChange={e => {
+                        const time = form.scheduledAt ? form.scheduledAt.slice(11, 16) : '09:00'
+                        field('scheduledAt', e.target.value ? `${e.target.value}T${time}` : '')
+                      }}
+                      className="input"
+                    />
+                    <input
+                      type="time"
+                      value={form.scheduledAt ? form.scheduledAt.slice(11, 16) : ''}
+                      onChange={e => {
+                        const date = form.scheduledAt ? form.scheduledAt.slice(0, 10) : ''
+                        if (date) field('scheduledAt', `${date}T${e.target.value}`)
+                      }}
+                      disabled={!form.scheduledAt?.slice(0, 10)}
+                      className="input disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Tone hint</label>
+                  <input
+                    value={form.tone}
+                    onChange={e => field('tone', e.target.value)}
+                    placeholder="e.g. curious, low-key, technical"
+                    className="input"
+                  />
+                  <p className="mt-1 text-xs text-muted">Shapes how generated emails sound. Leave blank to use your style profile.</p>
                 </div>
               </div>
             )}
@@ -990,7 +1021,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           </div>
 
           {emailPreview.error && (
-            <p className="text-xs text-red-500">{emailPreview.error}</p>
+            <Banner variant="danger" size="sm">{emailPreview.error}</Banner>
           )}
 
           <div className="flex justify-end gap-2 pt-1">

@@ -675,6 +675,7 @@ function AppShell() {
                   templates={templates}
                   workspaceConfig={workspaceConfig}
                   isLoading={!dataLoaded && !hasResourceCache}
+                  onNavigate={handleTabChange}
                 />
               } />
               <Route path="/leads" element={

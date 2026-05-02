@@ -38,20 +38,29 @@ function getEmailCompany(email) {
   return email.userLead?.company?.name || email.customContact?.companyName || ''
 }
 
-// One-line stat. No card, no icon chip — keeps blue reserved for action/selection.
-// Uses the DESIGN.md "Label" treatment for the eyebrow (not page-eyebrow, which
-// is page-level and primary-blue).
-function Stat({ label, value, detail, loading }) {
+function Stat({ label, value, detail, loading, onClick }) {
   const display = loading && (value === 0 || value === null || value === undefined) ? '—' : value
-  return (
-    <div className="min-w-0 px-4 py-3 first:pl-0 last:pr-0">
+  const inner = (
+    <>
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</div>
       <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
         {display}
       </div>
       {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
-    </div>
+    </>
   )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="min-w-0 px-4 py-3 text-left transition-colors hover:bg-slate-50 first:pl-0 last:pr-0"
+      >
+        {inner}
+      </button>
+    )
+  }
+  return <div className="min-w-0 px-4 py-3 first:pl-0 last:pr-0">{inner}</div>
 }
 
 function ActivityRow({ icon: Icon, title, detail, when }) {
@@ -157,6 +166,13 @@ export default function DashboardTab({
     return hasRecipient && email.subject?.trim() && email.body?.trim()
   }).length
 
+  const sentThisWeek = useMemo(() =>
+    emailState.sent.filter(email => {
+      const d = new Date(email.sentAt || email.updatedAt || '')
+      return !isNaN(d.getTime()) && Date.now() - d.getTime() < 7 * 24 * 60 * 60 * 1000
+    }).length
+  , [emailState.sent])
+
   const setupItems = [
     {
       label: 'Google connected',
@@ -203,31 +219,34 @@ export default function DashboardTab({
   const setupComplete = setupReady && completedSetup === setupItems.length
   const firstIncompleteIndex = setupItems.findIndex(item => !item.done)
 
-  const sentActivity = useMemo(() =>
-    emailState.sent
+  // Merge sent + saved into one chronological feed, most recent first
+  const recentActivity = useMemo(() => {
+    const sent = emailState.sent
       .map(email => ({
         id: `sent-${email.id}`,
+        type: 'sent',
         at: email.sentAt || email.updatedAt,
         title: email.subject || 'Sent email',
         detail: `${getEmailContact(email)}${getEmailCompany(email) ? ` at ${getEmailCompany(email)}` : ''}`,
       }))
       .filter(item => item.at)
-      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .slice(0, 5)
-  , [emailState.sent])
 
-  const savedActivity = useMemo(() =>
-    leads
+    const saved = leads
       .map(lead => ({
         id: `lead-${lead.id}`,
+        type: 'saved',
         at: lead.addedAt,
         title: lead.company?.name || lead.contact?.name || 'Saved contact',
         detail: lead.contact?.name ? `${lead.contact.name}${lead.contact.title ? `, ${lead.contact.title}` : ''}` : 'Saved from Discover',
       }))
       .filter(item => item.at)
+
+    return [...sent, ...saved]
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .slice(0, 5)
-  , [leads])
+      .slice(0, 8)
+  }, [emailState.sent, leads])
+
+  const hasSentInFeed = recentActivity.some(item => item.type === 'sent')
 
   // Context-aware primary action: keep the user on the next useful step.
   const primaryCta = readyDrafts > 0
@@ -236,23 +255,29 @@ export default function DashboardTab({
       ? { label: 'Generate drafts', icon: FileText, onClick: () => onNavigate?.('contacts') }
       : { label: 'Find contacts', icon: Users, onClick: () => onNavigate?.('leads') }
 
+  const firstName = workspaceConfig?.senderName?.trim().split(' ')[0] || ''
+
   return (
     <div className="page-shell">
       <section className="page-toolbar">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="page-eyebrow">Dashboard</p>
-            <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.04em] text-dark">
-              Activity summary
-            </h1>
+            {firstName && (
+              <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.04em] text-dark">
+                Hi, {firstName}
+              </h1>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={primaryCta.onClick} className="btn-primary text-xs">
               <primaryCta.icon size={13} /> {primaryCta.label}
             </button>
-            <button type="button" onClick={() => onNavigate?.('drafts')} className="btn-secondary text-xs">
-              <Inbox size={13} /> All drafts
-            </button>
+            {emailState.drafts.length > 0 && (
+              <button type="button" onClick={() => onNavigate?.('drafts')} className="btn-secondary text-xs">
+                <Inbox size={13} /> All drafts
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -265,19 +290,14 @@ export default function DashboardTab({
 
       <div className={`grid gap-6 ${setupReady && !setupComplete ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
         <section className="space-y-6">
-          {/* Stat strip — inline, no cards, no icon chips, divider rhythm */}
+          {/* Stat strip — ordered by workflow: Contacts → Drafts → Sent → Campaigns */}
           <div className="grid grid-cols-2 divide-x divide-slate-100 border-y border-slate-100 md:grid-cols-4">
-            <Stat
-              label="Campaigns"
-              value={campaigns.length}
-              detail={`${activeCampaigns} active`}
-              loading={dataLoading}
-            />
             <Stat
               label="Contacts"
               value={totalContacts}
               detail={`${leads.length} leads, ${customContacts.length} custom`}
               loading={dataLoading}
+              onClick={onNavigate ? () => onNavigate('contacts') : undefined}
             />
             <Stat
               label="Drafts"
@@ -289,71 +309,72 @@ export default function DashboardTab({
                 : 'no drafts yet'
               }
               loading={emailState.loading}
+              onClick={onNavigate ? () => onNavigate('drafts') : undefined}
             />
             <Stat
               label="Sent"
               value={emailState.sent.length}
-              detail={emailState.loading ? undefined : 'emails sent'}
+              detail={emailState.loading ? undefined : sentThisWeek > 0 ? `${sentThisWeek} this week` : undefined}
               loading={emailState.loading}
+              onClick={onNavigate ? () => onNavigate('drafts') : undefined}
+            />
+            <Stat
+              label="Campaigns"
+              value={campaigns.length}
+              detail={`${activeCampaigns} active`}
+              loading={dataLoading}
+              onClick={onNavigate ? () => onNavigate('campaigns') : undefined}
             />
           </div>
 
-          <section className="space-y-6">
-            {/* Emails sent */}
-            <div>
-              <h2 className="mb-3 text-sm font-semibold text-dark">Emails sent</h2>
-              {emailState.loading ? (
-                <div className="divide-y divide-slate-100 border-y border-slate-100">
-                  {Array.from({ length: 3 }).map((_, i) => <ActivitySkeleton key={i} />)}
-                </div>
-              ) : sentActivity.length === 0 ? (
-                <EmptyState
-                  align="left"
-                  description="No emails sent yet. Generate drafts and send from the Drafts tab."
-                  action={
-                    <button type="button" onClick={() => onNavigate?.('drafts')} className="btn-ghost px-3 py-1.5 text-xs">
-                      Go to Drafts <ArrowRight size={12} />
-                    </button>
-                  }
-                  className="border-y border-slate-100"
-                />
-              ) : (
-                <div className="divide-y divide-slate-100 border-y border-slate-100">
-                  {sentActivity.map(item => (
-                    <ActivityRow key={item.id} icon={Send} title={item.title} detail={item.detail} when={formatRelative(item.at)} />
-                  ))}
-                </div>
+          {/* Unified recent activity feed */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-dark">Recent activity</h2>
+              {hasSentInFeed && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('drafts')}
+                  className="btn-ghost px-2 py-1 text-xs"
+                >
+                  View sent <ArrowRight size={11} />
+                </button>
               )}
             </div>
-
-            {/* Saved contacts */}
-            <div>
-              <h2 className="mb-3 text-sm font-semibold text-dark">Saved contacts</h2>
-              {savedActivity.length === 0 ? (
-                <EmptyState
-                  align="left"
-                  description="No contacts saved yet. Discover leads to get started."
-                  action={
-                    <button type="button" onClick={() => onNavigate?.('leads')} className="btn-ghost px-3 py-1.5 text-xs">
-                      Open Discover <ArrowRight size={12} />
-                    </button>
-                  }
-                  className="border-y border-slate-100"
-                />
-              ) : (
-                <div className="divide-y divide-slate-100 border-y border-slate-100">
-                  {savedActivity.map(item => (
-                    <ActivityRow key={item.id} icon={Users} title={item.title} detail={item.detail} when={formatRelative(item.at)} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+            {emailState.loading ? (
+              <div className="divide-y divide-slate-100 border-y border-slate-100">
+                {Array.from({ length: 3 }).map((_, i) => <ActivitySkeleton key={i} />)}
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <EmptyState
+                align="left"
+                description="No activity yet. Save a contact to get started."
+                action={
+                  <button type="button" onClick={() => onNavigate?.('leads')} className="btn-ghost px-3 py-1.5 text-xs">
+                    Find contacts <ArrowRight size={12} />
+                  </button>
+                }
+                className="border-y border-slate-100"
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 border-y border-slate-100">
+                {recentActivity.map(item => (
+                  <ActivityRow
+                    key={item.id}
+                    icon={item.type === 'sent' ? Send : Users}
+                    title={item.title}
+                    detail={item.detail}
+                    when={formatRelative(item.at)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         {setupReady && !setupComplete && (
           <aside>
-            <section>
+            <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="page-eyebrow">Setup</p>
                 <span className="text-xs text-muted tabular-nums">
@@ -371,7 +392,7 @@ export default function DashboardTab({
                   />
                 ))}
               </div>
-            </section>
+            </div>
           </aside>
         )}
       </div>
