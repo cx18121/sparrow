@@ -5,7 +5,15 @@ import {
   GENERIC_FALLBACK_SUBJECT,
   GENERIC_FALLBACK_BODY,
 } from './prompts.js'
-import type { EmailDraft, GenerateEmailParams } from './types.js'
+import type {
+  AiDraftInput,
+  DraftCompany,
+  DraftContact,
+  DraftInput,
+  EmailDraft,
+  FallbackDraftInput,
+  TemplateDraftInput,
+} from './types.js'
 
 const ANTHROPIC_VERSION = '2023-06-01'
 const GENERATION_MODEL = 'claude-haiku-4-5-20251001'
@@ -37,34 +45,42 @@ export function buildSubjectLine(
   return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company)
 }
 
-export async function generateEmailDraft(params: GenerateEmailParams): Promise<EmailDraft> {
-  // When a user template is provided, use it verbatim — no AI body generation.
-  if (params.userTemplate != null) {
-    const body = substituteVariables(params.userTemplate, params.contact, params.senderName, params.company)
-    const subject = buildSubjectLine(params.subjectTemplate, params.contact, params.senderName, params.company)
-    return { subject, body }
-  }
+function draftFromTemplate(input: TemplateDraftInput): EmailDraft {
+  const body = substituteVariables(input.body, input.contact, input.senderName, input.company)
+  const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)
+  return { subject, body }
+}
 
-  const styleGuidance = params.styleInstruction
-    ? `Style (follow precisely):\n${params.styleInstruction}`
+function draftFallback(input: FallbackDraftInput): EmailDraft {
+  const contactName = input.contact.name ?? 'there'
+  const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)
+  return {
+    subject: input.subjectTemplate ? subject : GENERIC_FALLBACK_SUBJECT,
+    body: GENERIC_FALLBACK_BODY(contactName, input.company.name),
+  }
+}
+
+function buildPrompt(input: AiDraftInput): string {
+  const styleGuidance = input.styleInstruction
+    ? `Style (follow precisely):\n${input.styleInstruction}`
     : 'Style: direct, concise, specific — 80–120 words.'
 
-  const hookNote = params.interestHook
-    ? `Interest hook — weave in naturally mid-email: "${params.interestHook}"`
+  const hookNote = input.interestHook
+    ? `Interest hook — weave in naturally mid-email: "${input.interestHook}"`
     : 'No interest hook — do not invent one.'
 
   const companyContext = [
-    params.company.oneLiner ?? params.company.description,
-    params.company.stage,
-    params.company.industry,
-    params.company.isHiring ? 'currently hiring' : null,
+    input.company.oneLiner ?? input.company.description,
+    input.company.stage,
+    input.company.industry,
+    input.company.isHiring ? 'currently hiring' : null,
   ]
     .filter(Boolean)
     .join('; ')
 
-  const companyLabel = params.company.name ? ` at ${params.company.name}` : ''
+  const companyLabel = input.company.name ? ` at ${input.company.name}` : ''
 
-  const prompt = [
+  return [
     styleGuidance,
     '',
     'Write a cold email with this structure:',
@@ -72,21 +88,25 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
     '2. Bridge: one sentence connecting the sender to the company or role.',
     '3. Ask: one low-friction request.',
     '',
-    `Contact: ${params.contact.name ?? 'there'}, ${params.contact.title ?? 'professional'}${companyLabel}`,
+    `Contact: ${input.contact.name ?? 'there'}, ${input.contact.title ?? 'professional'}${companyLabel}`,
     companyContext ? `Company: ${companyContext}` : null,
-    `Sender: ${params.senderContext}`,
+    `Sender: ${input.senderContext}`,
     hookNote,
     '',
     'Output only the email body — no subject line.',
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+async function draftFromAi(input: AiDraftInput): Promise<EmailDraft> {
+  const prompt = buildPrompt(input)
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': params.apiKey,
+      'x-api-key': input.apiKey,
       'anthropic-version': ANTHROPIC_VERSION,
     },
     body: JSON.stringify({
@@ -94,7 +114,7 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
       max_tokens: 1024,
       system: [
         EMAIL_GENERATION_SYSTEM_PROMPT,
-        params.styleInstruction ? `User style preference:\n${params.styleInstruction}` : null,
+        input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
       ]
         .filter(Boolean)
         .join('\n\n'),
@@ -110,8 +130,24 @@ export async function generateEmailDraft(params: GenerateEmailParams): Promise<E
   const data = (await resp.json()) as { content?: Array<{ type: string; text?: string }> }
   const rawBody = data.content?.find((c) => c.type === 'text')?.text?.trim() ?? ''
 
-  const body = await humanizeEmailBody(rawBody, params.apiKey)
-  const subject = buildSubjectLine(params.subjectTemplate, params.contact, params.senderName, params.company)
+  const body = await humanizeEmailBody(rawBody, input.apiKey)
+  const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)
 
   return { subject, body }
 }
+
+// Dispatches on input.kind. Each branch is independently testable through this
+// single entry point — see api/__tests__/generate-email.test.ts for examples
+// of every mode.
+export async function generateEmailDraft(input: DraftInput): Promise<EmailDraft> {
+  switch (input.kind) {
+    case 'template':
+      return draftFromTemplate(input)
+    case 'fallback':
+      return draftFallback(input)
+    case 'ai':
+      return draftFromAi(input)
+  }
+}
+
+export type { DraftCompany, DraftContact, DraftInput, EmailDraft }

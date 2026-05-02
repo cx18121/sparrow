@@ -5,6 +5,9 @@ import {
 } from 'lucide-react'
 import Papa from 'papaparse'
 import Badge from '../ui/Badge'
+import Banner from '../ui/Banner'
+import EmptyState from '../ui/EmptyState'
+import { VARIANT_STYLES } from '../ui/Pill'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
@@ -15,11 +18,11 @@ const PAGE_SIZE = 10
 const STATUSES = ['NEW', 'SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
 
 const STATUS_STYLE = {
-  NEW:         'bg-slate-100 text-slate-600',
-  SAVED:       'bg-emerald-50 text-emerald-700',
-  EMAILED:     'bg-blue-50 text-blue-700',
-  NO_RESPONSE: 'bg-amber-50 text-amber-700',
-  DECLINED:    'bg-red-50 text-red-600',
+  NEW:         VARIANT_STYLES.neutral,
+  SAVED:       VARIANT_STYLES.success,
+  EMAILED:     VARIANT_STYLES.info,
+  NO_RESPONSE: VARIANT_STYLES.warning,
+  DECLINED:    VARIANT_STYLES.danger,
 }
 
 // Normalised row shape — works for both UserLead rows and CustomContact rows.
@@ -351,8 +354,8 @@ export default function ContactsTab({
       <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Saved leads</p>
-          <p className="mt-1 text-sm text-muted">Leads you've saved from lead search, plus any custom contacts you've added.</p>
+          <p className="page-eyebrow">Saved leads</p>
+          <p className="mt-2 text-sm text-muted">Leads you've saved from lead search, plus any custom contacts you've added.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={openAdd} className="btn-primary text-xs">
@@ -533,18 +536,16 @@ export default function ContactsTab({
             ))}
             {!isLoading && paginated.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10">
-                  <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                    <p className="text-sm font-medium text-dark">
-                      {search || statusFilter !== 'all' ? 'No contacts match these filters' : 'No contacts yet'}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      {search || statusFilter !== 'all'
+                <td colSpan={8}>
+                  <EmptyState
+                    title={search || statusFilter !== 'all' ? 'No contacts match these filters' : 'No contacts yet'}
+                    description={
+                      search || statusFilter !== 'all'
                         ? 'Clear the search or status filter to see the rest of your saved contacts.'
-                        : 'Save leads from discovery or add someone manually to generate an email draft.'}
-                    </p>
-                    <div className="mt-4 flex flex-wrap justify-center gap-2">
-                      {(search || statusFilter !== 'all') ? (
+                        : 'Save leads from discovery or add someone manually to generate an email draft.'
+                    }
+                    action={
+                      (search || statusFilter !== 'all') ? (
                         <button
                           type="button"
                           onClick={() => { setSearch(''); setStatusFilter('all'); setPage(1) }}
@@ -563,9 +564,9 @@ export default function ContactsTab({
                             Add contact
                           </button>
                         </>
-                      )}
-                    </div>
-                  </div>
+                      )
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -685,9 +686,7 @@ export default function ContactsTab({
           </div>
 
           {addError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              {addError}
-            </div>
+            <Banner variant="danger" size="sm">{addError}</Banner>
           )}
 
           <div className="flex justify-end gap-2 pt-1">
@@ -772,9 +771,7 @@ export default function ContactsTab({
           </div>
 
           {generateError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              {generateError}
-            </div>
+            <Banner variant="danger" size="sm">{generateError}</Banner>
           )}
 
           {(generatedSubject || generatedBody || generating) && (

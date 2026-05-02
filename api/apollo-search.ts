@@ -1,24 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import axios from "axios";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
 import { HttpError } from "./_lib/user.js";
-import axios from "axios";
-
-const SEARCH_URL = "https://api.apollo.io/api/v1/mixed_people/api_search";
-const MATCH_URL = "https://api.apollo.io/api/v1/people/match";
-
-const TARGET_TITLES = [
-  "CTO", "Founder", "Co-Founder", "CEO",
-  "Head of Engineering", "VP Engineering",
-];
-
-function buildHeaders(apiKey: string) {
-  return {
-    "x-api-key": apiKey,
-    "Content-Type": "application/json",
-    accept: "application/json",
-  };
-}
+import { searchContacts, revealPerson } from "./_lib/apollo.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -39,13 +24,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function revealContact(req: VercelRequest, res: VercelResponse) {
-  const { personId, domain } = req.body ?? {};
+  const { personId } = req.body ?? {};
   if (!personId) throw new HttpError(400, "personId is required");
 
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
-  const revealed = await revealAndSaveContact(domain ?? personId, personId, apiKey);
+  const revealed = await revealPerson(personId, apiKey);
   if (!revealed) {
     return res.status(200).json({ revealed: false });
   }
@@ -55,7 +40,7 @@ async function revealContact(req: VercelRequest, res: VercelResponse) {
       name: revealed.name,
       email: revealed.email,
       title: revealed.title,
-      linkedinUrl: revealed.linkedinUrl,
+      linkedinUrl: revealed.linkedin_url,
     },
   });
 }
@@ -120,24 +105,7 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) throw new HttpError(500, "APOLLO_API_KEY is not configured");
 
   try {
-    const response = await axios.post(
-      SEARCH_URL,
-      {
-        q_organization_domains_list: [domain],
-        person_titles: TARGET_TITLES,
-        per_page: 10,
-      },
-      { headers: buildHeaders(apiKey) }
-    );
-
-    const people = (response.data.people ?? []) as Array<{
-      id: string;
-      first_name: string;
-      last_name_obfuscated: string;
-      title: string;
-      has_email: boolean;
-      organization: { name: string } | null;
-    }>;
+    const people = await searchContacts(domain, apiKey, { retry: false });
 
     const previews = people.map((p) => ({
       id: p.id,
@@ -162,34 +130,5 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse) {
       });
     }
     return res.status(500).json({ error: (err as Error).message });
-  }
-}
-
-export async function revealAndSaveContact(
-  domain: string,
-  personId: string,
-  apiKey: string
-): Promise<{
-  id: string;
-  firstName: string;
-  lastName: string;
-  name: string;
-  email: string | null;
-  emailStatus: string | null;
-  title: string;
-  linkedinUrl: string | null;
-} | null> {
-  try {
-    const response = await axios.post(
-      MATCH_URL,
-      { id: personId, reveal_personal_emails: false },
-      { headers: buildHeaders(apiKey) }
-    );
-    return response.data.person ?? null;
-  } catch (err) {
-    if (axios.isAxiosError(err) && err.response?.status === 429) {
-      return null;
-    }
-    return null;
   }
 }

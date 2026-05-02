@@ -34,7 +34,7 @@
 | `nodemailer` | 6.x | SMTP/Gmail email sending | All outbound email sending from the app. Supports OAuth2 token refresh. |
 | `googleapis` | 144.x | Gmail API — send, reply-to tracking, thread polling | Preferred over raw Nodemailer for Gmail because it handles OAuth2 token lifecycle and gives access to Gmail push notifications (Pub/Sub) and thread metadata |
 | `@google-cloud/pubsub` | 4.x | Gmail push notifications for reply auto-detection | Required for auto-detecting replies without polling. Gmail API pushes to Pub/Sub; you subscribe and update lead status. |
-| `playwright` | 1.x | Browser-based scraping for Wellfound, YC | YC HN directory and Wellfound require JS rendering. Playwright handles SPAs and dynamic content. Use Chromium-only for reduced binary size. |
+| `playwright` | 1.x | Browser-based scraping for YC | YC HN directory requires JS rendering. Playwright handles SPAs and dynamic content. Use Chromium-only for reduced binary size. |
 | `cheerio` | 1.x | HTML parsing for static pages | Use as a fast fallback when a page is server-rendered (no JS). Pair with `node-fetch` or Axios. 70% faster than browser-based scraping for static content. |
 | `axios` | 1.x | HTTP client for Apollo.io REST API + Product Hunt GraphQL | Simple, well-typed, works with interceptors for API key injection |
 | `ioredis` | 5.x | Redis client used internally by BullMQ | Required by BullMQ. Do not use the `redis` package — BullMQ only supports `ioredis`. |
@@ -155,12 +155,6 @@ npm install -D @types/node @types/react @types/react-dom
 - Use Playwright to scroll/paginate and extract JSON embedded in `__NEXT_DATA__` where available
 - Fallback to DOM scraping via `page.$$eval()` selectors
 
-**For scraping Wellfound:**
-- Wellfound uses aggressive anti-scrape protections (Cloudflare)
-- Use Playwright with stealth configuration (`playwright-extra` + `puppeteer-extra-plugin-stealth`)
-- Rate-limit aggressively and randomize delays between requests
-- Consider Apify or ScrapFly as fallback if blocks become persistent
-
 **For Apollo.io contact data:**
 - Use REST API `POST /api/v1/people/search` with filters for startup employees
 - User provides their own API key (stored encrypted in user settings) — this avoids shared rate limits
@@ -221,7 +215,7 @@ Next.js Route Handlers enqueue jobs (`Queue.add()`). Workers on Railway dequeue 
 - Cheerio vs Playwright hybrid strategy: https://dev.to/withatte/stop-writing-selectors-how-i-vibe-coded-a-production-appsumo-scraper-1a3 — MEDIUM confidence
 - Gmail API push notifications: https://developers.google.com/gmail/api/guides/push — HIGH confidence
 - Prisma 7 pure TypeScript client: WebSearch (multiple sources confirm) — MEDIUM confidence
-- Wellfound anti-scrape + Playwright stealth: WebSearch — MEDIUM confidence
+
 
 ---
 

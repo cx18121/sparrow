@@ -2,12 +2,12 @@
 phase: 02-discovery
 verified: 2026-03-22T03:00:00Z
 status: human_needed
-score: 11/11 must-haves verified
+score: 10/10 must-haves verified
 re_verification: true
 previous_status: gaps_found
-previous_score: 9/11
+previous_score: 8/10
 gaps_closed:
-  - "poll.ts can be run with only DATABASE_URL set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN, SKIP_WELLFOUND=true) without crashing — all four ingestion scripts now have is-main-module guards"
+  - "poll.ts can be run with only DATABASE_URL set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN) without crashing — all ingestion scripts now have is-main-module guards"
   - "LEAD-01 and LEAD-04 are correctly assigned to Phase 3 in REQUIREMENTS.md traceability table"
 gaps_remaining: []
 regressions: []
@@ -21,14 +21,14 @@ human_verification:
   - test: "Run `PRODUCTHUNT_TOKEN=<token> npx tsx scripts/ingest-producthunt.ts` with a valid token"
     expected: "Fetches up to 5 pages / 100 posts, logs count, exits cleanly"
     why_human: "Requires live Product Hunt bearer token and database"
-  - test: "Run `SKIP_WELLFOUND=true npx tsx scripts/poll.ts` with only DATABASE_URL set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN)"
-    expected: "YC cycle completes, Wellfound skipped, Product Hunt skipped (no PRODUCTHUNT_TOKEN logged), Apollo skipped (no APOLLO_API_KEY logged) — clean log output, no crash"
+  - test: "Run `npx tsx scripts/poll.ts` with only DATABASE_URL set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN)"
+    expected: "YC cycle completes, Product Hunt skipped (no PRODUCTHUNT_TOKEN logged), Apollo skipped (no APOLLO_API_KEY logged) — clean log output, no crash"
     why_human: "Requires live database; tests runtime conditional skip behavior that cannot be fully traced statically"
 ---
 
 # Phase 02: Discovery Verification Report
 
-**Phase Goal:** Build the data discovery pipeline — database schema, shared utilities, ingestion scripts for all four sources (YC, Wellfound, Product Hunt, Apollo), and a polling orchestrator.
+**Phase Goal:** Build the data discovery pipeline — database schema, shared utilities, ingestion scripts for all sources (YC, Product Hunt, Apollo), and a polling orchestrator.
 **Verified:** 2026-03-22T03:00:00Z
 **Status:** human_needed (all automated checks passed)
 **Re-verification:** Yes — after gap closure (Plan 02-03)
@@ -37,11 +37,11 @@ human_verification:
 
 ## Re-verification Summary
 
-Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
+Previous status: `gaps_found` (8/10 truths verified, 2 BLOCKER anti-patterns)
 
 **Gaps closed:**
 
-1. All four ingestion scripts now have `if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)` guards at the bottom. The bare `ingestYC().catch(console.error)`, `ingestWellfound().catch(console.error)`, `ingestProductHunt().catch(console.error)`, and `enrichApollo().catch(console.error)` calls that previously executed at ES module load time are now inside these guards — they fire only when the script is the entry point.
+1. All ingestion scripts now have `if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)` guards at the bottom. The bare `ingestYC().catch(console.error)`, `ingestProductHunt().catch(console.error)`, and `enrichApollo().catch(console.error)` calls that previously executed at ES module load time are now inside these guards — they fire only when the script is the entry point.
 
 2. `ingest-producthunt.ts` and `enrich-apollo.ts` no longer have module-level `const token` / `const apiKey` or `process.exit(1)` guards. Both credential reads are now inside the exported function bodies (`ingestProductHunt()` line 74, `enrichApollo()` line 19). The `apiKey!` non-null assertion was also removed from `enrich-apollo.ts`.
 
@@ -67,11 +67,10 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 | 6 | UserLead junction table supports per-user lead saving with status enum | VERIFIED | `UserLead` with `@@unique([userId, companyId, contactId])` and `status LeadStatus @default(NEW)` — unchanged |
 | 7 | A user can manually add a company/contact via CLI script | VERIFIED | `manual-add.ts` 75 lines; accepts --domain/--name/--email/--title; dynamic imports avoid premature DB init — unchanged |
 | 8 | Running ingest-yc.ts fetches companies from YC JSON API and upserts them into the Company table with region normalization | VERIFIED | `ingest-yc.ts` 94 lines; exports `ingestYC`; is-main-module guard at line 92; no module-level execution |
-| 9 | Running ingest-wellfound.ts attempts stealth scraping and logs clear success/failure status | VERIFIED | `ingest-wellfound.ts` 150 lines; exports `ingestWellfound`; is-main-module guard at line 148; no module-level side effects |
-| 10 | Running ingest-producthunt.ts fetches from GraphQL API with a bearer token and upserts companies | VERIFIED | `ingest-producthunt.ts` 146 lines; exports `ingestProductHunt`; token read inside function at line 74; is-main-module guard at line 141 |
-| 11 | poll.ts runs ingest scripts on a configurable interval and skips recently-verified contacts via lastVerifiedAt | VERIFIED | All four imported scripts are now safe to import with no side effects; poll.ts guards each source (SKIP_WELLFOUND, PRODUCTHUNT_TOKEN, APOLLO_API_KEY checks); lastVerifiedAt freshness check at lines 53-64; is-main-module guard at line 103 |
+| 9 | Running ingest-producthunt.ts fetches from GraphQL API with a bearer token and upserts companies | VERIFIED | `ingest-producthunt.ts` 146 lines; exports `ingestProductHunt`; token read inside function at line 74; is-main-module guard at line 141 |
+| 10 | poll.ts runs ingest scripts on a configurable interval and skips recently-verified contacts via lastVerifiedAt | VERIFIED | All imported scripts are now safe to import with no side effects; poll.ts guards each source (PRODUCTHUNT_TOKEN, APOLLO_API_KEY checks); lastVerifiedAt freshness check at lines 53-64; is-main-module guard at line 103 |
 
-**Score:** 11/11 truths verified
+**Score:** 10/10 truths verified
 
 ---
 
@@ -97,10 +96,9 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 |----------|----------|--------|---------|
 | `scripts/ingest-yc.ts` | YC ingestion with is-main-module guard | VERIFIED | 94 lines; `import { pathToFileURL } from "node:url"` at line 3; guard at line 92; no bare execution at module level |
 | `scripts/enrich-apollo.ts` | Apollo enrichment with guard, apiKey inside function | VERIFIED | 78 lines; no module-level `const apiKey`; `const apiKey = process.argv[2] ?? process.env.APOLLO_API_KEY` at line 19 (inside `enrichApollo()`); no `apiKey!`; guard at line 73 |
-| `scripts/ingest-wellfound.ts` | Wellfound scraper with guard | VERIFIED | 150 lines; guard at line 148; no bare `ingestWellfound()` call at module level |
 | `scripts/ingest-producthunt.ts` | Product Hunt ingestion with guard, token inside function | VERIFIED | 146 lines; no module-level `const token`; `const token = process.argv[2] ?? process.env.PRODUCTHUNT_TOKEN` at line 74 (inside `ingestProductHunt()`); no module-level `process.exit`; guard at line 141 |
 | `scripts/_lib/apollo-client.ts` | Apollo API wrapper | VERIFIED | 120 lines — unchanged |
-| `scripts/poll.ts` | Polling orchestrator with guard | VERIFIED | 105 lines; is-main-module guard at line 103; imports all four scripts without side effects; skip logic for all three optional sources; lastVerifiedAt freshness check |
+| `scripts/poll.ts` | Polling orchestrator with guard | VERIFIED | 105 lines; is-main-module guard at line 103; imports all scripts without side effects; skip logic for optional sources; lastVerifiedAt freshness check |
 | `.planning/REQUIREMENTS.md` | Corrected traceability for LEAD-01 and LEAD-04 | VERIFIED | Line 104: `LEAD-01 \| Phase 3 \| Complete`; line 107: `LEAD-04 \| Phase 3 \| Complete` — confirmed by grep |
 
 ---
@@ -115,12 +113,10 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 | `scripts/ingest-yc.ts` | `scripts/_lib/upsert.ts` | `upsertCompany` | WIRED | Line 4 import; called inside `ingestYC()` — unchanged |
 | `scripts/enrich-apollo.ts` | `scripts/_lib/apollo-client.ts` | `searchContacts`, `checkApiHealth` | WIRED | Line 5 import; called inside `enrichApollo()` with local `apiKey` — still wired, no regression |
 | `scripts/enrich-apollo.ts` | `scripts/_lib/upsert.ts` | `upsertContact` | WIRED | Line 4 import; called inside `enrichApollo()` — unchanged |
-| `scripts/ingest-wellfound.ts` | `scripts/_lib/upsert.ts` | `upsertCompany` | WIRED | Line 6 import; called inside `ingestWellfound()` — unchanged |
 | `scripts/ingest-producthunt.ts` | `scripts/_lib/upsert.ts` | `upsertCompany` | WIRED | Line 6 import; called inside `ingestProductHunt()` — unchanged |
 | `scripts/poll.ts` | `scripts/ingest-yc.ts` | static import of `ingestYC` | WIRED | Line 4: `import { ingestYC } from "./ingest-yc.js"`; module-level side effect removed — safe static import |
 | `scripts/poll.ts` | `scripts/enrich-apollo.ts` | static import of `enrichApollo` | WIRED | Line 5: `import { enrichApollo } from "./enrich-apollo.js"`; no side effect at load time — safe; poll.ts gates call with `if (APOLLO_API_KEY)` check; `enrichApollo()` reads env fallback internally |
 | `scripts/poll.ts` | `scripts/ingest-producthunt.ts` | static import of `ingestProductHunt` | WIRED | Line 6: safe static import; poll.ts gates with `if (!SKIP_PRODUCTHUNT && PRODUCTHUNT_TOKEN)`; function reads env internally as fallback |
-| `scripts/poll.ts` | `scripts/ingest-wellfound.ts` | static import of `ingestWellfound` | WIRED | Line 7: safe static import; poll.ts gates with `if (!SKIP_WELLFOUND)` |
 
 ---
 
@@ -128,7 +124,7 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|-------------|--------|----------|
-| DISC-01 | 02-02, 02-03 | App pulls companies from YC, Wellfound, and Product Hunt via background jobs | SATISFIED | All three ingestion scripts are safe library imports; `poll.ts` orchestrates them on configurable interval without premature execution |
+| DISC-01 | 02-02, 02-03 | App pulls companies from YC and Product Hunt via background jobs | SATISFIED | All ingestion scripts are safe library imports; `poll.ts` orchestrates them on configurable interval without premature execution |
 | DISC-02 | 02-02, 02-03 | App enriches contacts with emails via user's Apollo API key | SATISFIED | `enrich-apollo.ts` now reads apiKey inside function; safe as library import; poll.ts calls it only when `APOLLO_API_KEY` env var is set |
 | DISC-03 | 02-01 | User can filter lead pool by company size, funding stage, location, industry, is-hiring, and contact role | SATISFIED | Schema indexes on all six fields as typed columns — unchanged |
 | DISC-04 | 02-01 | Location filtering groups nearby cities into named regions | SATISFIED | `normalizeRegion()` in `region-map.ts` applied at upsert time — unchanged |
@@ -175,8 +171,8 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 
 ### 4. Poll Orchestrator Stability
 
-**Test:** Set only `DATABASE_URL` (no `APOLLO_API_KEY`, no `PRODUCTHUNT_TOKEN`, `SKIP_WELLFOUND=true`), run `npx tsx scripts/poll.ts`
-**Expected:** YC cycle completes; Wellfound skipped with "[POLL] Skipping Wellfound (SKIP_WELLFOUND=true)"; Product Hunt skipped with "[POLL] Skipping Product Hunt (no PRODUCTHUNT_TOKEN)"; Apollo skipped with "[POLL] Skipping Apollo enrichment (no APOLLO_API_KEY)"; interval continues without crash; CTRL+C triggers "[POLL] Received SIGINT — shutting down gracefully."
+**Test:** Set only `DATABASE_URL` (no `APOLLO_API_KEY`, no `PRODUCTHUNT_TOKEN`), run `npx tsx scripts/poll.ts`
+**Expected:** YC cycle completes; Product Hunt skipped with "[POLL] Skipping Product Hunt (no PRODUCTHUNT_TOKEN)"; Apollo skipped with "[POLL] Skipping Apollo enrichment (no APOLLO_API_KEY)"; interval continues without crash; CTRL+C triggers "[POLL] Received SIGINT — shutting down gracefully."
 **Why human:** Requires live database; tests runtime conditional skip behavior end-to-end
 
 ---
@@ -185,7 +181,7 @@ Previous status: `gaps_found` (9/11 truths verified, 2 BLOCKER anti-patterns)
 
 No gaps remaining. Both gaps from the initial verification are closed:
 
-1. **Top-level side effects (BLOCKER x4):** All four ingestion scripts (`ingest-yc.ts`, `ingest-wellfound.ts`, `ingest-producthunt.ts`, `enrich-apollo.ts`) and `poll.ts` now have `if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)` guards. The null-safe `process.argv[1] &&` prefix prevents `ERR_INVALID_ARG_TYPE` in `tsx --eval` / pure import contexts. Credentials (`token`, `apiKey`) are read inside function bodies, not at module level. `process.exit(1)` inside exported functions was replaced with `throw new Error()`.
+1. **Top-level side effects (BLOCKER x4):** All ingestion scripts (`ingest-yc.ts`, `ingest-producthunt.ts`, `enrich-apollo.ts`) and `poll.ts` now have `if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)` guards. The null-safe `process.argv[1] &&` prefix prevents `ERR_INVALID_ARG_TYPE` in `tsx --eval` / pure import contexts. Credentials (`token`, `apiKey`) are read inside function bodies, not at module level. `process.exit(1)` inside exported functions was replaced with `throw new Error()`.
 
 2. **REQUIREMENTS.md traceability:** LEAD-01 and LEAD-04 are now assigned to Phase 3 in the traceability table (lines 104 and 107), consistent with their intentional deferral from Phase 2 plans.
 
@@ -195,4 +191,4 @@ Phase 02 goal is fully achieved at the static analysis level. Live service integ
 
 _Verified: 2026-03-22T03:00:00Z_
 _Verifier: Claude (gsd-verifier)_
-_Re-verification: Yes — initial verification 2026-03-21T22:00:00Z (gaps_found 9/11) → gap closure via Plan 02-03 → re-verification passed (11/11)_
+_Re-verification: Yes — initial verification 2026-03-21T22:00:00Z (gaps_found 8/10) → gap closure via Plan 02-03 → re-verification passed (10/10)_

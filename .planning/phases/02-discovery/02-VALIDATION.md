@@ -43,7 +43,6 @@ created: 2026-03-21
 | 02-01-T2 | 01 | 1 | DISC-05, LEAD-02, LEAD-03 | unit | `npx tsx --eval "import { normalizeRegion } from './scripts/_lib/region-map.ts'; ..."` | Created by task | pending |
 | 02-02-T1a | 02 | 2 | DISC-01 | unit | `npx tsx --eval "import { ingestYC } from './scripts/ingest-yc.ts'; ..."` | Created by task | pending |
 | 02-02-T1b | 02 | 2 | DISC-02 | unit | `npx tsx --eval "import { searchContacts } from './scripts/_lib/apollo-client.ts'; ..."` | Created by task | pending |
-| 02-02-T2 | 02 | 2 | DISC-01 | unit | `npx tsx --eval "import { ingestWellfound } from './scripts/ingest-wellfound.ts'; ..."` | Created by task | pending |
 
 *Status: pending / green / red / flaky*
 
@@ -67,7 +66,6 @@ Wave 0 is handled by Plan 02-01, Task 0 (first task in first plan):
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Wellfound stealth bypass succeeds | DISC-01 | Anti-bot behavior can't be mocked reliably | Run `npx tsx scripts/ingest-wellfound.ts` and verify rows appear in DB |
 | Apollo credit consumption rate | DISC-02 | Requires live Apollo API key | Run enrichment on 10 contacts, check Apollo dashboard for credit deduction |
 | Polling loop runs without memory leak | DISC-05 | Requires long-running process observation | Run polling loop for 30 min, monitor with `node --inspect` |
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import Banner from '../ui/Banner'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function AuthScreen() {
@@ -58,19 +59,16 @@ export default function AuthScreen() {
       <section className="flex min-h-[56vh] items-center bg-surface px-6 py-10 sm:px-10 lg:min-h-screen lg:px-14 xl:px-20">
         <div className="w-full max-w-md">
           <div className="mb-10">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted/80">Account</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Account</p>
             <h2 className="mt-4 text-4xl font-display font-semibold tracking-[-0.04em] text-dark">
               {mode === 'signin' ? 'Sign in' : 'Create account'}
             </h2>
           </div>
 
           {isDemo && (
-            <div className="mb-6 flex items-start gap-3 border-l-2 border-amber-400 pl-3">
-              <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600" />
-              <p className="text-xs leading-5 text-amber-700">
-                Demo mode: enter any email and password to continue.
-              </p>
-            </div>
+            <Banner variant="warning" icon={AlertCircle} size="sm" className="mb-6">
+              Demo mode: enter any email and password to continue.
+            </Banner>
           )}
 
           <button
@@ -95,7 +93,7 @@ export default function AuthScreen() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
               <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-muted/80">Full name</label>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Full name</label>
                 <input
                   type="text"
                   value={fullName}
@@ -108,7 +106,7 @@ export default function AuthScreen() {
             )}
 
             <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-muted/80">Email</label>
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Email</label>
               <input
                 type="email"
                 value={email}
@@ -120,7 +118,7 @@ export default function AuthScreen() {
             </div>
 
             <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-muted/80">Password</label>
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Password</label>
               <input
                 type="password"
                 value={password}
@@ -133,10 +131,9 @@ export default function AuthScreen() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-2xl bg-red-50/90 p-3">
-                <AlertCircle size={13} className="mt-0.5 shrink-0 text-red-500" />
-                <p className="text-xs leading-5 text-red-600">{error}</p>
-              </div>
+              <Banner variant="danger" icon={AlertCircle} size="sm">
+                {error}
+              </Banner>
             )}
 
             <button

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Building2, FileText, Upload, User } from 'lucide-react'
+import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
 
@@ -509,7 +510,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
           {selectedTemplate && (
             <div className="rounded-xl border border-slate-200 bg-white">
               <div className="border-b border-slate-100 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
                 <p className="mt-1 text-sm font-medium text-dark">
                   {fillVariables(selectedTemplate.subject, previewData)}
                 </p>
@@ -848,9 +849,7 @@ export default function OnboardingScreen({
           </div>
 
           {saveError && (
-            <div className="mx-auto mb-3 max-w-xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">
-              {saveError}
-            </div>
+            <Banner variant="danger" className="mx-auto mb-3 max-w-xl">{saveError}</Banner>
           )}
 
           <div className="flex items-center justify-between gap-3 rounded-[28px] px-3 py-3">

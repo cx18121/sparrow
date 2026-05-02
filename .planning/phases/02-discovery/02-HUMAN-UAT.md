@@ -25,7 +25,7 @@ expected: Fetches up to 5 pages / 100 posts, logs count, exits cleanly
 result: [pending]
 
 ### 4. Poll Orchestrator Stability
-expected: YC cycle completes, Wellfound skipped, Product Hunt skipped (no PRODUCTHUNT_TOKEN logged), Apollo skipped (no APOLLO_API_KEY logged) — clean log output, no crash
+expected: YC cycle completes, Product Hunt skipped (no PRODUCTHUNT_TOKEN logged), Apollo skipped (no APOLLO_API_KEY logged) — clean log output, no crash
 result: [pending]
 
 ## Summary

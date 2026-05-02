@@ -7,9 +7,9 @@ tags: [typescript, tsx, esm, is-main-module, guard, side-effects, requirements]
 # Dependency graph
 requires:
   - phase: 02-02
-    provides: ingestion scripts (ingest-yc.ts, ingest-wellfound.ts, ingest-producthunt.ts, enrich-apollo.ts, poll.ts)
+    provides: ingestion scripts (ingest-yc.ts, ingest-producthunt.ts, enrich-apollo.ts, poll.ts)
 provides:
-  - All five ingestion scripts safe to import as library modules (no side effects at load time)
+  - All ingestion scripts safe to import as library modules (no side effects at load time)
   - poll.ts can import all ingestion scripts and call runPollCycle() without premature execution
   - REQUIREMENTS.md traceability corrected for LEAD-01 and LEAD-04 (Phase 3, not Phase 2)
 affects: [03-email-generation, any future test files that import ingestion scripts]
@@ -26,7 +26,6 @@ key-files:
   created: []
   modified:
     - scripts/ingest-yc.ts
-    - scripts/ingest-wellfound.ts
     - scripts/ingest-producthunt.ts
     - scripts/enrich-apollo.ts
     - scripts/poll.ts
@@ -50,7 +49,7 @@ completed: 2026-03-22
 
 # Phase 2 Plan 03: Gap Closure Summary
 
-**is-main-module guards added to all five ingestion scripts, moving credential reads inside function bodies and eliminating top-level side effects at import time**
+**is-main-module guards added to all ingestion scripts, moving credential reads inside function bodies and eliminating top-level side effects at import time**
 
 ## Performance
 
@@ -62,7 +61,7 @@ completed: 2026-03-22
 
 ## Accomplishments
 
-- Added `pathToFileURL` is-main-module guard to all five scripts (ingest-yc.ts, ingest-wellfound.ts, ingest-producthunt.ts, enrich-apollo.ts, poll.ts) — scripts are now safe to import without triggering HTTP fetches, browser launches, or process exits
+- Added `pathToFileURL` is-main-module guard to all scripts (ingest-yc.ts, ingest-producthunt.ts, enrich-apollo.ts, poll.ts) — scripts are now safe to import without triggering HTTP fetches or process exits
 - Moved `const token` (ingest-producthunt.ts) and `const apiKey` (enrich-apollo.ts) from module scope into function bodies — credential reads only happen when the function is actually called
 - Replaced `process.exit(1)` calls inside exported functions with `throw new Error(...)` so poll.ts catch blocks can handle failures gracefully
 - Removed `apiKey!` non-null assertions from enrich-apollo.ts (variable now guaranteed non-null after the in-function guard)
@@ -80,7 +79,6 @@ Each task was committed atomically:
 ## Files Created/Modified
 
 - `scripts/ingest-yc.ts` - Added pathToFileURL import and is-main-module guard wrapping ingestYC() call
-- `scripts/ingest-wellfound.ts` - Added pathToFileURL import and is-main-module guard wrapping ingestWellfound() call
 - `scripts/ingest-producthunt.ts` - Added pathToFileURL import; moved const token inside ingestProductHunt(); replaced module-level process.exit with throw; added is-main-module guard
 - `scripts/enrich-apollo.ts` - Added pathToFileURL import; moved const apiKey inside enrichApollo(); replaced module-level process.exit with throw; removed apiKey! non-null assertions; added is-main-module guard
 - `scripts/poll.ts` - Added pathToFileURL import and is-main-module guard wrapping startPolling() call
@@ -120,7 +118,7 @@ None — no external service configuration required.
 
 - All BLOCKER anti-patterns from 02-VERIFICATION.md are resolved
 - poll.ts can now safely import all ingestion scripts without triggering execution
-- poll.ts can be run with only `DATABASE_URL` set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN, SKIP_WELLFOUND=true) without crashing
+- poll.ts can be run with only `DATABASE_URL` set (no APOLLO_API_KEY, no PRODUCTHUNT_TOKEN) without crashing
 - REQUIREMENTS.md traceability is consistent with Phase 2 and Phase 3 plan scope
 - Phase 3 (email generation) can proceed — LEAD-01 and LEAD-04 correctly deferred there
 

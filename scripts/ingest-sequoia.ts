@@ -2,25 +2,15 @@ import "dotenv/config";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { pathToFileURL } from "node:url";
-import { upsertCompany } from "./_lib/upsert.js";
 import { prisma } from "./_lib/prisma.js";
-import { buildTags, isFreeHostingDomain } from "./_lib/tags.js";
-import { computeQualityScore } from "./_lib/quality-score.js";
+import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
 
-// Sequoia Capital — 403 companies.
-// Step 1: WP REST API for slugs (5 pages, ACF empty so no data here).
-// Step 2: Scrape each company page for website, description, sectors, exit status.
-// Skips IPO'd and acquired companies.
+// Sequoia Capital — slugs from WP REST API, then scrape each company page for
+// website/description/sectors/exit status. Skips IPO'd and acquired companies.
 
 const WP_BASE = "https://sequoiacap.com/wp-json/wp/v2";
 const COMPANY_BASE = "https://sequoiacap.com/companies";
 const REQUEST_DELAY_MS = 350;
-
-function extractDomain(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch { return null; }
-}
 
 async function fetchSlugs(): Promise<string[]> {
   const slugs: string[] = [];
@@ -37,13 +27,13 @@ async function fetchSlugs(): Promise<string[]> {
         totalPages = parseInt(headers["x-wp-totalpages"] ?? "1", 10);
         console.log(`[Sequoia] ${headers["x-wp-total"]} companies across ${totalPages} pages`);
       }
-      slugs.push(...(data as Array<{ slug: string }>).map(c => c.slug));
+      slugs.push(...(data as Array<{ slug: string }>).map((c) => c.slug));
     } catch (err: any) {
       console.error(`[Sequoia] Failed to fetch slugs (page ${page}): ${err.message}`);
       break;
     }
     page++;
-    await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
+    await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS));
   }
   return slugs;
 }
@@ -68,28 +58,22 @@ async function scrapePage(slug: string): Promise<ScrapedCompany | null> {
     const root = $("section.company");
     if (!root.length) return null;
 
-    // Name: alt attribute of the logo image inside h1
     const name = root.find("h1 img[alt]").first().attr("alt")?.trim() ?? null;
 
-    // Website: href on the anchor wrapping the logo in h1
-    // Fall back to the "Visit Website" button
     let website = root.find("h1 a[href]").first().attr("href") ?? null;
     if (!website || website.includes("sequoiacap.com")) {
       website = root.find("a.button[target='_blank']").first().attr("href") ?? null;
     }
     if (website?.includes("sequoiacap.com")) website = null;
 
-    // Description: first paragraph in the wysiwyg content block
     const description = root.find("div.wysiwyg p").first().text().trim() || null;
 
-    // Sectors: pill tags
     const sectors: string[] = [];
     root.find("a.pill.pill--facet").each((_, el) => {
       const text = $(el).text().trim();
       if (text) sectors.push(text);
     });
 
-    // Exit status: look for "IPO" or "Acquired" in milestone list items
     let exited = false;
     root.find("li.clist__item").each((_, el) => {
       const text = $(el).text().toLowerCase();
@@ -102,56 +86,46 @@ async function scrapePage(slug: string): Promise<ScrapedCompany | null> {
   }
 }
 
-export async function ingestSequoia(): Promise<void> {
-  const slugs = await fetchSlugs();
-  if (!slugs.length) {
-    console.error("[Sequoia] No slugs found");
-    return;
-  }
-
-  console.log(`[Sequoia] Scraping ${slugs.length} company pages...`);
-
-  let ingested = 0, skipped = 0, failed = 0;
-
-  for (const slug of slugs) {
-    await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
-
-    const scraped = await scrapePage(slug);
-    if (!scraped) { failed++; continue; }
-    if (scraped.exited) { skipped++; continue; }
-    if (!scraped.website) { skipped++; continue; }
-
-    const domain = extractDomain(scraped.website);
-    if (!domain || isFreeHostingDomain(domain)) { skipped++; continue; }
-
-    const industry = scraped.sectors[0] ?? null;
-    const tags = buildTags({
-      topics: scraped.sectors,
-      signals: ["vc-backed"],
-    });
-    const qualityScore = computeQualityScore({ isVerified: true, industry });
-
-    try {
-      await upsertCompany({
-        domain,
-        name: scraped.name ?? domain,
-        description: scraped.description,
-        website: scraped.website,
-        industry,
-        source: "sequoia",
-        sourceId: slug,
-        tags,
-        isVerified: true,
-        qualityScore,
-      });
-      ingested++;
-    } catch (err) {
-      console.error(`[Sequoia] Failed "${scraped.name}": ${err instanceof Error ? err.message : err}`);
-      failed++;
+const sequoiaAdapter: IngestorAdapter = {
+  name: "Sequoia",
+  source: "sequoia",
+  async fetchAndParse(): Promise<CompanyRecord[]> {
+    const slugs = await fetchSlugs();
+    if (!slugs.length) {
+      console.error("[Sequoia] No slugs found");
+      return [];
     }
-  }
 
-  console.log(`[Sequoia] Ingested ${ingested}, skipped ${skipped}, failed ${failed}`);
+    console.log(`[Sequoia] Scraping ${slugs.length} company pages...`);
+    const out: CompanyRecord[] = [];
+
+    for (const slug of slugs) {
+      await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS));
+
+      const scraped = await scrapePage(slug);
+      if (!scraped) continue;
+      if (scraped.exited) continue;
+      if (!scraped.website || !scraped.name) continue;
+
+      const industry = scraped.sectors[0] ?? null;
+      out.push({
+        name: scraped.name,
+        website: scraped.website,
+        description: scraped.description,
+        industry,
+        sourceId: slug,
+        topics: scraped.sectors,
+        signals: ["vc-backed"],
+        isVerified: true,
+      });
+    }
+
+    return out;
+  },
+};
+
+export async function ingestSequoia(): Promise<void> {
+  await runIngestor(sequoiaAdapter);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

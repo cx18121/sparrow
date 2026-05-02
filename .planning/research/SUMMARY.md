@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This is a niche cold email outreach SaaS targeting students and collaborator seekers — not B2B sales reps. The key differentiator is startup-specific lead discovery (YC, Product Hunt, Wellfound) combined with resume-driven, tone-matched AI email generation via Claude. Competitors like Lemlist, Instantly, and Apollo target enterprise sales teams and do not address the student/early-career use case. The product fills a real gap: no tool today ingests a user's resume as a personalization substrate, filters by startup hiring status and funding stage, or produces non-salesy outreach appropriate for internship or co-founder outreach.
+This is a niche cold email outreach SaaS targeting students and collaborator seekers — not B2B sales reps. The key differentiator is startup-specific lead discovery (YC, Product Hunt, The Hub, startups.gallery, Gregslist, HN Hiring, and VC portfolio scrapers) combined with resume-driven, tone-matched AI email generation via Claude. Competitors like Lemlist, Instantly, and Apollo target enterprise sales teams and do not address the student/early-career use case. The product fills a real gap: no tool today ingests a user's resume as a personalization substrate, filters by startup hiring status and funding stage, or produces non-salesy outreach appropriate for internship or co-founder outreach.
 
 The recommended architecture is a Next.js 15 App Router frontend deployed on Vercel, backed by a Supabase PostgreSQL database via Prisma, with a separate long-running BullMQ worker process deployed on Railway or Fly.io. This split is non-negotiable — BullMQ workers cannot run on Vercel serverless. All scraping, email sending, reply detection, and AI generation at batch scale must run in the worker process. The API routes are thin orchestrators that enqueue jobs and return immediately. A shared global company/contact pool with strict per-user data isolation (via userId-scoped tables) is the core data model — it reduces Apollo API credit consumption by sharing enriched contact data across users.
 
@@ -34,20 +34,20 @@ The background processing stack requires careful deployment planning. BullMQ 5 b
 - **BullMQ 5 + Upstash Redis:** Background job queue; workers MUST run outside Vercel (Railway/Fly.io)
 - **`@anthropic-ai/sdk`:** Claude API for email generation; requires Node.js 20+
 - **`googleapis` + Nodemailer:** Gmail OAuth2 send + IMAP reply detection; basic SMTP auth is deprecated
-- **Playwright + Cheerio:** Browser-based scraping for SPAs (YC, Wellfound); Cheerio for static HTML fallback
+- **Playwright + Cheerio:** Browser-based scraping for SPAs (YC); Cheerio for static HTML fallback
 - **Zod + react-hook-form:** Form validation and env var schema enforcement throughout
 
 **Critical version requirement:** Prisma with Supabase must use the session-mode connection string (port 5432), not the transaction pooler (port 6543) — prepared statements break on the transaction pooler.
 
 ### Expected Features
 
-The MVP (v1) is well-defined based on feature dependency analysis. The non-negotiable core flow is: user onboards with resume + Gmail → discovers YC/Wellfound leads → generates AI email → reviews and sends → tracks status and follow-ups. Everything else builds on this loop.
+The MVP (v1) is well-defined based on feature dependency analysis. The non-negotiable core flow is: user onboards with resume + Gmail → discovers YC/Product Hunt leads → generates AI email → reviews and sends → tracks status and follow-ups. Everything else builds on this loop.
 
 **Must have (table stakes — v1):**
 - User account (signup/login via Supabase Auth with Google OAuth)
 - Onboarding wizard: sender info, Gmail OAuth, resume upload, email template — 5-minute activation target
 - Resume/bio upload and parsing (PDF or paste) — the primary AI personalization input
-- Lead discovery from YC + Wellfound (minimum v1 sources)
+- Lead discovery from YC + Product Hunt (minimum v1 sources)
 - Lead dashboard with filters: industry, funding stage, location, is-hiring
 - AI email generation via Claude using resume + template + company context
 - Email preview before send — human-in-the-loop is mandatory; no auto-send
@@ -70,7 +70,7 @@ The MVP (v1) is well-defined based on feature dependency analysis. The non-negot
 - A/B testing email variants (needs statistical volume students don't generate)
 - Kanban pipeline view (simple status column is sufficient for MVP)
 - Batch send queue with approval flow (single-send with review is safer)
-- Apollo as additional enrichment source (adds cost; YC + Wellfound sufficient to validate)
+- Apollo as additional enrichment source (adds cost; YC + PH sufficient to validate)
 - Email warm-up integration (link to external tools; do not build)
 - LinkedIn scraping or outreach (legal risk, ToS violation — never build)
 
@@ -83,10 +83,10 @@ The data model is built around a shared global company/contact pool with strict 
 **Major components:**
 1. **Next.js App (Vercel)** — routing, SSR, thin API route handlers, auth middleware, onboarding wizard
 2. **Service Layer (`src/services/`)** — pure TypeScript business logic (LeadService, EmailService, AIService, EnrichmentService, ReplyService); called by both API routes and workers
-3. **BullMQ Worker Process (Railway/Fly.io)** — three queues: `scrape-queue` (YC/PH/Wellfound), `email-queue` (send via Gmail), `reply-queue` (IMAP polling, repeatable); shares services and DB with the Next.js app
+3. **BullMQ Worker Process (Railway/Fly.io)** — three queues: `scrape-queue` (YC/PH/VC portfolios), `email-queue` (send via Gmail), `reply-queue` (IMAP polling, repeatable); shares services and DB with the Next.js app
 4. **Prisma ORM + Supabase Postgres** — schema management, shared global tables + per-user tables, connection pooling via Supabase PgBouncer
 5. **Upstash Redis** — BullMQ backing store, job state, rate-limit counters; serverless-compatible, accessible from both Vercel and Railway
-6. **External APIs** — Claude API (per-user key), Apollo API (per-user key), Gmail API (per-user OAuth2 token), YC/Product Hunt/Wellfound scrapers
+6. **External APIs** — Claude API (per-user key), Apollo API (per-user key), Gmail API (per-user OAuth2 token), YC/Product Hunt/VC portfolio scrapers
 
 ### Critical Pitfalls
 
@@ -140,15 +140,15 @@ Based on the dependency analysis from FEATURES.md and the build order from ARCHI
 
 ### Phase 3: Lead Discovery — Scraping and Data Pipeline
 
-**Rationale:** AI email generation requires leads; leads require the scraper pipeline. YC first (simplest, public JSON endpoint), then Wellfound (requires Playwright stealth). Shared global pool upsert pattern established here determines data model correctness for all future phases.
+**Rationale:** AI email generation requires leads; leads require the scraper pipeline. YC first (simplest, public JSON endpoint), then Product Hunt (GraphQL API) and additional sources (HN Hiring, Gregslist, VC portfolios). Shared global pool upsert pattern established here determines data model correctness for all future phases.
 
-**Delivers:** YC scraper (Playwright/JSON endpoint), Wellfound scraper (Playwright + stealth config), shared `companies` + `contacts` tables populated via upsert, lead dashboard with basic filters, `last_verified_at` on contacts from day one.
+**Delivers:** YC scraper (Playwright/JSON endpoint), Product Hunt scraper (GraphQL API), shared `companies` + `contacts` tables populated via upsert, lead dashboard with basic filters, `last_verified_at` on contacts from day one.
 
 **Addresses:** Startup-specific discovery, lead dashboard, lead filtering (table stakes + differentiator from FEATURES.md)
 
 **Avoids:** Aggressive scraping pitfall — rate limiting (1-3s delays), 7-day cache TTL, per-source error rate monitoring, and block detection must be built into the scrape worker before any scale testing.
 
-**Research flag:** Needs research-phase. Wellfound's anti-bot protections may require `playwright-extra` stealth plugin or a proxy rotation strategy. Worth confirming current state of Wellfound protections before writing the scraper.
+**Research flag:** Standard patterns for YC JSON endpoint and Product Hunt GraphQL API. Additional sources (HN Hiring, Gregslist, VC portfolios) use static HTML scrapers via Cheerio.
 
 ---
 
@@ -202,7 +202,7 @@ Based on the dependency analysis from FEATURES.md and the build order from ARCHI
 
 **Addresses:** Product Hunt discovery, collaborator mode, follow-up AI generation, agentic context gathering (differentiators from FEATURES.md); Apollo credit exhaustion pitfall; stale contact data pitfall.
 
-**Research flag:** Needs research-phase for agentic context gathering. The pattern of fetching live company context (recent Product Hunt launch, Wellfound description) before email generation has limited prior art — the implementation approach needs a spike.
+**Research flag:** Needs research-phase for agentic context gathering. The pattern of fetching live company context (recent Product Hunt launch, company description) before email generation has limited prior art — the implementation approach needs a spike.
 
 ---
 
@@ -221,7 +221,7 @@ Based on the dependency analysis from FEATURES.md and the build order from ARCHI
 
 **Phases needing deeper research during planning:**
 - **Phase 2 (Background Infrastructure):** Railway + Vercel monorepo deployment configuration. Confirm the worker deployment pattern before committing to the directory structure.
-- **Phase 3 (Lead Discovery):** Wellfound current anti-bot protections. Confirm whether `playwright-extra` stealth or a proxy service is required before writing the scraper.
+- **Phase 3 (Lead Discovery):** Additional ingest sources (HN Hiring, Gregslist, VC portfolios). Confirm scraper approach for each source before writing the worker.
 - **Phase 4 (Email Generation):** Claude prompt architecture for multi-user tone variation. A prompt engineering spike before full implementation is worth the time investment.
 - **Phase 6 (Reply Detection):** Gmail push notifications (Pub/Sub) vs IMAP polling. Evaluate which approach suits MVP scale before building the reply worker.
 - **Phase 7 (Differentiators):** Agentic company context gathering pattern. The approach for fetching live company context and injecting it into the prompt needs a spike.
@@ -247,7 +247,7 @@ Based on the dependency analysis from FEATURES.md and the build order from ARCHI
 
 - **Student/collaborator user persona validation:** The feature research identifies this as an underserved niche, but the specific features that drive activation and retention for students (vs job-seekers vs co-founder seekers) need user research or a beta cohort. The collaborator mode differentiation is an inference; validate before building.
 - **Apollo API tier requirements:** The free tier (600 credits/month) is likely insufficient for meaningful use. The pricing model for the product needs to account for Apollo credit costs per user. This gap affects Phase 7 planning.
-- **Wellfound scraping feasibility:** Wellfound's protections may have changed since the scraped sources were written. A feasibility spike in Phase 3 planning is warranted before committing to Wellfound as a v1 source.
+- **Additional ingest source coverage:** HN Hiring, Gregslist, and individual VC portfolio scrapers (a16z, Accel, Bessemer, etc.) are active sources. Confirm scraper approach and data quality for each before scheduling scrape runs.
 - **Auth.js/Better Auth transition:** The research notes that the Auth.js team announced joining Better Auth in late 2025 (MEDIUM confidence, single source). This does not affect the recommendation (Supabase Auth is preferred anyway), but the finding should be validated if any team member advocates for Auth.js.
 - **Prisma 7 GA timeline:** If Prisma 7 ships GA before Phase 1 begins, the project should start with Prisma 7 for better serverless cold starts. If not, Prisma 5 is the correct choice with a clean migration path.
 
@@ -276,7 +276,6 @@ Based on the dependency analysis from FEATURES.md and the build order from ARCHI
 - Apollo vs Lemlist 2026: https://lagrowthmachine.com/apollo-vs-lemlist/
 - Cold email deliverability 2026: https://instantly.ai/blog/how-to-achieve-90-cold-email-deliverability-in-2025/
 - Gmail sending limits 2026: https://www.smartlead.ai/blog/gmail-sending-limits
-- How to scrape Wellfound: https://scrapfly.io/blog/posts/how-to-scrape-wellfound-aka-angellist
 - Email domain warm-up 2026: https://www.mailreach.co/blog/how-to-warm-up-email-domain
 - Playwright vs Puppeteer 2025: https://blog.apify.com/playwright-vs-puppeteer/
 - Prisma 7 pure TypeScript client: WebSearch (multiple sources confirm, not yet GA)

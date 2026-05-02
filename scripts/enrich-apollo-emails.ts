@@ -6,7 +6,7 @@ import {
   searchContacts,
   revealPerson,
   checkApiHealth,
-} from "./_lib/apollo-client.js";
+} from "../api/_lib/apollo.js";
 
 // Paid Apollo enrichment. For each company, runs a search (free) then calls
 // /people/match (one credit per call) to reveal email + full name and upsert

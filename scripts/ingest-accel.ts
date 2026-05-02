@@ -1,14 +1,11 @@
 import "dotenv/config";
 import axios from "axios";
 import { pathToFileURL } from "node:url";
-import { upsertCompany } from "./_lib/upsert.js";
 import { prisma } from "./_lib/prisma.js";
-import { buildTags, isFreeHostingDomain } from "./_lib/tags.js";
-import { computeQualityScore } from "./_lib/quality-score.js";
+import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
 
-// Accel portfolio — 746 companies via their public Algolia search index.
-// The read-only API key is hardcoded in Accel's public JS bundle (intentionally public).
-// Filter: current-status === true (excludes exited/acquired companies).
+// Accel portfolio — public Algolia search index. Read-only key is intentionally
+// public in Accel's JS bundle. Filter: current-status === true.
 
 const ALGOLIA_APP_ID = "J60GRWQY2U";
 const ALGOLIA_API_KEY = "83fd461ed9ef96bf7d972a8029970435";
@@ -26,18 +23,8 @@ interface AccelHit {
   region?: string[];
   headquarters?: string;
   location?: string;
-  "initial-investment"?: string;
   "initial-investment-type"?: string;
-  "first-invest-date"?: string;
   "current-status"?: boolean;
-}
-
-function extractDomain(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return null;
-  }
 }
 
 function stripHtml(html: string): string {
@@ -56,10 +43,10 @@ function mapStage(investmentType: string | undefined): string | null {
   return investmentType;
 }
 
-export async function ingestAccel(): Promise<void> {
-  let hits: AccelHit[];
-
-  try {
+const accelAdapter: IngestorAdapter = {
+  name: "Accel",
+  source: "accel",
+  async fetchAndParse(): Promise<CompanyRecord[]> {
     const { data } = await axios.post(
       ALGOLIA_URL,
       { query: "", hitsPerPage: 1000, filters: "current-status:true" },
@@ -72,67 +59,34 @@ export async function ingestAccel(): Promise<void> {
         timeout: 20_000,
       }
     );
-    hits = data.hits ?? [];
-  } catch (err: any) {
-    console.error(`[Accel] Algolia request failed: ${err.message}`);
-    return;
-  }
 
-  console.log(`[Accel] ${hits.length} active portfolio companies`);
-
-  let ingested = 0;
-  let skipped = 0;
-
-  for (const h of hits) {
-    const website = h["website-url"];
-    if (!website) { skipped++; continue; }
-
-    const domain = extractDomain(website);
-    if (!domain || isFreeHostingDomain(domain)) { skipped++; continue; }
-
-    const rawDescription = h["short-description"] || h["long-description"] || "";
-    const description = rawDescription ? stripHtml(rawDescription) : null;
-    const stage = mapStage(h["initial-investment-type"]);
-    const location = h.headquarters || h.location || null;
-    const topics = [...(h.sectors ?? []), ...(h["cb-sectors"] ?? [])];
-
-    const tags = buildTags({
-      topics,
-      industry: h.sectors?.[0] ?? undefined,
-      stage,
-      investors: ["accel"],
-      signals: ["vc-backed"],
-    });
-
-    const qualityScore = computeQualityScore({
-      isVerified: true,
-      stage,
-      industry: h.sectors?.[0] ?? null,
-    });
-
-    try {
-      await upsertCompany({
-        domain,
-        name: h.name ?? domain,
-        oneLiner: description?.slice(0, 200) ?? null,
+    const hits: AccelHit[] = data.hits ?? [];
+    const out: CompanyRecord[] = [];
+    for (const h of hits) {
+      const website = h["website-url"];
+      if (!website) continue;
+      const rawDescription = h["short-description"] || h["long-description"] || "";
+      const description = rawDescription ? stripHtml(rawDescription) : null;
+      out.push({
+        name: h.name ?? "",
         website,
-        stage,
+        oneLiner: description?.slice(0, 200) ?? null,
+        stage: mapStage(h["initial-investment-type"]),
         industry: h.sectors?.[0] ?? null,
-        location,
-        source: "accel",
-        sourceId: h.slug ?? domain,
-        tags,
+        location: h.headquarters || h.location || null,
+        sourceId: h.slug ?? null,
+        topics: [...(h.sectors ?? []), ...(h["cb-sectors"] ?? [])],
+        investors: ["accel"],
+        signals: ["vc-backed"],
         isVerified: true,
-        qualityScore,
       });
-      ingested++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Accel] Failed "${h.name}": ${msg}`);
     }
-  }
+    return out;
+  },
+};
 
-  console.log(`[Accel] Ingested ${ingested}, skipped ${skipped}`);
+export async function ingestAccel(): Promise<void> {
+  await runIngestor(accelAdapter);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

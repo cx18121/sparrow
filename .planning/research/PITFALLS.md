@@ -56,10 +56,10 @@ Full mailbox scope is the obvious "just works" choice. Refresh token persistence
 
 ---
 
-### Pitfall 3: Scraping YC / Product Hunt / Wellfound Aggressively Without Rate Limiting
+### Pitfall 3: Scraping YC / Product Hunt Aggressively Without Rate Limiting
 
 **What goes wrong:**
-Scraper hammers the target site, triggers IP blocks or CAPTCHAs within hours. Wellfound in particular uses anti-scrape protections. YC's directory has no official API. Product Hunt has a public GraphQL API but rate-limits it. Getting blocked means the shared contact DB stops refreshing — all users degrade simultaneously.
+Scraper hammers the target site, triggers IP blocks or CAPTCHAs within hours. YC's directory has no official API. Product Hunt has a public GraphQL API but rate-limits it. Getting blocked means the shared contact DB stops refreshing — all users degrade simultaneously.
 
 **Why it happens:**
 Scrapers are written to "just get the data" in development where single-run tests work fine. Production runs at much higher frequency and volume.
@@ -272,7 +272,6 @@ BullMQ does not enforce idempotency automatically. Developers write job handlers
 | Gmail SMTP | Using app password (basic auth) instead of OAuth 2.0 | Google deprecated basic auth for Google Workspace in May 2025; OAuth 2.0 is mandatory |
 | Apollo API | Calling People Enrich for every search result regardless of cache | Check shared DB first — if contact was enriched < 90 days ago, use cached data |
 | Apollo API | Not handling 429 rate limit responses | Exponential backoff with BullMQ retry + jitter; surface "enrichment throttled" state to user |
-| Wellfound scraping | Treating it like a static HTML scrape | Wellfound uses React SPA with anti-bot protections; requires headless browser (Playwright/Puppeteer) |
 | YC scraping | Scraping yc.com directly | Use `https://www.ycombinator.com/companies` JSON endpoint (publicly accessible, less fragile than HTML scraping) |
 | Claude API | Sending full resume as context on every generation | Chunk and summarize resume once per user; cache the summary. Full resume = large token cost per email |
 | BullMQ + Redis | Not setting `removeOnComplete` and `removeOnFail` options | Completed/failed jobs accumulate in Redis memory indefinitely, causing OOM on long-running instances |
@@ -302,7 +301,7 @@ BullMQ does not enforce idempotency automatically. Developers write job handlers
 | User-controlled email template injected directly into Claude prompt | Prompt injection: user crafts template to exfiltrate other users' data | Sanitize user content before interpolating into prompts; use system/user prompt separation |
 | Sending user's Gmail OAuth tokens in client-side state | Token theft via XSS | Tokens stored only server-side; never in localStorage, cookies without httpOnly, or client state |
 | Global unsubscribe suppression not enforced | Re-sending to opted-out contacts = CAN-SPAM violation | Suppression list checked as a pre-send gate in the BullMQ job, not just in UI |
-| Scraping login-gated content (e.g., Wellfound logged-in profiles) | CFAA exposure beyond ToS breach | Restrict scraping to publicly accessible, non-login-required pages only |
+| Scraping login-gated content | CFAA exposure beyond ToS breach | Restrict scraping to publicly accessible, non-login-required pages only |
 
 ---
 
@@ -379,12 +378,11 @@ BullMQ does not enforce idempotency automatically. Developers write job handlers
 - [Cold Email Compliance 2026 - OutreachBloom](https://outreachbloom.com/cold-email-compliance) — MEDIUM confidence
 - [How AI Spam Filters Work 2026 - Medium](https://medium.com/@genai.works/how-ai-spam-filters-actually-work-in-2026-e4546d39d56d) — LOW confidence (single source)
 - [Cold Email in 2026: Spam Filters Are Watching - TextPolish](https://www.text-polish.com/blog/cold-email-2026-spam-filters-ai-detection) — MEDIUM confidence
-- [How to Scrape Wellfound - ScrapFly](https://scrapfly.io/blog/posts/how-to-scrape-wellfound-aka-angellist) — MEDIUM confidence
 - [Is Web Scraping Legal 2025 - Browserless](https://www.browserless.io/blog/is-web-scraping-legal) — MEDIUM confidence
 - [Email Domain Warm-Up 2026 - MailReach](https://www.mailreach.co/blog/how-to-warm-up-email-domain) — MEDIUM confidence
 - [Supabase MCP Data Leak Risk - General Analysis](https://www.generalanalysis.com/blog/supabase-mcp-blog) — MEDIUM confidence
 - [Evaluating Spam Filters and AI Detection - ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0957417425006669) — HIGH confidence (peer-reviewed)
 
 ---
-*Pitfalls research for: Cold Email Outreach SaaS (YC/PH/Wellfound scraping + Apollo API + Gmail SMTP + Claude AI)*
+*Pitfalls research for: Cold Email Outreach SaaS (YC/PH scraping + Apollo API + Gmail SMTP + Claude AI)*
 *Researched: 2026-03-15*

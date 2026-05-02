@@ -2,123 +2,86 @@ import "dotenv/config";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { pathToFileURL } from "node:url";
-import { upsertCompany } from "./_lib/upsert.js";
 import { prisma } from "./_lib/prisma.js";
-import { buildTags, isFreeHostingDomain } from "./_lib/tags.js";
-import { computeQualityScore } from "./_lib/quality-score.js";
+import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
 
-// gregslist.com — Greg Isenberg's curated list of interesting startups / companies.
-// The site is a static HTML page scraped via cheerio.
-const BASE_URL = "https://gregslist.com";
+// gregslist.com — city-by-city directory of local software/SaaS companies.
+// Companies live on per-city startup pages, not the homepage.
 
-function extractDomain(url: string): string | null {
-  try {
-    const hostname = new URL(url).hostname;
-    return hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-}
+const CITY_SLUGS = [
+  "atlanta",
+  "austin",
+  "boston",
+  "chicago",
+  "dallas",
+  "denver",
+  "houston",
+  "phoenix",
+  "raleigh-durham",
+  "salt-lake-city",
+  "san-diego",
+  "toronto",
+];
+
+const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" };
+
+const gregslistAdapter: IngestorAdapter = {
+  name: "Gregslist",
+  source: "gregslist",
+  async fetchAndParse(): Promise<CompanyRecord[]> {
+    const out: CompanyRecord[] = [];
+    const seen = new Set<string>();
+
+    for (const city of CITY_SLUGS) {
+      const url = `https://gregslist.com/${city}/software-companies-size/startup/`;
+      let html: string;
+      try {
+        const { data } = await axios.get(url, { headers: HEADERS, timeout: 20_000 });
+        html = data as string;
+      } catch (e) {
+        console.warn(`[Gregslist] Failed to fetch ${city}:`, (e as Error).message);
+        continue;
+      }
+
+      const $ = cheerio.load(html);
+
+      // Each company row has .company-details-column and .company-links-column siblings
+      $(".company-details-column").each((_, el) => {
+        // Name comes from the preceding sibling column — the internal /company/ anchor
+        const nameEl = $(el).prevAll().find("a[href*='/company/']").first();
+        const name = nameEl.text().trim();
+        if (!name) return;
+
+        // Description is the first .detail span (subsequent ones are people/meta)
+        const description = $(el).find("span.detail").first().text().trim();
+
+        // Website is the icon-globe anchor in the sibling .company-links-column
+        const linksCol = $(el).nextAll(".company-links-column").first();
+        const website = linksCol.find("a[title='View Website']").attr("href")?.trim() ?? "";
+
+        if (!website || seen.has(website)) return;
+        seen.add(website);
+
+        out.push({
+          name,
+          website,
+          oneLiner: description || null,
+          location: city.replace(/-/g, " "),
+          signals: ["curated"],
+          isVerified: false,
+        });
+      });
+
+      // Polite crawl delay between cities
+      await new Promise((r) => setTimeout(r, 1_500));
+    }
+
+    return out;
+  },
+};
 
 export async function ingestGregslist(): Promise<void> {
-  let html: string;
-
-  try {
-    const { data } = await axios.get(BASE_URL, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; ColdFlowBot/1.0)" },
-      timeout: 20_000,
-    });
-    html = data as string;
-  } catch (err: any) {
-    console.error(`[Gregslist] Failed to fetch page: ${err.message}`);
-    return;
-  }
-
-  const $ = cheerio.load(html);
-  let ingested = 0;
-  const seen = new Set<string>();
-
-  const candidates: Array<{ name: string; website: string; description?: string; industry?: string }> = [];
-
-  const SOCIAL_DOMAINS = ["twitter.com", "linkedin.com", "instagram.com", "facebook.com", "youtube.com", "x.com", "github.com"];
-  const isSocialLink = (href: string) => SOCIAL_DOMAINS.some(d => href.includes(d));
-
-  // Strategy A: rows/cards that have both a title and an external link
-  $("[class*='row'],[class*='card'],[class*='item'],[class*='company'],[class*='startup']").each((_, el) => {
-    const link = $(el).find("a[href^='http']").first();
-    const href = link.attr("href") ?? "";
-    if (!href || href.includes("gregslist.com") || isSocialLink(href)) return;
-
-    const name =
-      $(el).find("h2,h3,h4,[class*='name'],[class*='title']").first().text().trim() ||
-      link.text().trim();
-    const description = $(el).find("p,[class*='desc'],[class*='tagline']").first().text().trim();
-    const industry = $(el).find("[class*='tag'],[class*='category'],[class*='badge']").first().text().trim();
-
-    if (name && name.length > 1 && name.length < 80 && href) {
-      candidates.push({ name, website: href, description: description || undefined, industry: industry || undefined });
-    }
-  });
-
-  // Strategy B: fall back to all external anchor tags with meaningful link text
-  if (candidates.length === 0) {
-    $("a[href^='http']").each((_, el) => {
-      const href = $(el).attr("href") ?? "";
-      if (!href || href.includes("gregslist.com") || href.includes("twitter.com") ||
-          href.includes("linkedin.com") || href.includes("instagram.com")) return;
-
-      const name = $(el).text().trim();
-      if (name && name.length > 1 && name.length < 80) {
-        const description = $(el).closest("li,tr,div").find("p,span").not($(el)).first().text().trim();
-        candidates.push({ name, website: href, description: description || undefined });
-      }
-    });
-  }
-
-  console.log(`[Gregslist] Found ${candidates.length} candidate companies`);
-
-  let skippedFreeHosting = 0;
-
-  for (const c of candidates) {
-    const domain = extractDomain(c.website);
-    if (!domain || seen.has(domain)) continue;
-    seen.add(domain);
-    if (isFreeHostingDomain(domain)) {
-      skippedFreeHosting++;
-      continue;
-    }
-
-    const tags = buildTags({
-      industry: c.industry,
-      signals: ["curated"],
-    });
-    const qualityScore = computeQualityScore({
-      industry: c.industry,
-    });
-
-    try {
-      await upsertCompany({
-        domain,
-        name: c.name,
-        oneLiner: c.description || null,
-        website: c.website,
-        industry: c.industry || null,
-        source: "gregslist",
-        sourceId: domain,
-        tags,
-        isVerified: false,
-        qualityScore,
-      });
-      ingested++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Gregslist] Failed to upsert ${c.name}: ${msg}`);
-    }
-  }
-
-  console.log(
-    `[Gregslist] Ingested ${ingested} — skipped ${skippedFreeHosting} free-hosting domains`
-  );
+  await runIngestor(gregslistAdapter);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

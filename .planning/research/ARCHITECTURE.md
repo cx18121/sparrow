@@ -102,7 +102,7 @@ src/
 ├── jobs/                      # BullMQ queue definitions and worker handlers
 │   ├── queues.ts              # Queue instances (single source of truth)
 │   ├── workers/
-│   │   ├── scrape.worker.ts   # YC / PH / Wellfound scraping job
+│   │   ├── scrape.worker.ts   # YC / PH scraping job
 │   │   ├── email.worker.ts    # Email send job (uses Nodemailer)
 │   │   └── reply.worker.ts    # IMAP poll job (repeatable, per-user)
 │   └── worker-process.ts      # Entry point: registers all workers, starts process
@@ -237,7 +237,7 @@ const worker = new Worker("scrape", async (job) => {
 │  location                     linkedinUrl                            │
 │  headcount                    source (apollo/yc/ph)                  │
 │  isHiring (bool)              verifiedAt                             │
-│  source (yc/ph/wellfound)     createdAt                              │
+│  source (yc/ph)               createdAt                              │
 │  lastEnrichedAt               updatedAt                              │
 │  createdAt                                                            │
 │  updatedAt                                                            │
@@ -296,7 +296,7 @@ POST /api/scrape  (enqueue job, return jobId)
     ↓
 BullMQ scrape-queue (worker process)
     ↓
-ScraperService: fetch YC / PH / Wellfound pages
+ScraperService: fetch YC / PH pages
     ↓
 EnrichmentService: resolve contacts via Apollo API
     ↓
@@ -467,7 +467,7 @@ Phase 8: Dashboard Polish
 | Apollo API | REST, called from `EnrichmentService` in BullMQ worker | Per-user API key. Queue calls to respect rate limits. Cache results in shared `contacts` table to avoid redundant calls. |
 | Gmail SMTP (send) | Nodemailer OAuth2 transport, per-user refresh token | Store `gmailRefreshToken` encrypted on `users` table. Nodemailer auto-refreshes access tokens. Build transport in worker, not API route. |
 | Gmail IMAP (receive) | `imapflow` library, per-user credentials, in BullMQ worker | Poll INBOX every 10 min. Match `In-Reply-To` header against `emails.messageId`. |
-| YC / Product Hunt / Wellfound | HTTP scraping (Cheerio or Playwright) in BullMQ worker | These have no official API. Rate-limit scrape jobs. Rotate user-agents. Store results in shared `companies` table. |
+| YC / Product Hunt | HTTP scraping (Cheerio or Playwright) in BullMQ worker | These have no official API. Rate-limit scrape jobs. Rotate user-agents. Store results in shared `companies` table. |
 | Supabase (PostgreSQL) | Prisma ORM with connection pooling via Supabase's PgBouncer | Use pooled connection string in production. Use direct connection string for migrations only. |
 | Upstash Redis | `ioredis` client, used by BullMQ | Upstash's serverless Redis is compatible with BullMQ. Ensure TLS is enabled. |
 

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "./_lib/prisma.js";
-import { searchContacts, checkApiHealth } from "./_lib/apollo-client.js";
+import { searchContacts, checkApiHealth } from "../api/_lib/apollo.js";
 
 // Preview-only Apollo enrichment. Apollo's search endpoint returns obfuscated
 // previews (no email, masked last name) and does not consume reveal credits.

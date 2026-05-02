@@ -2,7 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "./_lib/prisma.js";
 import { getUserIdFromRequest } from "./_lib/supabaseAdmin.js";
 import { HttpError } from "./_lib/user.js";
-import { enrichDomain } from "./_lib/apollo-enrichment.js";
+import { enrichDomain } from "./_lib/apollo.js";
+import { upsertContactFromReveal } from "./_lib/apollo-enrichment.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -129,26 +130,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
       const enriched = await enrichDomain(company.domain, apolloKey);
       if (enriched) {
         apolloPersonId = enriched.personId;
-        if (enriched.email) {
-          const saved = await prisma.contact.upsert({
-            where: { email: enriched.email },
-            create: {
-              companyId: company.id,
-              name: enriched.name,
-              email: enriched.email,
-              title: enriched.title,
-              linkedinUrl: enriched.linkedinUrl,
-              source: "apollo",
-            },
-            update: {
-              name: enriched.name ?? undefined,
-              title: enriched.title ?? undefined,
-              linkedinUrl: enriched.linkedinUrl ?? undefined,
-              lastVerifiedAt: new Date(),
-            },
-          });
-          contact = { id: saved.id, name: saved.name, email: saved.email, title: saved.title };
-        }
+        contact = await upsertContactFromReveal(enriched, company.id);
       }
     }
 

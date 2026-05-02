@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../_lib/prisma.js";
 import { getUserIdFromRequest } from "../_lib/supabaseAdmin.js";
-import { generateEmailDraft, GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY } from "../_lib/ai/generate-email.js";
+import { generateEmailDraft } from "../_lib/ai/generate-email.js";
+import type { DraftInput } from "../_lib/ai/types.js";
 import { resolveProfileForGeneration, buildSenderContextFromProfile, ProfileError } from "../_lib/sender-profile.js";
 import { revealAndUpsertContact } from "../_lib/apollo-enrichment.js";
 
@@ -116,31 +117,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   };
 
+  const draftInput: DraftInput = userTemplate
+    ? {
+        kind: "template",
+        body: userTemplate.body,
+        contact: contactInfo,
+        company: companyInfo,
+        subjectTemplate: userTemplate.subject,
+        senderName: profile.senderName,
+      }
+    : {
+        kind: "ai",
+        contact: contactInfo,
+        company: companyInfo,
+        subjectTemplate: null,
+        senderName: profile.senderName,
+        interestHook: interestHook ?? null,
+        senderContext,
+        styleInstruction: profile.styleInstruction,
+        apiKey: profile.apiKey,
+      };
+
   let draft: { subject: string; body: string };
   let fallback = false;
   let generationError: string | null = null;
 
   try {
-    draft = await generateEmailDraft({
-      contact: contactInfo,
-      company: companyInfo,
-      interestHook: interestHook ?? null,
-      userTemplate: userTemplate?.body ?? null,
-      senderContext,
-      styleInstruction: profile.styleInstruction,
-      subjectTemplate: userTemplate?.subject ?? null,
-      senderName: profile.senderName,
-      apiKey: profile.apiKey,
-    });
+    draft = await generateEmailDraft(draftInput);
   } catch (err) {
-    const contactName = contactInfo.name ?? "there";
-    const companyName = companyInfo.name;
     generationError = (err as Error).message;
     fallback = true;
-    draft = {
-      subject: GENERIC_FALLBACK_SUBJECT,
-      body: GENERIC_FALLBACK_BODY(contactName, companyName),
-    };
+    draft = await generateEmailDraft({
+      kind: "fallback",
+      contact: contactInfo,
+      company: companyInfo,
+      subjectTemplate: null,
+      senderName: profile.senderName,
+    });
   }
 
   let savedEmail = null;

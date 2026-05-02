@@ -1,13 +1,11 @@
 import "dotenv/config";
 import axios from "axios";
 import { pathToFileURL } from "node:url";
-import { upsertCompany } from "./_lib/upsert.js";
 import { prisma } from "./_lib/prisma.js";
-import { buildTags, isFreeHostingDomain } from "./_lib/tags.js";
-import { computeQualityScore } from "./_lib/quality-score.js";
+import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
 
-// GV (Google Ventures) portfolio — 748 companies via public Sanity CMS API.
-// No auth required; project is public-read.
+// GV (Google Ventures) portfolio — public Sanity CMS API. Two doc types:
+// "company" and "aiCompany".
 
 const SANITY_API = "https://v5ygm6ip.api.sanity.io/v2021-10-21/data/query/production";
 
@@ -15,12 +13,6 @@ interface GVCompany {
   name?: string;
   website?: string;
   sector?: { title?: string } | null;
-}
-
-function extractDomain(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch { return null; }
 }
 
 async function fetchType(type: string): Promise<GVCompany[]> {
@@ -44,35 +36,36 @@ async function fetchType(type: string): Promise<GVCompany[]> {
   return all;
 }
 
-export async function ingestGV(): Promise<void> {
-  const [companies, aiCompanies] = await Promise.all([fetchType("company"), fetchType("aiCompany")]);
-  const all = [...companies, ...aiCompanies];
-  console.log(`[GV] ${all.length} portfolio companies`);
+const gvAdapter: IngestorAdapter = {
+  name: "GV",
+  source: "gv",
+  async fetchAndParse(): Promise<CompanyRecord[]> {
+    const [companies, aiCompanies] = await Promise.all([
+      fetchType("company"),
+      fetchType("aiCompany"),
+    ]);
+    const all = [...companies, ...aiCompanies];
 
-  let ingested = 0, skipped = 0;
-
-  for (const c of all) {
-    if (!c.website) { skipped++; continue; }
-    const domain = extractDomain(c.website);
-    if (!domain || isFreeHostingDomain(domain)) { skipped++; continue; }
-
-    const industry = c.sector?.title ?? null;
-    const tags = buildTags({ topics: industry ? [industry] : undefined, industry: industry ?? undefined, investors: ["gv"], signals: ["vc-backed"] });
-    const qualityScore = computeQualityScore({ isVerified: true, industry });
-
-    try {
-      await upsertCompany({
-        domain, name: c.name ?? domain, website: c.website,
-        industry, source: "gv", sourceId: domain,
-        tags, isVerified: true, qualityScore,
+    const out: CompanyRecord[] = [];
+    for (const c of all) {
+      if (!c.website || !c.name) continue;
+      const industry = c.sector?.title ?? null;
+      out.push({
+        name: c.name,
+        website: c.website,
+        industry,
+        topics: industry ? [industry] : undefined,
+        investors: ["gv"],
+        signals: ["vc-backed"],
+        isVerified: true,
       });
-      ingested++;
-    } catch (err) {
-      console.error(`[GV] Failed "${c.name}": ${err instanceof Error ? err.message : err}`);
     }
-  }
+    return out;
+  },
+};
 
-  console.log(`[GV] Ingested ${ingested}, skipped ${skipped}`);
+export async function ingestGV(): Promise<void> {
+  await runIngestor(gvAdapter);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

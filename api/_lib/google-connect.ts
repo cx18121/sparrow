@@ -43,11 +43,21 @@ export function getRequestBaseUrl(req: VercelRequest): string {
   if (typeof origin === "string" && origin) return origin;
 
   const host = req.headers["x-forwarded-host"] ?? req.headers.host;
-  const proto = req.headers["x-forwarded-proto"] ?? "https";
   const hostValue = Array.isArray(host) ? host[0] : host;
-  const protoValue = Array.isArray(proto) ? proto[0] : proto;
   if (!hostValue) throw new Error("Could not determine request host");
-  return `${protoValue}://${hostValue}`;
+
+  const explicitAppOrigin = process.env.APP_ORIGIN ?? process.env.PUBLIC_APP_ORIGIN;
+  if (explicitAppOrigin) return explicitAppOrigin.replace(/\/+$/, "");
+
+  const proto = req.headers["x-forwarded-proto"];
+  const protoValue = Array.isArray(proto) ? proto[0] : proto;
+  const inferredProto =
+    protoValue ?? (hostValue.startsWith("localhost") || hostValue.startsWith("127.0.0.1") ? "http" : "https");
+  return `${inferredProto}://${hostValue}`;
+}
+
+export function getOriginFromRedirectUri(redirectUri: string): string {
+  return new URL(redirectUri).origin;
 }
 
 export function sanitizeReturnTo(value: unknown): string {

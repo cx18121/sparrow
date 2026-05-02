@@ -4,7 +4,7 @@ import { encrypt } from "../_lib/crypto.js";
 import { getSupabaseAdmin } from "../_lib/supabaseAdmin.js";
 import {
   decodeGoogleConnectState,
-  getRequestBaseUrl,
+  getOriginFromRedirectUri,
   withGoogleConnectResult,
 } from "../_lib/google-connect.js";
 
@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const state = decodeGoogleConnectState(req.query.state);
   if (!state) return res.status(400).json({ error: "Invalid Google connection state" });
 
-  const baseUrl = getRequestBaseUrl(req);
+  const baseUrl = getOriginFromRedirectUri(state.redirectUri);
   const redirectToApp = (params: Record<string, string>) =>
     redirect(res, `${baseUrl}${withGoogleConnectResult(state.returnTo, params)}`);
 
@@ -57,7 +57,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { onConflict: "user_id" },
     );
 
-    if (error) return redirectToApp({ google_error: "profile_save_failed" });
+    if (error) {
+      console.error("Google refresh token profile save failed", error);
+      return redirectToApp({ google_error: "profile_save_failed" });
+    }
     return redirectToApp({ google_connected: "1" });
   } catch (err) {
     console.error("Google connect callback failed", err);

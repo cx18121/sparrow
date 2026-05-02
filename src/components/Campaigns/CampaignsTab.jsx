@@ -5,6 +5,8 @@ import {
   Filter, RefreshCw, ArrowLeft, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
+import Banner from '../ui/Banner'
+import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import {
@@ -401,9 +403,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           {detailLoading ? (
             <div className="py-12 text-center text-sm text-muted">Loading prospects...</div>
           ) : campaignLeads.length === 0 ? (
-            <div className="empty-state border-0 bg-transparent shadow-none">
+            <EmptyState>
               No prospects in this campaign yet. Add saved prospects or find matches from your filters.
-            </div>
+            </EmptyState>
           ) : (
             <div className="space-y-3">
               {campaignLeads.map(lead => (
@@ -483,9 +485,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
             Loading campaigns...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty-state border-0 bg-transparent shadow-none">
+          <EmptyState>
             {search ? 'No campaigns match your search.' : 'No campaigns yet. Create your first one!'}
-          </div>
+          </EmptyState>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -765,9 +767,9 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
           </div>
 
           {batchModal.usingFallback && (
-            <div className="mx-6 mt-4 rounded-[16px] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <Banner variant="warning" className="mx-6 mt-4">
               All matching prospects have been seen. Showing previously seen prospects. Click "Reset all" to start fresh.
-            </div>
+            </Banner>
           )}
 
           {/* Lead list */}
@@ -777,11 +779,11 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
                 <RefreshCw size={16} className="animate-spin mr-2" /> Loading...
               </div>
             ) : batchModal.leads.length === 0 ? (
-              <div className="empty-state border-0 bg-transparent shadow-none py-16">
+              <EmptyState>
                 {batchModal.generationAttempted
                   ? 'No prospects match your current filters. Try broadening them, for example remove stage or region.'
                   : 'No prospects found yet. Find the first matches to start this campaign.'}
-              </div>
+              </EmptyState>
             ) : (
               <div className="space-y-3">
                 {batchModal.leads.map(lead => (

@@ -6,6 +6,9 @@ import {
 } from 'lucide-react'
 import { apiGetAuth, fetchEmails, fetchProfile, updateEmail, sendEmail } from '../../lib/api'
 import Badge from '../ui/Badge'
+import Banner from '../ui/Banner'
+import EmptyState from '../ui/EmptyState'
+import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 
 // For table row previews — collapse to one line
@@ -444,25 +447,24 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+          <Banner variant="danger" className="mb-4">{error}</Banner>
         )}
 
         {tab === 'draft' && gmailDisconnected && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <div className="flex min-w-0 items-start gap-2">
-              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <Banner variant="warning" icon={AlertCircle} className="mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <span>Gmail is not connected. Connect Gmail in Settings before sending drafts.</span>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('settings')}
+                  className="shrink-0 text-xs font-semibold text-amber-900 underline-offset-2 hover:underline"
+                >
+                  Open Settings
+                </button>
+              )}
             </div>
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('settings')}
-                className="shrink-0 text-xs font-semibold text-amber-900 underline-offset-2 hover:underline"
-              >
-                Open Settings
-              </button>
-            )}
-          </div>
+          </Banner>
         )}
 
         {tab === 'draft' && drafts.length > 0 && (
@@ -523,31 +525,31 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                 </tr>
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12">
-                    <div className="mx-auto flex max-w-sm flex-col items-center text-center">
-                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <FileText size={18} />
-                      </div>
-                      <p className="text-sm font-medium text-dark">
-                        {tab === 'sent'
+                  <td colSpan={6}>
+                    <EmptyState
+                      icon={FileText}
+                      title={
+                        tab === 'sent'
                           ? 'No sent emails yet'
                           : reviewFilter === 'all'
                             ? 'No drafts ready for review'
-                            : 'No drafts in this queue'}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-muted">
-                        {tab === 'sent'
+                            : 'No drafts in this queue'
+                      }
+                      description={
+                        tab === 'sent'
                           ? 'Sent emails will appear here after Gmail accepts them.'
                           : reviewFilter === 'all'
                             ? 'Generate an email from a saved contact, then review and send it here.'
-                            : 'Switch filters or refresh Drafts to keep reviewing.'}
-                      </p>
-                      {tab === 'draft' && onNavigate && (
-                        <button type="button" onClick={() => onNavigate('contacts')} className="btn-primary mt-4 text-xs">
-                          Go to Contacts
-                        </button>
-                      )}
-                    </div>
+                            : 'Switch filters or refresh Drafts to keep reviewing.'
+                      }
+                      action={
+                        tab === 'draft' && onNavigate && (
+                          <button type="button" onClick={() => onNavigate('contacts')} className="btn-primary text-xs">
+                            Go to Contacts
+                          </button>
+                        )
+                      }
+                    />
                   </td>
                 </tr>
               ) : sorted.map(draft => (
@@ -579,15 +581,14 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                       <span className="truncate">{draft.subject || '(no subject)'}</span>
                       {tab === 'draft' && (() => {
                         const status = getDraftReadiness(draft)
-                        const Icon = status.icon
                         return (
-                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            status.label === 'Ready'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-amber-50 text-amber-700'
-                          }`}>
-                            <Icon size={10} /> {status.label}
-                          </span>
+                          <Pill
+                            variant={status.label === 'Ready' ? 'success' : 'warning'}
+                            icon={status.icon}
+                            className="shrink-0"
+                          >
+                            {status.label}
+                          </Pill>
                         )
                       })()}
                     </div>
@@ -704,7 +705,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
           </div>
 
           {saveError && (
-            <div className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{saveError}</div>
+            <Banner variant="danger" size="sm" className="mx-5 mt-3">{saveError}</Banner>
           )}
 
           {/* Panel body */}

@@ -2,12 +2,9 @@ import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "./_lib/prisma.js";
 import { ingestYC } from "./ingest-yc.js";
-import { enrichApollo } from "./enrich-apollo.js";
 import { ingestTheHub } from "./ingest-thehub.js";
-import { ingestStartupsGallery } from "./ingest-startups-gallery.js";
 import { ingestGregslist } from "./ingest-gregslist.js";
 import { ingestHNHiring } from "./ingest-hn-hiring.js";
-// ingest-workatastartup removed — page requires login, YC ingestor covers same companies
 import { ingestAccel } from "./ingest-accel.js";
 import { ingestKleinerPerkins } from "./ingest-kleinerperkins.js";
 import { ingestFirstRound } from "./ingest-firstround.js";
@@ -19,10 +16,7 @@ import { ingestFoundersFund } from "./ingest-foundersfund.js";
 import { ingestSequoia } from "./ingest-sequoia.js";
 
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS ?? "86400000", 10);
-const APOLLO_API_KEY = process.env.APOLLO_API_KEY;
-const FRESHNESS_HOURS = parseInt(process.env.FRESHNESS_HOURS ?? "24", 10);
 const SKIP_THEHUB = process.env.SKIP_THEHUB === "true";
-const SKIP_STARTUPS_GALLERY = process.env.SKIP_STARTUPS_GALLERY === "true";
 const SKIP_GREGSLIST = process.env.SKIP_GREGSLIST === "true";
 const SKIP_HN_HIRING = process.env.SKIP_HN_HIRING === "true";
 const SKIP_ACCEL = process.env.SKIP_ACCEL === "true";
@@ -59,13 +53,6 @@ export async function runPollCycle(): Promise<void> {
     console.log("[POLL] Skipping The Hub (SKIP_THEHUB=true)");
   }
 
-  // Step 4: startups.gallery
-  if (!SKIP_STARTUPS_GALLERY) {
-    try { await ingestStartupsGallery(); } catch (e) { console.error("[POLL] startups.gallery failed:", (e as Error).message); }
-  } else {
-    console.log("[POLL] Skipping startups.gallery (SKIP_STARTUPS_GALLERY=true)");
-  }
-
   // Step 5: Gregslist
   if (!SKIP_GREGSLIST) {
     try { await ingestGregslist(); } catch (e) { console.error("[POLL] Gregslist failed:", (e as Error).message); }
@@ -97,22 +84,6 @@ export async function runPollCycle(): Promise<void> {
     } else {
       try { await fn(); } catch (e) { console.error(`[POLL] ${name} failed:`, (e as Error).message); }
     }
-  }
-
-  // Step 9: Apollo enrichment (requires APOLLO_API_KEY)
-  if (APOLLO_API_KEY) {
-    try {
-      const freshnessThreshold = new Date(Date.now() - FRESHNESS_HOURS * 60 * 60 * 1000);
-      const staleCount = await prisma.contact.count({
-        where: { OR: [{ lastVerifiedAt: null }, { lastVerifiedAt: { lt: freshnessThreshold } }] },
-      });
-      console.log(`[POLL] ${staleCount} contacts need enrichment`);
-      await enrichApollo();
-    } catch (e) {
-      console.error("[POLL] Apollo enrichment failed:", (e as Error).message);
-    }
-  } else {
-    console.log("[POLL] Skipping Apollo enrichment (no APOLLO_API_KEY)");
   }
 
   console.log(`[POLL] Cycle complete at ${new Date().toISOString()}`);

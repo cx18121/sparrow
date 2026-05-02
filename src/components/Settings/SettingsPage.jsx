@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
+import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { fetchProfile } from '../../lib/api'
@@ -94,9 +95,9 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
       </div>
 
       {profileState.error && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <AlertCircle size={13} /> {profileState.error}
-        </div>
+        <Banner variant="warning" icon={AlertCircle} size="sm" className="mt-3">
+          {profileState.error}
+        </Banner>
       )}
 
       <div className="mt-4 divide-y divide-slate-100">
@@ -268,9 +269,9 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
         {connectedCount} Claude key{connectedCount !== 1 ? 's' : ''} saved. Saved secret fields are left blank; enter a new value only to replace one.
       </p>
       {profileState.error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <Banner variant="warning" size="sm">
           {profileState.error}
-        </div>
+        </Banner>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">

@@ -11,7 +11,7 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| DISC-01 | App pulls companies from YC, Wellfound, and Product Hunt into shared global pool via background jobs | YC public JSON API (HIGH), Wellfound via `__NEXT_DATA__` extraction + stealth (MEDIUM), Product Hunt GraphQL V2 (HIGH) |
+| DISC-01 | App pulls companies from YC and Product Hunt into shared global pool via background jobs | YC public JSON API (HIGH), Product Hunt GraphQL V2 (HIGH) |
 | DISC-02 | App enriches contacts with emails via user's Apollo API key | Apollo People Enrichment REST endpoint; per-user key injected at call time (HIGH) |
 | DISC-03 | User can filter the lead pool by company size, funding stage, location, industry, is-hiring, and contact role | Prisma schema field selection — all filter fields must be indexed columns (HIGH) |
 | DISC-04 | Location filtering groups nearby cities into named regions (e.g. "Bay Area" = SF + San Jose) | Static lookup table or `region` column on `companies`; populated during ingest (HIGH) |
@@ -30,9 +30,9 @@ This phase's in-scope deliverable is two things only: (1) a complete Prisma sche
 
 The schema must be designed so that every filter field required by DISC-03 and DISC-04 is a first-class indexed column, not a JSON blob. The `last_verified_at` pattern (a timestamp on the `contacts` table, set on every successful enrichment) is the correct mechanism for tracking data freshness and driving re-enrichment logic. Idempotent upserts are achieved via Prisma's `upsert()` with `@@unique` constraints — Prisma emits native PostgreSQL `INSERT ... ON CONFLICT DO UPDATE` for these, which is atomic and race-condition safe.
 
-YC data is the most reliable source: a public GitHub-hosted JSON API updated daily via GitHub Actions, covering 5,690+ companies with all required filter fields. Product Hunt has an official GraphQL V2 API but prohibits commercial use without contacting them — treat as aspirational until approved. Wellfound is the highest-risk source: it uses Cloudflare anti-bot protections and is "notorious for blocking all scrapers." The recommended approach is extracting `__NEXT_DATA__` embedded JSON (no rendered DOM parsing needed) combined with ScrapFly or playwright-extra stealth — but a spike is required before committing.
+YC data is the most reliable source: a public GitHub-hosted JSON API updated daily via GitHub Actions, covering 5,690+ companies with all required filter fields. Product Hunt has an official GraphQL V2 API but prohibits commercial use without contacting them — treat as aspirational until approved.
 
-**Primary recommendation:** Build schema + YC ingestion first. Add Apollo enrichment second. Treat Wellfound as a spike with a clear fallback (skip it for v1 if the spike fails within a time-box). Treat Product Hunt as low-priority until API approval is confirmed.
+**Primary recommendation:** Build schema + YC ingestion first. Add Apollo enrichment second. Treat Product Hunt as low-priority until API approval is confirmed.
 
 ---
 
@@ -45,14 +45,14 @@ YC data is the most reliable source: a public GitHub-hosted JSON API updated dai
 | `prisma` | 7.5.0 | Schema definition, migrations, client generation | Stack mandated; pure TypeScript client in v7, no Rust binary |
 | `@prisma/client` | 7.5.0 | Generated type-safe DB client | Paired with `prisma` — always same version |
 | `axios` | 1.13.6 | HTTP client for Apollo REST API + Product Hunt GraphQL | Stack research confirmed; no official Node Apollo SDK exists |
-| `playwright` | 1.58.2 | Browser-based scraping for Wellfound (Cloudflare-protected SPA) | Stack mandated; auto-wait, stealth plugins available |
+| `playwright` | 1.58.2 | Browser-based scraping for Cloudflare-protected SPAs | Stack mandated; auto-wait, stealth plugins available |
 | `cheerio` | 1.2.0 | HTML parsing for static/SSR pages | Lightweight; use when `__NEXT_DATA__` extraction is sufficient |
 
 ### Supporting (this phase)
 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `playwright-extra` | ^4.x | Playwright with stealth plugin support | Wellfound scraping — adds stealth patches over stock Playwright |
+| `playwright-extra` | ^4.x | Playwright with stealth plugin support | Adds stealth patches over stock Playwright |
 | `puppeteer-extra-plugin-stealth` | ^2.x | Anti-detect fingerprint patches | Required with `playwright-extra` for Cloudflare bypass |
 | `tsx` | ^4.x | Run TypeScript scraper scripts directly | Scripts run standalone (`tsx scripts/ingest-yc.ts`), outside Next.js |
 | `dotenv` | ^16.x | Load `.env` in standalone scripts | Scripts don't inherit Next.js env loading |
@@ -62,7 +62,7 @@ YC data is the most reliable source: a public GitHub-hosted JSON API updated dai
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| `playwright-extra` stealth | ScrapFly / Apify managed scraping | Managed services cost $20-50/month but eliminate stealth maintenance; good fallback if Wellfound blocks persist |
+| `playwright-extra` stealth | ScrapFly / Apify managed scraping | Managed services cost $20-50/month but eliminate stealth maintenance |
 | `graphql-request` for Product Hunt | `axios` POST with raw GraphQL body | `axios` is already in stack; perfectly valid to skip `graphql-request` |
 | `tsx` for scripts | `ts-node` | `tsx` is faster (uses esbuild); `ts-node` is older but widely used |
 
@@ -93,7 +93,6 @@ prisma/
 scripts/
 ├── ingest-yc.ts               # YC ingestion — fetch all.json, upsert companies
 ├── ingest-producthunt.ts      # Product Hunt GraphQL — fetch recent posts, upsert companies
-├── ingest-wellfound.ts        # Wellfound spike — __NEXT_DATA__ extraction
 ├── enrich-apollo.ts           # Apollo People Enrichment — per company, writes contacts
 └── _lib/
     ├── prisma.ts              # Prisma singleton
@@ -127,7 +126,7 @@ model Company {
   headcount      Int?      // team_size from YC
   isHiring       Boolean   @default(false)
   batch          String?   // YC-specific: "W24", "S23", etc.
-  source         String    // "yc" | "producthunt" | "wellfound" | "manual"
+  source         String    // "yc" | "producthunt" | "manual"
   sourceId       String?   // source-native ID for deduplication
   lastScrapedAt  DateTime?
   createdAt      DateTime  @default(now())
@@ -469,7 +468,6 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 - **Global Apollo API key:** Never store one Apollo key server-side for all users. This shares rate limits, exhausts credits, and breaks the per-user billing model.
 - **Upsert key on mutable fields:** Never use `name` as the upsert key for companies — names change. `domain` is stable and unique. For contacts, `email` is the only stable key.
 - **Scraping inside API routes:** Scrapers are long-running (minutes). They must run as standalone scripts or BullMQ workers — not in Next.js route handlers.
-- **Running Wellfound scraper without a spike:** Do not schedule Wellfound as a reliable data source until the stealth approach is validated in isolation.
 
 ---
 
@@ -481,7 +479,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 | Idempotent insert | Custom `SELECT then INSERT` logic | `prisma.company.upsert()` | Prisma emits atomic `ON CONFLICT DO UPDATE`; hand-rolled version has race conditions |
 | Region grouping | ML/NLP city classification | Static lookup map in `region-map.ts` | Startup hubs are well-known and finite; a 20-entry map covers 80%+ of YC companies |
 | Apollo HTTP calls | Custom retry/backoff logic | `axios` with `axios-retry` | Handles 429 rate limit responses with exponential backoff; do not reinvent |
-| Cloudflare bypass | Custom TLS fingerprinting | `playwright-extra` + stealth plugin, or ScrapFly | TLS fingerprinting changes frequently; stealth plugins are maintained by a community |
+| Cloudflare bypass | Custom TLS fingerprinting | `playwright-extra` + stealth plugin, or ScrapFly | TLS fingerprinting changes frequently; stealth plugins are maintained by the community |
 
 **Key insight:** The YC open API is a force multiplier — a plain HTTP GET returns a structured JSON array with all required filter fields. Start here before writing any browser automation code.
 
@@ -489,21 +487,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 
 ## Common Pitfalls
 
-### Pitfall 1: Wellfound Blocking Your Scraper
-
-**What goes wrong:** Playwright with default settings hits Cloudflare and receives a 403 or CAPTCHA page. The scraper silently stores zero records or crashes.
-
-**Why it happens:** Wellfound uses Cloudflare Bot Management which detects headless Chrome via `navigator.webdriver`, TLS fingerprint, and canvas fingerprint divergence from real browsers.
-
-**How to avoid:**
-1. Spike with `playwright-extra` + `puppeteer-extra-plugin-stealth` before committing to Wellfound as a data source.
-2. Add randomized delays between requests (500ms–2000ms jitter).
-3. Extract `__NEXT_DATA__` from the page HTML instead of DOM scraping — it avoids re-rendering and reduces request volume.
-4. Have a fallback plan: if the spike fails, skip Wellfound for v1.
-
-**Warning signs:** HTTP 403, CAPTCHA pages, empty `__NEXT_DATA__`, or Cloudflare challenge HTML in the response body.
-
-### Pitfall 2: Missing `domain` on Company Records
+### Pitfall 1: Missing `domain` on Company Records
 
 **What goes wrong:** A company has no `website` field (common for very early YC companies or Product Hunt posts without a live site). The upsert key `domain` is null, causing a constraint violation or creating duplicate records under different null keys.
 
@@ -513,7 +497,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 
 **Warning signs:** P2002 unique constraint errors in the scraper logs, or duplicate company rows with null domains.
 
-### Pitfall 3: Apollo Credits Exhausted Before Contacts Are Written
+### Pitfall 2: Apollo Credits Exhausted Before Contacts Are Written
 
 **What goes wrong:** The enrichment script runs, consumes all credits, then crashes or is interrupted. No contacts are written. Re-running the script consumes credits again for companies that were already processed.
 
@@ -526,7 +510,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 
 **Warning signs:** Apollo 402 (payment required) or 429 (rate limited) responses.
 
-### Pitfall 4: Product Hunt API Commercial Use Block
+### Pitfall 3: Product Hunt API Commercial Use Block
 
 **What goes wrong:** The scraper runs in production, Product Hunt detects commercial use, and the API token is revoked.
 
@@ -536,7 +520,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 
 **Warning signs:** 401 Unauthorized with a message about terms of service.
 
-### Pitfall 5: `UserLead` Duplicate Creation
+### Pitfall 4: `UserLead` Duplicate Creation
 
 **What goes wrong:** A user saves the same company twice, creating two `user_leads` rows with the same `(userId, companyId, contactId)`.
 
@@ -546,7 +530,7 @@ export function normalizeRegion(rawLocation: string | null): string | null {
 
 **Warning signs:** P2002 errors when a user clicks "Save" twice rapidly.
 
-### Pitfall 6: `last_verified_at` vs `updatedAt` Confusion
+### Pitfall 5: `last_verified_at` vs `updatedAt` Confusion
 
 **What goes wrong:** Engineers use `updatedAt` to decide if a contact needs re-enrichment, but `updatedAt` is set on any field change — including unrelated updates.
 
@@ -589,7 +573,7 @@ model Company {
   headcount     Int?
   isHiring      Boolean   @default(false)
   batch         String?   // YC batch: "W24", "S23"
-  source        String    // "yc" | "producthunt" | "wellfound" | "manual"
+  source        String    // "yc" | "producthunt" | "manual"
   sourceId      String?
   lastScrapedAt DateTime?
   createdAt     DateTime  @default(now())
@@ -881,7 +865,6 @@ const companiesNeedingEnrichment = await prisma.company.findMany({
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
 | Scrape YC website directly with Playwright | Fetch `yc-oss/api` JSON (GitHub-hosted, daily-updated) | 2022 onwards | No browser automation needed for YC; plain HTTP GET |
-| Wellfound DOM scraping | Extract `__NEXT_DATA__` embedded JSON | 2023+ | Less fragile than CSS selectors; still requires bypassing Cloudflare |
 | `node-fetch` for HTTP | `axios` | N/A for this stack | Axios has interceptors, better error types; stack already confirmed |
 | Prisma 5 (Rust WASM binary) | Prisma 7 (pure TypeScript client) | 2025 | Faster cold starts; current npm version is 7.5.0 |
 | Single server Apollo key | Per-user API key injection | Design decision | Respects Apollo's credit model; avoids shared rate limit exhaustion |
@@ -895,22 +878,17 @@ const companiesNeedingEnrichment = await prisma.company.findMany({
 
 ## Open Questions
 
-1. **Wellfound Feasibility**
-   - What we know: Wellfound uses Cloudflare anti-bot; `playwright-extra` stealth exists; ScrapFly can bypass it for ~$20/month; `__NEXT_DATA__` extraction avoids DOM parsing
-   - What's unclear: Whether `playwright-extra` + stealth reliably bypasses Wellfound's current Cloudflare config as of 2026. This has historically broken without warning when CF updates its detection.
-   - Recommendation: Time-box a 2-hour spike. If stealth works: implement. If blocked: skip Wellfound for v1 and rely on YC + Product Hunt. Document the decision in STATE.md.
-
-2. **Product Hunt Commercial Use Approval**
+1. **Product Hunt Commercial Use Approval**
    - What we know: API requires contacting hello@producthunt.com for commercial use; client credentials OAuth works for development
    - What's unclear: Whether this project qualifies as "commercial" (it's a student club project)
    - Recommendation: Email Product Hunt for approval before deploying ingest to production. Use in dev freely. Add a comment in the ingest script noting the requirement.
 
-3. **Apollo Credit Cost Per Enrichment**
+2. **Apollo Credit Cost Per Enrichment**
    - What we know: Credits are consumed per `/v1/people/match` call; `/v1/people/search` does NOT consume credits; free plan = 600 credits/day; paid basic = 2000/day
    - What's unclear: Exact per-call credit cost for `/people/match` (login-gated in Apollo docs)
    - Recommendation: Use `/v1/people/search` (free) first to discover contacts, and only call `/v1/people/match` for enrichment when email is not returned by search. This maximizes data quality per credit spent.
 
-4. **Stage Field Normalization**
+3. **Stage Field Normalization**
    - What we know: YC uses "Early" / "Growth"; Product Hunt has no stage field; Apollo returns funding stage on organization enrichment
    - What's unclear: Best canonical set of stage values for the filter UI
    - Recommendation: Use: `"Pre-Seed" | "Seed" | "Series A" | "Series B" | "Series C+" | "Growth" | "Public" | "Unknown"`. Map YC "Early" → "Seed", YC "Growth" → "Series A+", Apollo org stage → direct mapping.
@@ -977,13 +955,11 @@ const companiesNeedingEnrichment = await prisma.company.findMany({
 
 ### Secondary (MEDIUM confidence)
 
-- Wellfound `__NEXT_DATA__` extraction approach (ScrapFly guide, updated Sept 2025): https://scrapfly.io/blog/posts/how-to-scrape-wellfound-aka-angellist
 - Apollo free tier rate limits (600/day, 50/min): confirmed across multiple third-party sources
 
 ### Tertiary (LOW confidence — flag for validation)
 
 - Exact Apollo credit cost per `/people/match` call — login-gated, unconfirmed from public docs
-- Wellfound stealth bypass success rate in 2026 — evolving target; spike required
 
 ---
 
@@ -993,10 +969,9 @@ const companiesNeedingEnrichment = await prisma.company.findMany({
 - Standard stack: HIGH — prisma 7.5.0, playwright 1.58.2, axios 1.13.6 confirmed via npm registry 2026-03-21
 - YC ingestion: HIGH — public JSON API verified live, field schema documented
 - Apollo integration: HIGH (endpoint structure) / LOW (exact credit cost per call — login-gated)
-- Wellfound feasibility: MEDIUM — known anti-bot approach documented; actual bypass success requires a spike
 - Product Hunt: HIGH (API structure) / MEDIUM (commercial use approval path)
 - Schema design: HIGH — follows architecture already locked in ARCHITECTURE.md
 - Idempotent upsert pattern: HIGH — Prisma ON CONFLICT confirmed in official docs
 
 **Research date:** 2026-03-21
-**Valid until:** 2026-04-20 (30 days) for stable items; re-verify Wellfound stealth feasibility before implementation
+**Valid until:** 2026-04-20 (30 days) for stable items
