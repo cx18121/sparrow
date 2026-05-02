@@ -71,6 +71,7 @@ export default function ContactsTab({
   const [selectedKeys, setSelectedKeys] = useState(new Set())
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
 
   // Generate email modal
   const [generateTarget, setGenerateTarget] = useState(null)
@@ -274,7 +275,9 @@ export default function ContactsTab({
 
   const changeStatus = (lead, status) => {
     if (lead._custom || status === lead.status) return
-    onUpdate({ id: lead.id, status }).catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
+    onUpdate({ id: lead.id, status })
+      .then(() => setToast({ type: 'success', title: `Marked as ${STATUS_LABELS[status]}` }))
+      .catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
   }
 
   const buildGeneratePayload = (row) => row._custom
@@ -360,7 +363,7 @@ export default function ContactsTab({
       <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="page-eyebrow">Saved leads</p>
-          <p className="page-subtitle">Search, sort, and generate emails for prospects you've saved.</p>
+          <p className="page-subtitle">Manage and email saved leads.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={openAdd} className="btn-primary text-xs">
@@ -396,7 +399,9 @@ export default function ContactsTab({
           <p className="text-sm text-muted">
             {isLoading && allRows.length === 0
               ? 'Loading contacts...'
-              : `${filtered.length} contact${filtered.length !== 1 ? 's' : ''} across ${totalPages} page${totalPages !== 1 ? 's' : ''}`}
+              : totalPages > 1
+                ? `${filtered.length} contact${filtered.length !== 1 ? 's' : ''} across ${totalPages} pages`
+                : `${filtered.length} contact${filtered.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>
@@ -423,7 +428,7 @@ export default function ContactsTab({
               </button>
               <button
                 type="button"
-                onClick={bulkGenerateDrafts}
+                onClick={() => setBulkConfirmOpen(true)}
                 disabled={bulkGenerating || selectedEligibleRows.length === 0 || bulkDeleting}
                 className="btn-primary px-3 py-1.5 text-xs"
               >
@@ -505,7 +510,7 @@ export default function ContactsTab({
                 <td className="px-5 py-4 text-muted">{getTitle(row) || getNotesTitle(row) || '—'}</td>
                 <td className="px-5 py-4">
                   {row._custom ? (
-                    <span className={`rounded-full text-xs font-medium py-1 px-2.5 ${STATUS_STYLE.SAVED}`}>SAVED</span>
+                    <span title="Custom contacts are always Saved" className={`rounded-full text-xs font-medium py-1 px-2.5 cursor-default ${STATUS_STYLE.SAVED}`}>Saved</span>
                   ) : (
                     <select
                       value={row.status}
@@ -525,9 +530,9 @@ export default function ContactsTab({
                       onClick={() => openGenerate(row)}
                       disabled={!getEmail(row) && !row.apolloPersonId && !row._custom}
                       title={getEmail(row) ? 'Generate email with Claude' : row._custom ? 'Generate email with Claude' : row.apolloPersonId ? 'Generating will reveal contact via Apollo' : 'Lead has no contact email'}
-                      className="btn-ghost px-2 py-1 hover:text-primary disabled:opacity-40"
+                      className="btn-ghost flex items-center gap-1 px-2.5 py-1 text-xs hover:text-primary disabled:opacity-40"
                     >
-                      <Sparkles size={12} />
+                      <Sparkles size={12} /> Draft
                     </button>
                     <button
                       onClick={() => setDeleteTarget({ id: row.id, custom: !!row._custom })}
@@ -599,7 +604,7 @@ export default function ContactsTab({
                     onClick={() => setPage(p)}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                       p === page
-                        ? 'bg-primary text-white shadow-[0_10px_24px_rgba(27,110,243,0.2)]'
+                        ? 'bg-primary text-white'
                         : 'text-muted hover:bg-slate-100/70 hover:text-dark'
                     }`}
                   >
@@ -618,6 +623,16 @@ export default function ContactsTab({
           </div>
         )}
       </div>
+
+      {/* Bulk generate confirm */}
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={() => { setBulkConfirmOpen(false); bulkGenerateDrafts() }}
+        title="Generate drafts"
+        message={`Generate drafts for ${selectedEligibleRows.length} contact${selectedEligibleRows.length !== 1 ? 's' : ''}? Each will use a Claude API call.`}
+        confirmLabel={`Generate ${selectedEligibleRows.length} draft${selectedEligibleRows.length !== 1 ? 's' : ''}`}
+      />
 
       {/* Delete confirm */}
       <ConfirmDialog
@@ -713,6 +728,7 @@ export default function ContactsTab({
         size="lg"
       >
         <div className="space-y-4 px-4 py-4 sm:px-6">
+          {/* Contact context */}
           {generateTarget && (
             <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-muted">
               <div>
@@ -723,64 +739,9 @@ export default function ContactsTab({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label">Base template (optional)</label>
-              <select
-                value={generateTemplateId}
-                onChange={e => setGenerateTemplateId(e.target.value)}
-                className="select"
-                disabled={generating}
-              >
-                <option value="">None: generate from scratch</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Tone hint (optional)</label>
-              <input
-                value={generateTone}
-                onChange={e => setGenerateTone(e.target.value)}
-                placeholder="e.g. curious, low-key, technical"
-                className="input"
-                disabled={generating}
-              />
-            </div>
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-dark">
-            <input
-              type="checkbox"
-              checked={includeResumeBullet}
-              onChange={e => setIncludeResumeBullet(e.target.checked)}
-              disabled={generating}
-              className="mt-1"
-            />
-            <span>
-              <span className="font-medium">Include one relevant resume detail</span>
-              <span className="mt-1 block text-xs leading-5 text-muted">
-                Coldflow will use one resume or bio detail only if it fits this contact.
-              </span>
-            </span>
-          </label>
-
-          <div>
-            <button
-              onClick={runGenerate}
-              disabled={generating || !generateTarget}
-              className="btn-primary w-full justify-center"
-            >
-              <Sparkles size={14} />
-              {generating ? 'Generating…' : generatedSubject ? 'Regenerate' : 'Generate with Claude'}
-            </button>
-          </div>
-
-          {generateError && (
-            <Banner variant="danger" size="sm">{generateError}</Banner>
-          )}
-
+          {/* Output — rendered first so it's immediately visible after generation */}
           {(generatedSubject || generatedBody || generating) && (
-            <div className="space-y-3 border-t border-slate-100 pt-4">
+            <div className="space-y-3">
               <div>
                 <label className="label">Subject</label>
                 <input
@@ -797,12 +758,70 @@ export default function ContactsTab({
                   value={generatedBody}
                   onChange={e => setGeneratedBody(e.target.value)}
                   placeholder={generating ? 'Generating…' : ''}
-                  rows={10}
-                  className="input font-mono text-xs leading-relaxed"
+                  rows={9}
+                  className="input text-sm leading-relaxed"
                   disabled={generating}
                 />
               </div>
             </div>
+          )}
+
+          {/* Options — always visible; visually demoted once output exists */}
+          <div className={`space-y-3${(generatedSubject || generatedBody || generating) ? ' border-t border-slate-100 pt-4' : ''}`}>
+            {(generatedSubject || generatedBody || generating) && (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">Customize</p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">Template (optional)</label>
+                <select
+                  value={generateTemplateId}
+                  onChange={e => setGenerateTemplateId(e.target.value)}
+                  className="select"
+                  disabled={generating}
+                >
+                  <option value="">Generate from scratch</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Tone (optional)</label>
+                <input
+                  value={generateTone}
+                  onChange={e => setGenerateTone(e.target.value)}
+                  placeholder="e.g. curious, low-key, technical"
+                  className="input"
+                  disabled={generating}
+                />
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-dark">
+              <input
+                type="checkbox"
+                checked={includeResumeBullet}
+                onChange={e => setIncludeResumeBullet(e.target.checked)}
+                disabled={generating}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium">Include one resume detail</span>
+                <span className="mt-1 block text-xs leading-5 text-muted">
+                  Only used if it's genuinely relevant to this contact.
+                </span>
+              </span>
+            </label>
+            <button
+              onClick={runGenerate}
+              disabled={generating || !generateTarget}
+              className="btn-primary w-full justify-center"
+            >
+              <Sparkles size={14} />
+              {generating ? 'Generating…' : generatedSubject ? 'Regenerate' : 'Generate with Claude'}
+            </button>
+          </div>
+
+          {generateError && (
+            <Banner variant="danger" size="sm">{generateError}</Banner>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
