@@ -647,7 +647,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   reviewFilter === option.id
                     ? 'bg-primary text-white'
-                    : 'bg-white text-muted border border-slate-100 hover:bg-slate-50 hover:text-dark'
+                    : 'bg-warm-50 text-muted border border-warm-200 hover:bg-warm-50 hover:text-dark'
                 }`}
               >
                 {option.label} <span className={reviewFilter === option.id ? 'text-white/75' : 'text-muted/70'}>{option.count}</span>
@@ -659,13 +659,13 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
         <div className="card overflow-x-auto p-0">
           <table className="min-w-[760px] w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-warm-200">
                 <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
-                    className="rounded border-slate-300"
+                    className="rounded border-warm-300"
                   />
                 </th>
                 {[
@@ -688,7 +688,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-warm-200">
               {loading && drafts.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-muted">Loading drafts…</td>
@@ -726,14 +726,14 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                 <tr
                   key={draft.id}
                   onClick={() => openPreview(draft)}
-                  className={`cursor-pointer transition-colors hover:bg-slate-50 ${preview?.id === draft.id ? 'bg-slate-50' : ''}`}
+                  className={`cursor-pointer transition-colors hover:bg-warm-50 ${preview?.id === draft.id ? 'bg-warm-50' : ''}`}
                 >
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selected.has(draft.id)}
                       onChange={() => toggleOne(draft.id)}
-                      className="rounded border-slate-300"
+                      className="rounded border-warm-300"
                     />
                   </td>
                   <td className="px-4 py-3 font-medium text-dark">
@@ -801,14 +801,14 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
 
       {/* Preview / edit panel */}
       {preview && (
-        <div className={`flex shrink-0 flex-col border-t border-slate-100 bg-white lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[38%] lg:min-w-[440px] lg:max-w-[600px] lg:border-l'}`}>
+        <div className={`flex shrink-0 flex-col border-t border-warm-200 bg-warm-50 lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[38%] lg:min-w-[440px] lg:max-w-[600px] lg:border-l'}`}>
           {/* Panel header */}
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 border-b border-warm-200 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-medium text-dark truncate">{getRecipientName(preview)}</p>
                 {previewIndex >= 0 && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-muted">
+                  <span className="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-medium text-muted">
                     {previewIndex + 1} of {sorted.length}
                   </span>
                 )}
@@ -819,7 +819,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 lg:ml-3">
               {/* Navigation */}
-              <div className="flex items-center rounded-full bg-slate-50 p-0.5">
+              <div className="flex items-center rounded-full bg-warm-50 p-0.5">
                 <button
                   type="button"
                   onClick={() => movePreview(-1)}
@@ -893,11 +893,11 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                   <MoreHorizontal size={14} />
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-card">
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden rounded-xl border border-warm-200 bg-warm-50 py-1 shadow-card">
                     <button
                       type="button"
                       onClick={() => { setFocusMode(m => !m); setMoreMenuOpen(false) }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-slate-50 hover:text-dark"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-warm-50 hover:text-dark"
                     >
                       {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                       {focusMode ? 'Exit focus mode' : 'Focus mode'}
@@ -932,7 +932,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
 
           {/* Panel body */}
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+            <div className="rounded-2xl border border-warm-200 bg-warm-50/70 px-4 py-3">
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
                 <UserRound size={14} className="mt-0.5 text-muted" />
                 <div className="min-w-0">
@@ -979,7 +979,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                 />
               ) : (
                 <div
-                  className="max-w-[68ch] rounded-2xl border border-slate-100 bg-white px-4 py-4 text-[15px] leading-7 text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                  className="max-w-[68ch] rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 text-[15px] leading-7 text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textToHtml(preview.body)) }}
                 />
               )}
@@ -1003,7 +1003,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
 
               if (fileLibrary.length === 0) return null
               return (
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-warm-200 pt-4">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Attachments</p>
                   <div className="space-y-1">
                     {attached.map(f => (
@@ -1029,7 +1029,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
             })()}
 
             {/* Meta */}
-            <div className="border-t border-slate-100 pt-4 space-y-1.5">
+            <div className="border-t border-warm-200 pt-4 space-y-1.5">
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Details</p>
               <div className="flex justify-between text-xs">
                 <span className="text-muted">Status</span>
@@ -1109,7 +1109,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
 function ShortcutHint({ editing, canSend }) {
   if (editing) {
     return (
-      <div className="hidden border-t border-slate-100 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:items-center sm:gap-3">
+      <div className="hidden border-t border-warm-200 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:items-center sm:gap-3">
         <Keyboard size={11} />
         <Kbd>esc</Kbd> cancel
         <Kbd>⌘</Kbd>+<Kbd>↵</Kbd> save (after exit)
@@ -1117,7 +1117,7 @@ function ShortcutHint({ editing, canSend }) {
     )
   }
   return (
-    <div className="hidden border-t border-slate-100 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+    <div className="hidden border-t border-warm-200 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
       <Keyboard size={11} />
       <span><Kbd>←</Kbd> <Kbd>→</Kbd> prev/next</span>
       <span><Kbd>e</Kbd> edit</span>
@@ -1130,5 +1130,5 @@ function ShortcutHint({ editing, canSend }) {
 }
 
 function Kbd({ children }) {
-  return <kbd className="rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-medium text-muted">{children}</kbd>
+  return <kbd className="rounded border border-warm-300 bg-warm-50 px-1 text-[10px] font-medium text-muted">{children}</kbd>
 }

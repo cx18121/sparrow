@@ -414,7 +414,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
 
       <div className="table-shell">
         {selectedRows.length > 0 && (
-          <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-warm-200 bg-warm-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted">
               <span className="font-medium text-dark">{selectedRows.length}</span> selected
               {selectedEligibleRows.length !== selectedRows.length && (
@@ -453,7 +453,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         )}
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/80">
+            <tr className="border-b border-warm-200 bg-warm-50/80">
               <th className="w-10 px-5 py-4 text-left">
                 <button
                   type="button"
@@ -485,7 +485,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
               <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-warm-200">
             {isLoading && allRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted">
@@ -493,13 +493,13 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                 </td>
               </tr>
             ) : paginated.map(row => (
-              <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-slate-50/60">
+              <tr key={`${row._custom ? 'cc' : 'lead'}-${row.id}`} className="transition-colors hover:bg-warm-50/60">
                 <td className="px-5 py-4">
                   <input
                     type="checkbox"
                     checked={selectedKeys.has(getRowKey(row))}
                     onChange={() => toggleOneSelected(row)}
-                    className="rounded border-slate-300"
+                    className="rounded border-warm-300"
                     aria-label={`Select ${getName(row) || getEmail(row) || 'contact'}`}
                   />
                 </td>
@@ -507,7 +507,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                   <span className="flex items-center gap-2">
                     {getName(row) || getNotesName(row) || '—'}
                     {row._custom && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">custom</span>
+                      <span className="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-medium text-warm-500">custom</span>
                     )}
                   </span>
                 </td>
@@ -581,7 +581,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         </table>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+          <div className="flex items-center justify-between border-t border-warm-200 px-5 py-4">
             <p className="text-xs text-muted">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
@@ -602,7 +602,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                       p === page
                         ? 'bg-primary text-white'
-                        : 'text-muted hover:bg-slate-100/70 hover:text-dark'
+                        : 'text-muted hover:bg-warm-100/70 hover:text-dark'
                     }`}
                   >
                     {p}
@@ -731,7 +731,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         <div className="space-y-4 px-4 py-4 sm:px-6">
           {/* Contact context */}
           {generateTarget && (
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-muted">
+            <div className="rounded-xl border border-warm-200 bg-warm-50/60 px-4 py-3 text-xs text-muted">
               <div>
                 <span className="font-semibold text-dark">{getName(generateTarget) || '—'}</span>
                 {getTitle(generateTarget) ? ` · ${getTitle(generateTarget)}` : ''}
@@ -768,7 +768,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
           )}
 
           {/* Options — always visible; visually demoted once output exists */}
-          <div className={`space-y-3${(generatedSubject || generatedBody || generating) ? ' border-t border-slate-100 pt-4' : ''}`}>
+          <div className={`space-y-3${(generatedSubject || generatedBody || generating) ? ' border-t border-warm-200 pt-4' : ''}`}>
             {(generatedSubject || generatedBody || generating) && (
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">Customize</p>
             )}
@@ -796,7 +796,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                 />
               </div>
             </div>
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-dark">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm text-dark">
               <input
                 type="checkbox"
                 checked={includeResumeBullet}

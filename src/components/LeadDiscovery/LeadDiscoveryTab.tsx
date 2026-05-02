@@ -37,7 +37,7 @@ const NS_LABELS = {
 
 function CompanyRow({ company, apolloCount, onSelect }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-100 bg-white px-4 py-3.5 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-warm-200 bg-warm-50 px-4 py-3.5 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_2px_12px_rgba(44,31,16,0.06)]">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-dark text-sm">{company.name}</span>
@@ -57,7 +57,7 @@ function CompanyRow({ company, apolloCount, onSelect }) {
           )}
           {company.industry && <span>{company.industry}</span>}
           {company.region && <span>{company.region}</span>}
-          {company.stage && <span className="text-slate-400">{company.stage}</span>}
+          {company.stage && <span className="text-warm-400">{company.stage}</span>}
         </div>
         {company.oneLiner && (
           <p className="mt-1.5 text-xs text-muted/80 line-clamp-2">{company.oneLiner}</p>
@@ -85,7 +85,7 @@ function CompanyRow({ company, apolloCount, onSelect }) {
 
 function ContactRow({ preview, email, onSave, saving, saved }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white px-4 py-3 transition-all duration-150 hover:border-slate-200 hover:shadow-[0_1px_6px_rgba(15,23,42,0.05)]">
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-warm-200 bg-warm-50 px-4 py-3 transition-all duration-150 hover:border-warm-300 hover:shadow-[0_1px_6px_rgba(44,31,16,0.05)]">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-dark">
           {preview.firstName} {preview.lastNameObfuscated}
@@ -499,10 +499,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                 isHiring
                   ? 'border-primary bg-primary text-white'
-                  : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                  : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${isHiring ? 'bg-white' : 'bg-emerald-400'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${isHiring ? 'bg-warm-50' : 'bg-emerald-400'}`} />
               Hiring only{hiringCount != null ? ` (${hiringCount})` : ''}
             </button>
             {([
@@ -516,7 +516,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                   regionFilter === rf
                     ? 'border-primary bg-primary text-white'
-                    : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                    : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                 }`}
               >
                 {label}{count != null ? ` (${count})` : ''}
@@ -527,7 +527,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                 tagsOpen || selectedTags.size > 0
                   ? 'border-primary bg-primary text-white'
-                  : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                  : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
               }`}
             >
               <Filter size={11} />
@@ -551,7 +551,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
                     className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                       selectedTags.has(namespaced)
                         ? 'border-primary bg-primary text-white'
-                        : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                        : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                     }`}
                   >
                     {name}{count != null ? ` (${count})` : ''}
@@ -585,7 +585,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
       {/* Empty state */}
       {!loading && companies.length === 0 && (
         <div className="mx-auto flex max-w-sm flex-col items-center py-14 text-center">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-muted">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-warm-100 text-muted">
             <Search size={18} />
           </div>
           <p className="text-sm font-semibold text-dark">
@@ -667,7 +667,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
               )}
             </div>
 
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-warm-200 pt-4">
               {apolloLoading && (
                 <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted">
                   <Loader2 size={16} className="animate-spin text-primary/50" />

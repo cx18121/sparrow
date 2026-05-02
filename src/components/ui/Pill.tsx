@@ -12,8 +12,8 @@ export const VARIANT_STYLES = {
   success: 'bg-emerald-50 text-emerald-700',
   warning: 'bg-amber-50 text-amber-700',
   danger:  'bg-red-50 text-red-600',
-  info:    'bg-blue-50 text-blue-700',
-  neutral: 'bg-slate-100 text-slate-600',
+  info:    'bg-primary/8 text-primary/80',
+  neutral: 'bg-warm-100 text-warm-600',
 }
 
 export default function Pill({
@@ -40,7 +40,7 @@ function dotColor(variant) {
     case 'success': return 'bg-emerald-500'
     case 'warning': return 'bg-amber-500'
     case 'danger':  return 'bg-red-500'
-    case 'info':    return 'bg-blue-500'
-    default:        return 'bg-slate-400'
+    case 'info':    return 'bg-primary/80'
+    default:        return 'bg-stone-400'
   }
 }

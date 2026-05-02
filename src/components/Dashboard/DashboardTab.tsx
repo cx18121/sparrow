@@ -54,7 +54,7 @@ function Stat({ label, value, detail, loading, onClick }) {
       <button
         type="button"
         onClick={onClick}
-        className="group min-w-0 cursor-pointer px-4 py-3 text-left transition-colors hover:bg-slate-100 first:pl-0 last:pr-0"
+        className="group min-w-0 cursor-pointer px-4 py-3 text-left transition-colors hover:bg-warm-100 first:pl-0 last:pr-0"
       >
         <div className="flex items-center gap-1">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 transition-colors group-hover:text-primary/70">{label}</div>
@@ -94,12 +94,12 @@ function ActivityRow({ icon: Icon, title, detail, when }) {
 function ActivitySkeleton() {
   return (
     <div className="flex items-center gap-3 py-3 animate-pulse">
-      <div className="h-3.5 w-3.5 shrink-0 rounded-full bg-slate-100" />
+      <div className="h-3.5 w-3.5 shrink-0 rounded-full bg-warm-100" />
       <div className="min-w-0 flex-1 space-y-1.5">
-        <div className="h-3 w-2/5 rounded bg-slate-100" />
-        <div className="h-2.5 w-1/3 rounded bg-slate-100" />
+        <div className="h-3 w-2/5 rounded bg-warm-100" />
+        <div className="h-2.5 w-1/3 rounded bg-warm-100" />
       </div>
-      <div className="h-2.5 w-10 shrink-0 rounded bg-slate-100" />
+      <div className="h-2.5 w-10 shrink-0 rounded bg-warm-100" />
     </div>
   )
 }
@@ -115,7 +115,7 @@ function SetupItem({ item, primary }) {
     >
       <Icon
         size={15}
-        className={`mt-0.5 shrink-0 ${item.done ? 'text-emerald-600' : primary ? 'text-primary' : 'text-slate-300'}`}
+        className={`mt-0.5 shrink-0 ${item.done ? 'text-emerald-600' : primary ? 'text-primary' : 'text-stone-300'}`}
       />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-dark">{item.label}</p>
@@ -309,7 +309,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
       <div className={`grid gap-6 ${setupReady && !setupComplete ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
         <section className="space-y-6">
           {/* Stat strip — ordered by workflow: Contacts → Drafts → Sent → Campaigns */}
-          <div className="grid grid-cols-2 divide-x divide-slate-100 border-y border-slate-100 md:grid-cols-4">
+          <div className="grid grid-cols-2 divide-x divide-warm-200 border-y border-warm-200 md:grid-cols-4">
             <Stat
               label="Contacts"
               value={totalContacts}
@@ -360,7 +360,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
               )}
             </div>
             {sentLoading ? (
-              <div className="divide-y divide-slate-100 border-y border-slate-100">
+              <div className="divide-y divide-warm-200 border-y border-warm-200">
                 {Array.from({ length: 3 }).map((_, i) => <ActivitySkeleton key={i} />)}
               </div>
             ) : recentActivity.length === 0 ? (
@@ -372,10 +372,10 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
                     Find contacts <ArrowRight size={12} />
                   </button>
                 }
-                className="border-y border-slate-100"
+                className="border-y border-warm-200"
               />
             ) : (
-              <div className="divide-y divide-slate-100 border-y border-slate-100">
+              <div className="divide-y divide-warm-200 border-y border-warm-200">
                 {recentActivity.map(item => (
                   <ActivityRow
                     key={item.id}
@@ -392,7 +392,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
 
         {setupReady && !setupComplete && (
           <aside>
-            <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+            <div className="rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="page-eyebrow">Setup</p>
                 <span className="text-xs text-muted tabular-nums">
@@ -401,7 +401,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
               </div>
               <h2 className="mt-2 text-base font-semibold text-dark">Finish setup</h2>
 
-              <div className="mt-4 divide-y divide-slate-100">
+              <div className="mt-4 divide-y divide-warm-200">
                 {setupItems.map((item, index) => (
                   <SetupItem
                     key={item.label}

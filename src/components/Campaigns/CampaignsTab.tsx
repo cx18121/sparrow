@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
   Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
-  Filter, RefreshCw, ArrowLeft, X, Megaphone,
+  Filter, RefreshCw, ArrowLeft, X,
 } from 'lucide-react'
-import { useAppData } from '../../contexts/AppDataContext'
-import { useToast } from '../../hooks/useToast'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
@@ -47,17 +45,7 @@ function advancedSummary(form) {
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign }) {
-  const {
-    campaigns,
-    templates,
-    createCampaign: onCreate,
-    updateCampaign: onUpdate,
-    deleteCampaign: onDelete,
-    dataLoaded,
-    hasResourceCache,
-  } = useAppData()
-  const isLoading = !dataLoaded && !hasResourceCache
+export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, templates, workspaceConfig, isLoading = false, onNavigate, onEnterCampaign }) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -74,8 +62,13 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const [campaignLeads, setCampaignLeads] = useState([])
   const [savedLeads, setSavedLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const { toast, setToast, reportError } = useToast()
+  const [toast, setToast] = useState(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  const reportError = (title, err) => {
+    console.error(title, err)
+    setToast({ type: 'error', title, message: err?.message || 'Please try again.' })
+  }
   const [addLeadId, setAddLeadId] = useState('')
   const [addingLead, setAddingLead] = useState(false)
 
@@ -423,7 +416,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
 
         {/* Inline batch panel — replaces the former modal-on-modal */}
         {batchModal.open && batchModal.campaign?.id === detailCampaign.id && (
-          <section className="py-2">
+          <section className="rounded-[24px] border border-warm-200 bg-warm-50/60 p-5">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="page-eyebrow">Latest batch</p>
@@ -441,7 +434,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   type="button"
                   onClick={() => setResetTarget(batchModal.campaign?.id)}
                   className="btn-ghost text-xs"
-                  aria-label="Reset batch history"
+                  title="Clear seen history to start fresh"
                 >
                   <RotateCcw size={12} /> Reset history
                 </button>
@@ -463,7 +456,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   type="button"
                   onClick={() => setBatchModal(prev => ({ ...prev, open: false }))}
                   className="btn-ghost px-2 py-1 text-xs"
-                  aria-label="Close batch results"
+                  title="Close batch panel"
                 >
                   <X size={12} />
                 </button>
@@ -489,7 +482,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             ) : (
               <div className="space-y-3">
                 {batchModal.leads.map(lead => (
-                  <div key={lead.id} className="rounded-[20px] border border-slate-100 bg-white p-4 shadow-sm">
+                  <div key={lead.id} className="rounded-[20px] border border-warm-200 bg-warm-50 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -512,7 +505,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                             <span className="flex items-center gap-1"><MapPin size={10} />{lead.company.region}</span>
                           )}
                           {lead.contact ? (
-                            <span className="flex items-center gap-1 text-slate-700">
+                            <span className="flex items-center gap-1 text-stone-700">
                               <Users size={10} />
                               {lead.contact.name || 'Contact'}{lead.contact.title ? ` · ${lead.contact.title}` : ''}
                               {lead.contact.email && <span className="text-primary">· {lead.contact.email}</span>}
@@ -547,7 +540,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                     </div>
 
                     {lead.emails?.length > 0 && (
-                      <div className="mt-3 rounded-[12px] border border-slate-100 bg-slate-50 px-3 py-2">
+                      <div className="mt-3 rounded-[12px] border border-warm-200 bg-warm-50 px-3 py-2">
                         <p className="text-xs font-medium text-dark">{lead.emails[0].subject}</p>
                       </div>
                     )}
@@ -558,7 +551,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           </section>
         )}
 
-        <section className="border-b border-slate-100 pb-5">
+        <section className="border-b border-warm-200 pb-5">
           <div className="mb-3">
             <h2 className="text-sm font-semibold text-dark">Add a saved prospect</h2>
             <p className="mt-1 text-xs text-muted">Pull in a prospect you already saved from Contacts or Discover.</p>
@@ -608,7 +601,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           ) : (
             <div className="space-y-3">
               {campaignLeads.map(lead => (
-                <div key={lead.campaignLeadId} className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+                <div key={lead.campaignLeadId} className="rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -650,24 +643,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         </section>
 
         </>
-      ) : isLoading && campaigns.length === 0 ? (
-        <section className="table-shell">
-          <div className="py-12 text-center text-sm text-muted">Loading campaigns...</div>
-        </section>
-      ) : !search && campaigns.length === 0 ? (
-        <section className="table-shell">
-          <EmptyState
-            icon={Megaphone}
-            title="No campaigns yet"
-            description="Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk."
-            action={
-              <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
-                <Plus size={15} /> New campaign
-              </button>
-            }
-            className="py-24"
-          />
-        </section>
       ) : (
         <>
       <section className="page-toolbar">
@@ -687,21 +662,38 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             </button>
           </div>
           <p className="text-sm text-muted shrink-0">
-            {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
+            {isLoading && campaigns.length === 0
+              ? 'Loading campaigns...'
+              : search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </section>
 
       <section className="table-shell">
-        {filtered.length === 0 ? (
+        {isLoading && campaigns.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted">
+            Loading campaigns...
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState
-            title="No campaigns match"
-            description="Try a different search term."
+            title={search ? 'No campaigns match' : 'No campaigns yet'}
+            description={
+              search
+                ? 'Clear your search to see all campaigns.'
+                : 'Campaigns group your outreach by target audience. Create one, set filters for who to find, then generate emails in bulk.'
+            }
+            action={
+              !search && (
+                <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
+                  <Plus size={15} /> Get started
+                </button>
+              )
+            }
           />
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/80">
+              <tr className="border-b border-warm-200 bg-warm-50/80">
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Name</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Filters</th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Status</th>
@@ -709,18 +701,18 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                 <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-warm-200">
               {filtered.map(c => {
                 const filters = activeFilters(c)
                 return (
                   <tr
                     key={c.id}
                     onClick={() => openCampaign(c)}
-                    className="cursor-pointer transition-colors hover:bg-slate-50/60"
+                    className="cursor-pointer transition-colors hover:bg-warm-50/60"
                   >
                     <td className="px-5 py-4">
                       <p className="font-medium text-dark">{c.name}</p>
-                      {c.subject && <p className="mt-0.5 text-xs text-muted truncate max-w-[160px] sm:max-w-[220px]">{c.subject}</p>}
+                      {c.subject && <p className="mt-0.5 text-xs text-muted truncate max-w-[220px]">{c.subject}</p>}
                     </td>
                     <td className="px-5 py-4">
                       {filters.length > 0 ? (
@@ -809,10 +801,10 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
                   form.filterIsHiring
                     ? 'border-primary bg-primary text-white'
-                    : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                    : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                 }`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-white' : 'bg-emerald-400'}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-warm-50' : 'bg-emerald-400'}`} />
                 Hiring only
               </button>
               {/* Region toggles */}
@@ -828,7 +820,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                   className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
                     form.filterRegion === value
                       ? 'border-primary bg-primary text-white'
-                      : 'border-slate-200 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                      : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                   }`}
                 >
                   {label}
@@ -854,7 +846,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                         className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
                           (form.filterTags || []).includes(namespaced)
                             ? 'border-primary bg-primary text-white'
-                            : 'border-slate-200 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                            : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
                         }`}
                       >
                         {name}
@@ -878,7 +870,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                 {(workspaceConfig.files as Array<{ id: string; fileName: string; size: number }>).map(f => {
                   const checked = (form.attachmentIds || []).includes(f.id)
                   return (
-                    <label key={f.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
+                    <label key={f.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
                       <input
                         type="checkbox"
                         checked={checked}
@@ -886,7 +878,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                           ? (form.attachmentIds || []).filter(id => id !== f.id)
                           : [...(form.attachmentIds || []), f.id]
                         )}
-                        className="rounded border-slate-300"
+                        className="rounded border-warm-300"
                       />
                       <Filter size={11} className="shrink-0 text-muted" />
                       <span className="text-sm text-dark">{f.fileName}</span>
@@ -912,7 +904,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           </div>
 
           {/* Advanced — YC batch, headcount, tone */}
-          <div className="border-t border-slate-100 pt-4">
+          <div className="border-t border-warm-200 pt-4">
             <button
               type="button"
               onClick={() => setAdvancedOpen(o => !o)}
@@ -996,7 +988,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         <div className="px-6 py-4 space-y-4">
           {/* Company / contact context */}
           {emailPreview.lead && (
-            <div className="rounded-[16px] border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-muted space-y-1">
+            <div className="rounded-[16px] border border-warm-200 bg-warm-50 px-4 py-3 text-xs text-muted space-y-1">
               <div className="flex items-center gap-4">
                 {emailPreview.lead.company?.name && (
                   <span className="flex items-center gap-1"><Building2 size={10} /> {emailPreview.lead.company.name}</span>
@@ -1009,7 +1001,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                 )}
               </div>
               {emailPreview.lead.contact && (
-                <div className="flex items-center gap-1 text-slate-600">
+                <div className="flex items-center gap-1 text-warm-600">
                   <Users size={10} />
                   {emailPreview.lead.contact.name || 'Contact'}
                   {emailPreview.lead.contact.title && ` - ${emailPreview.lead.contact.title}`}

@@ -173,11 +173,11 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
             value={form.resumeText}
             onChange={e => updateField('resumeText', e.target.value)}
             placeholder="Relevant experience, club role, recent work..."
-            className="input min-h-[140px] resize-none bg-white"
+            className="input min-h-[140px] resize-none bg-warm-50"
           />
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-warm-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
           <div className="min-w-0">
             <p className="text-sm font-medium text-dark">{statusLabel}</p>
             <p className="mt-1 text-xs text-muted">Optional: PDF, DOCX, or TXT.</p>
@@ -229,7 +229,7 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_200px]">
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-200 pb-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
                 {activeIndex + 1} of {STYLE_TESTS.length}
@@ -249,7 +249,7 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
                       ? 'w-8 bg-primary'
                       : form.styleChoices?.[test.id]
                         ? 'w-2.5 bg-primary/45'
-                        : 'w-2.5 bg-slate-300'
+                        : 'w-2.5 bg-stone-300'
                   }`}
                 />
               ))}
@@ -268,8 +268,8 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
                   aria-pressed={isSelected}
                   className={`flex min-h-[260px] flex-col rounded-2xl border px-5 py-4 text-left transition-all ${
                     isSelected
-                      ? 'border-primary bg-primary/5 shadow-[0_14px_32px_rgba(27,110,243,0.12)]'
-                      : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card'
+                      ? 'border-primary bg-primary/5 shadow-[0_14px_32px_rgba(85,122,87,0.12)]'
+                      : 'border-accent/20 bg-surface hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card'
                   }`}
                 >
                   <p className="mb-3 text-base font-semibold text-dark">{option.label}</p>
@@ -297,7 +297,7 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
           </div>
         </div>
 
-        <aside className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+        <aside className="rounded-2xl border border-warm-300 bg-warm-50 px-4 py-4">
           {profile.traits.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-1.5">
               {profile.traits.map(trait => (
@@ -316,7 +316,7 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
                   key={test.id}
                   type="button"
                   onClick={() => setActiveIndex(index)}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-slate-50"
+                  className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-warm-50"
                 >
                   <span className="text-xs font-medium text-dark">{test.label}</span>
                   <span className={`text-xs font-semibold ${pick ? 'text-primary' : 'text-muted'}`}>
@@ -358,7 +358,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
             className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               form.templateMode === 'existing'
                 ? 'bg-primary text-white'
-                : 'border border-gray-200 bg-white text-muted hover:text-dark'
+                : 'border border-warm-200 bg-warm-50 text-muted hover:text-dark'
             }`}
           >
             Saved template
@@ -369,7 +369,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
             className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               form.templateMode === 'custom'
                 ? 'bg-primary text-white'
-                : 'border border-gray-200 bg-white text-muted hover:text-dark'
+                : 'border border-warm-200 bg-warm-50 text-muted hover:text-dark'
             }`}
           >
             Write template
@@ -396,8 +396,8 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
           </div>
 
           {selectedTemplate && (
-            <div className="rounded-xl border border-slate-200 bg-white">
-              <div className="border-b border-slate-100 px-4 py-3">
+            <div className="rounded-xl border border-warm-300 bg-warm-50">
+              <div className="border-b border-warm-200 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
                 <p className="mt-1 text-sm font-medium text-dark">
                   {fillVariables(selectedTemplate.subject, previewData)}
@@ -729,7 +729,7 @@ export default function OnboardingScreen({
                 }`}
               >
                 <span className={`h-2.5 rounded-full transition-all ${
-                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-slate-300 group-hover:bg-slate-400'
+                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-stone-300 group-hover:bg-stone-400'
                 }`} />
                 <span className={`hidden pl-2 pr-2 text-xs font-medium sm:inline ${
                   index === stepIndex ? 'text-primary' : 'text-muted'
@@ -749,7 +749,7 @@ export default function OnboardingScreen({
               type="button"
               onClick={prevStep}
               disabled={isFirstStep || isSaving}
-              className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-white hover:shadow-[0_16px_32px_rgba(15,23,42,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
+              className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(44,31,16,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-warm-50 hover:shadow-[0_16px_32px_rgba(44,31,16,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-muted">
                 <ArrowLeft size={14} />

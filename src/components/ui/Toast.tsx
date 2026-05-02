@@ -14,7 +14,7 @@ const styles = {
   },
   info: {
     icon: Info,
-    className: 'border-blue-200 bg-blue-50 text-blue-900',
+    className: 'border-primary/20 bg-primary/8 text-dark',
     iconClassName: 'text-primary',
   },
 }

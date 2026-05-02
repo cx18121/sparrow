@@ -672,7 +672,7 @@ function AppShell() {
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-slate-100 bg-white/88 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-warm-200 bg-warm-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="min-w-0">
             <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
               {activeTabItem.label}

@@ -54,7 +54,7 @@ function ToolbarButton({ onClick, active, title, children }) {
       onMouseDown={(e) => { e.preventDefault(); onClick() }}
       title={title}
       className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-        active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-slate-100/70 hover:text-dark'
+        active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-warm-100/70 hover:text-dark'
       }`}
     >
       {children}
@@ -111,8 +111,8 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   if (!editor) return null
 
   return (
-    <div className="tiptap-editor overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-card">
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+    <div className="tiptap-editor overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-card">
+      <div className="flex flex-wrap items-center gap-1 border-b border-warm-200 bg-warm-50/80 px-3 py-2">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={13} />
         </ToolbarButton>
@@ -122,18 +122,18 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
         <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
           <UnderlineIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-slate-100 mx-1" />
+        <div className="w-px h-4 bg-warm-100 mx-1" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
           <List size={13} />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
           <ListOrdered size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-slate-100 mx-1" />
+        <div className="w-px h-4 bg-warm-100 mx-1" />
         <ToolbarButton onClick={openLink} active={editor.isActive('link') || linkOpen} title="Add link">
           <LinkIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-slate-100 mx-1 ml-auto" />
+        <div className="w-px h-4 bg-warm-100 mx-1 ml-auto" />
         <div className="flex items-center gap-1">
           {VARIABLES.map(v => (
             <button
@@ -149,7 +149,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
       </div>
 
       {linkOpen && (
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-warm-200 bg-warm-50 px-3 py-2">
           <LinkIcon size={12} className="shrink-0 text-muted" />
           <input
             ref={linkInputRef}
@@ -161,7 +161,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
               if (e.key === 'Escape') cancelLink()
             }}
             placeholder="https://..."
-            className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-dark outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+            className="flex-1 rounded-xl border border-warm-300 px-3 py-1.5 text-xs text-dark outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
           />
           <button
             type="button"
@@ -173,7 +173,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
           <button
             type="button"
             onMouseDown={e => { e.preventDefault(); cancelLink() }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-slate-100 hover:text-dark"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-warm-100 hover:text-dark"
           >
             <X size={12} />
           </button>
@@ -344,8 +344,8 @@ export default function TemplatesTab({ workspaceConfig }) {
                   onClick={() => { setSelectedId(t.id); setView('edit') }}
                   className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
                     selectedId === t.id
-                      ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
-                      : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
+                      ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(85,122,87,0.08)]'
+                      : 'border-accent/15 bg-surface hover:-translate-y-0.5 hover:border-accent/30'
                   }`}
                 >
                   <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
@@ -372,8 +372,8 @@ export default function TemplatesTab({ workspaceConfig }) {
                     onClick={() => { setSelectedId(t.id); setView('preview') }}
                     className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
                       selectedId === t.id
-                        ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
-                        : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
+                        ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(85,122,87,0.08)]'
+                        : 'border-accent/15 bg-surface hover:-translate-y-0.5 hover:border-accent/30'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -398,7 +398,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                     <div className="flex items-center gap-2">
                       <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
                       {selectedIsLibrary && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-muted">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-warm-100 px-2.5 py-1 text-[11px] font-medium text-muted">
                           <Library size={10} /> Library
                         </span>
                       )}
@@ -450,7 +450,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                         <button onClick={() => openRename(selected)} className="btn-ghost text-xs">
                           <Edit3 size={13} /> Rename
                         </button>
-                        <div className="h-4 w-px bg-slate-200 mx-1" />
+                        <div className="h-4 w-px bg-warm-200 mx-1" />
                         <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500">
                           <Trash2 size={13} /> Delete
                         </button>
@@ -484,7 +484,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                 </div>
               ) : (
                 <div className="card overflow-hidden">
-                  <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4">
+                  <div className="border-b border-warm-200 bg-warm-50/80 px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
                     <p className="mt-2 text-sm font-medium text-dark">
                       {fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}
@@ -494,7 +494,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                     className="template-preview prose prose-sm max-w-none p-6 text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
-                  <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-4 text-xs text-muted">
+                  <div className="border-t border-warm-200 bg-warm-50/80 px-6 py-4 text-xs text-muted">
                     Previewing as: {previewData.first_name} {previewData.last_name}, {previewData.company} ({previewData.role})
                   </div>
                 </div>

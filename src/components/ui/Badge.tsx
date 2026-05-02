@@ -10,10 +10,10 @@ const variants = {
   completed:    'text-primary',
   bounced:      'text-red-500',
   unsubscribed: 'text-muted',
-  shared:       'text-purple-600',
-  personal:     'text-sky-600',
+  shared:       'text-accent-600',
+  personal:     'text-primary',
   admin:        'text-primary',
-  editor:       'text-teal-600',
+  editor:       'text-primary-400',
   viewer:       'text-muted',
 }
 
@@ -23,15 +23,15 @@ const dots = {
   sent:         'bg-emerald-500',
   paused:       'bg-amber-500',
   failed:       'bg-red-500',
-  draft:        'bg-slate-300',
+  draft:        'bg-stone-300',
   completed:    'bg-primary',
   bounced:      'bg-red-500',
-  unsubscribed: 'bg-slate-300',
-  shared:       'bg-purple-500',
-  personal:     'bg-sky-500',
+  unsubscribed: 'bg-stone-300',
+  shared:       'bg-accent-400',
+  personal:     'bg-primary',
   admin:        'bg-primary',
-  editor:       'bg-teal-500',
-  viewer:       'bg-slate-300',
+  editor:       'bg-primary-300',
+  viewer:       'bg-stone-300',
 }
 
 export default function Badge({ children, variant = 'draft', className = '' }) {
