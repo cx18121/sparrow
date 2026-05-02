@@ -79,7 +79,7 @@ model UserLead {
   contactId      String?
   contact        Contact?   @relation(fields: [contactId], references: [id])
   apolloPersonId String?
-  status         LeadStatus @default(NEW)
+  status         LeadStatus @default(SAVED)
   notes          String?    @db.Text
   addedAt        DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
@@ -94,7 +94,6 @@ model UserLead {
 }
 
 enum LeadStatus {
-  NEW
   SAVED
   EMAILED
   NO_RESPONSE

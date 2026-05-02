@@ -15,10 +15,9 @@ import { format } from 'date-fns'
 import { generateEmail, createEmail } from '../../lib/api'
 
 const PAGE_SIZE = 10
-const STATUSES = ['NEW', 'SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
+const STATUSES = ['SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
 
 const STATUS_STYLE = {
-  NEW:         VARIANT_STYLES.neutral,
   SAVED:       VARIANT_STYLES.success,
   EMAILED:     VARIANT_STYLES.info,
   NO_RESPONSE: VARIANT_STYLES.warning,
@@ -505,7 +504,7 @@ export default function ContactsTab({
                     <select
                       value={row.status}
                       onChange={e => changeStatus(row, e.target.value)}
-                      className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.NEW}`}
+                      className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.SAVED}`}
                     >
                       {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>

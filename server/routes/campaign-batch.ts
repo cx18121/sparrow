@@ -148,7 +148,7 @@ async function generateBatch(req: VercelRequest, res: VercelResponse, userId: st
           contactId,
           // Store apolloPersonId so generate-email can auto-reveal if contact email is missing
           apolloPersonId: apolloPersonId ?? undefined,
-          status: "NEW",
+          status: "SAVED",
           notes: `Added via campaign: ${campaign.name}`,
         },
       });

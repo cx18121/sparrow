@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Plus, Trash2, Check, Mail,
+  Plus, Check,
   Building2, Briefcase, Target, ArrowLeft, CheckCircle2, Circle, RefreshCw, Loader2,
 } from 'lucide-react'
-import { v4 as uuidv4 } from 'uuid'
-import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
@@ -289,61 +287,6 @@ function ProviderKeysSection({ workspaceConfig, profile, onRefreshProfile, onSav
   )
 }
 
-function TeamSection() {
-  const [members, setMembers] = useState([
-    { id: uuidv4(), email: 'you@example.com', role: 'admin', status: 'active' },
-  ])
-  const [invite, setInvite] = useState({ email: '', role: 'editor' })
-
-  const sendInvite = () => {
-    if (!invite.email.trim()) return
-    setMembers(prev => [...prev, { id: uuidv4(), email: invite.email.trim(), role: invite.role, status: 'invited' }])
-    setInvite({ email: '', role: 'editor' })
-  }
-
-  return (
-    <Section title="Team Members">
-      <div className="flex gap-2">
-        <input
-          type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))}
-          onKeyDown={e => e.key === 'Enter' && sendInvite()}
-          placeholder="colleague@example.com" className="input flex-1"
-        />
-        <select value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))} className="select w-32">
-          <option value="admin">Admin</option>
-          <option value="editor">Editor</option>
-          <option value="viewer">Viewer</option>
-        </select>
-        <button onClick={sendInvite} disabled={!invite.email.trim()} className="btn-primary whitespace-nowrap">
-          <Mail size={14} /> Invite
-        </button>
-      </div>
-      <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 overflow-hidden">
-        {members.map(m => (
-          <div key={m.id} className="flex items-center justify-between px-4 py-3 bg-white">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-semibold">
-                {m.email[0].toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-dark">{m.email}</p>
-                {m.status === 'invited' && <p className="text-xs text-amber-600">Invitation pending</p>}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={m.role}>{m.role}</Badge>
-              {m.status !== 'active' || m.role !== 'admin' ? (
-                <button onClick={() => setMembers(prev => prev.filter(x => x.id !== m.id))} className="btn-ghost px-2 py-1 hover:text-red-500">
-                  <Trash2 size={12} />
-                </button>
-              ) : <div className="w-7" />}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  )
-}
 
 function SendingLimitsSection({ workspaceConfig, onSave }) {
   const [form, setForm] = useState(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })

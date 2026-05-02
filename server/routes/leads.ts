@@ -4,7 +4,7 @@ import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { revealAndUpsertContact } from "../lib/apollo-enrichment.js";
 
-const ALLOWED_STATUSES = ["NEW", "SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"] as const;
+const ALLOWED_STATUSES = ["SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"] as const;
 type LeadStatus = (typeof ALLOWED_STATUSES)[number];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
