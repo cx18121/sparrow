@@ -285,7 +285,6 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
       <section className="page-toolbar">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="page-eyebrow">Dashboard</p>
             {firstName && (
               <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.04em] text-dark">
                 Hi, {firstName}

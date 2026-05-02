@@ -368,7 +368,6 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
       <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="page-eyebrow">Saved leads</h2>
           <p className="page-subtitle">Manage and email saved leads.</p>
         </div>
         <div className="flex items-center gap-2">

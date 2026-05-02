@@ -391,7 +391,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           </button>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="page-eyebrow">Campaign</p>
               <h1 className="mt-2 font-display text-3xl font-semibold text-dark">{detailCampaign.name}</h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge variant={detailCampaign.status}>{detailCampaign.status}</Badge>
@@ -781,101 +780,107 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
 
       {/* Create / Edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="lg">
-        <div className="px-6 py-4 space-y-5">
+        <div className="px-6 py-5 space-y-6">
+
           {/* Basic info */}
           <div className="space-y-3">
             <div>
               <label className="label">Campaign name *</label>
               <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. Spring 2026 YC outreach" className="input" required />
             </div>
-            <div>
-              <label className="label">Template</label>
-              <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-                <option value="">Select template...</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            {editing && (
+            <div className={editing ? 'grid grid-cols-2 gap-3' : ''}>
               <div>
-                <label className="label">Status</label>
-                <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="completed">Completed</option>
+                <label className="label">Template</label>
+                <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+                  <option value="">Select template...</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
-            )}
+              {editing && (
+                <div>
+                  <label className="label">Status</label>
+                  <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Audience filters — pill toggles matching Discover */}
-          <div className="space-y-3">
-            <label className="label">Audience filters</label>
-            <div className="flex flex-wrap gap-2">
-              {/* Hiring toggle */}
-              <button
-                type="button"
-                onClick={() => field('filterIsHiring', !form.filterIsHiring)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
-                  form.filterIsHiring
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-warm-50' : 'bg-emerald-400'}`} />
-                Hiring only
-              </button>
-              {/* Region toggles */}
-              {([
-                { value: '__US__', label: 'US' },
-                { value: '__INTL__', label: 'International' },
-                { value: '__REMOTE__', label: 'Remote' },
-              ] as const).map(({ value, label }) => (
+          {/* Audience filters */}
+          <div>
+            <label className="label mb-2">Audience filters</label>
+            <div className="rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3.5 space-y-3">
+              {/* Hiring + region */}
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={value}
                   type="button"
-                  onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
-                    form.filterRegion === value
+                  onClick={() => field('filterIsHiring', !form.filterIsHiring)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                    form.filterIsHiring
                       ? 'border-primary bg-primary text-white'
-                      : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
+                      : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
                   }`}
                 >
-                  {label}
+                  <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-white/70' : 'bg-emerald-400'}`} />
+                  Hiring only
                 </button>
-              ))}
-            </div>
+                {([
+                  { value: '__US__', label: 'US' },
+                  { value: '__INTL__', label: 'International' },
+                  { value: '__REMOTE__', label: 'Remote' },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                      form.filterRegion === value
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Tags — always visible, same layout as Discover */}
-            <div className="space-y-2 pt-1">
-              {CAMPAIGN_NS.map(ns => {
-                const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
-                if (tags.length < 2) return null
-                return (
-                  <div key={ns} className="flex flex-wrap items-center gap-2">
-                    <span className="w-14 shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">
-                      {NS_LABELS[ns]}
-                    </span>
-                    {tags.map(({ name, namespaced }) => (
-                      <button
-                        key={namespaced}
-                        type="button"
-                        onClick={() => toggleFilterTag(namespaced)}
-                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
-                          (form.filterTags || []).includes(namespaced)
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                )
-              })}
-              {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
-                <p className="text-xs text-muted">Tags load once companies are ingested.</p>
-              )}
+              {/* Tag groups */}
+              <div className="space-y-2.5 pt-0.5">
+                {CAMPAIGN_NS.map(ns => {
+                  const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
+                  if (tags.length < 2) return null
+                  return (
+                    <div key={ns} className="flex items-start gap-3">
+                      <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/50">
+                        {NS_LABELS[ns]}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tags.map(({ name, namespaced }) => (
+                          <button
+                            key={namespaced}
+                            type="button"
+                            onClick={() => toggleFilterTag(namespaced)}
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                              (form.filterTags || []).includes(namespaced)
+                                ? 'border-primary bg-primary text-white'
+                                : 'border-warm-300 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                            }`}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+                {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
+                  <p className="text-xs text-muted">Tags load once companies are ingested.</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -908,20 +913,20 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           )}
 
           {/* Batch size */}
-          <div>
-            <label className="label">Batch size</label>
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <div className="shrink-0">
+              <label className="label">Batch size</label>
               <input
                 type="number" min="1" max="50"
                 value={form.batchSize}
                 onChange={e => field('batchSize', e.target.value)}
-                className="input w-28"
+                className="input w-24"
               />
-              <p className="text-xs text-muted">Prospects pulled each time you click "Find matches" (max 50).</p>
             </div>
+            <p className="mt-4 text-xs text-muted">Prospects pulled each time you click "Find matches" (max 50).</p>
           </div>
 
-          {/* Advanced — YC batch, headcount, tone */}
+          {/* Advanced */}
           <div className="border-t border-warm-200 pt-4">
             <button
               type="button"

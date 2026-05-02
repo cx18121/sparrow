@@ -444,7 +444,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
         </div>
       )}
       <div className="mb-5">
-        <p className="page-eyebrow">Lead Discovery</p>
         <p className="mt-1 text-sm leading-6 text-muted">Browse companies and find contacts to add to your pipeline.</p>
       </div>
 
