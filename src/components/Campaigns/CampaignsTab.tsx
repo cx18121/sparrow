@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
   Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
-  Filter, RefreshCw, ArrowLeft, X,
+  Filter, RefreshCw, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
@@ -366,41 +366,47 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       {detailCampaign ? (
         <>
         <section className="page-toolbar">
-          <button type="button" onClick={() => exitCampaign?.()} className="btn-ghost mb-4 px-2">
-            <ArrowLeft size={14} /> All campaigns
-          </button>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h1 className="mt-2 font-display text-3xl font-semibold text-dark">{detailCampaign.name}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="page-eyebrow">Campaign</p>
+              <h1 className="mt-1 font-display text-3xl font-semibold tracking-[-0.02em] text-dark">
+                {detailCampaign.name}
+              </h1>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                 <Badge variant={detailCampaign.status}>{detailCampaign.status}</Badge>
-                <span className="text-sm text-muted">{campaignLeads.length} prospect{campaignLeads.length === 1 ? '' : 's'}</span>
-                {detailCampaign.template?.name && <span className="text-sm text-muted">Template: {detailCampaign.template.name}</span>}
+                <span className="text-xs text-muted">
+                  {campaignLeads.length} prospect{campaignLeads.length === 1 ? '' : 's'}
+                </span>
+                {detailCampaign.template?.name && (
+                  <>
+                    <span className="select-none text-muted/40">·</span>
+                    <span className="text-xs text-muted">{detailCampaign.template.name}</span>
+                  </>
+                )}
+                {detailFilters.length > 0 && (
+                  <>
+                    <span className="select-none text-muted/40">·</span>
+                    {detailFilters.map(f => (
+                      <Pill key={f} variant="neutral" className="px-2 py-0.5 text-[11px]">{f}</Pill>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button type="button" onClick={() => openEdit(detailCampaign)} className="btn-secondary text-xs">
-                <Edit2 size={13} /> Edit settings
+                <Edit2 size={13} /> Edit
               </button>
               {onNavigate && (
                 <button type="button" onClick={() => onNavigate('leads')} className="btn-secondary text-xs">
-                  <Search size={13} /> Browse in Discover
+                  <Search size={13} /> Discover
                 </button>
               )}
               <button type="button" onClick={() => openBatchModal(detailCampaign)} className="btn-primary text-xs">
-                <Zap size={13} /> Find matching prospects
+                <Zap size={13} /> Find prospects
               </button>
             </div>
           </div>
-          {detailFilters.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {detailFilters.map(filter => (
-                <Pill key={filter} icon={Filter} variant="neutral" className="text-xs px-2 py-1">
-                  {filter}
-                </Pill>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Inline batch panel */}
