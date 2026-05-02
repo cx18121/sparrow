@@ -120,6 +120,8 @@ function AppShell() {
   const [templates, setTemplates] = useState([])
   const [dataLoaded, setDataLoaded] = useState(false)
   const [hasResourceCache, setHasResourceCache] = useState(false)
+  const [serverProfile, setServerProfile] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(true)
 
   const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
   const activeTab = activeTabItem.id
@@ -138,6 +140,8 @@ function AppShell() {
       }
       setWorkspaceConfig(createWorkspaceConfig({ user: null, templates }))
       setOnboardingState({ loaded: true, completed: false, data: null })
+      setServerProfile(null)
+      setProfileLoading(true)
       return
     }
 
@@ -181,6 +185,8 @@ function AppShell() {
     fetchProfile()
       .then((res) => {
         if (cancelled) return
+        setServerProfile(res?.profile ?? null)
+        setProfileLoading(false)
         if (!res?.profile) {
           setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
           return
@@ -224,6 +230,7 @@ function AppShell() {
       .catch((err) => {
         console.warn('Profile fetch failed, using local copy', err)
         if (!cancelled) {
+          setProfileLoading(false)
           setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
         }
       })
@@ -646,6 +653,8 @@ function AppShell() {
                   templates={templates}
                   workspaceConfig={workspaceConfig}
                   dataLoading={!dataLoaded && !hasResourceCache}
+                  profile={serverProfile}
+                  profileLoading={profileLoading}
                   onNavigate={handleTabChange}
                   onConnectGoogle={connectGoogle}
                 />

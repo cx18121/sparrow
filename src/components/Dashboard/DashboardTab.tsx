@@ -192,7 +192,10 @@ export default function DashboardTab({
   ]
 
   const completedSetup = setupItems.filter(item => item.done).length
-  const setupComplete = completedSetup === setupItems.length
+  // Don't evaluate until profile has loaded — avoids the checklist flickering
+  // in as "incomplete" then immediately disappearing once hasGoogle/hasClaude resolve.
+  const setupReady = !profileState.loading
+  const setupComplete = setupReady && completedSetup === setupItems.length
   const firstIncompleteIndex = setupItems.findIndex(item => !item.done)
 
   const sentActivity = useMemo(() =>
@@ -255,7 +258,7 @@ export default function DashboardTab({
         </Banner>
       )}
 
-      <div className={`grid gap-6 ${setupComplete ? '' : 'xl:grid-cols-[minmax(0,1fr)_360px]'}`}>
+      <div className={`grid gap-6 ${setupReady && !setupComplete ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
         <section className="space-y-6">
           {/* Stat strip — inline, no cards, no icon chips, divider rhythm */}
           <div className="grid grid-cols-2 divide-x divide-slate-100 border-y border-slate-100 md:grid-cols-4">
@@ -343,7 +346,7 @@ export default function DashboardTab({
           </section>
         </section>
 
-        {!setupComplete && (
+        {setupReady && !setupComplete && (
           <aside>
             <section>
               <div className="flex items-baseline justify-between gap-3">
