@@ -93,3 +93,16 @@ CREATE POLICY "No client access to DailyQuota"
   USING (false)
   WITH CHECK (false);
 
+-- Prisma-managed public tables are accessed through server-side API routes.
+-- Keep RLS enabled as defense in depth so anon/authenticated Data API clients
+-- cannot access rows unless explicit policies are added later.
+ALTER TABLE public."Campaign" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."CampaignLead" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."CampaignSeenCompany" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."Company" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."Contact" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."CustomContact" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."DiscoverySeenCompany" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."Email" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."Template" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."UserLead" ENABLE ROW LEVEL SECURITY;
