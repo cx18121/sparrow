@@ -7,13 +7,14 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
-  List, ListOrdered, Eye, Edit3, Search, Copy, Save,
+  List, ListOrdered, Eye, Edit3, Search, Copy, Save, Loader2, Check, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
+
 const sampleContactData = { first_name: 'Alex', last_name: 'Chen', company: 'Momentum AI', role: 'Co-founder & CEO', sender_name: 'Your Name' }
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
@@ -48,6 +49,10 @@ function ToolbarButton({ onClick, active, title, children }) {
 }
 
 function RichEditor({ content, onChange, placeholder = 'Write your email…' }) {
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const linkInputRef = useRef(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -66,16 +71,32 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
     editor?.commands.insertContent(v)
   }
 
-  const setLink = () => {
-    const url = window.prompt('URL:')
-    if (!url) return
-    editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  const openLink = () => {
+    const existing = editor?.getAttributes('link').href || ''
+    setLinkUrl(existing)
+    setLinkOpen(true)
+    setTimeout(() => linkInputRef.current?.focus(), 0)
+  }
+
+  const applyLink = () => {
+    if (linkUrl.trim()) {
+      editor?.chain().focus().extendMarkRange('link').setLink({ href: linkUrl.trim() }).run()
+    } else {
+      editor?.chain().focus().extendMarkRange('link').unsetLink().run()
+    }
+    setLinkOpen(false)
+    setLinkUrl('')
+  }
+
+  const cancelLink = () => {
+    setLinkOpen(false)
+    setLinkUrl('')
   }
 
   if (!editor) return null
 
   return (
-    <div className="tiptap-editor overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-card">
+    <div className="tiptap-editor overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-card">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={13} />
@@ -86,18 +107,18 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
         <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
           <UnderlineIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <div className="w-px h-4 bg-slate-100 mx-1" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
           <List size={13} />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
           <ListOrdered size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-gray-200 mx-1" />
-        <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Add link">
+        <div className="w-px h-4 bg-slate-100 mx-1" />
+        <ToolbarButton onClick={openLink} active={editor.isActive('link') || linkOpen} title="Add link">
           <LinkIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-gray-200 mx-1 ml-auto" />
+        <div className="w-px h-4 bg-slate-100 mx-1 ml-auto" />
         <div className="flex items-center gap-1">
           {VARIABLES.map(v => (
             <button
@@ -111,6 +132,39 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
           ))}
         </div>
       </div>
+
+      {linkOpen && (
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+          <LinkIcon size={12} className="shrink-0 text-muted" />
+          <input
+            ref={linkInputRef}
+            type="url"
+            value={linkUrl}
+            onChange={e => setLinkUrl(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); applyLink() }
+              if (e.key === 'Escape') cancelLink()
+            }}
+            placeholder="https://..."
+            className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-dark outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+          />
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); applyLink() }}
+            className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white transition-all hover:brightness-110"
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); cancelLink() }}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-slate-100 hover:text-dark"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       <EditorContent editor={editor} />
     </div>
   )
@@ -122,19 +176,19 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
     ? workspaceConfig.templateId
     : templates[0]?.id || null
   const [selectedId, setSelectedId] = useState(defaultTemplateId)
-  const [view, setView] = useState('edit') // 'edit' | 'preview'
+  const [view, setView] = useState('edit')
   const [editModal, setEditModal] = useState(false)
-  const [form, setForm] = useState({ name: '', subject: '', body: '' })
+  const [form, setForm] = useState({ name: '', subject: '' })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [savingExplicit, setSavingExplicit] = useState(false)
   const [saved, setSaved] = useState(false)
-  // Local draft state for the inline editor — we debounce writes so that
-  // subject/body keystrokes don't fire a PATCH per character.
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
   const [toast, setToast] = useState(null)
   const flushTimerRef = useRef(null)
   const draftRef = useRef(draft)
   const draftDirtyRef = useRef(false)
+
   const previewData = useMemo(() => ({
     ...sampleContactData,
     sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
@@ -145,12 +199,11 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
   }, [draft])
 
   useEffect(() => {
-    if (!selectedId || !templates.some(template => template.id === selectedId)) {
+    if (!selectedId || !templates.some(t => t.id === selectedId)) {
       setSelectedId(defaultTemplateId)
     }
   }, [defaultTemplateId, selectedId, templates])
 
-  // Sync draft with the selected template when the selection changes.
   useEffect(() => {
     const selectedTpl = templates.find(t => t.id === selectedId)
     if (!selectedTpl) {
@@ -173,11 +226,11 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
       flushTimerRef.current = null
     }
     const next = override || draftRef.current
-    if (!next.id) return
+    if (!next.id) return Promise.resolve()
     const selectedTpl = templates.find(t => t.id === next.id)
-    if (!selectedTpl) return
-    if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return
-    onUpdate({ id: next.id, subject: next.subject, body: next.body })
+    if (!selectedTpl) return Promise.resolve()
+    if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return Promise.resolve()
+    return onUpdate({ id: next.id, subject: next.subject, body: next.body })
       .then(() => {
         const latest = draftRef.current
         if (latest.id === next.id && latest.subject === next.subject && latest.body === next.body) {
@@ -196,33 +249,43 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
     flushTimerRef.current = setTimeout(() => flushDraft(next), 500)
   }
 
+  const saveExplicit = async () => {
+    setSavingExplicit(true)
+    try {
+      await flushDraft()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSavingExplicit(false)
+    }
+  }
+
   const filtered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) || (t.subject || '').toLowerCase().includes(search.toLowerCase())
   )
 
   const selected = templates.find(t => t.id === selectedId)
-  const defaultTemplate = templates.find(template => template.id === workspaceConfig?.templateId) || null
 
   const openCreate = () => {
     setEditingId(null)
-    setForm({ name: '', subject: '', body: '' })
+    setForm({ name: '', subject: '' })
     setEditModal(true)
   }
 
-  const openEdit = (t) => {
+  const openRename = (t) => {
     setEditingId(t.id)
-    setForm({ name: t.name, subject: t.subject, body: t.body })
+    setForm({ name: t.name, subject: '' })
     setEditModal(true)
   }
 
-  const save = async () => {
+  const saveModal = async () => {
     if (editingId) {
-      await onUpdate({ id: editingId, name: form.name, subject: form.subject, body: form.body })
+      await onUpdate({ id: editingId, name: form.name })
     } else {
       const created = await onCreate({
         name: form.name,
         subject: form.subject || '(no subject)',
-        body: form.body || '<p></p>',
+        body: '<p></p>',
       })
       if (created?.id) setSelectedId(created.id)
     }
@@ -263,9 +326,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                     : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
-                </div>
+                <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
                 <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
               </button>
             ))}
@@ -281,17 +342,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
           ) : (
             <>
               <div className="page-toolbar">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
                     {workspaceConfig?.templateId === selected.id && (
-                    <div className="mt-2">
-                      <Badge variant="draft">Default template</Badge>
-                    </div>
-                  )}
-                    <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-                      Toggle between editing and previewing to validate tone, variables, and sample-data substitution before this template ships.
-                    </p>
+                      <div className="mt-2">
+                        <Badge variant="draft">Default template</Badge>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -312,16 +370,24 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                       </button>
                     </div>
                     {view === 'edit' && (
-                      <button
-                        onClick={() => { flushDraft(); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
-                        className={`btn-secondary text-xs ${saved ? 'text-green-600' : ''}`}
-                      >
-                        {saved ? <>Saved ✓</> : <><Save size={13} /> Save</>}
+                      <button onClick={saveExplicit} disabled={savingExplicit} className="btn-primary text-xs">
+                        {savingExplicit
+                          ? <><Loader2 size={13} className="animate-spin" /> Saving</>
+                          : saved
+                          ? <><Check size={13} /> Saved</>
+                          : <><Save size={13} /> Save</>}
                       </button>
                     )}
-                    <button onClick={() => duplicate(selected)} className="btn-secondary text-xs"><Copy size={13} /> Duplicate</button>
-                    <button onClick={() => openEdit(selected)} className="btn-secondary text-xs"><Edit3 size={13} /> Edit info</button>
-                    <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500"><Trash2 size={13} /> Delete</button>
+                    <button onClick={() => duplicate(selected)} className="btn-ghost text-xs">
+                      <Copy size={13} /> Duplicate
+                    </button>
+                    <button onClick={() => openRename(selected)} className="btn-ghost text-xs">
+                      <Edit3 size={13} /> Rename
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 mx-1" />
+                    <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500">
+                      <Trash2 size={13} /> Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -361,7 +427,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                       key={selected.id}
                       content={selected.body}
                       onChange={body => scheduleFlush({ ...draft, id: selected.id, body })}
-                      placeholder="Write your email here… Use the variable buttons above to insert dynamic fields."
+                      placeholder="Write your email here… Use the variable buttons to insert recipient details."
                     />
                   </div>
                 </div>
@@ -369,14 +435,16 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                 <div className="card overflow-hidden">
                   <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
-                    <p className="mt-2 text-sm font-medium text-dark">{fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}</p>
+                    <p className="mt-2 text-sm font-medium text-dark">
+                      {fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}
+                    </p>
                   </div>
                   <div
                     className="template-preview prose prose-sm max-w-none p-6 text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                   <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-4 text-xs text-muted">
-                    Preview uses: first_name="{previewData.first_name}", company="{previewData.company}", role="{previewData.role}"
+                    Previewing as: {previewData.first_name} {previewData.last_name}, {previewData.company} ({previewData.role})
                   </div>
                 </div>
               )}
@@ -385,20 +453,38 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
         </section>
       </div>
 
-      {/* Create/Edit info modal */}
-      <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Edit template info' : 'New template'} size="sm">
+      <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Rename template' : 'New template'} size="sm">
         <div className="px-6 py-5 space-y-4">
-          <div><label className="label">Template name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Cold Intro — Startup Founder" className="input" /></div>
           <div>
-            <label className="label">Subject line</label>
-            <input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Quick question about {{company}}" className="input" />
-            <p className="mt-2 text-xs text-muted">
-              Use <span className="font-mono text-primary">{'{{company}}'}</span> for the company name, for example: Quick question about <span className="font-mono text-primary">{'{{company}}'}</span>
-            </p>
+            <label className="label">Template name *</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && form.name && saveModal()}
+              placeholder="e.g. Cold Intro — Startup Founder"
+              className="input"
+              autoFocus
+            />
           </div>
+          {!editingId && (
+            <div>
+              <label className="label">Subject line</label>
+              <input
+                value={form.subject}
+                onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+                placeholder="e.g. Quick question about {{company}}"
+                className="input"
+              />
+              <p className="mt-2 text-xs text-muted">
+                Use <span className="font-mono text-primary">{'{{company}}'}</span>, <span className="font-mono text-primary">{'{{first_name}}'}</span>, etc. to personalize. You can change this later.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setEditModal(false)} className="btn-secondary">Cancel</button>
-            <button onClick={save} disabled={!form.name} className="btn-primary">{editingId ? 'Save' : 'Create template'}</button>
+            <button onClick={saveModal} disabled={!form.name.trim()} className="btn-primary">
+              {editingId ? 'Rename' : 'Create template'}
+            </button>
           </div>
         </div>
       </Modal>
