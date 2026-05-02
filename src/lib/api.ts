@@ -81,9 +81,11 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   }
 
   if (path === '/apollo-search' || path === '/leads') {
-    if (lower.includes('apollo') || lower.includes('api key')) {
+    if (lower.includes('apollo_api_key') || lower.includes('not configured')) {
       return 'Lead search is not configured yet. Add or check the Apollo key before searching contacts.'
     }
+    if (lower.includes('rate limit') || status === 429) return 'Apollo rate limit reached. Wait a moment and try again.'
+    if (lower.includes('apollo api error') || lower.includes('apollo search failed')) return serverError || 'Apollo search failed. Try again.'
   }
 
   if (path === '/profile') {
