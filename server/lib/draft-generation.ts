@@ -101,7 +101,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   let userTemplate: { subject: string; body: string } | null = null;
   if (templateId) {
     const t = await prisma.template.findUnique({ where: { id: templateId } });
-    if (!t || (t.userId !== userId && !t.isShared)) throw new GenerationError("Template not found", 404);
+    if (!t || (t.userId !== userId && !t.isShared)) throw new GenerationError("Template not found. Select a different template and try again.", 404);
     userTemplate = { subject: t.subject, body: t.body };
   }
 

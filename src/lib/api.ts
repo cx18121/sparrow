@@ -76,6 +76,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
     if (lower.includes('claude api key') || lower.includes('anthropic')) {
       return 'Add a Claude API key in Settings before generating emails.'
     }
+    if (status === 404 && lower.includes('template')) return 'The selected template no longer exists. Choose a different template and try again.'
     if (status === 404) return 'We could not find that contact. Refresh Contacts and try again.'
   }
 

@@ -104,7 +104,8 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
 
   const openGenerate = (row) => {
     setGenerateTarget(row)
-    setGenerateTemplateId(workspaceConfig?.templateId || '')
+    const preferredId = workspaceConfig?.templateId || ''
+    setGenerateTemplateId(templates.some(t => t.id === preferredId) ? preferredId : '')
     setGenerateTone('')
     setIncludeResumeBullet(false)
     setGeneratedSubject('')
@@ -286,17 +287,13 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
       .catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
   }
 
-  const buildGeneratePayload = (row) => row._custom
-    ? {
-      customContactId: row.id,
-      templateId: workspaceConfig?.templateId || undefined,
-      includeResumeBullet: false,
-    }
-    : {
-      userLeadId: row.id,
-      templateId: workspaceConfig?.templateId || undefined,
-      includeResumeBullet: false,
-    }
+  const buildGeneratePayload = (row) => {
+    const preferredId = workspaceConfig?.templateId || undefined
+    const templateId = preferredId && templates.some(t => t.id === preferredId) ? preferredId : undefined
+    return row._custom
+      ? { customContactId: row.id, templateId, includeResumeBullet: false }
+      : { userLeadId: row.id, templateId, includeResumeBullet: false }
+  }
 
   const bulkGenerateDrafts = async () => {
     if (bulkGenerating || selectedEligibleRows.length === 0) return
