@@ -103,14 +103,15 @@ enum LeadStatus {
 }
 
 model CustomContact {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   userId      String
   name        String?
   email       String?
   title       String?
   companyName String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      LeadStatus @default(SAVED)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   emails Email[]
 
@@ -129,6 +130,7 @@ model Email {
   subject         String?
   body            String?        @db.Text
   status          String         @default("draft")
+  attachmentIds   Json           @default("[]")
   sentAt          DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -175,6 +177,7 @@ model Campaign {
   batchSize          Int            @default(10)
   currentBatch       Int            @default(0)
   tone               String?
+  attachmentIds      Json           @default("[]")
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 

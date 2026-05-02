@@ -26,10 +26,23 @@ const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
 type EmailStatus = (typeof ALLOWED_EMAIL_STATUSES)[number];
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { userLeadId, status, limit = "50", cursor } = req.query as Record<
+  const { userLeadId, status, limit = "50", cursor, countToday } = req.query as Record<
     string,
     string | undefined
   >;
+
+  if (countToday === "true") {
+    const startOfToday = new Date()
+    startOfToday.setUTCHours(0, 0, 0, 0)
+    const count = await prisma.email.count({
+      where: {
+        status: "sent",
+        sentAt: { gte: startOfToday },
+        OR: [{ userLead: { userId } }, { customContact: { userId } }],
+      },
+    })
+    return res.status(200).json({ count })
+  }
 
   if (status && !ALLOWED_EMAIL_STATUSES.includes(status as any)) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${ALLOWED_EMAIL_STATUSES.join(", ")}` });
@@ -70,7 +83,8 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { userLeadId, customContactId, subject, body, status = "draft" } = req.body ?? {};
+  const { userLeadId, customContactId, subject, body, status = "draft", attachmentIds } = req.body ?? {};
+  const safeAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [];
   if (!ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
   }
@@ -87,7 +101,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     if (!lead || lead.userId !== userId) throw new HttpError(404, "Lead not found");
 
     const email = await prisma.email.create({
-      data: { userLeadId, contactId: lead.contactId ?? null, subject, body, status },
+      data: { userLeadId, contactId: lead.contactId ?? null, subject, body, status, attachmentIds: safeAttachmentIds },
     });
     return res.status(201).json(email);
   }
@@ -97,13 +111,13 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   if (!cc || cc.userId !== userId) throw new HttpError(404, "Custom contact not found");
 
   const email = await prisma.email.create({
-    data: { customContactId, subject, body, status },
+    data: { customContactId, subject, body, status, attachmentIds: safeAttachmentIds },
   });
   res.status(201).json(email);
 }
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { id, subject, body, status, sentAt } = req.body ?? {};
+  const { id, subject, body, status, sentAt, attachmentIds } = req.body ?? {};
   if (!id) throw new HttpError(400, "id is required");
   if (status && !ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
@@ -129,6 +143,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(body !== undefined && { body }),
       ...(status && { status }),
       ...(sentAt && { sentAt: new Date(sentAt) }),
+      ...(attachmentIds !== undefined && { attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [] }),
     },
   });
 

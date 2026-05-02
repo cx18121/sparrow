@@ -52,6 +52,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   if (status === 403) return 'You do not have access to this item.'
 
   if (path === '/emails/send') {
+    if (status === 429) return serverError || 'Daily send limit reached for today.'
     if (status === 404) return 'We could not find that draft. Refresh Drafts and try again.'
     if (lower.includes('gmail not connected') || lower.includes('connect gmail')) {
       return 'Connect Gmail in Settings before sending email.'
@@ -156,16 +157,22 @@ export const updateLead = (data) =>
 export const deleteLead = (id) => request(`/leads${qs({ id })}`, { method: 'DELETE' })
 
 export const fetchEmails = (params = {}) => request(`/emails${qs(params)}`)
+export const fetchSentTodayCount = (): Promise<{ count: number }> =>
+  request('/emails?countToday=true')
 export const createEmail = (data) =>
   request('/emails', { method: 'POST', body: JSON.stringify(data) })
 export const updateEmail = (data) =>
   request('/emails', { method: 'PATCH', body: JSON.stringify(data) })
 export const generateEmail = (data) =>
   request('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
-export const sendEmail = (emailId, options = {}) =>
-  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId, ...options }) })
+export const generateStyleGuide = (examples: string[]): Promise<{ guide: string }> =>
+  request('/style-guide', { method: 'POST', body: JSON.stringify({ examples }) })
+export const sendEmail = (emailId: string) =>
+  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
 export const deleteEmails = (ids: string[]) =>
   request(`/emails${qs({ ids: ids.join(',') })}`, { method: 'DELETE' })
+export const updateEmailAttachments = (id: string, attachmentIds: string[]) =>
+  request('/emails', { method: 'PATCH', body: JSON.stringify({ id, attachmentIds }) })
 
 export const fetchProfile = () => request('/profile')
 export const saveProfile = (data) =>

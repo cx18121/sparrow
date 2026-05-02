@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle, ArrowRight, CheckCircle2, Circle, FileText, Inbox,
   Send, Users,
@@ -8,11 +8,19 @@ import EmptyState from '../ui/EmptyState'
 import { fetchEmails } from '../../lib/api'
 
 const EMAIL_CACHE_KEY = 'cf_dash_emails'
+const CACHE_TTL = 5 * 60 * 1000
+
 function readEmailCache() {
-  try { return JSON.parse(sessionStorage.getItem(EMAIL_CACHE_KEY) || 'null') } catch { return null }
+  try {
+    const raw = localStorage.getItem(EMAIL_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (Date.now() - (parsed.cachedAt || 0) > CACHE_TTL) return null
+    return parsed
+  } catch { return null }
 }
 function writeEmailCache(data) {
-  try { sessionStorage.setItem(EMAIL_CACHE_KEY, JSON.stringify(data)) } catch {}
+  try { localStorage.setItem(EMAIL_CACHE_KEY, JSON.stringify({ ...data, cachedAt: Date.now() })) } catch {}
 }
 
 function formatRelative(value) {
@@ -40,27 +48,33 @@ function getEmailCompany(email) {
 
 function Stat({ label, value, detail, loading, onClick }) {
   const display = loading && (value === 0 || value === null || value === undefined) ? '—' : value
-  const inner = (
-    <>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</div>
-      <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
-        {display}
-      </div>
-      {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
-    </>
-  )
   if (onClick) {
     return (
       <button
         type="button"
         onClick={onClick}
-        className="min-w-0 px-4 py-3 text-left transition-colors hover:bg-slate-50 first:pl-0 last:pr-0"
+        className="group min-w-0 cursor-pointer px-4 py-3 text-left transition-colors hover:bg-slate-100 first:pl-0 last:pr-0"
       >
-        {inner}
+        <div className="flex items-center gap-1">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 transition-colors group-hover:text-primary/70">{label}</div>
+          <ArrowRight size={10} className="text-transparent transition-colors group-hover:text-primary/60" />
+        </div>
+        <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
+          {display}
+        </div>
+        {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
       </button>
     )
   }
-  return <div className="min-w-0 px-4 py-3 first:pl-0 last:pr-0">{inner}</div>
+  return (
+    <div className="min-w-0 px-4 py-3 first:pl-0 last:pr-0">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</div>
+      <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
+        {display}
+      </div>
+      {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
+    </div>
+  )
 }
 
 function ActivityRow({ icon: Icon, title, detail, when }) {
@@ -128,31 +142,48 @@ export default function DashboardTab({
   onConnectGoogle,
 }) {
   const cached = readEmailCache()
-  const [emailState, setEmailState] = useState(
-    cached
-      ? { loading: false, drafts: cached.drafts || [], sent: cached.sent || [], error: null }
-      : { loading: true, drafts: [], sent: [], error: null }
-  )
+  const [drafts, setDrafts] = useState<any[]>(cached?.drafts || [])
+  const [sent, setSent] = useState<any[]>(cached?.sent || [])
+  const [draftsLoading, setDraftsLoading] = useState(!cached)
+  const [sentLoading, setSentLoading] = useState(!cached)
+  const [error, setError] = useState<string | null>(null)
+  const latestDrafts = useRef(cached?.drafts || [])
+  const latestSent = useRef(cached?.sent || [])
 
   useEffect(() => {
     let cancelled = false
-    if (!cached) setEmailState(s => ({ ...s, loading: true, error: null }))
-    Promise.all([
-      fetchEmails({ status: 'draft', limit: '8' }),
-      fetchEmails({ status: 'sent', limit: '50' }),
-    ])
-      .then(([drafts, sent]) => {
-        if (!cancelled) {
-          const next = { drafts: drafts?.items || [], sent: sent?.items || [] }
-          setEmailState({ loading: false, ...next, error: null })
-          writeEmailCache(next)
-        }
+
+    fetchEmails({ status: 'draft', limit: '8' })
+      .then(res => {
+        if (cancelled) return
+        const items = res?.items || []
+        latestDrafts.current = items
+        setDrafts(items)
+        setDraftsLoading(false)
+        writeEmailCache({ drafts: items, sent: latestSent.current })
       })
       .catch(err => {
-        if (!cancelled) setEmailState(s => ({ ...s, loading: false, error: err.message || 'Could not load email activity' }))
+        if (!cancelled) { setError(err.message || 'Could not load drafts'); setDraftsLoading(false) }
       })
+
+    fetchEmails({ status: 'sent', limit: '20' })
+      .then(res => {
+        if (cancelled) return
+        const items = res?.items || []
+        latestSent.current = items
+        setSent(items)
+        setSentLoading(false)
+        writeEmailCache({ drafts: latestDrafts.current, sent: items })
+      })
+      .catch(() => {
+        if (!cancelled) setSentLoading(false)
+      })
+
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Consolidate into a shape the rest of the component reads
+  const emailState = { drafts, sent, loading: draftsLoading && sentLoading, error }
 
   const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
@@ -273,11 +304,6 @@ export default function DashboardTab({
             <button type="button" onClick={primaryCta.onClick} className="btn-primary text-xs">
               <primaryCta.icon size={13} /> {primaryCta.label}
             </button>
-            {emailState.drafts.length > 0 && (
-              <button type="button" onClick={() => onNavigate?.('drafts')} className="btn-secondary text-xs">
-                <Inbox size={13} /> All drafts
-              </button>
-            )}
           </div>
         </div>
       </section>
@@ -301,21 +327,21 @@ export default function DashboardTab({
             />
             <Stat
               label="Drafts"
-              value={emailState.drafts.length}
+              value={drafts.length}
               detail={
-                emailState.loading ? undefined
+                draftsLoading ? undefined
                 : readyDrafts > 0 ? `${readyDrafts} ready to send`
-                : emailState.drafts.length > 0 ? 'none ready yet'
+                : drafts.length > 0 ? 'none ready yet'
                 : 'no drafts yet'
               }
-              loading={emailState.loading}
+              loading={draftsLoading}
               onClick={onNavigate ? () => onNavigate('drafts') : undefined}
             />
             <Stat
               label="Sent"
-              value={emailState.sent.length}
-              detail={emailState.loading ? undefined : sentThisWeek > 0 ? `${sentThisWeek} this week` : undefined}
-              loading={emailState.loading}
+              value={sent.length}
+              detail={sentLoading ? undefined : sentThisWeek > 0 ? `${sentThisWeek} this week` : undefined}
+              loading={sentLoading}
               onClick={onNavigate ? () => onNavigate('drafts') : undefined}
             />
             <Stat
@@ -341,7 +367,7 @@ export default function DashboardTab({
                 </button>
               )}
             </div>
-            {emailState.loading ? (
+            {sentLoading ? (
               <div className="divide-y divide-slate-100 border-y border-slate-100">
                 {Array.from({ length: 3 }).map((_, i) => <ActivitySkeleton key={i} />)}
               </div>

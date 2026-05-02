@@ -3,9 +3,9 @@ import DOMPurify from 'dompurify'
 import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
-  Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal,
+  Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, deleteEmails } from '../../lib/api'
+import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -111,7 +111,6 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const [selected, setSelected] = useState(new Set())
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
-  const [attachResume, setAttachResume] = useState(false)
   const [toast, setToast] = useState(null)
   const [gmailStatus, setGmailStatus] = useState(() =>
     profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
@@ -358,7 +357,6 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     })
   }
 
-  const canAttachResume = Boolean(workspaceConfig?.resumePath)
   const gmailDisconnected = gmailStatus === 'disconnected'
 
   const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
@@ -405,7 +403,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
       if (sendableIds.length > 1) setBatchProgress({ current: i + 1, total: sendableIds.length })
 
       try {
-        await sendEmail(id, { attachResume })
+        await sendEmail(id)
         succeeded.push(id)
         setDrafts(prev => prev.filter(d => d.id !== id))
         setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
@@ -447,7 +445,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
       setToast({
         type: 'success',
         title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
-        message: nextReviewDraft ? 'The next ready draft is open.' : `Moved to Sent${attachResume ? ' with resume attached' : ''}.`,
+        message: nextReviewDraft ? 'The next ready draft is open.' : 'Moved to Sent.',
         action: { label: 'View sent', onClick: () => { setTab('sent'); setToast(null) } },
       })
     }
@@ -557,18 +555,6 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
               <p className="text-xs text-muted">
                 {readyCount} ready, {needsWorkCount} need{needsWorkCount === 1 ? 's' : ''} review
               </p>
-            )}
-            {tab === 'draft' && canAttachResume && (
-              <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-muted">
-                <input
-                  type="checkbox"
-                  checked={attachResume}
-                  onChange={e => setAttachResume(e.target.checked)}
-                  disabled={sending}
-                  className="rounded border-slate-300"
-                />
-                Attach resume
-              </label>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -997,6 +983,49 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                 />
               )}
             </div>
+
+            {/* Attachments */}
+            {tab === 'draft' && !editing && (() => {
+              const fileLibrary: Array<{ id: string; fileName: string; size: number }> = workspaceConfig?.files || []
+              const attachedIds: string[] = Array.isArray(preview.attachmentIds) ? preview.attachmentIds : []
+              const attached = fileLibrary.filter(f => attachedIds.includes(f.id))
+              const available = fileLibrary.filter(f => !attachedIds.includes(f.id))
+
+              const toggleAttachment = async (fileId: string, add: boolean) => {
+                const next = add ? [...attachedIds, fileId] : attachedIds.filter(id => id !== fileId)
+                setPreview(p => p ? { ...p, attachmentIds: next } : p)
+                setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, attachmentIds: next } : d))
+                try { await updateEmailAttachments(preview.id, next) } catch {
+                  setPreview(p => p ? { ...p, attachmentIds: attachedIds } : p)
+                }
+              }
+
+              if (fileLibrary.length === 0) return null
+              return (
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Attachments</p>
+                  <div className="space-y-1">
+                    {attached.map(f => (
+                      <div key={f.id} className="flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5">
+                        <Paperclip size={11} className="shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-dark">{f.fileName}</span>
+                        <button type="button" onClick={() => toggleAttachment(f.id, false)} className="shrink-0 text-muted hover:text-dark"><X size={11} /></button>
+                      </div>
+                    ))}
+                    {available.length > 0 && (
+                      <select
+                        value=""
+                        onChange={e => { if (e.target.value) toggleAttachment(e.target.value, true) }}
+                        className="select text-xs py-1.5"
+                      >
+                        <option value="">+ Add attachment</option>
+                        {available.map(f => <option key={f.id} value={f.id}>{f.fileName}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Meta */}
             <div className="border-t border-slate-100 pt-4 space-y-1.5">

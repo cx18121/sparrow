@@ -7,7 +7,7 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
-  List, ListOrdered, Eye, Edit3, Search, Copy, Save, Loader2, Check, X,
+  List, ListOrdered, Eye, Edit3, Search, Copy, Save, Loader2, Check, X, Library,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
@@ -170,6 +170,8 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   )
 }
 
+const isLibraryTemplate = (t) => t.userId === '__library__'
+
 export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, workspaceConfig }) {
   const [search, setSearch] = useState('')
   const defaultTemplateId = workspaceConfig?.templateId && templates.some(t => t.id === workspaceConfig.templateId)
@@ -260,11 +262,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
     }
   }
 
-  const filtered = templates.filter(t =>
+  const allFiltered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) || (t.subject || '').toLowerCase().includes(search.toLowerCase())
   )
+  const filtered = allFiltered.filter(t => !isLibraryTemplate(t))
+  const libraryFiltered = allFiltered.filter(t => isLibraryTemplate(t))
 
   const selected = templates.find(t => t.id === selectedId)
+  const selectedIsLibrary = selected ? isLibraryTemplate(selected) : false
 
   const openCreate = () => {
     setEditingId(null)
@@ -315,23 +320,53 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
           </div>
 
-          <div className="space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-180px)]">
-            {filtered.map(t => (
-              <button
-                key={t.id}
-                onClick={() => { setSelectedId(t.id); setView('edit') }}
-                className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
-                  selectedId === t.id
-                    ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
-                    : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
-                }`}
-              >
-                <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
-                <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <EmptyState>No templates match.</EmptyState>
+          <div className="space-y-4 overflow-y-auto pr-1 xl:max-h-[calc(100vh-180px)]">
+            <div className="space-y-2">
+              {filtered.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => { setSelectedId(t.id); setView('edit') }}
+                  className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                    selectedId === t.id
+                      ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
+                      : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
+                  }`}
+                >
+                  <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
+                  <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
+                </button>
+              ))}
+              {filtered.length === 0 && !search && (
+                <p className="px-1 text-xs text-muted">No templates yet. Create one above.</p>
+              )}
+              {filtered.length === 0 && search && (
+                <p className="px-1 text-xs text-muted">No templates match.</p>
+              )}
+            </div>
+
+            {libraryFiltered.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 px-1 pt-1">
+                  <Library size={11} className="text-muted" />
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Library</p>
+                </div>
+                {libraryFiltered.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setSelectedId(t.id); setView('preview') }}
+                    className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                      selectedId === t.id
+                        ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(27,110,243,0.08)]'
+                        : 'border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </aside>
@@ -344,7 +379,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
               <div className="page-toolbar">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
+                      {selectedIsLibrary && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-muted">
+                          <Library size={10} /> Library
+                        </span>
+                      )}
+                    </div>
                     {workspaceConfig?.templateId === selected.id && (
                       <div className="mt-2">
                         <Badge variant="draft">Default template</Badge>
@@ -353,48 +395,56 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="segmented-control">
-                      <button
-                        type="button"
-                        onClick={() => setView('edit')}
-                        className={`segmented-chip ${view === 'edit' ? 'segmented-chip-active' : ''}`}
-                      >
-                        <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
+                    {selectedIsLibrary ? (
+                      <button onClick={() => duplicate(selected)} className="btn-primary text-xs">
+                        <Copy size={13} /> Clone to my templates
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setView('preview')}
-                        className={`segmented-chip ${view === 'preview' ? 'segmented-chip-active' : ''}`}
-                      >
-                        <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
-                      </button>
-                    </div>
-                    <button
-                      onClick={saveExplicit}
-                      disabled={savingExplicit || view !== 'edit'}
-                      className={`btn-primary text-xs ${view !== 'edit' ? 'invisible' : ''}`}
-                    >
-                      {savingExplicit
-                        ? <><Loader2 size={13} className="animate-spin" /> Saving</>
-                        : saved
-                        ? <><Check size={13} /> Saved</>
-                        : <><Save size={13} /> Save</>}
-                    </button>
-                    <button onClick={() => duplicate(selected)} className="btn-ghost text-xs">
-                      <Copy size={13} /> Duplicate
-                    </button>
-                    <button onClick={() => openRename(selected)} className="btn-ghost text-xs">
-                      <Edit3 size={13} /> Rename
-                    </button>
-                    <div className="h-4 w-px bg-slate-200 mx-1" />
-                    <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500">
-                      <Trash2 size={13} /> Delete
-                    </button>
+                    ) : (
+                      <>
+                        <div className="segmented-control">
+                          <button
+                            type="button"
+                            onClick={() => setView('edit')}
+                            className={`segmented-chip ${view === 'edit' ? 'segmented-chip-active' : ''}`}
+                          >
+                            <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setView('preview')}
+                            className={`segmented-chip ${view === 'preview' ? 'segmented-chip-active' : ''}`}
+                          >
+                            <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
+                          </button>
+                        </div>
+                        <button
+                          onClick={saveExplicit}
+                          disabled={savingExplicit || view !== 'edit'}
+                          className={`btn-primary text-xs ${view !== 'edit' ? 'invisible' : ''}`}
+                        >
+                          {savingExplicit
+                            ? <><Loader2 size={13} className="animate-spin" /> Saving</>
+                            : saved
+                            ? <><Check size={13} /> Saved</>
+                            : <><Save size={13} /> Save</>}
+                        </button>
+                        <button onClick={() => duplicate(selected)} className="btn-ghost text-xs">
+                          <Copy size={13} /> Duplicate
+                        </button>
+                        <button onClick={() => openRename(selected)} className="btn-ghost text-xs">
+                          <Edit3 size={13} /> Rename
+                        </button>
+                        <div className="h-4 w-px bg-slate-200 mx-1" />
+                        <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500">
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {view === 'edit' ? (
+              {view === 'edit' && !selectedIsLibrary ? (
                 <div className="card p-6 space-y-5">
                   <div>
                     <label className="label">Subject line</label>

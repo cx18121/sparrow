@@ -161,13 +161,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Build attachment list from email.attachmentIds + file library in workspace_config
   const fileLibrary = workspaceConfig.files ?? [];
   const emailAttachmentIds = Array.isArray(email.attachmentIds) ? (email.attachmentIds as string[]) : [];
+  const ownedPrefix = `files/${userId}/`;
 
   const attachments: Array<{ fileName: string; contentType: string; contentBase64: string }> = [];
   for (const fileId of emailAttachmentIds) {
     const meta = fileLibrary.find(f => f.id === fileId);
-    if (!meta) continue;
+    if (!meta) {
+      return res.status(400).json({ error: `Attachment "${fileId}" not found in your file library. Remove it from this draft and try again.` });
+    }
+    if (!meta.path.startsWith(ownedPrefix)) {
+      return res.status(403).json({ error: "One or more attachment paths are invalid. Re-upload your files in Settings." });
+    }
     const { data: file, error } = await supabase.storage.from("resumes").download(meta.path);
-    if (error || !file) continue;
+    if (error || !file) {
+      return res.status(400).json({ error: `Could not read "${meta.fileName}". Re-upload it in Settings and try again.` });
+    }
     const buffer = Buffer.from(await file.arrayBuffer());
     attachments.push({
       fileName: meta.fileName,

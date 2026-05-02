@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
-  Plus, Check,
-  Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2,
+  Plus, Check, X,
+  Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2, FileText, UploadCloud, Paperclip,
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
+import { generateStyleGuide } from '../../lib/api'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
@@ -104,12 +105,124 @@ function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoadi
   )
 }
 
+type WorkspaceFile = { id: string; path: string; fileName: string; mimeType: string; size: number; uploadedAt: string }
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function FileLibrarySection({ form, field, user }) {
+  const files: WorkspaceFile[] = form.files || []
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const uploadFile = async (file: File) => {
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File must be under 10 MB.')
+      return
+    }
+    setUploading(true)
+    setUploadError(null)
+    const fileId = crypto.randomUUID()
+    const path = `files/${user?.id ?? 'demo'}/${fileId}`
+    if (!isDemo && user?.id) {
+      const { error } = await supabase.storage
+        .from('resumes')
+        .upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' })
+      if (error) {
+        setUploadError(error.message)
+        setUploading(false)
+        return
+      }
+    }
+    const newFile: WorkspaceFile = {
+      id: fileId,
+      path,
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+    }
+    field('files', [...files, newFile])
+    setUploading(false)
+  }
+
+  const removeFile = async (fileId: string) => {
+    const meta = files.find(f => f.id === fileId)
+    if (meta && !isDemo && user?.id) {
+      await supabase.storage.from('resumes').remove([meta.path])
+    }
+    field('files', files.filter(f => f.id !== fileId))
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <label className="label mb-0">Attachment library</label>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="btn-ghost px-2 py-1 text-xs"
+        >
+          <Paperclip size={12} /> {uploading ? 'Uploading…' : 'Add file'}
+        </button>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        disabled={uploading}
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }}
+      />
+      {uploadError && <p className="mb-2 text-xs text-red-500">{uploadError}</p>}
+      {files.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-surface px-3 py-2.5 text-sm text-muted transition-colors hover:border-primary/40 hover:text-dark disabled:opacity-50"
+        >
+          <Paperclip size={14} />
+          {uploading ? 'Uploading…' : 'Upload files to attach to emails (PDF, DOCX, TXT — max 10 MB)'}
+        </button>
+      ) : (
+        <div className="space-y-1.5">
+          {files.map(f => (
+            <div key={f.id} className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-surface px-3 py-2">
+              <FileText size={13} className="shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-dark">{f.fileName}</p>
+                <p className="text-xs text-muted">{formatBytes(f.size)} · {new Date(f.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeFile(f.id)}
+                className="shrink-0 rounded-full p-1 text-muted transition-colors hover:bg-slate-100 hover:text-dark"
+                title="Remove file"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-xs text-muted">Files saved here can be attached to individual drafts or set as defaults on a campaign.</p>
+    </div>
+  )
+}
+
 function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploadState, setUploadState] = useState({ uploading: false, error: null })
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const field = (key, value) => setForm(current => ({ ...current, [key]: value }))
 
   useEffect(() => {
@@ -130,7 +243,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
     setUploadState({ uploading: true, error: null })
 
     if (isDemo || !user?.id) {
-      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '' }))
+      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString() }))
       setUploadState({ uploading: false, error: null })
       return
     }
@@ -145,9 +258,13 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
       return
     }
 
-    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path }))
+    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path, resumeUploadedAt: new Date().toISOString() }))
     setUploadState({ uploading: false, error: null })
   }
+
+  const uploadedAt = form.resumeUploadedAt
+    ? new Date(form.resumeUploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
 
   return (
     <Section title="Drafting Profile">
@@ -159,23 +276,49 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
           placeholder="Paste relevant experience, positioning, wins, and offer."
           className="input min-h-[140px] resize-y"
         />
+        <p className="mt-1 text-xs text-muted">Used in email generation to personalize your pitch.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label">Uploaded resume or bio</label>
-          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-200 bg-surface px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary-50/60 transition-colors">
-            <span className="truncate">
-              {uploadState.uploading ? 'Uploading...' : form.resumeFileName || 'Upload resume file'}
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt"
-              className="hidden"
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt"
+            className="hidden"
+            disabled={uploadState.uploading}
+            onChange={e => uploadResume(e.target.files?.[0])}
+          />
+          {form.resumeFileName ? (
+            <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-surface px-3 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText size={14} className="shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-dark">{form.resumeFileName}</p>
+                  {uploadedAt && <p className="text-xs text-muted">Uploaded {uploadedAt}</p>}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadState.uploading}
+                className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                {uploadState.uploading ? 'Uploading…' : 'Replace'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
               disabled={uploadState.uploading}
-              onChange={e => uploadResume(e.target.files?.[0])}
-            />
-          </label>
+              className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-surface px-3 py-2.5 text-sm text-muted transition-colors hover:border-primary/40 hover:text-dark disabled:opacity-50"
+            >
+              <UploadCloud size={14} />
+              {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .doc, .txt)'}
+            </button>
+          )}
           {uploadState.error && (
             <p className="mt-1 text-xs text-red-500">Could not upload: {uploadState.error}</p>
           )}
@@ -187,14 +330,18 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
             <input
               type="number"
               min={1}
-              max={1000}
+              max={200}
               value={form.leadsPerGeneration}
               onChange={e => field('leadsPerGeneration', Math.max(1, Number(e.target.value) || 1))}
               className="input pl-8"
             />
           </div>
+          <p className="mt-1 text-xs text-muted">Contacts fetched per campaign batch run.</p>
         </div>
       </div>
+
+      {/* File library */}
+      <FileLibrarySection form={form} field={field} user={user} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
@@ -216,6 +363,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
           </div>
         </div>
       </div>
+      <p className="mt-0.5 text-xs text-muted">Sender name, organization, and role are included in every generated email.</p>
 
       <div>
         <label className="label">Default template</label>
@@ -290,13 +438,13 @@ function ProviderKeysSection({ workspaceConfig, profile, onRefreshProfile, onSav
 
 
 function SendingLimitsSection({ workspaceConfig, onSave }) {
-  const [form, setForm] = useState(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })
+  const [form, setForm] = useState(workspaceConfig.sendingLimits || { dailyMax: 100, delaySeconds: 15 })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const f = (k, v) => setForm(x => ({ ...x, [k]: v }))
 
   useEffect(() => {
-    setForm(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })
+    setForm(workspaceConfig.sendingLimits || { dailyMax: 100, delaySeconds: 15 })
   }, [workspaceConfig])
 
   const save = async () => {
@@ -316,16 +464,19 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
 
   return (
     <Section title="Sending Limits">
+      <Banner variant="warning" size="sm">
+        These limits are saved but not yet enforced server-side — emails send immediately regardless of these values. Enforcement is planned.
+      </Banner>
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
         <div>
           <label className="label">Daily send limit</label>
-          <input type="number" min={1} max={10000} value={form.dailyMax} onChange={e => f('dailyMax', parseInt(e.target.value) || 0)} className="input" />
-          <p className="text-xs text-muted mt-1">Maximum emails sent per day across all campaigns.</p>
+          <input type="number" min={1} max={100} value={form.dailyMax} onChange={e => f('dailyMax', Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))} className="input" />
+          <p className="text-xs text-muted mt-1">Maximum emails per day across all campaigns (cap: 100).</p>
         </div>
         <div>
           <label className="label">Delay between sends (seconds)</label>
-          <input type="number" min={0} max={3600} value={form.delaySeconds} onChange={e => f('delaySeconds', parseInt(e.target.value) || 0)} className="input" />
-          <p className="text-xs text-muted mt-1">Time to wait between individual sends to avoid throttling.</p>
+          <input type="number" min={15} max={3600} value={form.delaySeconds} onChange={e => f('delaySeconds', Math.max(15, parseInt(e.target.value) || 15))} className="input" />
+          <p className="text-xs text-muted mt-1">Minimum 15 seconds between sends to avoid Gmail throttling.</p>
         </div>
       </div>
       <div className="flex justify-end">
@@ -347,8 +498,12 @@ function StyleSection({ workspaceConfig, onSave }) {
   const [choices, setChoices] = useState<Record<string, string>>(workspaceConfig?.styleChoices || {})
   const [activeIndex, setActiveIndex] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'scoring' | 'generating' | 'done'>('idle')
 
-  const currentTraits = workspaceConfig?.styleProfile?.traits || []
+  const styleGuide: string | null = workspaceConfig?.styleProfile?.prompt || null
+  const currentTraits: string[] = workspaceConfig?.styleProfile?.traits || []
+  const hasStyle = styleGuide || currentTraits.length > 0
+
   const activeTest = STYLE_TESTS[activeIndex]
   const selected = choices[activeTest.id]
 
@@ -361,9 +516,26 @@ function StyleSection({ workspaceConfig, onSave }) {
 
   const save = async () => {
     setSaving(true)
-    const newProfile = scoreStyleChoices(choices)
-    await onSave((current) => ({ ...current, styleProfile: newProfile, styleChoices: choices }))
+    setSaveStatus('scoring')
+    const baseProfile = scoreStyleChoices(choices)
+
+    setSaveStatus('generating')
+    let finalProfile = baseProfile
+    try {
+      const { guide } = await generateStyleGuide(baseProfile.examples ?? [])
+      finalProfile = { ...baseProfile, prompt: guide }
+    } catch {
+      // Fall back to trait-based prompt if Claude call fails
+    }
+
+    const ok = await onSave((current) => ({ ...current, styleProfile: finalProfile, styleChoices: choices }))
     setSaving(false)
+    if (!ok) {
+      setSaveStatus('idle')
+      return
+    }
+    setSaveStatus('done')
+    setTimeout(() => setSaveStatus('idle'), 1500)
     setEditing(false)
   }
 
@@ -373,28 +545,38 @@ function StyleSection({ workspaceConfig, onSave }) {
     setEditing(false)
   }
 
+  const savingLabel = saveStatus === 'generating'
+    ? <><Loader2 size={13} className="animate-spin" /> Writing your style guide…</>
+    : saveStatus === 'scoring'
+      ? <><Loader2 size={13} className="animate-spin" /> Scoring…</>
+      : saveStatus === 'done'
+        ? <><Check size={13} /> Saved</>
+        : <><Loader2 size={13} className="animate-spin" /> Saving</>
+
   return (
     <Section title="Email Style">
       {!editing ? (
         <div className="flex items-start justify-between gap-4">
-          <div>
-            {currentTraits.length > 0 ? (
+          <div className="min-w-0 flex-1">
+            {hasStyle ? (
               <>
-                <div className="flex flex-wrap gap-1.5">
-                  {currentTraits.map(trait => (
-                    <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">{trait}</span>
-                  ))}
-                </div>
-                {workspaceConfig?.styleProfile?.summary && (
-                  <p className="mt-2 text-xs text-muted">{workspaceConfig.styleProfile.summary}</p>
+                {styleGuide && (
+                  <p className="text-sm leading-6 text-dark">{styleGuide}</p>
+                )}
+                {currentTraits.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {currentTraits.map(trait => (
+                      <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary capitalize">{trait}</span>
+                    ))}
+                  </div>
                 )}
               </>
             ) : (
-              <p className="text-xs text-muted">No style configured. Reconfigure to set your drafting voice.</p>
+              <p className="text-xs text-muted">No style configured. Take the quiz to set your drafting voice.</p>
             )}
           </div>
           <button type="button" onClick={() => setEditing(true)} className="btn-secondary shrink-0 text-xs">
-            Reconfigure
+            {hasStyle ? 'Reconfigure' : 'Take quiz'}
           </button>
         </div>
       ) : (
@@ -443,14 +625,14 @@ function StyleSection({ workspaceConfig, onSave }) {
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={cancel} className="btn-ghost text-xs">Cancel</button>
+            <button type="button" onClick={cancel} disabled={saving} className="btn-ghost text-xs">Cancel</button>
             <button
               type="button"
               onClick={save}
               disabled={saving || Object.keys(choices).length < STYLE_TESTS.length}
               className="btn-primary text-xs"
             >
-              {saving ? <><Loader2 size={13} className="animate-spin" /> Saving</> : <><Check size={13} /> Save style</>}
+              {saving ? savingLabel : <><Check size={13} /> Save style</>}
             </button>
           </div>
         </div>

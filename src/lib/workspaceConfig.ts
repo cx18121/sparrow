@@ -6,6 +6,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     resumeText: '',
     resumeFileName: '',
     resumePath: '',
+    resumeUploadedAt: '',
     senderName: defaultName,
     senderCompany: '',
     senderRole: '',
@@ -20,10 +21,11 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       body: '',
       isShared: false,
     },
-    leadsPerGeneration: 50,
+    files: [] as Array<{ id: string; path: string; fileName: string; mimeType: string; size: number; uploadedAt: string }>,
+    leadsPerGeneration: 25,
     sendingLimits: {
-      dailyMax: 200,
-      delaySeconds: 30,
+      dailyMax: 100,
+      delaySeconds: 15,
     },
     apiKeys: {
       openai: '',
@@ -49,6 +51,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       ...baseConfig.sendingLimits,
       ...(data?.sendingLimits || {}),
     },
+    files: Array.isArray(data?.files) ? data.files : baseConfig.files,
     styleProfile: data?.styleProfile || baseConfig.styleProfile,
     apiKeys: {
       ...baseConfig.apiKeys,

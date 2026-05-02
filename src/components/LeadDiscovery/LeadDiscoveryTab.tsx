@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Search, Users, Globe, Filter,
-  CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
+  CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle, Mail, X,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
-import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen } from '../../lib/api'
+import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
 
-const PAGE_SIZE = 20
 const MAX_REPLACEMENT_ROUNDS = 5
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 
 const DISCOVER_CACHE_KEY = 'cf_discover_state'
@@ -118,7 +118,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavigate }) {
+export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavigate, activeCampaign = null, onExitCampaign = null }) {
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState(new Set())
   const selectedTagsRef = useRef(new Set())
@@ -127,6 +127,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
   const [regionCounts, setRegionCounts] = useState<{ us: number | null; intl: number | null; remote: number | null }>({ us: null, intl: null, remote: null })
   const [isHiring, setIsHiring] = useState(false)
   const [regionFilter, setRegionFilter] = useState<'us' | 'international' | 'remote' | null>(null)
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const cached = readDiscoverCache()
+    return PAGE_SIZE_OPTIONS.includes(cached?.pageSize) ? cached.pageSize : 20
+  })
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -161,7 +165,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
     try {
       const params = {
         search: query || undefined,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         random: 'true',
         ...(tags.size > 0 && { tags: [...tags].join(',') }),
         ...(hiringOnly && { isHiring: 'true' }),
@@ -171,46 +175,28 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
       const data = await apiFetchCompanies(params)
       if (fetchGenRef.current !== gen) return
       const newItems = data.items ?? []
-      const uncached = newItems.filter(c => !(c.id in cachedPreviews))
-      if (uncached.length > 0) {
-        setApolloCounts(prev => {
-          const next = { ...prev }
-          uncached.forEach(c => { if (!(c.id in next)) next[c.id] = null })
-          return next
+
+      // Show API results immediately — Apollo checks run in the background
+      const initialItems = newItems.filter(c => {
+        const cached = cachedPreviews[c.id]
+        // If already cached with 0 contacts, hide immediately; otherwise show
+        return cached === undefined || cached.length > 0
+      })
+      setApolloCounts(prev => {
+        const next = { ...prev }
+        newItems.forEach(c => {
+          const cached = cachedPreviews[c.id]
+          if (cached !== undefined) next[c.id] = cached.length
+          else if (!(c.id in next)) next[c.id] = null
         })
-      }
-
-      const checkedItems = await Promise.all(newItems.map(async (company) => {
-        const cached = cachedPreviews[company.id]
-        if (cached) return { company, hasContacts: cached.length > 0 }
-
-        try {
-          const result = await apolloSearch(company.domain, company.id)
-          const previews = result.previews ?? []
-          setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
-          setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
-          return { company, hasContacts: previews.length > 0 }
-        } catch {
-          setApolloCounts(prev => {
-            const next = { ...prev }
-            delete next[company.id]
-            return next
-          })
-          return { company, hasContacts: true }
-        }
-      }))
-
-      if (fetchGenRef.current !== gen) return
-      const displayItems = checkedItems
-        .filter(item => item.hasContacts)
-        .map(item => item.company)
-
+        return next
+      })
       setCompanies(append && !data.usingFallback
         ? prev => {
             const existing = new Set(prev.map(c => c.id))
-            return [...prev, ...displayItems.filter(c => !existing.has(c.id))]
+            return [...prev, ...initialItems.filter(c => !existing.has(c.id))]
           }
-        : displayItems
+        : initialItems
       )
       setNextCursor(data.nextCursor)
       setHasMore(!data.usingFallback && newItems.length > 0)
@@ -218,11 +204,31 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
         seenTotal: data.seenTotal ?? 0,
         usingFallback: data.usingFallback ?? false,
       })
+      setLoading(false)
 
-      const removedCount = newItems.length - displayItems.length
+      // Apollo verification runs async — fills in counts and quietly removes 0-contact companies
+      const uncached = newItems.filter(c => cachedPreviews[c.id] === undefined)
+      let removedCount = 0
+      await Promise.all(uncached.map(async (company) => {
+        if (fetchGenRef.current !== gen) return
+        try {
+          const result = await apolloSearch(company.domain, company.id)
+          const previews = result.previews ?? []
+          setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
+          setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
+          if (previews.length === 0) {
+            removedCount++
+            setCompanies(prev => prev.filter(c => c.id !== company.id))
+          }
+        } catch {
+          setApolloCounts(prev => { const n = { ...prev }; delete n[company.id]; return n })
+        }
+      }))
+
+      if (fetchGenRef.current !== gen) return
       if (!data.usingFallback && removedCount > 0 && replacementDepth < MAX_REPLACEMENT_ROUNDS) {
-        const currentCount = append ? companies.length + displayItems.length : displayItems.length
-        if (currentCount < PAGE_SIZE) {
+        const currentCount = append ? companies.length + initialItems.length : initialItems.length
+        if (currentCount - removedCount < pageSize) {
           await fetchCompanies(null, {
             search: query,
             isHiring: hiringOnly,
@@ -235,10 +241,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
     } catch (err) {
       if (fetchGenRef.current !== gen) return
       setError(err.message)
-    } finally {
-      if (fetchGenRef.current === gen) setLoading(false)
+      setLoading(false)
     }
-  }, [search, isHiring, regionFilter, cachedPreviews, companies.length])
+  }, [search, isHiring, regionFilter, cachedPreviews, companies.length, pageSize])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -260,7 +265,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
   useEffect(() => {
     if (initialMount.current) return
     doSearch()
-  }, [isHiring, regionFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHiring, regionFilter, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initialMount.current = false
@@ -297,9 +302,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
       companies, nextCursor, hasMore, meta: discoveryMeta,
       search, isHiring, regionFilter,
       selectedTags: [...selectedTags],
-      tagOptions, hiringCount, regionCounts,
+      tagOptions, hiringCount, regionCounts, pageSize,
     })
-  }, [companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, selectedTags, tagOptions, hiringCount, regionCounts])
+  }, [companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, selectedTags, tagOptions, hiringCount, regionCounts, pageSize])
 
   const loadMore = useCallback(() => {
     fetchCompanies(nextCursor, { append: true })
@@ -364,12 +369,20 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
     if (!selectedCompany) return
     setSavingIds(prev => new Set(prev).add(preview.id))
     try {
-      await saveLead({
+      const savedLead = await saveLead({
         companyId: selectedCompany.id,
         contactId: null,
         apolloPersonId: preview.id,
         notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} — ${preview.title || 'unknown title'}`,
       })
+      if (activeCampaign?.id && savedLead?.id) {
+        try {
+          await addCampaignLead(activeCampaign.id, savedLead.id)
+        } catch (campaignErr) {
+          setToast({ type: 'error', title: 'Saved, but not added to campaign', message: campaignErr?.message || 'Please try again.' })
+          return
+        }
+      }
       setSavedIds(prev => new Set(prev).add(preview.id))
       setCompanies(prev => prev.map(c =>
         c.id === selectedCompany.id
@@ -380,15 +393,27 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
       setApolloResults([])
       setApolloError(null)
       onLeadSaved?.()
-      setToast({
-        type: 'success',
-        title: `${preview.firstName} saved`,
-        message: 'Generate an email from Contacts.',
-        action: onNavigate ? {
-          label: 'Go to Contacts',
-          onClick: () => { onNavigate('contacts'); setToast(null) },
-        } : null,
-      })
+      if (activeCampaign) {
+        setToast({
+          type: 'success',
+          title: `${preview.firstName} added to ${activeCampaign.name}`,
+          message: 'Continue browsing or open Campaigns to see prospects.',
+          action: onNavigate ? {
+            label: 'Open Campaigns',
+            onClick: () => { onNavigate('campaigns'); setToast(null) },
+          } : null,
+        })
+      } else {
+        setToast({
+          type: 'success',
+          title: `${preview.firstName} saved`,
+          message: 'Generate an email from Contacts.',
+          action: onNavigate ? {
+            label: 'Go to Contacts',
+            onClick: () => { onNavigate('contacts'); setToast(null) },
+          } : null,
+        })
+      }
     } catch (err) {
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
@@ -401,6 +426,20 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
   return (
     <div className="page-shell">
       <Toast toast={toast} onClose={() => setToast(null)} />
+      {activeCampaign && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-primary">
+            <Mail size={14} />
+            Browsing for <span className="font-semibold">{activeCampaign.name}</span>
+            <span className="text-primary/60 font-normal">— contacts you save go directly into this campaign.</span>
+          </div>
+          {onExitCampaign && (
+            <button type="button" onClick={onExitCampaign} className="shrink-0 rounded-full p-1 text-primary/50 transition-colors hover:bg-primary/10 hover:text-primary" title="Exit campaign mode">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="mb-5">
         <p className="page-eyebrow">Lead Discovery</p>
         <p className="mt-1 text-sm leading-6 text-muted">Browse companies and find contacts to add to your pipeline.</p>
@@ -437,6 +476,16 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved, onNavig
           >
             <RotateCcw size={14} />Reset seen
           </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs text-muted whitespace-nowrap">Batch:</span>
+            <select
+              value={pageSize}
+              onChange={e => setPageSize(Number(e.target.value))}
+              className="select py-1.5 text-xs w-20"
+            >
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="mt-3 space-y-2">

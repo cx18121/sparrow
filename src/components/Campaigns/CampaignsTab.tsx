@@ -29,9 +29,10 @@ const NS_LABELS = {
 const INITIAL_FORM = {
   name: '', subject: '', status: 'draft',
   templateId: '',
-  filterTags: [], filterRegion: '', filterStage: '', filterBatch: '',
+  filterTags: [] as string[], filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: false, filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10', tone: '',
+  attachmentIds: [] as string[],
 }
 
 function advancedSummary(form) {
@@ -162,6 +163,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMax: c.filterHeadcountMax != null ? String(c.filterHeadcountMax) : '',
       batchSize: String(c.batchSize ?? 10),
       tone: c.tone || '',
+      attachmentIds: Array.isArray(c.attachmentIds) ? c.attachmentIds : [],
     })
     setModalOpen(true)
   }
@@ -183,6 +185,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
       batchSize: Number(form.batchSize) || 10,
       tone: form.tone || null,
+      attachmentIds: form.attachmentIds || [],
     }
     try {
       if (editing) {
@@ -231,6 +234,7 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
       filterHeadcountMax: c.filterHeadcountMax ?? null,
       batchSize: c.batchSize ?? 10,
       tone: c.tone || null,
+      attachmentIds: Array.isArray(c.attachmentIds) ? c.attachmentIds : [],
     }).catch(err => reportError('Could not duplicate campaign', err)))
   }
 
@@ -306,11 +310,13 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
     if (!emailPreview.lead) return
     setEmailPreview(prev => ({ ...prev, saving: true, error: null }))
     try {
+      const campaignContext = batchModal.campaign || detailCampaign
       const saved = await createEmail({
         userLeadId: emailPreview.lead.id,
         subject: emailPreview.subject,
         body: emailPreview.body,
         status: 'draft',
+        attachmentIds: Array.isArray(campaignContext?.attachmentIds) ? campaignContext.attachmentIds : [],
       })
       setEmailPreview(prev => ({ ...prev, open: false, saving: false }))
       setBatchModal(prev => ({
@@ -854,6 +860,34 @@ export default function CampaignsTab({ campaigns, onCreate, onUpdate, onDelete, 
               )}
             </div>
           </div>
+
+          {/* Default attachments */}
+          {(workspaceConfig?.files || []).length > 0 && (
+            <div>
+              <label className="label">Default attachments</label>
+              <p className="mb-2 text-xs text-muted">Files checked here will be attached to every email generated from this campaign.</p>
+              <div className="space-y-1.5">
+                {(workspaceConfig.files as Array<{ id: string; fileName: string; size: number }>).map(f => {
+                  const checked = (form.attachmentIds || []).includes(f.id)
+                  return (
+                    <label key={f.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => field('attachmentIds', checked
+                          ? (form.attachmentIds || []).filter(id => id !== f.id)
+                          : [...(form.attachmentIds || []), f.id]
+                        )}
+                        className="rounded border-slate-300"
+                      />
+                      <Filter size={11} className="shrink-0 text-muted" />
+                      <span className="text-sm text-dark">{f.fileName}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Batch size */}
           <div>
