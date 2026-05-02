@@ -44,28 +44,28 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
   const items = [
     {
       label: 'Google connected',
-      detail: hasGoogle ? 'Coldflow can ask Gmail to send from this account.' : 'Reconnect Google so Coldflow can send Gmail drafts.',
+      detail: hasGoogle ? 'Connected.' : 'Connect Google to enable Gmail sending.',
       done: hasGoogle,
       action: onConnectGoogle ? { label: 'Reconnect', onClick: onConnectGoogle } : null,
     },
     {
       label: 'Claude key added',
-      detail: hasClaude ? 'Coldflow can generate drafts.' : 'Add a Claude key before generating drafts.',
+      detail: hasClaude ? 'Ready.' : 'Add a Claude key to generate drafts.',
       done: hasClaude,
     },
     {
       label: 'Background added',
-      detail: hasResume ? 'Drafts can use your experience and offer.' : 'Add a resume, bio, offer, or positioning note.',
+      detail: hasResume ? 'Added.' : 'Add a resume or bio.',
       done: hasResume,
     },
     {
       label: 'Sender set',
-      detail: hasSender ? `${workspaceConfig.senderName} will appear in drafts.` : 'Set the name that should appear in drafts.',
+      detail: hasSender ? `Drafting as ${workspaceConfig.senderName}.` : 'Set your sender name.',
       done: hasSender,
     },
     {
       label: 'Template selected',
-      detail: hasTemplate ? 'Drafts have a starting structure.' : 'Create a reusable starting template.',
+      detail: hasTemplate ? 'Template set.' : 'Create or select a template.',
       done: hasTemplate,
       action: onNavigate ? { label: 'Templates', onClick: () => onNavigate('templates') } : null,
     },
@@ -266,7 +266,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
   return (
     <Section title="Provider Keys">
       <p className="text-xs text-muted">
-        {connectedCount} Claude key{connectedCount !== 1 ? 's' : ''} saved. Saved secret fields are left blank; enter a new value only to replace one.
+        {hasSavedClaude ? 'Claude key saved.' : 'No Claude key yet.'} Saved keys are hidden — enter a new value to replace.
       </p>
       {profileState.error && (
         <Banner variant="warning" size="sm">
@@ -285,7 +285,7 @@ function ProviderKeysSection({ workspaceConfig, onSave }) {
             className="input"
           />
           {hasSavedClaude && !form.claude && (
-            <p className="mt-1 text-xs text-emerald-700">Claude key is saved. Leave blank to keep it.</p>
+            <p className="mt-1 text-xs text-emerald-700">Saved. Leave blank to keep it.</p>
           )}
         </div>
       </div>
@@ -407,13 +407,13 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
   const saveWorkspace = async (updater, label = 'Settings saved') => {
     try {
       await onSaveWorkspaceConfig(updater)
-      setToast({ type: 'success', title: label, message: 'Refresh setup readiness if the checklist does not update right away.' })
+      setToast({ type: 'success', title: label })
       return true
     } catch (err) {
       setToast({
         type: 'error',
         title: 'Settings could not be saved',
-        message: err.message || 'Try again in a moment.',
+        message: err.message || 'Try again.',
       })
       return false
     }

@@ -145,7 +145,7 @@ export default function ContactsTab({
       setToast({
         type: 'success',
         title: 'Draft saved',
-        message: 'Review it in Drafts before sending.',
+        message: 'Review it in Drafts.',
         action: onNavigate ? { label: 'Open Drafts', onClick: () => onNavigate('drafts') } : null,
       })
     } catch (err) {
@@ -296,7 +296,7 @@ export default function ContactsTab({
         title: `${succeeded} draft${succeeded !== 1 ? 's' : ''} generated`,
         message: failed
           ? `${failed} contact${failed !== 1 ? 's' : ''} could not be generated. Check missing emails or API settings.`
-          : 'Review and send them from Drafts.',
+          : 'Review and send from Drafts.',
         action: onNavigate && succeeded ? { label: 'Open Drafts', onClick: () => onNavigate('drafts') } : null,
       })
       if (succeeded) clearSelection()
@@ -318,13 +318,13 @@ export default function ContactsTab({
       setToast({
         type: 'error',
         title: `${failed} contact${failed !== 1 ? 's' : ''} could not be removed`,
-        message: removed ? `${removed} were removed successfully.` : 'Try again in a moment.',
+        message: removed ? `${removed} removed successfully.` : 'Try again.',
       })
     } else {
       setToast({
         type: 'success',
         title: `${removed} contact${removed !== 1 ? 's' : ''} removed`,
-        message: 'Your saved contacts list is updated.',
+        message: null,
       })
     }
     clearSelection()
@@ -355,7 +355,6 @@ export default function ContactsTab({
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <div>
           <p className="page-eyebrow">Saved leads</p>
-          <p className="mt-2 text-sm text-muted">Leads you've saved from lead search, plus any custom contacts you've added.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={openAdd} className="btn-primary text-xs">
@@ -541,8 +540,8 @@ export default function ContactsTab({
                     title={search || statusFilter !== 'all' ? 'No contacts match these filters' : 'No contacts yet'}
                     description={
                       search || statusFilter !== 'all'
-                        ? 'Clear the search or status filter to see the rest of your saved contacts.'
-                        : 'Save leads from discovery or add someone manually to generate an email draft.'
+                        ? 'Clear the filter to see all contacts.'
+                        : 'Find contacts in Discover or add one manually.'
                     }
                     action={
                       (search || statusFilter !== 'all') ? (

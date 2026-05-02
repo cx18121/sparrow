@@ -302,7 +302,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
       setToast({
         type: 'info',
         title: 'Review needed before sending',
-        message: 'Add a recipient, subject, and body before sending this draft.',
+        message: 'Add a recipient, subject, and body first.',
       })
       return
     }
@@ -311,7 +311,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
       setToast({
         type: 'error',
         title: 'Gmail not connected',
-        message: 'Connect Gmail in Settings before sending reviewed drafts.',
+        message: 'Connect Gmail in Settings first.',
         action: onNavigate ? {
           label: 'Open Settings',
           onClick: () => {
@@ -453,7 +453,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
         {tab === 'draft' && gmailDisconnected && (
           <Banner variant="warning" icon={AlertCircle} className="mb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>Gmail is not connected. Connect Gmail in Settings before sending drafts.</span>
+              <span>Gmail not connected. Connect in Settings.</span>
               {onNavigate && (
                 <button
                   type="button"
@@ -540,7 +540,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
                           ? 'Sent emails will appear here after Gmail accepts them.'
                           : reviewFilter === 'all'
                             ? 'Generate an email from a saved contact, then review and send it here.'
-                            : 'Switch filters or refresh Drafts to keep reviewing.'
+                            : 'Switch or clear filters to see more.'
                       }
                       action={
                         tab === 'draft' && onNavigate && (

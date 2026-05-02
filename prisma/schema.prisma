@@ -34,6 +34,7 @@ model Company {
   contacts     Contact[]
   userLeads    UserLead[]
   campaignSeen CampaignSeenCompany[]
+  discoverySeen DiscoverySeenCompany[]
 
   @@index([stage])
   @@index([industry])
@@ -197,6 +198,18 @@ model CampaignSeenCompany {
 
   @@unique([campaignId, companyId])
   @@index([campaignId])
+  @@schema("public")
+}
+
+model DiscoverySeenCompany {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  seenAt    DateTime @default(now())
+
+  @@unique([userId, companyId])
+  @@index([userId])
   @@schema("public")
 }
 

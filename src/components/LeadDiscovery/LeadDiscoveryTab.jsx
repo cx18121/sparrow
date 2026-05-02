@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Search, Users, Globe,
-  CheckCircle, AlertCircle, Loader2,
+  CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
-import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions } from '../../lib/api'
+import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen } from '../../lib/api'
 
 const PAGE_SIZE = 20
 const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'investor', 'signal']
@@ -111,6 +111,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
+  const [discoveryMeta, setDiscoveryMeta] = useState({ seenTotal: 0, usingFallback: false })
 
   const [selectedCompany, setSelectedCompany] = useState(null)
   const [apolloResults, setApolloResults] = useState([])
@@ -130,11 +131,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
     const query = overrides.search ?? search
     const hiringOnly = overrides.isHiring ?? isHiring
     const tags = overrides.selectedTags ?? selectedTagsRef.current
+    const append = overrides.append ?? Boolean(cursor)
     try {
       const params = {
         search: query || undefined,
         limit: PAGE_SIZE,
-        ...(query && { sort: 'name' }),
+        random: 'true',
         ...(tags.size > 0 && { tags: [...tags].join(',') }),
         ...(hiringOnly && { isHiring: 'true' }),
         ...(cursor && { cursor }),
@@ -142,9 +144,19 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       const data = await apiFetchCompanies(params)
       if (fetchGenRef.current !== gen) return
       const newItems = data.items ?? []
-      setCompanies(cursor ? prev => [...prev, ...newItems] : newItems)
+      setCompanies(append && !data.usingFallback
+        ? prev => {
+            const existing = new Set(prev.map(c => c.id))
+            return [...prev, ...newItems.filter(c => !existing.has(c.id))]
+          }
+        : newItems
+      )
       setNextCursor(data.nextCursor)
-      setHasMore(!!data.nextCursor)
+      setHasMore(!data.usingFallback && newItems.length > 0)
+      setDiscoveryMeta({
+        seenTotal: data.seenTotal ?? 0,
+        usingFallback: data.usingFallback ?? false,
+      })
       const uncached = newItems.filter(c => !(c.id in apolloCounts))
       if (uncached.length > 0) {
         setApolloCounts(prev => {
@@ -205,8 +217,24 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = useCallback(() => {
-    if (nextCursor) fetchCompanies(nextCursor)
+    fetchCompanies(nextCursor, { append: true })
   }, [nextCursor, fetchCompanies])
+
+  const resetSeen = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await resetDiscoverySeen()
+      setCompanies([])
+      setNextCursor(null)
+      setDiscoveryMeta({ seenTotal: 0, usingFallback: false })
+      await fetchCompanies(null, { append: false })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchCompanies])
 
   const handleCompanySelect = async (company) => {
     setSelectedCompany(company)
@@ -302,8 +330,16 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
             disabled={loading}
           >
             {loading
-              ? <><Loader2 size={14} className="animate-spin" />Searching</>
-              : 'Search'}
+              ? <><Loader2 size={14} className="animate-spin" />Finding</>
+              : <><Shuffle size={14} />Random batch</>}
+          </button>
+          <button
+            onClick={resetSeen}
+            className="btn-secondary shrink-0"
+            disabled={loading || discoveryMeta.seenTotal === 0}
+            title="Clear discovery seen history and start fresh"
+          >
+            <RotateCcw size={14} />Reset seen
           </button>
         </div>
 
@@ -354,6 +390,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
       {/* Error */}
       {error && (
         <Banner variant="danger" icon={AlertCircle} size="sm" className="mb-4">{error}</Banner>
+      )}
+
+      {discoveryMeta.usingFallback && (
+        <Banner variant="warning" icon={AlertCircle} size="sm" className="mb-4">
+          All matching companies have been seen. Showing previously seen companies. Reset seen history to start fresh.
+        </Banner>
       )}
 
       {/* Initial loading */}
@@ -416,7 +458,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
               <button onClick={loadMore} disabled={loading} className="btn-secondary text-xs">
                 {loading
                   ? <><Loader2 size={12} className="animate-spin" />Loading</>
-                  : 'Load more'}
+                  : <><Shuffle size={12} />Show another random batch</>}
               </button>
             </div>
           )}

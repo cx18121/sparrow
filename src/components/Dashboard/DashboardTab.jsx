@@ -156,37 +156,37 @@ export default function DashboardTab({
   const setupItems = [
     {
       label: 'Google connected',
-      detail: hasGoogle ? 'Gmail sending is connected.' : 'Connect Google so Coldflow can send reviewed drafts.',
+      detail: hasGoogle ? 'Connected.' : 'Connect Google to enable Gmail sending.',
       done: hasGoogle,
       action: onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null,
     },
     {
       label: 'Claude key added',
-      detail: hasClaude ? 'AI drafting is ready.' : 'Add a Claude key before generating drafts.',
+      detail: hasClaude ? 'Ready.' : 'Add a Claude key to generate drafts.',
       done: hasClaude,
       action: onNavigate ? { label: 'Settings', onClick: () => onNavigate('settings') } : null,
     },
     {
       label: 'Background added',
-      detail: hasResume ? 'Drafts can use your experience and offer.' : 'Add a resume, bio, or positioning note.',
+      detail: hasResume ? 'Added.' : 'Add a resume or bio.',
       done: hasResume,
       action: onGoToOnboarding ? { label: 'Setup', onClick: onGoToOnboarding } : null,
     },
     {
       label: 'Sender set',
-      detail: hasSender ? `${workspaceConfig.senderName} will appear in drafts.` : 'Set the sender name for outreach.',
+      detail: hasSender ? `Drafting as ${workspaceConfig.senderName}.` : 'Set your sender name.',
       done: hasSender,
       action: onGoToOnboarding ? { label: 'Setup', onClick: onGoToOnboarding } : null,
     },
     {
       label: 'Template selected',
-      detail: hasTemplate ? 'Drafts have a reusable starting structure.' : 'Create or choose a default template.',
+      detail: hasTemplate ? 'Template set.' : 'Create or select a template.',
       done: hasTemplate,
       action: onNavigate ? { label: 'Templates', onClick: () => onNavigate('templates') } : null,
     },
     {
       label: 'First contacts saved',
-      detail: totalContacts > 0 ? `${totalContacts} contact${totalContacts !== 1 ? 's' : ''} saved.` : 'Save contacts from Discover or add them manually.',
+      detail: totalContacts > 0 ? `${totalContacts} contact${totalContacts !== 1 ? 's' : ''} saved.` : 'Find contacts in Discover or add manually.',
       done: totalContacts > 0,
       action: onNavigate ? { label: 'Contacts', onClick: () => onNavigate('contacts') } : null,
     },
@@ -309,7 +309,7 @@ export default function DashboardTab({
             ) : recentActivity.length === 0 ? (
               <EmptyState
                 align="left"
-                description="Nothing yet. Save contacts from Discover or import your own to get started."
+                description="Find contacts in Discover to get started."
                 action={
                   <button
                     type="button"
