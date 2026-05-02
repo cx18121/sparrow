@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Sparrow — Current vs Tweaked</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a1a; padding: 40px 32px; display: flex; flex-direction: column; gap: 48px; }
+  .header { color: #555; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+
+  .palette { border-radius: 18px; overflow: hidden; }
+  .palette-header { padding: 20px 26px 16px; display: flex; align-items: baseline; gap: 14px; }
+  .palette-name { font-size: 16px; font-weight: 700; }
+  .palette-desc { font-size: 12px; }
+  .swatches { display: flex; height: 6px; }
+  .swatch { flex: 1; }
+
+  .mock { display: flex; height: 380px; }
+  .sidebar { width: 192px; padding: 18px 10px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+  .sidebar-logo { font-size: 13px; font-weight: 800; padding: 8px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .nav-item { padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: default; }
+  .nav-divider { margin: 6px 12px; height: 1px; }
+
+  .main { flex: 1; padding: 24px 26px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; margin-bottom: 2px; }
+  .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 10px; }
+  .toolbar { display: flex; align-items: center; gap: 8px; }
+  .search { flex: 1; padding: 8px 14px; border-radius: 14px; font-size: 13px; border: 1.5px solid; outline: none; }
+  .btn { padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 600; border: none; cursor: default; white-space: nowrap; }
+  .btn-ghost { padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1.5px solid; background: transparent; cursor: default; }
+  .table { border-radius: 12px; overflow: hidden; border: 1.5px solid; }
+  .table-head { display: grid; grid-template-columns: 2fr 1.1fr 90px 70px; padding: 9px 16px; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .table-row { display: grid; grid-template-columns: 2fr 1.1fr 90px 70px; padding: 12px 16px; font-size: 13px; border-top: 1px solid; align-items: center; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+  .row-name { font-weight: 600; }
+  .row-sub { font-size: 11px; margin-top: 2px; }
+
+  /* ── CURRENT ── */
+  .pA { background: #F5F0E8; }
+  .pA .palette-header { background: #F5F0E8; border-bottom: 1px solid #E8DDD0; }
+  .pA .palette-name { color: #2C1F10; }
+  .pA .palette-desc { color: #7A6651; }
+  .pA .sidebar { background: #F8F4ED; border-right: 1.5px solid rgba(168,132,92,.2); }
+  .pA .sidebar-logo { color: #2C1F10; }
+  .pA .logo-mark { background: rgba(168,132,92,.15); color: #A8845C; }
+  .pA .nav-divider { background: rgba(168,132,92,.15); }
+  .pA .nav-item { color: #7A6651; }
+  .pA .nav-item.active { background: #557A57; color: white; }
+  .pA .main { background: #F5F0E8; }
+  .pA .eyebrow { color: #557A57; }
+  .pA .page-title { color: #2C1F10; }
+  .pA .search { border-color: #E8DDD0; background: rgba(253,250,245,.8); color: #2C1F10; }
+  .pA .btn { background: #557A57; color: white; }
+  .pA .btn-ghost { border-color: rgba(168,132,92,.3); color: #7A6651; }
+  .pA .table { border-color: #E8DDD0; background: #FDFAF5; }
+  .pA .table-head { background: #F5EFE4; color: #9A876F; border-bottom: 1.5px solid #E8DDD0; }
+  .pA .table-row { border-color: #F5EFE4; }
+  .pA .row-name { color: #2C1F10; }
+  .pA .row-sub { color: #7A6651; }
+  .pA .badge { background: #EEF5EE; color: #426145; }
+  .pA .pill { background: #F0DCBF; color: #896748; }
+
+  /* ── TWEAKED ── */
+  .pB { background: #F3EFE6; }
+  .pB .palette-header { background: #F3EFE6; border-bottom: 1px solid #E0DAD0; }
+  .pB .palette-name { color: #1E1A14; }
+  .pB .palette-desc { color: #726B60; }
+  .pB .sidebar { background: #F8F5F0; border-right: 1.5px solid rgba(138,122,106,.18); }
+  .pB .sidebar-logo { color: #1E1A14; }
+  .pB .logo-mark { background: rgba(58,107,62,.12); color: #3A6B3E; }
+  .pB .nav-divider { background: rgba(138,122,106,.14); }
+  .pB .nav-item { color: #726B60; }
+  .pB .nav-item.active { background: #3A6B3E; color: white; box-shadow: 0 6px 14px rgba(58,107,62,.22); }
+  .pB .main { background: #F3EFE6; }
+  .pB .eyebrow { color: #3A6B3E; }
+  .pB .page-title { color: #1E1A14; }
+  .pB .search { border-color: #E0DAD0; background: rgba(253,251,248,.85); color: #1E1A14; }
+  .pB .btn { background: #3A6B3E; color: white; box-shadow: 0 6px 14px rgba(58,107,62,.22); }
+  .pB .btn-ghost { border-color: rgba(138,122,106,.28); color: #726B60; }
+  .pB .table { border-color: #E0DAD0; background: #FDFCF9; }
+  .pB .table-head { background: #F3EFE6; color: #9A9288; border-bottom: 1.5px solid #E0DAD0; }
+  .pB .table-row { border-color: #EDE9E2; }
+  .pB .row-name { color: #1E1A14; }
+  .pB .row-sub { color: #726B60; }
+  .pB .badge { background: #EBF3EC; color: #2F5832; }
+  .pB .pill { background: #EAE5DE; color: #726B60; }
+</style>
+</head>
+<body>
+
+<div class="header">Sparrow — Current vs Tweaked</div>
+
+<div class="palette pA">
+  <div class="palette-header">
+    <div class="palette-name">Current</div>
+    <div class="palette-desc">Muted sage · amber accent bleeding · warm brown text</div>
+  </div>
+  <div class="swatches">
+    <div class="swatch" style="background:#2C1F10"></div>
+    <div class="swatch" style="background:#557A57"></div>
+    <div class="swatch" style="background:#A8845C"></div>
+    <div class="swatch" style="background:#E8DDD0"></div>
+    <div class="swatch" style="background:#F5F0E8"></div>
+  </div>
+  <div class="mock">
+    <div class="sidebar">
+      <div class="sidebar-logo"><div class="logo-mark">✦</div>Sparrow</div>
+      <div class="nav-divider"></div>
+      <div class="nav-item active">Campaigns</div>
+      <div class="nav-item">Discover</div>
+      <div class="nav-item">Drafts</div>
+      <div class="nav-item">Contacts</div>
+      <div class="nav-item">Templates</div>
+    </div>
+    <div class="main">
+      <div class="eyebrow">Outreach</div>
+      <div class="page-title">Campaigns</div>
+      <div class="toolbar">
+        <input class="search" placeholder="Search campaigns…" readonly />
+        <button class="btn">+ New campaign</button>
+        <button class="btn-ghost">Filters</button>
+      </div>
+      <div class="table">
+        <div class="table-head"><span>Name</span><span>Filters</span><span>Status</span><span>Batch</span></div>
+        <div class="table-row"><div><div class="row-name">YC W25 Outreach</div><div class="row-sub">Quick question about…</div></div><div><span class="pill">yc-backed</span></div><div><span class="badge">active</span></div><div style="font-size:12px;color:#9A876F">10/run</div></div>
+        <div class="table-row"><div><div class="row-name">Sequoia Portfolio</div><div class="row-sub">Saw your recent launch</div></div><div><span class="pill">sequoia</span></div><div><span class="badge">paused</span></div><div style="font-size:12px;color:#9A876F">10/run</div></div>
+        <div class="table-row"><div><div class="row-name">Fintech Seed</div><div class="row-sub">Partnership opportunity</div></div><div><span class="pill">fintech</span></div><div><span class="badge">active</span></div><div style="font-size:12px;color:#9A876F">10/run</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="palette pB">
+  <div class="palette-header">
+    <div class="palette-name">Tweaked</div>
+    <div class="palette-desc">Deeper green · neutral taupe accent · near-charcoal text · same warmth</div>
+  </div>
+  <div class="swatches">
+    <div class="swatch" style="background:#1E1A14"></div>
+    <div class="swatch" style="background:#3A6B3E"></div>
+    <div class="swatch" style="background:#8A7A6A"></div>
+    <div class="swatch" style="background:#E0DAD0"></div>
+    <div class="swatch" style="background:#F3EFE6"></div>
+  </div>
+  <div class="mock">
+    <div class="sidebar">
+      <div class="sidebar-logo"><div class="logo-mark">✦</div>Sparrow</div>
+      <div class="nav-divider"></div>
+      <div class="nav-item active">Campaigns</div>
+      <div class="nav-item">Discover</div>
+      <div class="nav-item">Drafts</div>
+      <div class="nav-item">Contacts</div>
+      <div class="nav-item">Templates</div>
+    </div>
+    <div class="main">
+      <div class="eyebrow">Outreach</div>
+      <div class="page-title">Campaigns</div>
+      <div class="toolbar">
+        <input class="search" placeholder="Search campaigns…" readonly />
+        <button class="btn">+ New campaign</button>
+        <button class="btn-ghost">Filters</button>
+      </div>
+      <div class="table">
+        <div class="table-head"><span>Name</span><span>Filters</span><span>Status</span><span>Batch</span></div>
+        <div class="table-row"><div><div class="row-name">YC W25 Outreach</div><div class="row-sub">Quick question about…</div></div><div><span class="pill">yc-backed</span></div><div><span class="badge">active</span></div><div style="font-size:12px;color:#9A9288">10/run</div></div>
+        <div class="table-row"><div><div class="row-name">Sequoia Portfolio</div><div class="row-sub">Saw your recent launch</div></div><div><span class="pill">sequoia</span></div><div><span class="badge">paused</span></div><div style="font-size:12px;color:#9A9288">10/run</div></div>
+        <div class="table-row"><div><div class="row-name">Fintech Seed</div><div class="row-sub">Partnership opportunity</div></div><div><span class="pill">fintech</span></div><div><span class="badge">active</span></div><div style="font-size:12px;color:#9A9288">10/run</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
