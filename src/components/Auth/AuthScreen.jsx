@@ -100,7 +100,7 @@ export default function AuthScreen() {
                   onChange={e => setFullName(e.target.value)}
                   placeholder="Jane Smith"
                   required
-                  className="h-14 w-full rounded-2xl border border-gray-200/80 bg-white/70 px-4 text-sm text-dark placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                  className="input-lg"
                 />
               </div>
             )}

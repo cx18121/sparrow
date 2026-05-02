@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle, ArrowRight, CheckCircle2, Circle, FileText, Inbox,
-  Mail, RefreshCw, Send, Users,
+  Mail, Send, Users,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
@@ -55,6 +55,19 @@ function ActivityRow({ icon: Icon, title, detail, when }) {
         <p className="mt-0.5 truncate text-xs text-muted">{detail}</p>
       </div>
       {when && <span className="shrink-0 text-xs text-muted tabular-nums">{when}</span>}
+    </div>
+  )
+}
+
+function ActivitySkeleton() {
+  return (
+    <div className="flex items-center gap-3 py-3 animate-pulse">
+      <div className="h-3.5 w-3.5 shrink-0 rounded-full bg-slate-100" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="h-3 w-2/5 rounded bg-slate-100" />
+        <div className="h-2.5 w-1/3 rounded bg-slate-100" />
+      </div>
+      <div className="h-2.5 w-10 shrink-0 rounded bg-slate-100" />
     </div>
   )
 }
@@ -286,13 +299,14 @@ export default function DashboardTab({
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-dark">Recent activity</h2>
-              {(dataLoading || emailState.loading) && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted">
-                  <RefreshCw size={12} className="animate-spin" /> Refreshing
-                </span>
-              )}
             </div>
-            {recentActivity.length === 0 ? (
+            {emailState.loading ? (
+              <div className="divide-y divide-slate-100 border-y border-slate-100">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ActivitySkeleton key={i} />
+                ))}
+              </div>
+            ) : recentActivity.length === 0 ? (
               <EmptyState
                 align="left"
                 description="Nothing yet. Save contacts from Discover or import your own to get started."

@@ -4,6 +4,7 @@ import {
   CheckCircle, AlertCircle, Loader2,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
+import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions } from '../../lib/api'
@@ -458,9 +459,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onLeadSaved }) {
                 <Banner variant="danger" icon={AlertCircle} size="sm">{apolloError}</Banner>
               )}
               {!apolloLoading && !apolloError && apolloResults.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted">
-                  No contacts found for this company.
-                </p>
+                <EmptyState className="py-6">No contacts found for this company.</EmptyState>
               )}
               {!apolloLoading && !apolloError && apolloResults.length > 0 && (
                 <div className="space-y-2">

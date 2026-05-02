@@ -76,7 +76,8 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   }
 
   if (path === '/profile') {
-    return 'We could not load your setup status. Refresh Settings or sign in again.'
+    if (method === 'GET') return 'We could not load your setup status. Refresh Settings or sign in again.'
+    return 'Settings could not be saved. Check that all required environment variables are set, then try again.'
   }
 
   if (status === 404) return 'We could not find what you asked for. Refresh the page and try again.'

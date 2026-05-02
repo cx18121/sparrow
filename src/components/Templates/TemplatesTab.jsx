@@ -10,6 +10,7 @@ import {
   List, ListOrdered, Eye, Edit3, Search, Copy, Save,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
+import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { sampleContactData } from '../../lib/mockData'
@@ -267,14 +268,14 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="empty-state border-0 bg-transparent px-4 py-10 text-xs shadow-none">No templates match.</div>
+              <EmptyState>No templates match.</EmptyState>
             )}
           </div>
         </aside>
 
         <section className="space-y-4">
           {!selected ? (
-            <div className="empty-state">Select or create a template to start editing.</div>
+            <EmptyState>Select or create a template to start editing.</EmptyState>
           ) : (
             <>
               <div className="page-toolbar">
