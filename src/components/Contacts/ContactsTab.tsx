@@ -57,6 +57,7 @@ export default function ContactsTab({
   onUpdate,
   onDelete,
   onCreateCustomContact,
+  onUpdateCustomContact,
   onDeleteCustomContact,
   workspaceConfig,
   onNavigate,
@@ -95,7 +96,7 @@ export default function ContactsTab({
   // Merge leads + custom contacts into a single list
   const allRows = useMemo(() => [
     ...leads,
-    ...customContacts.map(cc => ({ ...cc, _custom: true, status: 'SAVED', addedAt: cc.createdAt })),
+    ...customContacts.map(cc => ({ ...cc, _custom: true, status: cc.status || 'SAVED', addedAt: cc.createdAt })),
   ], [leads, customContacts])
 
   const openGenerate = (row) => {
@@ -274,8 +275,10 @@ export default function ContactsTab({
   const clearSelection = () => setSelectedKeys(new Set())
 
   const changeStatus = (lead, status) => {
-    if (lead._custom || status === lead.status) return
-    onUpdate({ id: lead.id, status })
+    if (status === lead.status) return
+    const handler = lead._custom ? onUpdateCustomContact : onUpdate
+    if (!handler) return
+    handler({ id: lead.id, status })
       .then(() => setToast({ type: 'success', title: `Marked as ${STATUS_LABELS[status]}` }))
       .catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
   }
@@ -509,17 +512,13 @@ export default function ContactsTab({
                 <td className="px-5 py-4 text-muted">{getCompany(row) || '—'}</td>
                 <td className="px-5 py-4 text-muted">{getTitle(row) || getNotesTitle(row) || '—'}</td>
                 <td className="px-5 py-4">
-                  {row._custom ? (
-                    <span title="Custom contacts are always Saved" className={`rounded-full text-xs font-medium py-1 px-2.5 cursor-default ${STATUS_STYLE.SAVED}`}>Saved</span>
-                  ) : (
-                    <select
-                      value={row.status}
-                      onChange={e => changeStatus(row, e.target.value)}
-                      className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.SAVED}`}
-                    >
-                      {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>)}
-                    </select>
-                  )}
+                  <select
+                    value={row.status}
+                    onChange={e => changeStatus(row, e.target.value)}
+                    className={`rounded-full border-0 text-xs font-medium py-1 pl-2.5 pr-6 cursor-pointer focus:ring-1 focus:ring-primary/30 ${STATUS_STYLE[row.status] || STATUS_STYLE.SAVED}`}
+                  >
+                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] ?? s}</option>)}
+                  </select>
                 </td>
                 <td className="px-5 py-4 text-muted">
                   {row.addedAt ? format(new Date(row.addedAt), 'MMM d, yyyy') : '—'}
@@ -564,16 +563,11 @@ export default function ContactsTab({
                           Clear filters
                         </button>
                       ) : (
-                        <>
-                          {onNavigate && (
-                            <button type="button" onClick={() => onNavigate('leads')} className="btn-primary text-xs">
-                              Discover leads
-                            </button>
-                          )}
-                          <button type="button" onClick={openAdd} className="btn-secondary text-xs">
-                            Add contact
+                        onNavigate && (
+                          <button type="button" onClick={() => onNavigate('leads')} className="btn-primary text-xs">
+                            Discover leads
                           </button>
-                        </>
+                        )
                       )
                     }
                   />

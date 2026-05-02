@@ -5,7 +5,7 @@ import {
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, updateEmail, sendEmail, deleteEmails } from '../../lib/api'
+import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, deleteEmails } from '../../lib/api'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -131,9 +131,12 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [batchSendConfirm, setBatchSendConfirm] = useState<string[] | null>(null)
+  const [batchDailyInfo, setBatchDailyInfo] = useState<{ sentToday: number; dailyMax: number } | null>(null)
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelBatchRef = useRef(false)
 
   useEffect(() => {
     if (profileLoading) return
@@ -358,7 +361,9 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const canAttachResume = Boolean(workspaceConfig?.resumePath)
   const gmailDisconnected = gmailStatus === 'disconnected'
 
-  const markSent = async (ids) => {
+  const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+  const markSent = async (ids: string[]) => {
     const sendableIds = ids.filter(id => {
       const draft = drafts.find(d => d.id === id)
       return draft && canSendDraft(draft)
@@ -366,11 +371,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     const skippedCount = ids.length - sendableIds.length
 
     if (sendableIds.length === 0) {
-      setToast({
-        type: 'info',
-        title: 'Review needed before sending',
-        message: 'Add a recipient, subject, and body first.',
-      })
+      setToast({ type: 'info', title: 'Review needed before sending', message: 'Add a recipient, subject, and body first.' })
       return
     }
 
@@ -379,73 +380,76 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
         type: 'error',
         title: 'Gmail not connected',
         message: 'Connect Gmail in Settings first.',
-        action: onNavigate ? {
-          label: 'Open Settings',
-          onClick: () => {
-            onNavigate('settings')
-            setToast(null)
-          },
-        } : null,
+        action: onNavigate ? { label: 'Open Settings', onClick: () => { onNavigate('settings'); setToast(null) } } : null,
       })
       return
     }
 
     if (skippedCount > 0) {
-      setToast({
-        type: 'info',
-        title: `${skippedCount} draft${skippedCount !== 1 ? 's' : ''} skipped`,
-        message: 'Only drafts marked Ready were sent.',
-      })
+      setToast({ type: 'info', title: `${skippedCount} draft${skippedCount !== 1 ? 's' : ''} skipped`, message: 'Only drafts marked Ready were sent.' })
     }
 
+    const delayMs = Math.max(15, workspaceConfig?.sendingLimits?.delaySeconds ?? 15) * 1000
+    cancelBatchRef.current = false
     setSending(true)
-    try {
-      const results = await Promise.allSettled(sendableIds.map(id => sendEmail(id, { attachResume })))
-      const failed = results
-        .map((r, i) => {
-          if (r.status !== 'rejected') return null
-          const draft = drafts.find(d => d.id === sendableIds[i])
-          return {
-            name: getRecipientName(draft) || getCompanyName(draft) || 'Unknown',
-            reason: r.reason?.message || 'Send failed',
-          }
-        })
-        .filter(Boolean)
-      if (failed.length) {
-        const names = failed.slice(0, 3).map(f => f.name).join(', ')
-        const overflow = failed.length > 3 ? `, and ${failed.length - 3} more` : ''
-        setToast({
-          type: 'error',
-          title: `${failed.length} email${failed.length !== 1 ? 's' : ''} failed to send`,
-          message: `${names}${overflow}. ${failed[0].reason}`,
+    if (sendableIds.length > 1) setBatchProgress({ current: 0, total: sendableIds.length })
+
+    const succeeded: string[] = []
+    const failures: Array<{ name: string; reason: string }> = []
+    let hitDailyLimit = false
+
+    for (let i = 0; i < sendableIds.length; i++) {
+      if (cancelBatchRef.current) break
+
+      const id = sendableIds[i]
+      if (sendableIds.length > 1) setBatchProgress({ current: i + 1, total: sendableIds.length })
+
+      try {
+        await sendEmail(id, { attachResume })
+        succeeded.push(id)
+        setDrafts(prev => prev.filter(d => d.id !== id))
+        setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
+      } catch (err: any) {
+        if (err?.status === 429) { hitDailyLimit = true; break }
+        const draft = drafts.find(d => d.id === id)
+        failures.push({
+          name: getRecipientName(draft) || getCompanyName(draft) || 'Unknown',
+          reason: err?.message || 'Send failed',
         })
       }
-      const succeeded = sendableIds.filter((_, i) => results[i].status === 'fulfilled')
-      if (succeeded.length) {
-        const nextReviewDraft = succeeded.includes(preview?.id) ? findNextReviewDraft(succeeded) : null
-        setToast({
-          type: 'success',
-          title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
-          message: nextReviewDraft
-            ? `Moved to Sent${attachResume ? ' with resume attached' : ''}. The next ready draft is open.`
-            : `Moved from Drafts to Sent${attachResume ? ' with resume attached' : ''}.`,
-          action: {
-            label: 'View sent',
-            onClick: () => {
-              setTab('sent')
-              setToast(null)
-            },
-          },
-        })
-        setDrafts(prev => prev.filter(d => !succeeded.includes(d.id)))
-        setSelected(prev => { const next = new Set(prev); succeeded.forEach(id => next.delete(id)); return next })
-        if (preview && succeeded.includes(preview.id)) {
-          setPreview(nextReviewDraft)
-          setEditing(false)
-        }
+
+      if (i < sendableIds.length - 1 && !cancelBatchRef.current) {
+        await sleep(delayMs)
       }
-    } finally {
-      setSending(false)
+    }
+
+    setSending(false)
+    setBatchProgress(null)
+
+    // Fix: only treat as cancelled if it actually prevented remaining sends
+    const wasCancelled = cancelBatchRef.current && succeeded.length < sendableIds.length
+
+    if (preview && succeeded.includes(preview.id)) {
+      setPreview(findNextReviewDraft(succeeded))
+      setEditing(false)
+    }
+
+    if (failures.length > 0) {
+      const names = failures.slice(0, 2).map(f => f.name).join(', ')
+      const overflow = failures.length > 2 ? ` and ${failures.length - 2} more` : ''
+      setToast({ type: 'error', title: `${failures.length} email${failures.length !== 1 ? 's' : ''} failed to send`, message: `${names}${overflow}: ${failures[0].reason}` })
+    } else if (wasCancelled) {
+      setToast({ type: 'info', title: succeeded.length > 0 ? `Sent ${succeeded.length} of ${sendableIds.length} — cancelled` : 'Cancelled — no emails sent', message: '' })
+    } else if (hitDailyLimit) {
+      setToast({ type: 'error', title: `Daily limit reached — ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
+    } else if (succeeded.length > 0) {
+      const nextReviewDraft = succeeded.includes(preview?.id) ? findNextReviewDraft(succeeded) : null
+      setToast({
+        type: 'success',
+        title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
+        message: nextReviewDraft ? 'The next ready draft is open.' : `Moved to Sent${attachResume ? ' with resume attached' : ''}.`,
+        action: { label: 'View sent', onClick: () => { setTab('sent'); setToast(null) } },
+      })
     }
   }
 
@@ -482,6 +486,11 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const initiateSend = (ids: string[]) => {
     if (ids.length > 1) {
       setBatchSendConfirm(ids)
+      setBatchDailyInfo(null)
+      const dailyMax = workspaceConfig?.sendingLimits?.dailyMax ?? 100
+      fetchSentTodayCount()
+        .then(({ count }) => setBatchDailyInfo({ sentToday: count, dailyMax }))
+        .catch(() => {})
     } else {
       scheduleSend(ids)
     }
@@ -573,24 +582,41 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
               </button>
             )}
             {tab === 'draft' && selectedArr.length > 0 && (
-              <>
-                <button
-                  onClick={() => initiateSend(selectedArr)}
-                  disabled={sending || deleting}
-                  className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3"
-                >
-                  <Send size={13} />
-                  {sending ? 'Sending…' : `Send ${selectedArr.length}`}
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(selectedArr)}
-                  disabled={sending || deleting}
-                  className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-500 hover:bg-red-50"
-                >
-                  <Trash2 size={13} />
-                  {deleting ? 'Deleting…' : `Delete ${selectedArr.length}`}
-                </button>
-              </>
+              sending ? (
+                <div className="flex items-center gap-2">
+                  {batchProgress && (
+                    <span className="text-xs text-muted tabular-nums">
+                      Sending {batchProgress.current} of {batchProgress.total}…
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { cancelBatchRef.current = true }}
+                    className="btn-ghost text-xs text-red-500 hover:bg-red-50 py-1.5 px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => initiateSend(selectedArr)}
+                    disabled={deleting}
+                    className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3"
+                  >
+                    <Send size={13} />
+                    {`Send ${selectedArr.length}`}
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(selectedArr)}
+                    disabled={deleting}
+                    className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 size={13} />
+                    {deleting ? 'Deleting…' : `Delete ${selectedArr.length}`}
+                  </button>
+                </>
+              )
             )}
             <button
               onClick={load}
@@ -700,9 +726,9 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
                             : 'Switch or clear filters to see more.'
                       }
                       action={
-                        tab === 'draft' && onNavigate && (
-                          <button type="button" onClick={() => onNavigate('contacts')} className="btn-primary text-xs">
-                            Go to Contacts
+                        onNavigate && (
+                          <button type="button" onClick={() => onNavigate(tab === 'sent' ? 'drafts' : 'contacts')} className="btn-primary text-xs">
+                            {tab === 'sent' ? 'Go to Drafts' : 'Go to Contacts'}
                           </button>
                         )
                       }
@@ -1012,10 +1038,28 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
       )}
       <ConfirmDialog
         open={!!batchSendConfirm}
-        onClose={() => setBatchSendConfirm(null)}
-        onConfirm={() => { const ids = batchSendConfirm; setBatchSendConfirm(null); if (ids) markSent(ids) }}
+        onClose={() => { setBatchSendConfirm(null); setBatchDailyInfo(null) }}
+        onConfirm={() => {
+          const ids = batchSendConfirm ?? []
+          const remaining = batchDailyInfo.dailyMax - batchDailyInfo.sentToday
+          const capped = ids.slice(0, Math.max(0, remaining))
+          setBatchSendConfirm(null)
+          setBatchDailyInfo(null)
+          if (capped.length > 0) markSent(capped)
+          else setToast({ type: 'error', title: 'Daily send limit already reached', message: 'No emails sent. Limit resets tomorrow.' })
+        }}
+        confirmLabel="Send"
+        danger={false}
+        confirmDisabled={!batchDailyInfo}
         title={`Send ${batchSendConfirm?.length} emails`}
-        message={`This will send ${batchSendConfirm?.length} emails via Gmail. Only drafts marked Ready will be sent.`}
+        message={(() => {
+          const base = `Emails will be sent one at a time with a ${workspaceConfig?.sendingLimits?.delaySeconds ?? 15}s delay between each.`
+          if (!batchDailyInfo) return `${base} Checking daily limit…`
+          const remaining = batchDailyInfo.dailyMax - batchDailyInfo.sentToday
+          if (remaining <= 0) return `You've reached your daily send limit (${batchDailyInfo.dailyMax}/day). No emails will be sent.`
+          if (remaining < (batchSendConfirm?.length ?? 0)) return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day) — only ${remaining} of ${batchSendConfirm?.length} will be sent.`
+          return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day).`
+        })()}
       />
       <ConfirmDialog
         open={!!deleteConfirm}
