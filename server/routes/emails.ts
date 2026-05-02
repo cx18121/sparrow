@@ -26,7 +26,7 @@ const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
 type EmailStatus = (typeof ALLOWED_EMAIL_STATUSES)[number];
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { userLeadId, status, limit = "50", cursor, countToday } = req.query as Record<
+  const { userLeadId, status, limit = "50", cursor, countToday, combined } = req.query as Record<
     string,
     string | undefined
   >;
@@ -58,6 +58,21 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
       },
     },
   } as const;
+
+  // Dashboard combined fetch: drafts + sent in one round trip to avoid two cold starts.
+  if (combined === "true") {
+    const branchWhere = (relation: "userLead" | "customContact", s: string) => ({ [relation]: { userId }, status: s });
+    const [draftLeads, draftContacts, sentLeads, sentContacts] = await Promise.all([
+      prisma.email.findMany({ where: branchWhere("userLead", "draft"), take: 9, orderBy: { createdAt: "desc" }, include }),
+      prisma.email.findMany({ where: branchWhere("customContact", "draft"), take: 9, orderBy: { createdAt: "desc" }, include }),
+      prisma.email.findMany({ where: branchWhere("userLead", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
+      prisma.email.findMany({ where: branchWhere("customContact", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
+    ]);
+    const sort = (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const drafts = [...draftLeads, ...draftContacts].sort(sort).slice(0, 8);
+    const sent = [...sentLeads, ...sentContacts].sort(sort).slice(0, 20);
+    return res.status(200).json({ drafts, sent });
+  }
 
   // When scoped to a specific lead, only one branch applies — single query with cursor support.
   if (userLeadId) {

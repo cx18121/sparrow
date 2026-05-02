@@ -9,7 +9,7 @@ import { fetchEmails } from '../../lib/api'
 import { useAppData } from '../../contexts/AppDataContext'
 
 const EMAIL_CACHE_KEY = 'cf_dash_emails'
-const CACHE_TTL = 5 * 60 * 1000
+const CACHE_TTL = 30 * 60 * 1000
 
 function readEmailCache() {
   try {
@@ -145,30 +145,21 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   useEffect(() => {
     let cancelled = false
 
-    fetchEmails({ status: 'draft', limit: '8' })
+    fetchEmails({ combined: 'true' })
       .then(res => {
         if (cancelled) return
-        const items = res?.items || []
-        latestDrafts.current = items
-        setDrafts(items)
+        const draftsItems = res?.drafts || []
+        const sentItems = res?.sent || []
+        latestDrafts.current = draftsItems
+        latestSent.current = sentItems
+        setDrafts(draftsItems)
+        setSent(sentItems)
         setDraftsLoading(false)
-        writeEmailCache({ drafts: items, sent: latestSent.current })
+        setSentLoading(false)
+        writeEmailCache({ drafts: draftsItems, sent: sentItems })
       })
       .catch(err => {
-        if (!cancelled) { setError(err.message || 'Could not load drafts'); setDraftsLoading(false) }
-      })
-
-    fetchEmails({ status: 'sent', limit: '20' })
-      .then(res => {
-        if (cancelled) return
-        const items = res?.items || []
-        latestSent.current = items
-        setSent(items)
-        setSentLoading(false)
-        writeEmailCache({ drafts: latestDrafts.current, sent: items })
-      })
-      .catch(() => {
-        if (!cancelled) setSentLoading(false)
+        if (!cancelled) { setError(err.message || 'Could not load emails'); setDraftsLoading(false); setSentLoading(false) }
       })
 
     return () => { cancelled = true }
