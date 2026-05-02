@@ -696,7 +696,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
 
       {/* Preview / edit panel */}
       {preview && (
-        <div className={`flex shrink-0 flex-col border-t border-slate-100 bg-white lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[480px] lg:border-l'}`}>
+        <div className={`flex shrink-0 flex-col border-t border-slate-100 bg-white lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[38%] lg:min-w-[440px] lg:max-w-[600px] lg:border-l'}`}>
           {/* Panel header */}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
