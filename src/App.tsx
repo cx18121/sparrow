@@ -121,6 +121,7 @@ function AppShell() {
   const [leads, setLeads] = useState([])
   const [customContacts, setCustomContacts] = useState([])
   const [templates, setTemplates] = useState([])
+  const templatesRef = useRef(templates)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [hasResourceCache, setHasResourceCache] = useState(false)
   const [serverProfile, setServerProfile] = useState(null)
@@ -128,6 +129,8 @@ function AppShell() {
   const [activeCampaign, setActiveCampaign] = useState<{ id: string; name: string } | null>(() => {
     try { return JSON.parse(sessionStorage.getItem('cf_active_campaign') || 'null') } catch { return null }
   })
+
+  useEffect(() => { templatesRef.current = templates }, [templates])
 
   const refreshProfile = useCallback(() => {
     setProfileLoading(true)
@@ -165,7 +168,7 @@ function AppShell() {
       }
       try { sessionStorage.removeItem('cf_active_campaign') } catch {}
       setActiveCampaign(null)
-      setWorkspaceConfig(createWorkspaceConfig({ user: null, templates }))
+      setWorkspaceConfig(createWorkspaceConfig({ user: null, templates: templatesRef.current }))
       setOnboardingState({ loaded: true, completed: false, data: null })
       setServerProfile(null)
       setProfileLoading(true)
@@ -198,7 +201,7 @@ function AppShell() {
 
     // Optimistically hydrate from localStorage so the UI renders fast,
     // then reconcile against the server profile (cross-device source of truth).
-    const localConfig = createWorkspaceConfig({ user, templates, data: parsed?.data || null })
+    const localConfig = createWorkspaceConfig({ user, templates: templatesRef.current, data: parsed?.data || null })
     const localRecoverableSetup = hasRecoverableCompletedSetup({ workspaceConfig: parsed?.data || {} })
     const hasLocalCompletionSignal = parsed?.completed === true || bypassedThisSession
     const localCompleted = googleConnectedReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal || localRecoverableSetup
@@ -263,7 +266,7 @@ function AppShell() {
       })
 
     return () => { cancelled = true }
-  }, [location.search, user, templates])
+  }, [location.search, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate templates / sequences / campaigns / leads from the API after auth.
   // Check both React user state and module-level auth (set synchronously before state updates).
