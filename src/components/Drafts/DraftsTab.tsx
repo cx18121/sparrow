@@ -788,7 +788,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
           </div>
 
           {saveError && (
-            <Banner variant="danger" size="sm" className="mx-5 mt-3">{saveError}</Banner>
+            <Banner variant="danger" size="sm" className="mx-4 mt-3 sm:mx-5">{saveError}</Banner>
           )}
 
           {/* Panel body */}
@@ -813,7 +813,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
 
             {/* Subject */}
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-1">Subject</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Subject</p>
               {editing ? (
                 <input
                   type="text"
@@ -847,8 +847,8 @@ export default function DraftsTab({ onNavigate, workspaceConfig }) {
             </div>
 
             {/* Meta */}
-            <div className="pt-2 border-t border-slate-100 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Details</p>
+            <div className="border-t border-slate-100 pt-4 space-y-1.5">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Details</p>
               <div className="flex justify-between text-xs">
                 <span className="text-muted">Status</span>
                 {tab === 'sent' ? (

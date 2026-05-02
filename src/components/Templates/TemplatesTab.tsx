@@ -253,7 +253,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
           </div>
 
-          <div className="max-h-[calc(100vh-340px)] space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-180px)]">
             {filtered.map(t => (
               <button
                 key={t.id}
@@ -330,12 +330,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
               {view === 'edit' ? (
                 <div className="card p-6 space-y-5">
                   <div>
-                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                      <label className="label mb-0">Subject line</label>
-                      <p className="text-xs text-muted">
-                        Use <span className="font-mono text-primary">{'{{company}}'}</span> to insert the company name.
-                      </p>
-                    </div>
+                    <label className="label">Subject line</label>
                     <input
                       value={draft.id === selected.id ? draft.subject : (selected.subject || '')}
                       onChange={e => scheduleFlush({ ...draft, id: selected.id, subject: e.target.value })}
@@ -393,7 +388,7 @@ export default function TemplatesTab({ templates, onCreate, onUpdate, onDelete, 
 
       {/* Create/Edit info modal */}
       <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Edit template info' : 'New template'} size="sm">
-        <div className="px-6 py-4 space-y-3">
+        <div className="px-6 py-5 space-y-4">
           <div><label className="label">Template name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Cold Intro — Startup Founder" className="input" /></div>
           <div>
             <label className="label">Subject line</label>

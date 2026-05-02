@@ -653,7 +653,6 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   dataLoading={!dataLoaded && !hasResourceCache}
                   onNavigate={handleTabChange}
-                  onGoToOnboarding={enterOnboarding}
                   onConnectGoogle={connectGoogle}
                 />
               } />
@@ -710,7 +709,17 @@ function AppShell() {
               } />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
-          <footer className="mt-auto py-6 text-center text-xs text-muted">Made by Cornell Generative AI</footer>
+          <footer className="mt-auto py-6 text-center text-xs text-muted">
+            Made by{' '}
+            <a
+              href="https://www.cornellgenai.dev/"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary transition-colors hover:text-primary/80"
+            >
+              Cornell Generative AI
+            </a>
+          </footer>
         </div>
       </main>
     </div>

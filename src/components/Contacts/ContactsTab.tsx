@@ -352,13 +352,14 @@ export default function ContactsTab({
   return (
     <div className="page-shell">
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <div className="flex flex-wrap items-center justify-between gap-3 py-2">
+      <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="page-eyebrow">Saved leads</p>
+          <p className="page-subtitle">Search, sort, and generate emails for prospects you've saved.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={openAdd} className="btn-primary text-xs">
-            <UserPlus size={13} /> Add Contact
+            <UserPlus size={13} /> Add contact
           </button>
           <button onClick={exportCSV} className="btn-secondary text-xs" disabled={isLoading || filtered.length === 0}>
             <Download size={13} /> Export CSV

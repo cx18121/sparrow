@@ -106,7 +106,6 @@ export default function DashboardTab({
   workspaceConfig,
   dataLoading = false,
   onNavigate,
-  onGoToOnboarding,
   onConnectGoogle,
 }) {
   const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
@@ -170,13 +169,13 @@ export default function DashboardTab({
       label: 'Background added',
       detail: hasResume ? 'Added.' : 'Add a resume or bio.',
       done: hasResume,
-      action: onGoToOnboarding ? { label: 'Setup', onClick: onGoToOnboarding } : null,
+      action: onNavigate ? { label: 'Settings', onClick: () => onNavigate('settings') } : null,
     },
     {
       label: 'Sender set',
       detail: hasSender ? `Drafting as ${workspaceConfig.senderName}.` : 'Set your sender name.',
       done: hasSender,
-      action: onGoToOnboarding ? { label: 'Setup', onClick: onGoToOnboarding } : null,
+      action: onNavigate ? { label: 'Settings', onClick: () => onNavigate('settings') } : null,
     },
     {
       label: 'Template selected',

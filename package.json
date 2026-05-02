@@ -8,6 +8,7 @@
     "dev:api": "vercel dev",
     "dev:api:local": "tsx watch local-api.ts",
     "build": "prisma generate && vite build",
+    "check": "tsc -b",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -43,6 +44,9 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.0.0",
     "@vercel/node": "^5.7.13",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.19",
