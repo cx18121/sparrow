@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Plus, Trash2, Check, Mail, AlertCircle,
-  Building2, Briefcase, Target, Sparkles, CheckCircle2, Circle, RefreshCw,
+  Plus, Trash2, Check, Mail,
+  Building2, Briefcase, Target, ArrowLeft, CheckCircle2, Circle, RefreshCw, Loader2,
 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
-import { fetchProfile } from '../../lib/api'
 import { supabase, isDemo } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -23,23 +22,10 @@ function Section({ title, children }) {
   )
 }
 
-function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onConnectGoogle, onNavigate }) {
-  const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
-
-  const loadProfile = () => {
-    setProfileState(current => ({ ...current, loading: true, error: null }))
-    fetchProfile()
-      .then(res => setProfileState({ loading: false, profile: res?.profile || null, error: null }))
-      .catch(err => setProfileState({ loading: false, profile: null, error: err.message || 'Could not load setup status' }))
-  }
-
-  useEffect(() => {
-    loadProfile()
-  }, [])
-
-  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profileState.profile?.hasClaudeKey
-  const hasGoogle = !!profileState.profile?.hasGoogleRefreshToken
-  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profileState.profile?.resumeText
+function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoading, onRefreshProfile, onGoToOnboarding, onConnectGoogle, onNavigate }) {
+  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profile?.hasClaudeKey
+  const hasGoogle = !!profile?.hasGoogleRefreshToken
+  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
   const hasTemplate = !!workspaceConfig?.templateId || templates.length > 0
 
@@ -87,20 +73,14 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
         </div>
         <button
           type="button"
-          onClick={loadProfile}
-          disabled={profileState.loading}
+          onClick={onRefreshProfile}
+          disabled={profileLoading}
           className="btn-ghost px-2 py-1 text-xs"
           title="Refresh setup status"
         >
-          <RefreshCw size={13} className={profileState.loading ? 'animate-spin' : ''} /> Refresh
+          <RefreshCw size={13} className={profileLoading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
-
-      {profileState.error && (
-        <Banner variant="warning" icon={AlertCircle} size="sm" className="mt-3">
-          {profileState.error}
-        </Banner>
-      )}
 
       <div className="mt-4 divide-y divide-slate-100">
         {items.map(item => {
@@ -117,7 +97,7 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
                   {item.action.label}
                 </button>
               )}
-              </div>
+            </div>
           )
         })}
       </div>
@@ -128,6 +108,7 @@ function SetupReadinessPanel({ workspaceConfig, templates, onGoToOnboarding, onC
 function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploadState, setUploadState] = useState({ uploading: false, error: null })
   const field = (key, value) => setForm(current => ({ ...current, [key]: value }))
@@ -137,7 +118,9 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
   }, [workspaceConfig])
 
   const save = async () => {
+    setSaving(true)
     const ok = await onSave(current => ({ ...current, ...form }))
+    setSaving(false)
     if (!ok) return
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -182,7 +165,7 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label">Uploaded resume or bio</label>
-          <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary/5 transition-colors">
+          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-200 bg-surface px-3 py-2.5 text-sm text-dark hover:border-primary/40 hover:bg-primary-50/60 transition-colors">
             <span className="truncate">
               {uploadState.uploading ? 'Uploading...' : form.resumeFileName || 'Upload resume file'}
             </span>
@@ -245,88 +228,61 @@ function WorkspaceProfileSection({ workspaceConfig, onSave, templates }) {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={save} disabled={uploadState.uploading} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved</> : 'Save drafting profile'}
+        <button onClick={save} disabled={saving || uploadState.uploading} className="btn-primary">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving</> : saved ? <><Check size={14} /> Saved</> : 'Save drafting profile'}
         </button>
       </div>
     </Section>
   )
 }
 
-function ProviderKeysSection({ workspaceConfig, onSave }) {
+function ProviderKeysSection({ workspaceConfig, profile, onRefreshProfile, onSave }) {
   const [form, setForm] = useState({ claude: workspaceConfig.apiKeys?.claude || '' })
-  const [profileState, setProfileState] = useState({ loading: true, profile: null, error: null })
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setForm({ claude: workspaceConfig.apiKeys?.claude || '' })
   }, [workspaceConfig])
 
-  useEffect(() => {
-    let cancelled = false
-    setProfileState(current => ({ ...current, loading: true, error: null }))
-    fetchProfile()
-      .then(res => {
-        if (!cancelled) setProfileState({ loading: false, profile: res?.profile || null, error: null })
-      })
-      .catch(err => {
-        if (!cancelled) setProfileState({ loading: false, profile: null, error: err.message || 'Could not load saved keys' })
-      })
-    return () => { cancelled = true }
-  }, [])
-
   const save = async () => {
+    setSaving(true)
     const ok = await onSave(current => ({
       ...current,
-      apiKeys: {
-        ...current.apiKeys,
-        ...form,
-      },
+      apiKeys: { ...current.apiKeys, ...form },
     }))
+    setSaving(false)
     if (!ok) return
-    if (form.claude) {
-      setProfileState(current => ({
-        ...current,
-        profile: { ...(current.profile || {}), hasClaudeKey: true },
-      }))
-    }
+    if (form.claude) onRefreshProfile?.()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const hasSavedClaude = !!profileState.profile?.hasClaudeKey
-  const connectedCount = Object.values(form).filter(Boolean).length + (hasSavedClaude && !form.claude ? 1 : 0)
+  const hasSavedClaude = !!profile?.hasClaudeKey
 
   return (
     <Section title="Provider Keys">
       <p className="text-xs text-muted">
         {hasSavedClaude ? 'Claude key saved.' : 'No Claude key yet.'} Saved keys are hidden — enter a new value to replace.
       </p>
-      {profileState.error && (
-        <Banner variant="warning" size="sm">
-          {profileState.error}
-        </Banner>
-      )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="label">Claude</label>
-          <input
-            type="password"
-            value={form.claude}
-            onChange={e => setForm(current => ({ ...current, claude: e.target.value }))}
-            placeholder={hasSavedClaude ? 'Saved key on file' : 'Anthropic API key'}
-            className="input"
-          />
-          {hasSavedClaude && !form.claude && (
-            <p className="mt-1 text-xs text-emerald-700">Saved. Leave blank to keep it.</p>
-          )}
-        </div>
+      <div>
+        <label className="label">Claude</label>
+        <input
+          type="password"
+          value={form.claude}
+          onChange={e => setForm(current => ({ ...current, claude: e.target.value }))}
+          placeholder={hasSavedClaude ? 'Saved key on file' : 'Anthropic API key'}
+          className="input"
+        />
+        {hasSavedClaude && !form.claude && (
+          <p className="mt-1 text-xs text-emerald-700">Saved. Leave blank to keep it.</p>
+        )}
       </div>
 
       <div className="flex justify-end">
-        <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved</> : 'Save provider keys'}
+        <button onClick={save} disabled={saving} className="btn-primary">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving</> : saved ? <><Check size={14} /> Saved</> : 'Save provider keys'}
         </button>
       </div>
     </Section>
@@ -362,7 +318,7 @@ function TeamSection() {
           <Mail size={14} /> Invite
         </button>
       </div>
-      <div className="divide-y divide-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+      <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 overflow-hidden">
         {members.map(m => (
           <div key={m.id} className="flex items-center justify-between px-4 py-3 bg-white">
             <div className="flex items-center gap-3">
@@ -391,6 +347,7 @@ function TeamSection() {
 
 function SendingLimitsSection({ workspaceConfig, onSave }) {
   const [form, setForm] = useState(workspaceConfig.sendingLimits || { dailyMax: 200, delaySeconds: 30 })
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const f = (k, v) => setForm(x => ({ ...x, [k]: v }))
 
@@ -399,6 +356,7 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
   }, [workspaceConfig])
 
   const save = async () => {
+    setSaving(true)
     const ok = await onSave(current => ({
       ...current,
       sendingLimits: {
@@ -406,6 +364,7 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
         ...form,
       },
     }))
+    setSaving(false)
     if (!ok) return
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -416,9 +375,7 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
         <div>
           <label className="label">Daily send limit</label>
-          <div className="relative">
-            <input type="number" min={1} max={10000} value={form.dailyMax} onChange={e => f('dailyMax', parseInt(e.target.value) || 0)} className="input" />
-          </div>
+          <input type="number" min={1} max={10000} value={form.dailyMax} onChange={e => f('dailyMax', parseInt(e.target.value) || 0)} className="input" />
           <p className="text-xs text-muted mt-1">Maximum emails sent per day across all campaigns.</p>
         </div>
         <div>
@@ -428,15 +385,15 @@ function SendingLimitsSection({ workspaceConfig, onSave }) {
         </div>
       </div>
       <div className="flex justify-end">
-        <button onClick={save} className="btn-primary">
-          {saved ? <><Check size={14} /> Saved</> : 'Save limits'}
+        <button onClick={save} disabled={saving} className="btn-primary">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving</> : saved ? <><Check size={14} /> Saved</> : 'Save limits'}
         </button>
       </div>
     </Section>
   )
 }
 
-export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, onGoToOnboarding, onConnectGoogle, onNavigate }) {
+export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, profile, profileLoading, onRefreshProfile, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [toast, setToast] = useState(null)
   const saveWorkspace = async (updater, label = 'Settings saved') => {
     try {
@@ -454,18 +411,22 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
   }
 
   return (
-    <div className="w-full max-w-5xl space-y-6 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+    <div className="w-full max-w-3xl space-y-6 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
       <Toast toast={toast} onClose={() => setToast(null)} />
-      {onGoToOnboarding && (
-        <div className="flex justify-start">
-          <button onClick={onGoToOnboarding} className="btn-secondary flex items-center gap-2 text-xs">
-            Back to setup <Sparkles size={13} className="text-primary" />
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold text-dark">Settings</h1>
+        {onGoToOnboarding && (
+          <button onClick={onGoToOnboarding} className="btn-ghost flex items-center gap-1.5 text-xs">
+            <ArrowLeft size={13} /> Back to setup
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <SetupReadinessPanel
         workspaceConfig={workspaceConfig}
         templates={templates}
+        profile={profile}
+        profileLoading={profileLoading}
+        onRefreshProfile={onRefreshProfile}
         onGoToOnboarding={onGoToOnboarding}
         onConnectGoogle={onConnectGoogle}
         onNavigate={onNavigate}
@@ -477,6 +438,8 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       />
       <ProviderKeysSection
         workspaceConfig={workspaceConfig}
+        profile={profile}
+        onRefreshProfile={onRefreshProfile}
         onSave={(updater) => saveWorkspace(updater, 'Provider keys saved')}
       />
       <SendingLimitsSection

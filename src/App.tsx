@@ -123,6 +123,13 @@ function AppShell() {
   const [serverProfile, setServerProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
 
+  const refreshProfile = useCallback(() => {
+    setProfileLoading(true)
+    return fetchProfile()
+      .then(res => { setServerProfile(res?.profile ?? null); setProfileLoading(false) })
+      .catch(() => { setProfileLoading(false) })
+  }, [])
+
   const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
   const activeTab = activeTabItem.id
 
@@ -705,6 +712,9 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   onSaveWorkspaceConfig={updateWorkspaceConfig}
                   templates={templates}
+                  profile={serverProfile}
+                  profileLoading={profileLoading}
+                  onRefreshProfile={refreshProfile}
                   onGoToOnboarding={enterOnboarding}
                   onConnectGoogle={connectGoogle}
                   onNavigate={handleTabChange}
