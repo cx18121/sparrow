@@ -80,10 +80,13 @@ describe("emails route — GET", () => {
   it("returns paginated list", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     const emails = [
-      { id: "email-1", subject: "Hello", body: "World" },
-      { id: "email-2", subject: "Hi", body: "There" },
+      { id: "email-1", subject: "Hello", body: "World", createdAt: new Date("2024-01-02") },
+      { id: "email-2", subject: "Hi", body: "There", createdAt: new Date("2024-01-01") },
     ];
-    mockPrisma.email.findMany.mockResolvedValue(emails);
+    // list() runs two parallel findMany calls (userLead branch, then customContact branch)
+    mockPrisma.email.findMany
+      .mockResolvedValueOnce(emails) // userLead query
+      .mockResolvedValueOnce([]);    // customContact query
     const req = makeReq({ method: "GET", query: { limit: "2" } });
     const res = makeRes();
     await invokeHandler(req, res);

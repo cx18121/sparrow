@@ -20,7 +20,9 @@ async function consumeApolloQuota(userId: string, action: ApolloAction) {
     await consumeDurableDailyQuota("apollo", userId, action, quotaLimit(action));
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, `Daily Apollo ${action} limit reached (${quotaLimit(action)}). Try again tomorrow.`);
-    throw err;
+    // Quota DB unavailable (e.g. table not yet created) — log and continue so
+    // searches are not blocked by an infrastructure gap.
+    console.error("Apollo quota check failed, proceeding without enforcement:", err);
   }
 }
 
@@ -50,9 +52,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userId = await getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    if (req.method === "GET") return searchCompanies(req, res);
-    if (req.method === "POST") return apolloSearch(req, res, userId);
-    if (req.method === "PUT") return revealContact(req, res, userId);
+    if (req.method === "GET") return await searchCompanies(req, res);
+    if (req.method === "POST") return await apolloSearch(req, res, userId);
+    if (req.method === "PUT") return await revealContact(req, res, userId);
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {

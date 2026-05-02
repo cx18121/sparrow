@@ -34,14 +34,11 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   if (countToday === "true") {
     const startOfToday = new Date()
     startOfToday.setUTCHours(0, 0, 0, 0)
-    const count = await prisma.email.count({
-      where: {
-        status: "sent",
-        sentAt: { gte: startOfToday },
-        OR: [{ userLead: { userId } }, { customContact: { userId } }],
-      },
-    })
-    return res.status(200).json({ count })
+    const [fromLeads, fromContacts] = await Promise.all([
+      prisma.email.count({ where: { status: "sent", sentAt: { gte: startOfToday }, userLead: { userId } } }),
+      prisma.email.count({ where: { status: "sent", sentAt: { gte: startOfToday }, customContact: { userId } } }),
+    ])
+    return res.status(200).json({ count: fromLeads + fromContacts })
   }
 
   if (status && !ALLOWED_EMAIL_STATUSES.includes(status as any)) {
@@ -50,36 +47,50 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
 
-  const items = await prisma.email.findMany({
-    where: {
-      OR: [
-        { userLead: { userId } },
-        { customContact: { userId } },
-      ],
-      ...(userLeadId && { userLeadId }),
-      ...(status && { status }),
-    },
-    take: take + 1,
-    ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-    orderBy: { createdAt: "desc" },
-    include: {
-      contact: { select: { id: true, name: true, email: true, title: true } },
-      customContact: { select: { id: true, name: true, email: true, title: true, companyName: true } },
-      userLead: {
-        select: {
-          id: true,
-          status: true,
-          company: { select: { id: true, name: true, domain: true } },
-        },
+  const include = {
+    contact: { select: { id: true, name: true, email: true, title: true } },
+    customContact: { select: { id: true, name: true, email: true, title: true, companyName: true } },
+    userLead: {
+      select: {
+        id: true,
+        status: true,
+        company: { select: { id: true, name: true, domain: true } },
       },
     },
+  } as const;
+
+  // When scoped to a specific lead, only one branch applies — single query with cursor support.
+  if (userLeadId) {
+    const items = await prisma.email.findMany({
+      where: { userLeadId, userLead: { userId }, ...(status && { status }) },
+      take: take + 1,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      orderBy: { createdAt: "desc" },
+      include,
+    });
+    const hasMore = items.length > take;
+    const trimmed = hasMore ? items.slice(0, take) : items;
+    return res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
+  }
+
+  // Two parallel queries avoid an OR across JOIN paths which prevents index use.
+  const branchWhere = (relation: "userLead" | "customContact") => ({
+    [relation]: { userId },
+    ...(status && { status }),
   });
 
-  const hasMore = items.length > take;
-  const trimmed = hasMore ? items.slice(0, take) : items;
-  const nextCursor = hasMore ? trimmed[trimmed.length - 1]?.id : null;
+  const [fromLeads, fromContacts] = await Promise.all([
+    prisma.email.findMany({ where: branchWhere("userLead"), take: take + 1, orderBy: { createdAt: "desc" }, include }),
+    prisma.email.findMany({ where: branchWhere("customContact"), take: take + 1, orderBy: { createdAt: "desc" }, include }),
+  ]);
 
-  res.status(200).json({ items: trimmed, nextCursor });
+  const merged = [...fromLeads, ...fromContacts]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, take + 1);
+
+  const hasMore = merged.length > take;
+  const trimmed = hasMore ? merged.slice(0, take) : merged;
+  res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
