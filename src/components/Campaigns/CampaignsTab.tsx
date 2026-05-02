@@ -46,7 +46,7 @@ function advancedSummary(form) {
   return parts.join(', ')
 }
 
-export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign }) {
+export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign, activeCampaign = null, exitCampaign = null }) {
   const {
     campaigns,
     templates,
@@ -68,10 +68,14 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const [generatingEmail, setGeneratingEmail] = useState(null)
   const [resetTarget, setResetTarget] = useState(null)
   const [emailPreview, setEmailPreview] = useState({ open: false, lead: null, subject: '', body: '', saving: false, error: null })
-  const [detailCampaignId, setDetailCampaignId] = useState(null)
   const [campaignLeads, setCampaignLeads] = useState([])
   const [savedLeads, setSavedLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // Detail view is driven by the global activeCampaign prop, not local state.
+  const detailCampaign = activeCampaign
+    ? campaigns.find(c => c.id === activeCampaign.id) || null
+    : null
   const [toast, setToast] = useState(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
@@ -98,7 +102,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     (c.subject || '').toLowerCase().includes(search.toLowerCase())
   )
-  const detailCampaign = campaigns.find(c => c.id === detailCampaignId) || null
 
   const loadCampaignDetail = async (campaignId) => {
     setDetailLoading(true)
@@ -116,11 +119,16 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     }
   }
 
-  const openCampaign = (campaign) => {
-    setDetailCampaignId(campaign.id)
-    setAddLeadId('')
-    loadCampaignDetail(campaign.id)
-  }
+  // Load campaign leads whenever the active campaign changes.
+  useEffect(() => {
+    if (activeCampaign?.id) {
+      setAddLeadId('')
+      loadCampaignDetail(activeCampaign.id)
+    } else {
+      setCampaignLeads([])
+      setSavedLeads([])
+    }
+  }, [activeCampaign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addLeadToCampaign = async (leadId: string) => {
     if (!detailCampaign || !leadId || addingLead) return
@@ -200,15 +208,12 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     try {
       if (editing) {
         await onUpdate({ id: editing, ...payload })
+        setModalOpen(false)
       } else {
-        await onCreate(payload)
-        setToast({
-          type: 'success',
-          title: `"${form.name}" created`,
-          message: 'Open it to find matching prospects.',
-        })
+        const created = await onCreate(payload)
+        setModalOpen(false)
+        if (created && onEnterCampaign) onEnterCampaign(created)
       }
-      setModalOpen(false)
     } catch (err) {
       reportError('Could not save campaign', err)
     } finally {
@@ -261,7 +266,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         // No batch yet. Auto-generate the first one.
         const data = await generateCampaignBatch(campaign.id)
         setBatchModal(prev => ({ ...prev, leads: data.leads, loading: false, seenTotal: data.seenTotal, currentBatch: data.currentBatch, usingFallback: data.usingFallback ?? false, generationAttempted: true }))
-        if (detailCampaignId === campaign.id) loadCampaignDetail(campaign.id)
+        if (activeCampaign?.id === campaign.id) loadCampaignDetail(campaign.id)
       } else {
         setBatchModal(prev => ({ ...prev, leads: existing.leads, loading: false, seenTotal: existing.seenTotal, currentBatch: existing.currentBatch, generationAttempted: false }))
       }
@@ -285,7 +290,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         leads: data.leads,
         generationAttempted: true,
       }))
-      if (detailCampaignId === batchModal.campaign.id) loadCampaignDetail(batchModal.campaign.id)
+      if (activeCampaign?.id === batchModal.campaign.id) loadCampaignDetail(batchModal.campaign.id)
     } catch (err) {
       reportError('Could not generate batch', err)
       setBatchModal(prev => ({ ...prev, loading: false }))
@@ -386,8 +391,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       {detailCampaign ? (
         <>
         <section className="page-toolbar">
-          <button type="button" onClick={() => setDetailCampaignId(null)} className="btn-ghost mb-4 px-2">
-            <ArrowLeft size={14} /> Campaigns
+          <button type="button" onClick={() => exitCampaign?.()} className="btn-ghost mb-4 px-2">
+            <ArrowLeft size={14} /> All campaigns
           </button>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -402,8 +407,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
               <button type="button" onClick={() => openEdit(detailCampaign)} className="btn-secondary text-xs">
                 <Edit2 size={13} /> Edit settings
               </button>
-              {onEnterCampaign && (
-                <button type="button" onClick={() => onEnterCampaign(detailCampaign)} className="btn-secondary text-xs">
+              {onNavigate && (
+                <button type="button" onClick={() => onNavigate('leads')} className="btn-secondary text-xs">
                   <Search size={13} /> Browse in Discover
                 </button>
               )}
@@ -423,8 +428,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           )}
         </section>
 
-        {/* Inline batch panel — replaces the former modal-on-modal */}
-        {batchModal.open && batchModal.campaign?.id === detailCampaign.id && (
+        {/* Inline batch panel */}
+        {batchModal.open && batchModal.campaign?.id === activeCampaign?.id && (
           <section className="rounded-[24px] border border-warm-200 bg-warm-50/60 p-5">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -656,8 +661,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         <>
       <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="page-eyebrow">Your campaigns</h2>
-          <p className="page-subtitle mt-1">Group outreach by audience, set filters, and generate emails in bulk.</p>
+          <h2 className="page-eyebrow">Campaigns</h2>
+          <p className="page-subtitle mt-1">Pick a campaign to start working on it, or create a new one.</p>
         </div>
         <button onClick={openCreate} className="btn-primary shrink-0 self-start sm:self-auto">
           <Plus size={15} /> New campaign
@@ -724,7 +729,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                 return (
                   <tr
                     key={c.id}
-                    onClick={() => openCampaign(c)}
+                    onClick={() => onEnterCampaign?.(c)}
                     className="cursor-pointer transition-colors hover:bg-warm-50/60"
                   >
                     <td className="px-5 py-4">

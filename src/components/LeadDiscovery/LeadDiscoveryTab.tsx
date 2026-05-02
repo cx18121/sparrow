@@ -120,7 +120,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCampaign = null, onExitCampaign = null }) {
+export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCampaign = null, onExitCampaign = null, campaignFilters = null }) {
   const { refreshLeads } = useAppData()
   const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')
@@ -269,6 +269,22 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
     if (initialMount.current) return
     doSearch()
   }, [isHiring, regionFilter, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the active campaign changes, seed Discover with the campaign's audience filters.
+  // The user can still adjust filters freely after this; it's just a starting point.
+  useEffect(() => {
+    if (!activeCampaign?.id || !campaignFilters) return
+    const regionMap: Record<string, 'us' | 'international' | 'remote'> = {
+      __US__: 'us', __INTL__: 'international', __REMOTE__: 'remote',
+    }
+    const rf = campaignFilters.filterRegion ? (regionMap[campaignFilters.filterRegion] ?? null) : null
+    const tags = new Set<string>(campaignFilters.filterTags || [])
+    setRegionFilter(rf)
+    setIsHiring(Boolean(campaignFilters.filterIsHiring))
+    selectedTagsRef.current = tags
+    setSelectedTags(tags)
+    fetchCompanies(null, { regionFilter: rf, isHiring: Boolean(campaignFilters.filterIsHiring), selectedTags: tags })
+  }, [activeCampaign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initialMount.current = false

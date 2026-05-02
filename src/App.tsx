@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, X } from 'lucide-react'
+import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
+import Badge from './components/ui/Badge'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
@@ -142,6 +143,20 @@ function AppShell() {
   const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
   const activeTab = activeTabItem.id
 
+  // Tabs visible in the sidebar depend on whether a campaign is active.
+  // No campaign → only top-level navigation (Dashboard, Campaigns, Settings).
+  // In campaign → workflow tabs (Campaigns workspace, Discover, Drafts, Settings).
+  const visibleTabs = TABS.filter(t => {
+    if (t.id === 'settings') return true
+    if (!activeCampaign) return t.id === 'dashboard' || t.id === 'campaigns'
+    return t.id === 'campaigns' || t.id === 'leads' || t.id === 'drafts'
+  })
+
+  // Full campaign record for the active campaign (filter data, status, etc.)
+  const activeCampaignFull = activeCampaign
+    ? campaigns.find(c => c.id === activeCampaign.id) ?? null
+    : null
+
   const handleTabChange = (tabId) => {
     const tab = TABS.find(t => t.id === tabId)
     if (tab) navigate(tab.path)
@@ -151,13 +166,14 @@ function AppShell() {
     const entry = { id: campaign.id, name: campaign.name }
     try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
     setActiveCampaign(entry)
-    navigate('/leads')
+    navigate('/campaigns')
   }, [navigate])
 
   const exitCampaign = useCallback(() => {
     try { sessionStorage.removeItem('cf_active_campaign') } catch {}
     setActiveCampaign(null)
-  }, [])
+    navigate('/campaigns')
+  }, [navigate])
 
   useEffect(() => {
     if (!user) {
@@ -706,30 +722,37 @@ function AppShell() {
       <div className="dashboard-backdrop fixed inset-0" />
       <Sidebar
         activeTab={activeTab}
-        tabs={TABS}
+        tabs={visibleTabs}
         onTabChange={handleTabChange}
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
-        <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
-              {activeTabItem.label}
-            </h1>
-          </div>
-          {activeCampaign && (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 pl-2.5 pr-1.5 py-1 text-xs font-medium text-primary">
-              <Mail size={11} />
-              <span className="max-w-[140px] truncate">{activeCampaign.name}</span>
+        <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+          {activeCampaign ? (
+            <>
               <button
                 type="button"
                 onClick={exitCampaign}
-                className="ml-0.5 rounded-full p-0.5 text-primary/60 transition-colors hover:bg-primary/20 hover:text-primary"
-                title="Exit campaign context"
+                className="flex shrink-0 items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-dark"
               >
-                <X size={11} />
+                <ChevronLeft size={14} className="shrink-0" />
+                <span className="hidden sm:inline">All campaigns</span>
               </button>
-            </div>
+              <div className="h-4 w-px shrink-0 bg-neutral-300" />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="truncate font-semibold text-dark">{activeCampaign.name}</span>
+                {activeCampaignFull && (
+                  <Badge variant={activeCampaignFull.status}>{activeCampaignFull.status}</Badge>
+                )}
+              </div>
+              <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-muted md:block">
+                {activeTabItem.label}
+              </span>
+            </>
+          ) : (
+            <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
+              {activeTabItem.label}
+            </h1>
           )}
         </div>
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
@@ -765,15 +788,20 @@ function AppShell() {
                   workspaceConfig={workspaceConfig}
                   onNavigate={handleTabChange}
                   onEnterCampaign={enterCampaign}
+                  activeCampaign={activeCampaign}
+                  exitCampaign={exitCampaign}
                 />
               } />
               <Route path="/leads" element={
-                <LeadDiscoveryTab
-                  workspaceConfig={workspaceConfig}
-                  onNavigate={handleTabChange}
-                  activeCampaign={activeCampaign}
-                  onExitCampaign={exitCampaign}
-                />
+                !activeCampaign
+                  ? <Navigate to="/campaigns" replace />
+                  : <LeadDiscoveryTab
+                      workspaceConfig={workspaceConfig}
+                      onNavigate={handleTabChange}
+                      activeCampaign={activeCampaign}
+                      onExitCampaign={exitCampaign}
+                      campaignFilters={activeCampaignFull}
+                    />
               } />
               <Route path="/contacts" element={
                 <ContactsTab
