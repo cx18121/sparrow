@@ -40,9 +40,9 @@ export default function AuthScreen() {
   }
 
   const features = [
-    { icon: Search, text: 'Lead discovery from 50+ VC portfolios' },
-    { icon: Zap,    text: 'AI-crafted emails that sound like you' },
-    { icon: Send,   text: 'Campaigns with built-in follow-ups' },
+    { icon: Search, text: 'Leads from YC, Product Hunt, and startup directories' },
+    { icon: Zap,    text: 'Emails written in your style, not a template' },
+    { icon: Send,   text: 'Automated follow-ups until you get a reply' },
   ]
 
   return (
@@ -76,15 +76,15 @@ export default function AuthScreen() {
         <div className="relative my-auto pb-4 pt-16">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.32em]"
             style={{ color: 'rgba(168,207,169,0.65)' }}>
-            Cold outreach, reimagined
+            Cold email for startups
           </p>
           <h1 className="font-display font-semibold leading-[0.9] tracking-[-0.05em] text-white"
             style={{ fontSize: 'clamp(3rem,6.5vw,5.5rem)' }}>
-            Reach the<br />
-            <span style={{ color: '#A8CFA9' }}>right people.</span>
+            Email people<br />
+            <span style={{ color: '#A8CFA9' }}>worth emailing.</span>
           </h1>
           <p className="mt-6 max-w-[280px] text-[15px] leading-7 text-white/50">
-            Find leads, write tailored emails, and send campaigns — without the noise.
+            Sparrow pulls startup leads, drafts emails in your voice, and sends follow-ups so you don't have to.
           </p>
 
           {/* Feature chips */}
