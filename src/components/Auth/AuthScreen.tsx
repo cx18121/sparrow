@@ -40,7 +40,7 @@ export default function AuthScreen() {
   }
 
   const features = [
-    { icon: Search, text: 'Leads from YC, The Hub, and startup directories' },
+    { icon: Search, text: 'Leads from YC, a16z, and other top VC firms' },
     { icon: Zap,    text: 'Emails written in your style, not a template' },
     { icon: Send,   text: 'Reusable templates to speed up your outreach' },
   ]
