@@ -6,6 +6,9 @@ import { getSupabaseAdmin, getUserIdFromRequest } from "../../lib/supabaseAdmin.
 import { decrypt } from "../../lib/crypto.js";
 import { parseWorkspaceConfig } from "../../lib/workspace-config.js";
 
+declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
+function invalidateDashCache(userId: string) { globalThis.__dashCache?.delete(userId) }
+
 function encodeHeader(value: string): string {
   return value.replace(/[\r\n"]/g, "");
 }
@@ -222,5 +225,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     data: { status: "sent", sentAt: new Date() },
   });
 
+  invalidateDashCache(userId)
   return res.status(200).json({ success: true, email: updated });
 }

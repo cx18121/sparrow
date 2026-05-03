@@ -25,6 +25,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
 type EmailStatus = (typeof ALLOWED_EMAIL_STATUSES)[number];
 
+// In-process cache for the combined dashboard query. Persists across warm invocations
+// within the same function container, so repeat loads skip the DB entirely.
+const DASHBOARD_CACHE_TTL = 30_000 // 30 seconds
+declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
+globalThis.__dashCache ??= new Map()
+
+function getDashCache(userId: string) {
+  const entry = globalThis.__dashCache!.get(userId)
+  if (!entry || Date.now() - entry.ts > DASHBOARD_CACHE_TTL) return null
+  return entry.data
+}
+function setDashCache(userId: string, data: unknown) {
+  globalThis.__dashCache!.set(userId, { data, ts: Date.now() })
+  // Evict oldest entries if the map grows too large (many users on one instance)
+  if (globalThis.__dashCache!.size > 500) {
+    const oldest = [...globalThis.__dashCache!.entries()]
+      .sort((a, b) => a[1].ts - b[1].ts)
+      .slice(0, 100)
+    oldest.forEach(([k]) => globalThis.__dashCache!.delete(k))
+  }
+}
+function invalidateDashCache(userId: string) {
+  globalThis.__dashCache!.delete(userId)
+}
+
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, status, limit = "50", cursor, countToday, combined } = req.query as Record<
     string,
@@ -61,6 +86,13 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   // Dashboard combined fetch: drafts + sent in one round trip to avoid two cold starts.
   if (combined === "true") {
+    // Serve from in-process cache on warm invocations; browser gets stale-while-revalidate.
+    const cached = getDashCache(userId)
+    if (cached) {
+      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
+      return res.status(200).json(cached)
+    }
+
     const branchWhere = (relation: "userLead" | "customContact", s: string) => ({ [relation]: { userId }, status: s });
     const [draftLeads, draftContacts, sentLeads, sentContacts] = await Promise.all([
       prisma.email.findMany({ where: branchWhere("userLead", "draft"), take: 9, orderBy: { createdAt: "desc" }, include }),
@@ -68,10 +100,13 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
       prisma.email.findMany({ where: branchWhere("userLead", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
       prisma.email.findMany({ where: branchWhere("customContact", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
     ]);
-    const sort = (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const sort = (a: { createdAt: Date }, b: { createdAt: Date }) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     const drafts = [...draftLeads, ...draftContacts].sort(sort).slice(0, 8);
     const sent = [...sentLeads, ...sentContacts].sort(sort).slice(0, 20);
-    return res.status(200).json({ drafts, sent });
+    const result = { drafts, sent }
+    setDashCache(userId, result)
+    res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
+    return res.status(200).json(result)
   }
 
   // When scoped to a specific lead, only one branch applies — single query with cursor support.
@@ -129,6 +164,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     const email = await prisma.email.create({
       data: { userLeadId, contactId: lead.contactId ?? null, subject, body, status, attachmentIds: safeAttachmentIds },
     });
+    invalidateDashCache(userId)
     return res.status(201).json(email);
   }
 
@@ -139,6 +175,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const email = await prisma.email.create({
     data: { customContactId, subject, body, status, attachmentIds: safeAttachmentIds },
   });
+  invalidateDashCache(userId)
   res.status(201).json(email);
 }
 
@@ -173,6 +210,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
     },
   });
 
+  invalidateDashCache(userId)
   res.status(200).json(email);
 }
 
@@ -202,6 +240,6 @@ async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
   if (!ownedIds.length) throw new HttpError(404, "Email not found");
 
   await prisma.email.deleteMany({ where: { id: { in: ownedIds } } });
-
+  invalidateDashCache(userId)
   res.status(200).json({ deleted: ownedIds });
 }
