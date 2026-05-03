@@ -40,9 +40,9 @@ export default function AuthScreen() {
   }
 
   const features = [
-    { icon: Search, text: 'Leads from YC, Product Hunt, and startup directories' },
+    { icon: Search, text: 'Leads from YC, The Hub, and startup directories' },
     { icon: Zap,    text: 'Emails written in your style, not a template' },
-    { icon: Send,   text: 'Automated follow-ups until you get a reply' },
+    { icon: Send,   text: 'Reusable templates to speed up your outreach' },
   ]
 
   return (
@@ -84,7 +84,7 @@ export default function AuthScreen() {
             <span style={{ color: '#A8CFA9' }}>worth emailing.</span>
           </h1>
           <p className="mt-6 max-w-[280px] text-[15px] leading-7 text-white/50">
-            Sparrow pulls startup leads, drafts emails in your voice, and sends follow-ups so you don't have to.
+            Sparrow pulls startup leads and drafts emails in your voice, so you spend less time writing and more time talking.
           </p>
 
           {/* Feature chips */}
