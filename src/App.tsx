@@ -839,6 +839,10 @@ function AppShell() {
             >
               Cornell Generative AI
             </a>
+            <span className="mx-2 opacity-40">·</span>
+            <a href="/privacy" className="transition-colors hover:text-dark">Privacy Policy</a>
+            <span className="mx-2 opacity-40">·</span>
+            <a href="/terms" className="transition-colors hover:text-dark">Terms of Service</a>
           </footer>
         </div>
       </main>
