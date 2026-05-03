@@ -103,7 +103,7 @@ export default function AuthScreen() {
 
         {/* Footer */}
         <p className="relative text-[11px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
-          © 2025 Sparrow · Smart outreach for modern teams
+          © 2026 Sparrow · Smart outreach for modern teams
         </p>
       </section>
 
