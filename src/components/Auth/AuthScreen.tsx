@@ -191,6 +191,11 @@ export default function AuthScreen() {
           </p>
         </div>
       </section>
+      <footer className="py-4 text-center text-xs text-muted/60 bg-surface">
+        <a href="/privacy" className="hover:text-dark transition-colors">Privacy Policy</a>
+        <span className="mx-2 opacity-40">·</span>
+        <a href="/terms" className="hover:text-dark transition-colors">Terms of Service</a>
+      </footer>
     </div>
   )
 }
