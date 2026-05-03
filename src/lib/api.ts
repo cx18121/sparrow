@@ -77,7 +77,8 @@ function friendlyApiMessage({ status, path, method, serverError }) {
       return 'Add a Claude API key in Settings before generating emails.'
     }
     if (status === 404 && lower.includes('template')) return 'The selected template no longer exists. Choose a different template and try again.'
-    if (status === 404) return 'We could not find that contact. Refresh Contacts and try again.'
+    if (status === 404) return 'Lead not found — it may have been removed. Refresh the page and try again.'
+    if (status === 400 && lower.includes('no contact')) return 'No contact email found for this lead. Save a contact from Discover first.'
   }
 
   if (path === '/apollo-search' || path === '/leads') {

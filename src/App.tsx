@@ -143,14 +143,8 @@ function AppShell() {
   const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
   const activeTab = activeTabItem.id
 
-  // Tabs visible in the sidebar depend on whether a campaign is active.
-  // No campaign → only top-level navigation (Dashboard, Campaigns, Settings).
-  // In campaign → workflow tabs (Campaigns workspace, Discover, Drafts, Settings).
-  const visibleTabs = TABS.filter(t => {
-    if (t.id === 'settings') return true
-    if (!activeCampaign) return t.id === 'dashboard' || t.id === 'campaigns'
-    return t.id === 'campaigns' || t.id === 'leads' || t.id === 'drafts'
-  })
+  // In campaign mode: hide Dashboard (not needed mid-workflow). All other tabs always visible.
+  const visibleTabs = TABS.filter(t => !(activeCampaign && t.id === 'dashboard'))
 
   // Full campaign record for the active campaign (filter data, status, etc.)
   const activeCampaignFull = activeCampaign
@@ -793,15 +787,13 @@ function AppShell() {
                 />
               } />
               <Route path="/leads" element={
-                !activeCampaign
-                  ? <Navigate to="/campaigns" replace />
-                  : <LeadDiscoveryTab
-                      workspaceConfig={workspaceConfig}
-                      onNavigate={handleTabChange}
-                      activeCampaign={activeCampaign}
-                      onExitCampaign={exitCampaign}
-                      campaignFilters={activeCampaignFull}
-                    />
+                <LeadDiscoveryTab
+                  workspaceConfig={workspaceConfig}
+                  onNavigate={handleTabChange}
+                  activeCampaign={activeCampaign}
+                  onExitCampaign={exitCampaign}
+                  campaignFilters={activeCampaignFull}
+                />
               } />
               <Route path="/contacts" element={
                 <ContactsTab

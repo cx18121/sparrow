@@ -12,7 +12,6 @@ import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetch
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
 
-const MAX_REPLACEMENT_ROUNDS = 5
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 
@@ -35,7 +34,7 @@ const NS_LABELS = {
   signal: 'Signal',
 }
 
-function CompanyRow({ company, apolloCount, onSelect }) {
+function CompanyRow({ company, onSelect }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-warm-200 bg-warm-50 px-4 py-3.5 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_2px_12px_rgba(44,31,16,0.06)]">
       <div className="min-w-0 flex-1">
@@ -63,20 +62,12 @@ function CompanyRow({ company, apolloCount, onSelect }) {
           <p className="mt-1.5 text-xs text-muted/80 line-clamp-2">{company.oneLiner}</p>
         )}
       </div>
-      <div className="flex flex-col items-end gap-2 shrink-0">
-        <span className="inline-flex items-center gap-1 text-xs text-muted">
-          <Users size={11} />
-          {apolloCount === null
-            ? <><Loader2 size={10} className="animate-spin" />Loading</>
-            : apolloCount != null
-              ? `${apolloCount} contact${apolloCount !== 1 ? 's' : ''}`
-              : null}
-        </span>
+      <div className="shrink-0">
         <button
           onClick={() => onSelect(company)}
           className="btn-primary text-xs py-1.5 px-3"
         >
-          Find contacts
+          <Users size={11} /> Find contacts
         </button>
       </div>
     </div>
@@ -150,7 +141,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
   const [apolloError, setApolloError] = useState(null)
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
-  const [apolloCounts, setApolloCounts] = useState({})
   const [cachedPreviews, setCachedPreviews] = useState({})
   const [revealedEmails, setRevealedEmails] = useState({})
   const fetchGenRef = useRef(0)
@@ -164,7 +154,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
     const rf = overrides.regionFilter !== undefined ? overrides.regionFilter : regionFilter
     const tags = overrides.selectedTags ?? selectedTagsRef.current
     const append = overrides.append ?? Boolean(cursor)
-    const replacementDepth = overrides.replacementDepth ?? 0
     try {
       const params = {
         search: query || undefined,
@@ -178,28 +167,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
       const data = await apiFetchCompanies(params)
       if (fetchGenRef.current !== gen) return
       const newItems = data.items ?? []
-
-      // Show API results immediately — Apollo checks run in the background
-      const initialItems = newItems.filter(c => {
-        const cached = cachedPreviews[c.id]
-        // If already cached with 0 contacts, hide immediately; otherwise show
-        return cached === undefined || cached.length > 0
-      })
-      setApolloCounts(prev => {
-        const next = { ...prev }
-        newItems.forEach(c => {
-          const cached = cachedPreviews[c.id]
-          if (cached !== undefined) next[c.id] = cached.length
-          else if (!(c.id in next)) next[c.id] = null
-        })
-        return next
-      })
       setCompanies(append && !data.usingFallback
         ? prev => {
             const existing = new Set(prev.map(c => c.id))
-            return [...prev, ...initialItems.filter(c => !existing.has(c.id))]
+            return [...prev, ...newItems.filter(c => !existing.has(c.id))]
           }
-        : initialItems
+        : newItems
       )
       setNextCursor(data.nextCursor)
       setHasMore(!data.usingFallback && newItems.length > 0)
@@ -208,45 +181,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
         usingFallback: data.usingFallback ?? false,
       })
       setLoading(false)
-
-      // Apollo verification runs async — fills in counts and quietly removes 0-contact companies
-      const uncached = newItems.filter(c => cachedPreviews[c.id] === undefined)
-      let removedCount = 0
-      await Promise.all(uncached.map(async (company) => {
-        if (fetchGenRef.current !== gen) return
-        try {
-          const result = await apolloSearch(company.domain, company.id)
-          const previews = result.previews ?? []
-          setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
-          setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
-          if (previews.length === 0) {
-            removedCount++
-            setCompanies(prev => prev.filter(c => c.id !== company.id))
-          }
-        } catch {
-          setApolloCounts(prev => { const n = { ...prev }; delete n[company.id]; return n })
-        }
-      }))
-
-      if (fetchGenRef.current !== gen) return
-      if (!data.usingFallback && removedCount > 0 && replacementDepth < MAX_REPLACEMENT_ROUNDS) {
-        const currentCount = append ? companies.length + initialItems.length : initialItems.length
-        if (currentCount - removedCount < pageSize) {
-          await fetchCompanies(null, {
-            search: query,
-            isHiring: hiringOnly,
-            selectedTags: tags,
-            append: true,
-            replacementDepth: replacementDepth + 1,
-          })
-        }
-      }
     } catch (err) {
       if (fetchGenRef.current !== gen) return
       setError(err.message)
       setLoading(false)
     }
-  }, [search, isHiring, regionFilter, cachedPreviews, companies.length, pageSize])
+  }, [search, isHiring, regionFilter, pageSize])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -361,7 +301,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
       const data = cached ? { previews: cached } : await apolloSearch(company.domain, company.id)
       const previews = data.previews || []
       setApolloResults(previews)
-      setApolloCounts(prev => ({ ...prev, [company.id]: previews.length }))
       if (!cached) setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
       setRevealedEmails(prev => {
         const next = { ...prev }
@@ -640,7 +579,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
             <CompanyRow
               key={company.id}
               company={company}
-              apolloCount={apolloCounts[company.id]}
               onSelect={handleCompanySelect}
             />
           ))}

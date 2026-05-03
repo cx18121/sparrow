@@ -16,7 +16,7 @@ const GOOGLE_SCOPES = [
 
 const persistedRefreshTokens = new Set()
 
-async function persistGoogleRefreshToken(session) {
+async function persistGoogleRefreshToken(session): Promise<boolean> {
   const token = session?.provider_refresh_token
   if (!token || persistedRefreshTokens.has(token)) return false
   persistedRefreshTokens.add(token)
@@ -80,7 +80,24 @@ export function AuthProvider({ children }) {
 
       if (session) {
         applySessionToApiClient(session)
-        await persistGoogleRefreshToken(session)
+        const persisted = await persistGoogleRefreshToken(session)
+
+        // If the user clicked "Continue with Google" but Supabase didn't include
+        // provider_refresh_token, immediately redirect through the server connect
+        // flow while the access token is hot — before the app renders anything.
+        const wantsGmail = sessionStorage.getItem('cf_wants_gmail') === 'true'
+        if (wantsGmail) {
+          sessionStorage.removeItem('cf_wants_gmail')
+          if (!persisted) {
+            try {
+              const res = await startGoogleConnect('/')
+              if (res?.url) { window.location.assign(res.url); return }
+            } catch {
+              // Network or server error — user can connect manually from Settings.
+            }
+          }
+        }
+
         // Use functional update to preserve referential stability on TOKEN_REFRESHED —
         // if the user ID hasn't changed, keep the existing object so downstream
         // useEffect([user]) deps don't fire on every token refresh.
@@ -139,6 +156,10 @@ export function AuthProvider({ children }) {
     // signInWithGoogle is only called from AuthScreen (user is always signed out).
     // Always use signInWithOAuth — never linkIdentity, which requires an active session
     // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
+    // Mark that the user wants Gmail connected so onAuthStateChange can
+    // auto-trigger the server connect flow if provider_refresh_token is missing.
+    sessionStorage.setItem('cf_wants_gmail', 'true')
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -177,6 +198,7 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
     // Clear cross-user session caches so a new sign-in starts fresh.
     try { sessionStorage.removeItem('cf_discover_state') } catch {}
+    try { sessionStorage.removeItem('cf_wants_gmail') } catch {}
     persistedRefreshTokens.clear()
 
     if (isDemo) {

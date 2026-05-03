@@ -26,8 +26,6 @@ function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoadi
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
-  const hasTemplate = !!workspaceConfig?.templateId || templates.length > 0
-
   const items = [
     {
       label: 'Google connected',
@@ -49,12 +47,6 @@ function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoadi
       label: 'Sender set',
       detail: hasSender ? `Drafting as ${workspaceConfig.senderName}.` : 'Set your sender name.',
       done: hasSender,
-    },
-    {
-      label: 'Template selected',
-      detail: hasTemplate ? 'Template set.' : 'Create or select a template.',
-      done: hasTemplate,
-      action: onNavigate ? { label: 'Templates', onClick: () => onNavigate('templates') } : null,
     },
   ]
 

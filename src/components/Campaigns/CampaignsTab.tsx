@@ -50,12 +50,10 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const {
     campaigns,
     templates,
-    dataLoaded,
     createCampaign: onCreate,
     updateCampaign: onUpdate,
     deleteCampaign: onDelete,
   } = useAppData()
-  const isLoading = !dataLoaded
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -293,6 +291,9 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       setEmailPreview({ open: true, lead, subject: result.subject || '', body: result.body || '', saving: false, error: null })
     } catch (err) {
       reportError('Could not generate email', err)
+      if ((err as any)?.status === 404 && detailCampaign?.id) {
+        loadCampaignDetail(detailCampaign.id)
+      }
     } finally {
       setGeneratingEmail(null)
     }
@@ -628,21 +629,15 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             />
           </div>
           <p className="text-sm text-muted shrink-0">
-            {isLoading && campaigns.length === 0
-              ? 'Loading...'
-              : search
-                ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`
-                : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
+            {search
+              ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`
+              : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       )}
 
       <section className="table-shell">
-        {isLoading && campaigns.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted">
-            Loading campaigns...
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <EmptyState
             icon={search ? Search : undefined}
             title={search ? 'No campaigns match' : 'No campaigns yet'}

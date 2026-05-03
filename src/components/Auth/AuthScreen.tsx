@@ -51,7 +51,7 @@ export default function AuthScreen() {
       {/* ── Left panel ── */}
       <section
         className="relative flex flex-col overflow-hidden px-8 py-10 text-white lg:min-h-screen lg:px-14 xl:px-20"
-        style={{ background: '#2C1F10' }}
+        style={{ background: '#1C1C1A' }}
       >
         {/* Logo */}
         <div className="relative shrink-0">
@@ -61,13 +61,13 @@ export default function AuthScreen() {
         {/* Hero */}
         <div className="relative my-auto pb-4 pt-16">
           <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.28em]"
-            style={{ color: 'rgba(168,132,92,0.7)' }}>
+            style={{ color: 'rgba(125,180,128,0.6)' }}>
             Cold email for startups
           </p>
           <h1 className="font-display font-semibold tracking-[-0.04em] text-white"
             style={{ fontSize: 'clamp(2.6rem,5.5vw,4.5rem)', lineHeight: 1.05 }}>
             Email people<br />
-            <span style={{ color: '#A8845C' }}>worth emailing.</span>
+            <span style={{ color: '#7DB480' }}>worth emailing.</span>
           </h1>
           <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
             Sparrow pulls startup leads and drafts emails in your voice, so you spend less time writing and more time talking.
