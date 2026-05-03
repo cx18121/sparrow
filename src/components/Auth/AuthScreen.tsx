@@ -40,9 +40,9 @@ export default function AuthScreen() {
   }
 
   const features = [
-    { icon: Search, text: 'Leads from YC, a16z, and other top VC firms' },
-    { icon: Zap,    text: 'Emails written in your style, not a template' },
-    { icon: Send,   text: 'Reusable templates to speed up your outreach' },
+    'Leads from YC, a16z, and other top VC firms',
+    'Emails written in your style, not a template',
+    'Reusable templates to speed up your outreach',
   ]
 
   return (
@@ -50,61 +50,51 @@ export default function AuthScreen() {
 
       {/* ── Left panel ── */}
       <section
-        className="relative overflow-hidden px-8 py-10 text-white lg:flex lg:min-h-screen lg:flex-col lg:px-14 xl:px-20"
-        style={{ background: '#1a1f14' }}
+        className="relative flex flex-col overflow-hidden px-8 py-10 text-white lg:min-h-screen lg:px-14 xl:px-20"
+        style={{ background: '#2C1F10' }}
       >
-        {/* Subtle grid texture */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.035]"
-          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
-
-        {/* Glow accents */}
-        <div className="pointer-events-none absolute -right-32 top-0 h-[500px] w-[500px] rounded-full opacity-[0.08]"
-          style={{ background: 'radial-gradient(circle, #7DB480 0%, transparent 65%)' }} />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #A8CFA9 0%, transparent 65%)' }} />
-
-        {/* Right border */}
-        <div className="absolute inset-y-0 right-0 hidden w-px lg:block"
-          style={{ background: 'linear-gradient(to bottom, transparent, rgba(120,160,100,0.2) 30%, rgba(120,160,100,0.2) 70%, transparent)' }} />
-
         {/* Logo */}
-        <div className="relative py-2">
-          <span className="font-display text-[18px] font-semibold tracking-[-0.05em] text-white/90">Sparrow</span>
+        <div className="relative shrink-0">
+          <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-white/90">Sparrow</span>
         </div>
 
         {/* Hero */}
         <div className="relative my-auto pb-4 pt-16">
-          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.32em]"
-            style={{ color: 'rgba(168,207,169,0.65)' }}>
+          <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.28em]"
+            style={{ color: 'rgba(168,132,92,0.7)' }}>
             Cold email for startups
           </p>
-          <h1 className="font-display font-semibold leading-[0.9] tracking-[-0.05em] text-white"
-            style={{ fontSize: 'clamp(3rem,6.5vw,5.5rem)' }}>
+          <h1 className="font-display font-semibold tracking-[-0.04em] text-white"
+            style={{ fontSize: 'clamp(2.6rem,5.5vw,4.5rem)', lineHeight: 1.05 }}>
             Email people<br />
-            <span style={{ color: '#A8CFA9' }}>worth emailing.</span>
+            <span style={{ color: '#A8845C' }}>worth emailing.</span>
           </h1>
-          <p className="mt-6 max-w-[280px] text-[15px] leading-7 text-white/50">
+          <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
             Sparrow pulls startup leads and drafts emails in your voice, so you spend less time writing and more time talking.
           </p>
 
-          {/* Feature chips */}
-          <div className="mt-10 flex flex-col gap-3">
-            {features.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: 'rgba(168,207,169,0.1)', border: '1px solid rgba(168,207,169,0.15)' }}>
-                  <Icon size={13} style={{ color: '#A8CFA9' }} />
-                </div>
-                <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.58)' }}>{text}</span>
-              </div>
+          {/* Feature list */}
+          <ul className="mt-10 flex flex-col gap-3.5">
+            {features.map((text) => (
+              <li key={text} className="flex items-start gap-3">
+                <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: '#557A57' }} />
+                <span className="text-[13px] leading-snug" style={{ color: 'rgba(255,255,255,0.52)' }}>{text}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
 
         {/* Footer */}
-        <p className="relative text-[11px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
-          © 2026 Sparrow · Smart outreach for modern teams
-        </p>
+        <div className="relative shrink-0 flex items-center justify-between">
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            © 2026 Sparrow
+          </p>
+          <div className="flex items-center gap-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            <a href="/privacy" className="transition-colors hover:text-white/40">Privacy</a>
+            <span className="opacity-40">·</span>
+            <a href="/terms" className="transition-colors hover:text-white/40">Terms</a>
+          </div>
+        </div>
       </section>
 
       {/* ── Right panel ── */}
@@ -112,7 +102,7 @@ export default function AuthScreen() {
         <div className="w-full max-w-[360px]">
 
           <div className="mb-7">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-muted/60">Account</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">Account</p>
             <h2 className="mt-2.5 font-display text-[2rem] font-semibold tracking-[-0.04em] text-dark">
               {mode === 'signin' ? 'Welcome back' : 'Create account'}
             </h2>
@@ -130,7 +120,7 @@ export default function AuthScreen() {
           {/* Google */}
           <button
             onClick={handleGoogle}
-            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-warm-200 bg-white px-4 text-sm font-medium text-dark shadow-sm transition-all hover:bg-warm-50 hover:border-warm-300 hover:shadow"
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-accent/20 bg-white px-4 text-sm font-medium text-dark transition-all hover:border-accent/30 hover:bg-warm-50 hover:shadow-sm"
           >
             <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
@@ -142,9 +132,9 @@ export default function AuthScreen() {
           </button>
 
           <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-warm-200" />
-            <span className="text-[11px] font-medium text-muted/50 uppercase tracking-widest">or</span>
-            <div className="h-px flex-1 bg-warm-200" />
+            <div className="h-px flex-1 bg-accent/15" />
+            <span className="text-[11px] font-medium uppercase tracking-widest text-muted/40">or</span>
+            <div className="h-px flex-1 bg-accent/15" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
@@ -174,7 +164,6 @@ export default function AuthScreen() {
               type="submit"
               disabled={loading}
               className="mt-1 flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ boxShadow: '0 4px 16px rgba(85,122,87,0.28)' }}
             >
               {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </button>
@@ -191,11 +180,6 @@ export default function AuthScreen() {
           </p>
         </div>
       </section>
-      <footer className="py-4 text-center text-xs text-muted/60 bg-surface">
-        <a href="/privacy" className="hover:text-dark transition-colors">Privacy Policy</a>
-        <span className="mx-2 opacity-40">·</span>
-        <a href="/terms" className="hover:text-dark transition-colors">Terms of Service</a>
-      </footer>
     </div>
   )
 }
