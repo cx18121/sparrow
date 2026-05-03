@@ -220,3 +220,5 @@ export const addCampaignLead = (campaignId, userLeadId) =>
   request('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
 export const deleteCampaignLead = (id) =>
   request(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })
+
+export const deleteAccount = () => request('/account', { method: 'DELETE' })

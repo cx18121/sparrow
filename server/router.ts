@@ -16,6 +16,7 @@ import googleConnect from "./routes/google/connect.js";
 import health from "./routes/health.js";
 import industries from "./routes/industries.js";
 import leads from "./routes/leads.js";
+import account from "./routes/account.js";
 import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
 import styleGuide from "./routes/style-guide.js";
@@ -24,6 +25,7 @@ export type ApiHandler = (req: VercelRequest, res: VercelResponse) => Promise<un
 
 export const routeHandlers: Record<string, ApiHandler> = {
   "/api/health": health,
+  "/api/account": account,
   "/api/profile": profile,
   "/api/companies": companies,
   "/api/contacts": contacts,

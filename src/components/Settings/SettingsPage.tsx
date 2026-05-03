@@ -4,7 +4,7 @@ import {
   Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2, FileText, UploadCloud, Paperclip,
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
-import { generateStyleGuide } from '../../lib/api'
+import { generateStyleGuide, deleteAccount } from '../../lib/api'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { supabase, isDemo } from '../../lib/supabase'
@@ -664,6 +664,54 @@ function StyleSection({ workspaceConfig, onSave }) {
   )
 }
 
+function DangerZoneSection() {
+  const { signOut } = useAuth()
+  const [confirm, setConfirm] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleDelete = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      await deleteAccount()
+      await signOut()
+    } catch (err) {
+      setError('Failed to delete account. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Section title="Danger Zone">
+      <div className="rounded-xl border border-red-200 bg-red-50/50 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-dark">Delete account</p>
+            <p className="mt-0.5 text-xs text-muted">Permanently delete your account and all data. This cannot be undone.</p>
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => setConfirm(true)}
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+          >
+            Delete account
+          </button>
+        </div>
+      </div>
+      <ConfirmDialog
+        open={confirm}
+        title="Delete account"
+        message="This will permanently delete your account and all data including campaigns, leads, and emails. This cannot be undone."
+        confirmLabel={loading ? 'Deleting…' : 'Yes, delete my account'}
+        onConfirm={handleDelete}
+        onClose={() => setConfirm(false)}
+      />
+    </Section>
+  )
+}
+
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, profile, profileLoading, onRefreshProfile, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [toast, setToast] = useState(null)
   const saveWorkspace = async (updater, label = 'Settings saved') => {
@@ -716,6 +764,7 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         workspaceConfig={workspaceConfig}
         onSave={(updater) => saveWorkspace(updater, 'Sending limits saved')}
       />
+      <DangerZoneSection />
     </div>
   )
 }
