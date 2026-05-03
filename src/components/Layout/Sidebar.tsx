@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { LogOut, ChevronDown, Bird, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 export default function Sidebar({
   activeTab,
@@ -53,15 +53,11 @@ export default function Sidebar({
     <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-accent/20 bg-[#F8F4ED] transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
       {/* Logo row */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
-        <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
-            <Bird size={18} strokeWidth={1.9} />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate font-display text-sm font-semibold tracking-[-0.02em] text-dark">Sparrow</p>
-            </div>
-          )}
+        <div className={`flex min-w-0 items-center ${collapsed ? 'justify-center' : ''}`}>
+          {collapsed
+            ? <span className="font-display text-lg font-semibold tracking-[-0.04em] text-primary">S</span>
+            : <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
+          }
         </div>
         {!collapsed && (
           <button

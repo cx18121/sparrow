@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Bird, Building2, FileText, Upload, User } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Building2, FileText, Upload, User } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
@@ -695,9 +695,8 @@ export default function OnboardingScreen({
             >
               {isSigningOut ? 'Signing out...' : 'Sign out'}
             </button>
-            <div className="flex items-center gap-2">
-              <Bird size={15} className="text-primary" />
-              <p className="font-display text-sm font-semibold tracking-tight text-dark">Sparrow</p>
+            <div className="flex items-center">
+              <span className="font-display text-sm font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
             </div>
           </div>
           <button

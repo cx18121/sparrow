@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { AlertCircle, Bird, Zap, Search, Send } from 'lucide-react'
+import { AlertCircle, Zap, Search, Send } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -68,12 +68,8 @@ export default function AuthScreen() {
           style={{ background: 'linear-gradient(to bottom, transparent, rgba(120,160,100,0.2) 30%, rgba(120,160,100,0.2) 70%, transparent)' }} />
 
         {/* Logo */}
-        <div className="relative flex items-center gap-2.5 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-            style={{ background: 'rgba(168,207,169,0.15)', border: '1px solid rgba(168,207,169,0.2)' }}>
-            <Bird size={16} strokeWidth={1.8} className="text-primary-200" />
-          </div>
-          <span className="font-display text-[15px] font-semibold tracking-[-0.02em] text-white/85">Sparrow</span>
+        <div className="relative py-2">
+          <span className="font-display text-[18px] font-semibold tracking-[-0.05em] text-white/90">Sparrow</span>
         </div>
 
         {/* Hero */}
