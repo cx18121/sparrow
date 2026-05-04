@@ -111,6 +111,48 @@ test.describe('Campaign workspace shell', () => {
     await expect(page.locator('text=/Campaign not found/i').first()).toBeVisible({ timeout: 10_000 })
   })
 
+  test('Drafts sub-tab shows the empty state when no drafts exist for this campaign (Phase 4b)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      drafts: [],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/drafts')
+    // Real DraftsTab is mounted now (not a placeholder). Empty state copy
+    // comes from DraftsTab's EmptyState — "No drafts ready for review" only
+    // renders if DraftsTab actually fetched and got an empty result.
+    await expect(page.locator('text=/No drafts ready for review/i').first()).toBeVisible({ timeout: 10_000 })
+    // The placeholder Coming-Soon card from Phase 4a's stub is gone.
+    await expect(page.locator('text=/scoped to just this campaign/i')).toHaveCount(0)
+  })
+
+  test('Drafts sub-tab renders campaign-scoped drafts when seeded (Phase 4b)', async ({ page }) => {
+    const draft = {
+      id: 'email_draft_1',
+      userLeadId: 'lead_1',
+      contactId: 'contact_1',
+      subject: 'Quick question about Acme',
+      body: 'Hi Avery, your robots fold laundry.',
+      status: 'draft',
+      attachmentIds: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      sentAt: null,
+      contact: { id: 'contact_1', name: 'Avery Kim', email: 'avery@acme.test', title: 'Founder' },
+      customContact: null,
+      userLead: { id: 'lead_1', status: 'SAVED', company: { id: 'co_1', name: 'Acme Robotics', domain: 'acme.test' } },
+    }
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      drafts: [draft],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/drafts')
+    // The seeded draft renders — recipient + subject visible in the row.
+    await expect(page.locator('text=Avery Kim').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('text=Quick question about Acme').first()).toBeVisible()
+  })
+
   test('Leads sub-tab mounts Discover and shows companies (Phase 4a)', async ({ page }) => {
     await mockApi(page, {
       campaigns: [SAMPLE_CAMPAIGN],
