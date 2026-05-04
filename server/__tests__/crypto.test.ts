@@ -5,7 +5,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 // after clearing the cache. We achieve this via vi.resetModules() + dynamic import.
 
 describe("crypto — encrypt / decrypt", () => {
-  const VALID_KEY = "test-secret-key-for-unit-tests-only";
+  // 64 hex chars = 32 bytes, matching what server/lib/crypto.ts requires.
+  // Deterministic for test reproducibility — never used in production.
+  const VALID_KEY = "0".repeat(63) + "1";
 
   beforeEach(() => {
     process.env.ENCRYPTION_KEY = VALID_KEY;

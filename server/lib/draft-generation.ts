@@ -92,7 +92,10 @@ async function resolveRecipient(params: DraftGenerationParams) {
 // Handles: recipient resolution (with optional Apollo auto-reveal), template lookup,
 // profile fetch, AI generation with fallback, and optional draft persistence.
 export async function generateDraft(params: DraftGenerationParams): Promise<DraftGenerationResult> {
-  const { userId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = true } = params;
+  // save defaults to FALSE — callers must opt in to persisting a draft.
+  // This avoids the trap where a "preview" call silently creates an Email record
+  // that the user never saw or approved (see ContactsTab regression Mar 2026).
+  const { userId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = false } = params;
 
   const { contactInfo, companyInfo, savedLeadId, savedContactId, savedCustomContactId } =
     await resolveRecipient(params);

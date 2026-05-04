@@ -1,15 +1,8 @@
 import { prisma } from "./prisma.js";
-import { US_REGIONS } from "../../scripts/_lib/region-map.js";
+import { audienceFromCampaign, audienceToPrismaWhere, buildTagFilters, type CampaignFilters } from "./audience-query.js";
 
-export interface CampaignFilters {
-  filterTags: string[];
-  filterRegion: string | null;
-  filterStage: string | null;
-  filterBatch: string | null;
-  filterIsHiring: boolean | null;
-  filterHeadcountMin: number | null;
-  filterHeadcountMax: number | null;
-}
+export type { CampaignFilters };
+export { buildTagFilters };
 
 // Fisher-Yates shuffle. Shared by campaign batch selection and discovery.
 export function shuffle<T>(items: T[]): T[] {
@@ -21,49 +14,10 @@ export function shuffle<T>(items: T[]): T[] {
   return arr;
 }
 
-// Group a flat tag list by namespace prefix for AND-across-namespaces /
-// OR-within logic.
-export function buildTagFilters(tags: string[]) {
-  const byNs: Record<string, string[]> = {};
-  for (const t of tags) {
-    const idx = t.indexOf(':');
-    const ns = idx > 0 ? t.slice(0, idx) : '_';
-    (byNs[ns] ??= []).push(t);
-  }
-  return Object.values(byNs).map(group => ({ tags: { hasSome: group } }));
-}
-
 // Builds the Prisma where clause for a Campaign's audience filters.
+// Thin wrapper around the shared CampaignAudience module.
 export function buildCampaignWhere(campaign: CampaignFilters) {
-  const tagFilters = buildTagFilters(campaign.filterTags ?? []);
-  const andConditions = [...tagFilters];
-  let regionWhere: Record<string, unknown> = {};
-
-  if (campaign.filterRegion === '__US__') {
-    regionWhere = { region: { in: [...US_REGIONS] } };
-  } else if (campaign.filterRegion === '__INTL__') {
-    andConditions.push({ region: { not: null } } as any);
-    andConditions.push({ region: { notIn: [...US_REGIONS, 'Remote'] } } as any);
-  } else if (campaign.filterRegion === '__REMOTE__') {
-    regionWhere = { region: 'Remote' };
-  } else if (campaign.filterRegion) {
-    regionWhere = { region: campaign.filterRegion };
-  }
-
-  return {
-    isVerified: true,
-    ...(andConditions.length > 0 && { AND: andConditions }),
-    ...regionWhere,
-    ...(campaign.filterStage && { stage: campaign.filterStage }),
-    ...(campaign.filterBatch && { batch: campaign.filterBatch }),
-    ...(campaign.filterIsHiring != null && { isHiring: campaign.filterIsHiring }),
-    ...((campaign.filterHeadcountMin != null || campaign.filterHeadcountMax != null) && {
-      headcount: {
-        ...(campaign.filterHeadcountMin != null && { gte: campaign.filterHeadcountMin }),
-        ...(campaign.filterHeadcountMax != null && { lte: campaign.filterHeadcountMax }),
-      },
-    }),
-  };
+  return audienceToPrismaWhere(audienceFromCampaign(campaign));
 }
 
 // Selects company IDs for the next Batch, excluding already-seen companies.

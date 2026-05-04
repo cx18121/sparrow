@@ -405,14 +405,13 @@ describe("generateDraft — save flag", () => {
     expect(createArg.data.userLeadId).toBeUndefined();
   });
 
-  it("saves by default when save param is omitted", async () => {
+  it("does NOT save by default when save param is omitted (explicit-opt-in contract)", async () => {
     const lead = makeUserLead();
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
-    mockPrisma.email.create.mockResolvedValue({ id: "email-default-save" });
 
     const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
 
-    expect(mockPrisma.email.create).toHaveBeenCalledOnce();
-    expect(result.emailId).toBe("email-default-save");
+    expect(mockPrisma.email.create).not.toHaveBeenCalled();
+    expect(result.emailId).toBeNull();
   });
 });
