@@ -1,12 +1,13 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
-import { CalendarClock, FileText, KeyRound, Send } from 'lucide-react'
+import { ArrowRight, KeyRound, Loader2, Mail, PenLine, Send, Users } from 'lucide-react'
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
 import DraftsTab from '../Drafts/DraftsTab'
 import SettingsTabImpl from './SettingsTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
+import { fetchCampaignLeads, fetchEmailsCombined } from '../../lib/api'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
 
@@ -24,51 +25,210 @@ function useWorkspaceContext(): WorkspaceOutletContext {
 
 export function OverviewTab() {
   const campaign = useWorkspaceCampaign()
+  const navigate = useNavigate()
   const audiencePills = audienceToDisplayPills(audienceFromCampaign(campaign))
-  const updated = formatRelative(campaign.updatedAt)
+  const [counts, setCounts] = useState<{ leads: number; drafts: number; sent: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setCounts(null)
+    setError(null)
+    Promise.all([
+      fetchCampaignLeads(campaign.id),
+      fetchEmailsCombined({ campaignId: campaign.id }),
+    ])
+      .then(([leadsRes, emailsRes]) => {
+        if (cancelled) return
+        setCounts({
+          leads: leadsRes?.items?.length ?? 0,
+          drafts: emailsRes?.drafts?.length ?? 0,
+          sent: emailsRes?.sent?.length ?? 0,
+        })
+      })
+      .catch(err => {
+        if (cancelled) return
+        setError(err?.message || 'Could not load campaign activity.')
+      })
+    return () => { cancelled = true }
+  }, [campaign.id])
+
+  const next = nextAction(counts, campaign.status)
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <SummaryCard label="Status" icon={CalendarClock}>
-        <p className="font-display text-xl font-semibold capitalize text-dark">{campaign.status}</p>
-        <p className="mt-1 text-xs text-muted">Updated {updated}</p>
-      </SummaryCard>
-      <SummaryCard label="Batch" icon={Send}>
-        <p className="font-display text-xl font-semibold text-dark tabular-nums">
-          {campaign.currentBatch ?? 0}
-        </p>
-        <p className="mt-1 text-xs text-muted">{campaign.batchSize ?? 10} per pull</p>
-      </SummaryCard>
-      <SummaryCard label="Template" icon={FileText}>
-        <p className="font-display text-base font-semibold text-dark line-clamp-1">
-          {campaign.template?.name || 'Write from scratch'}
-        </p>
-        <p className="mt-1 text-xs text-muted">
-          {campaign.includePreviouslySaved
-            ? 'Including past-campaign leads'
-            : 'Skipping past-campaign leads'}
-        </p>
-      </SummaryCard>
+    <div className="space-y-5">
+      <NextActionHero
+        loading={!counts && !error}
+        next={next}
+        campaignId={campaign.id}
+        onJump={(tab) => navigate(`/campaigns/${campaign.id}/${tab}`)}
+      />
 
-      <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4 lg:col-span-3">
+      <StatsStrip
+        loading={!counts && !error}
+        counts={counts}
+        onJump={(tab) => navigate(`/campaigns/${campaign.id}/${tab}`)}
+      />
+
+      <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Audience</p>
         {audiencePills.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {audiencePills.map(p => (
               <Pill key={p} variant="info">{p}</Pill>
             ))}
+            <button
+              type="button"
+              onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
+              className="ml-1 text-[11px] font-medium text-muted hover:text-dark"
+            >
+              Edit →
+            </button>
           </div>
         ) : (
           <p className="mt-2 text-sm text-muted">
-            No filters set — Sparrow will sample broadly across your verified company list.
+            No filters set. Sparrow samples broadly across your verified company list.
           </p>
         )}
       </div>
 
-      <ComingSoonCard
-        className="lg:col-span-3"
-        title="Live batch progress, reply tracking, and quick actions land here next."
-      />
+      {error && (
+        <Banner variant="warning" size="sm">
+          {error}
+        </Banner>
+      )}
+    </div>
+  )
+}
+
+type NextActionState = {
+  headline: string
+  helper: string
+  ctaLabel: string
+  ctaTab: 'leads' | 'drafts' | 'sent'
+  icon: React.ComponentType<{ size?: number; className?: string }>
+}
+
+function nextAction(counts: { leads: number; drafts: number; sent: number } | null, status: string): NextActionState | null {
+  if (!counts) return null
+  if (status === 'completed') {
+    return {
+      headline: 'This campaign is complete.',
+      helper: 'Read-only. Re-open from Settings if you want to keep generating.',
+      ctaLabel: 'View sent',
+      ctaTab: 'sent',
+      icon: Mail,
+    }
+  }
+  if (counts.leads === 0) {
+    return {
+      headline: 'Find leads to start.',
+      helper: 'Browse companies that match this campaign\'s audience and save the ones worth reaching.',
+      ctaLabel: 'Find leads',
+      ctaTab: 'leads',
+      icon: Users,
+    }
+  }
+  if (counts.drafts === 0 && counts.sent === 0) {
+    return {
+      headline: `${counts.leads} ${counts.leads === 1 ? 'lead' : 'leads'} saved. Generate drafts.`,
+      helper: 'Sparrow drafts personalized emails from your template and each lead\'s company context.',
+      ctaLabel: 'Go to Drafts',
+      ctaTab: 'drafts',
+      icon: PenLine,
+    }
+  }
+  if (counts.drafts > 0) {
+    return {
+      headline: `${counts.drafts} ${counts.drafts === 1 ? 'draft' : 'drafts'} ready to review.`,
+      helper: 'Edit, then send when each one reads right. Sent emails appear in Sent.',
+      ctaLabel: 'Review drafts',
+      ctaTab: 'drafts',
+      icon: PenLine,
+    }
+  }
+  return {
+    headline: `${counts.sent} ${counts.sent === 1 ? 'email' : 'emails'} sent.`,
+    helper: 'Save more leads to keep the campaign moving.',
+    ctaLabel: 'Find more leads',
+    ctaTab: 'leads',
+    icon: Send,
+  }
+}
+
+function NextActionHero({
+  loading, next, onJump,
+}: {
+  loading: boolean
+  next: NextActionState | null
+  campaignId: string
+  onJump: (tab: NextActionState['ctaTab']) => void
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-warm-200 bg-panel px-6 py-7">
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Loader2 size={14} className="animate-spin" /> Loading campaign activity…
+        </div>
+      </div>
+    )
+  }
+  if (!next) return null
+  const Icon = next.icon
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-warm-200 bg-panel px-6 py-7 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon size={18} />
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-dark sm:text-xl">
+            {next.headline}
+          </h2>
+          <p className="mt-1 max-w-prose text-sm leading-6 text-muted">{next.helper}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onJump(next.ctaTab)}
+        className="btn-primary shrink-0 self-start sm:self-auto"
+      >
+        {next.ctaLabel} <ArrowRight size={14} />
+      </button>
+    </div>
+  )
+}
+
+function StatsStrip({
+  loading, counts, onJump,
+}: {
+  loading: boolean
+  counts: { leads: number; drafts: number; sent: number } | null
+  onJump: (tab: 'leads' | 'drafts' | 'sent') => void
+}) {
+  const items: { key: 'leads' | 'drafts' | 'sent'; label: string; value: number | null }[] = [
+    { key: 'leads',  label: 'Leads',  value: counts?.leads ?? null },
+    { key: 'drafts', label: 'Drafts', value: counts?.drafts ?? null },
+    { key: 'sent',   label: 'Sent',   value: counts?.sent ?? null },
+  ]
+  return (
+    <div className="flex divide-x divide-warm-200/80 overflow-hidden rounded-2xl border border-warm-200 bg-panel">
+      {items.map(item => (
+        <button
+          key={item.key}
+          type="button"
+          onClick={() => onJump(item.key)}
+          disabled={loading}
+          className="group flex flex-1 items-baseline justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-warm-50 disabled:opacity-50"
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">
+            {item.label}
+          </span>
+          <span className="font-display text-2xl font-semibold tabular-nums text-dark">
+            {item.value === null ? '—' : item.value}
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -158,59 +318,3 @@ export function SentTab() {
 }
 
 export { SettingsTabImpl as SettingsTab }
-
-// ---------- shared ----------
-
-function SummaryCard({
-  label, icon: Icon, children,
-}: {
-  label: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
-  children: React.ReactNode
-}) {
-  return (
-    <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
-        <Icon size={14} className="text-muted/60" />
-      </div>
-      <div className="mt-3">{children}</div>
-    </div>
-  )
-}
-
-function ComingSoonCard({
-  icon: Icon, title, body, className = '',
-}: {
-  icon?: React.ComponentType<{ size?: number; className?: string }>
-  title: string
-  body?: string
-  className?: string
-}) {
-  return (
-    <div className={`rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-6 py-8 text-center ${className}`}>
-      {Icon && (
-        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
-          <Icon size={18} />
-        </div>
-      )}
-      <p className="font-display text-base font-semibold text-dark">{title}</p>
-      {body && <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">{body}</p>}
-    </div>
-  )
-}
-
-function formatRelative(value: string | null | undefined): string {
-  if (!value) return ''
-  const d = new Date(value)
-  const diffMs = Date.now() - d.getTime()
-  const mins = Math.round(diffMs / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days}d ago`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}

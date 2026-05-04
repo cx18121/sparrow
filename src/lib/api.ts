@@ -191,8 +191,8 @@ export const deleteLead = (id: string) => request<void>(`/leads${qs({ id })}`, {
 
 export const fetchEmails = (params: Record<string, unknown> = {}) =>
   request<PageResponse<Email>>(`/emails${qs(params)}`)
-export const fetchEmailsCombined = () =>
-  request<DashboardEmailsResponse>(`/emails${qs({ combined: 'true' })}`)
+export const fetchEmailsCombined = (params: { campaignId?: string } = {}) =>
+  request<DashboardEmailsResponse>(`/emails${qs({ combined: 'true', ...params })}`)
 export const fetchSentTodayCount = () => request<SentTodayCountResponse>('/emails?countToday=true')
 export const createEmail = (data: Partial<Email> & { userLeadId?: string; customContactId?: string }) =>
   request<Email>('/emails', { method: 'POST', body: JSON.stringify(data) })
