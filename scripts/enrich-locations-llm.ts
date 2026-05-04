@@ -4,34 +4,30 @@ import { prisma } from "./_lib/prisma.js";
 import { normalizeRegion, US_REGIONS } from "./_lib/region-map.js";
 import { callClaude } from "../server/lib/ai/anthropic.js";
 
-// LLM-classify Company.region for rows whose region is null. Two passes:
-//   1. Free deterministic ccTLD inference (e.g., .de → "Germany"). Many
-//      international companies have a country-code TLD that pins region
-//      without spending a Claude call.
-//   2. Claude Haiku on whatever signal is available (location string,
-//      one-liner, description, website TLD) for the rest.
+// LLM-classify Company.region for rows whose region is null.
 //
-// Uses the host's ANTHROPIC_API_KEY env var.
+// The audience filter only distinguishes three buckets — US, International,
+// Remote — so this script only asks the LLM for that 3-way classification
+// (plus "Unknown"). Specific metros come from the deterministic
+// `normalizeRegion` pass at ingest; the LLM is only invoked for rows where
+// no metro signal exists, so its output is always bucket-level.
 //
-// The classifier returns one of:
-//   - a US metro name from US_REGIONS (e.g., "Bay Area", "New York Metro")
-//   - "Remote"
-//   - "International"
-//   - a country name like "Germany" or "Singapore" (also bucketed as
-//     International by the audience-query exclusion list at filter time)
+// Two cheap passes before the LLM:
+//   1. normalizeRegion(row.location) — re-run in case the static map gained
+//      entries since the original ingest.
+//   2. ccTLD inference (.de → "Germany", .uk → "United Kingdom"). High-
+//      precision data lookup — ISO 3166-1 alpha-2 codes are a fixed table.
 //
-// Cost: roughly $0.001 per batch of 20 companies on Haiku 4.5. For ~2000
-// rows that's ~$0.10. Idempotent — only touches rows where region is null.
+// Cost: ~$0.001 per batch of 30 companies on Haiku 4.5. Idempotent.
 //
 // Usage:
 //   npx tsx scripts/enrich-locations-llm.ts                # full run
-//   npx tsx scripts/enrich-locations-llm.ts --limit 100    # cap rows
-//   npx tsx scripts/enrich-locations-llm.ts --dry-run      # log only
-//   npx tsx scripts/enrich-locations-llm.ts --batch 30     # rows per call
+//   npx tsx scripts/enrich-locations-llm.ts --limit 100
+//   npx tsx scripts/enrich-locations-llm.ts --dry-run
+//   npx tsx scripts/enrich-locations-llm.ts --batch 30
 
 const MODEL = "claude-haiku-4-5-20251001";
-const DEFAULT_BATCH = 20;
-const VALID_US_REGIONS = Array.from(US_REGIONS);
+const DEFAULT_BATCH = 30;
 
 function parseFlag(name: string): string | null {
   const idx = process.argv.indexOf(name);
@@ -53,24 +49,36 @@ interface Stats {
   remote: number;
   us: number;
   intl: number;
-  unrecognized: number;
+  detPass1: number;       // hit normalizeRegion on Company.location
+  detPass2Cctld: number;  // hit ccTLD inference on domain
+  zeroSignalSkipped: number; // skipped — no description/oneLiner/location/ccTLD
+  modelClassified: number; // model returned a usable region
+  modelUnknown: number;    // model returned "Unknown"
+  modelOmitted: number;    // input id missing from model response (truncation/hallucination)
+  modelInvalid: number;    // model returned non-string or unparseable
   errors: number;
 }
 
-const SYSTEM = `You classify company locations into a small fixed vocabulary.
+const SYSTEM = `Classify each company by region. Output strict JSON mapping each input id to ONE of these four values:
+  - "US" — headquartered in the United States
+  - "International" — headquartered outside the US
+  - "Remote" — fully distributed, no specific HQ
+  - "Unknown" — truly no signal at all
 
-Output rules:
-1. Return strict JSON: an object mapping each input id to its region string.
-2. Each region must be EXACTLY one of:
-   - A US metro name from this list: ${VALID_US_REGIONS.join(", ")}
-   - "Remote" (the company is fully distributed)
-   - "International" (any non-US location, when no specific country fits)
-   - A specific country name (e.g., "Germany", "Singapore", "United Kingdom") — for non-US, non-remote
-3. If the input is too ambiguous to classify (e.g., empty, a job title), return "Unknown" for that id.
-4. Do not invent fields, do not add commentary, do not wrap in markdown code blocks.
+Use any signal: company name origin, domain TLD, description language, market focus, founder names. Make educated guesses; return "Unknown" only when there is genuinely nothing to go on.
 
-Example output:
-{"abc123": "Bay Area", "def456": "Germany", "ghi789": "Remote", "jkl012": "Unknown"}`;
+Output rules: do not invent values, do not add commentary, do not wrap in markdown.
+
+Example: {"abc123": "US", "def456": "International", "ghi789": "Remote", "jkl012": "Unknown"}`;
+
+// Maps the 4-bucket model output to the value we store in Company.region.
+// "US" is normalized to "United States" so the audience filter's
+// `region IN US_REGIONS` test matches it (United States is in US_REGIONS).
+const REGION_STORE: Record<string, string> = {
+  US: "United States",
+  International: "International",
+  Remote: "Remote",
+};
 
 interface CompanyRow {
   id: string;
@@ -132,12 +140,6 @@ function safeJsonParse(text: string): Record<string, string> | null {
   }
 }
 
-function categoriseRegion(region: string): "us" | "remote" | "intl" | "unknown" {
-  if (region === "Remote") return "remote";
-  if (region === "Unknown") return "unknown";
-  if (US_REGIONS.has(region)) return "us";
-  return "intl";
-}
 
 export async function enrichLocations(): Promise<void> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -167,8 +169,11 @@ export async function enrichLocations(): Promise<void> {
 
   const stats: Stats = {
     scanned: 0, classified: 0, remote: 0, us: 0, intl: 0,
-    unrecognized: 0, errors: 0,
+    detPass1: 0, detPass2Cctld: 0, zeroSignalSkipped: 0,
+    modelClassified: 0, modelUnknown: 0, modelOmitted: 0, modelInvalid: 0,
+    errors: 0,
   };
+  const omittedSamples: string[] = [];
 
   for (let i = 0; i < companies.length; i += batchSize) {
     const batch = companies.slice(i, i + batchSize) as CompanyRow[];
@@ -186,6 +191,7 @@ export async function enrichLocations(): Promise<void> {
         if (local) {
           if (!dryRun) await prisma.company.update({ where: { id: row.id }, data: { region: local } });
           stats.classified++;
+          stats.detPass1++;
           if (local === "Remote") stats.remote++;
           else if (US_REGIONS.has(local)) stats.us++;
           else stats.intl++;
@@ -196,7 +202,16 @@ export async function enrichLocations(): Promise<void> {
         if (tld) {
           if (!dryRun) await prisma.company.update({ where: { id: row.id }, data: { region: tld } });
           stats.classified++;
+          stats.detPass2Cctld++;
           stats.intl++;
+          continue;
+        }
+        // Pre-filter: rows with no description, no oneLiner, no location, and
+        // a generic TLD have nothing for the model to work with — Claude will
+        // return Unknown 100% of the time. Skip to save API cost.
+        const hasContextSignal = !!(row.location || row.oneLiner || row.description);
+        if (!hasContextSignal) {
+          stats.zeroSignalSkipped++;
           continue;
         }
         remaining.push(row);
@@ -208,7 +223,9 @@ export async function enrichLocations(): Promise<void> {
         model: MODEL,
         system: SYSTEM,
         userContent: buildPrompt(remaining),
-        maxTokens: 800,
+        // 20-row batches with verbose region strings can push past 800; bumped
+        // to 1500 to eliminate truncation as a source of "model_omitted".
+        maxTokens: 1500,
       });
       const parsed = safeJsonParse(reply);
       if (!parsed) {
@@ -219,23 +236,25 @@ export async function enrichLocations(): Promise<void> {
       }
 
       for (const row of remaining) {
-        const region = parsed[row.id];
-        if (!region || typeof region !== "string") {
-          stats.unrecognized++;
+        const raw = parsed[row.id];
+        if (raw === undefined) {
+          stats.modelOmitted++;
+          if (omittedSamples.length < 5) {
+            omittedSamples.push(`${row.name} (loc=${row.location ?? "∅"} dom=${row.domain})`);
+          }
           continue;
         }
-        if (region === "Unknown") {
-          stats.unrecognized++;
-          continue;
-        }
-        const bucket = categoriseRegion(region);
-        if (bucket === "unknown") { stats.unrecognized++; continue; }
-        if (bucket === "us") stats.us++;
-        else if (bucket === "remote") stats.remote++;
+        if (typeof raw !== "string") { stats.modelInvalid++; continue; }
+        if (raw === "Unknown") { stats.modelUnknown++; continue; }
+        const region = REGION_STORE[raw];
+        if (!region) { stats.modelInvalid++; continue; }
+        if (raw === "US") stats.us++;
+        else if (raw === "Remote") stats.remote++;
         else stats.intl++;
         stats.classified++;
+        stats.modelClassified++;
 
-        console.log(`  ${row.name}: ${row.location} -> ${region}`);
+        console.log(`  ${row.name}: ${row.location ?? "∅"} -> ${region}`);
         if (!dryRun) {
           await prisma.company.update({ where: { id: row.id }, data: { region } });
         }
@@ -250,13 +269,23 @@ export async function enrichLocations(): Promise<void> {
   }
 
   console.log("\n--- Run summary ---");
-  console.log(`Scanned:           ${stats.scanned}`);
-  console.log(`Classified:        ${stats.classified}`);
-  console.log(`  US:              ${stats.us}`);
-  console.log(`  International:   ${stats.intl}`);
-  console.log(`  Remote:          ${stats.remote}`);
-  console.log(`Unrecognized:      ${stats.unrecognized}`);
-  console.log(`Errors:            ${stats.errors}`);
+  console.log(`Scanned:                ${stats.scanned}`);
+  console.log(`Classified:             ${stats.classified}`);
+  console.log(`  US:                   ${stats.us}`);
+  console.log(`  International:        ${stats.intl}`);
+  console.log(`  Remote:               ${stats.remote}`);
+  console.log(`  via det pass 1 (loc): ${stats.detPass1}`);
+  console.log(`  via det pass 2 (TLD): ${stats.detPass2Cctld}`);
+  console.log(`  via model:            ${stats.modelClassified}`);
+  console.log(`Skipped (zero signal):  ${stats.zeroSignalSkipped}  (no loc/desc/oneLiner/ccTLD)`);
+  console.log(`Model returned Unknown: ${stats.modelUnknown}`);
+  console.log(`Model omitted id:       ${stats.modelOmitted}  (truncation/hallucination)`);
+  console.log(`Model invalid value:    ${stats.modelInvalid}`);
+  console.log(`Errors (batch failed):  ${stats.errors}`);
+  if (omittedSamples.length > 0) {
+    console.log(`\nSample omitted rows (model didn't return their id):`);
+    for (const s of omittedSamples) console.log(`  - ${s}`);
+  }
   if (dryRun) console.log("(dry-run — no DB writes)");
   await prisma.$disconnect();
 }

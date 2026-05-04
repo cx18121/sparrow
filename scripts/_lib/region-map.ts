@@ -1,3 +1,7 @@
+// US_REGIONS = the set of region values that the audience filter treats as US.
+// Metros are the precise outputs of `normalizeRegion` on US location strings.
+// "United States" is the bucket-only fallback used by the LLM enrichment when
+// HQ is clearly US but no metro-level signal exists.
 export const US_REGIONS = new Set([
   "Bay Area", "New York Metro", "Pacific Northwest", "Boston / Cambridge",
   "Austin", "Los Angeles", "Chicago", "Denver / Boulder",
@@ -6,6 +10,7 @@ export const US_REGIONS = new Set([
   "Phoenix", "Nashville", "Pittsburgh", "Ann Arbor", "Detroit",
   "St. Louis", "Charlotte", "Columbus", "Cincinnati", "Louisville",
   "Memphis", "Richmond", "New Orleans", "Kansas City", "San Antonio", "Tucson",
+  "United States",
 ]);
 
 // Keywords that indicate a job title / role description — not a location.
