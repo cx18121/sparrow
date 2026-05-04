@@ -13,6 +13,7 @@ import WorkspaceShell from './components/Workspace/WorkspaceShell'
 import {
   OverviewTab as WorkspaceOverview,
   LeadsTab as WorkspaceLeads,
+  ContactsSubTab as WorkspaceContacts,
   DraftsSubTab as WorkspaceDrafts,
   SentTab as WorkspaceSent,
   SettingsTab as WorkspaceSettings,
@@ -109,9 +110,6 @@ function AppShell() {
     refreshLeads,
     updateLead: updateLeadHandler,
     deleteLead: deleteLeadHandler,
-    createCustomContact: createCustomContactHandler,
-    updateCustomContact: updateCustomContactHandler,
-    deleteCustomContact: deleteCustomContactHandler,
     createTemplate: createTemplateHandler,
     updateTemplate: updateTemplateHandler,
     deleteTemplate: deleteTemplateHandler,
@@ -473,9 +471,6 @@ function AppShell() {
       refreshLeads,
       updateLead: updateLeadHandler,
       deleteLead: deleteLeadHandler,
-      createCustomContact: createCustomContactHandler,
-      updateCustomContact: updateCustomContactHandler,
-      deleteCustomContact: deleteCustomContactHandler,
       createTemplate: createTemplateHandler,
       updateTemplate: updateTemplateHandler,
       deleteTemplate: deleteTemplateHandler,
@@ -522,6 +517,7 @@ function AppShell() {
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<WorkspaceOverview />} />
                 <Route path="leads" element={<WorkspaceLeads />} />
+                <Route path="contacts" element={<WorkspaceContacts />} />
                 <Route path="drafts" element={<WorkspaceDrafts />} />
                 <Route path="sent" element={<WorkspaceSent />} />
                 <Route path="settings" element={<WorkspaceSettings />} />

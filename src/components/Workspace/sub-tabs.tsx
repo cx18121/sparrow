@@ -5,6 +5,7 @@ import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
 import DraftsTab from '../Drafts/DraftsTab'
+import ContactsTab from '../Contacts/ContactsTab'
 import SettingsTabImpl from './SettingsTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import { fetchCampaignLeads, fetchEmailsCombined } from '../../lib/api'
@@ -249,6 +250,18 @@ export function LeadsTab() {
   )
 }
 
+export function ContactsSubTab() {
+  const { campaign } = useWorkspaceContext()
+  const navigate = useNavigate()
+  return (
+    <ContactsTab
+      campaignId={campaign.id}
+      onJumpToDrafts={() => navigate(`/campaigns/${campaign.id}/drafts`)}
+      onJumpToLeads={() => navigate(`/campaigns/${campaign.id}/leads`)}
+    />
+  )
+}
+
 export function DraftsSubTab() {
   const { campaign, workspaceConfig, profile, profileLoading } = useWorkspaceContext()
   const navigate = useNavigate()
@@ -269,7 +282,8 @@ export function DraftsSubTab() {
         onNavigate={(target) => {
           // Empty-state CTAs jump to the matching workspace sub-tab.
           if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
-          else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
+          else if (target === 'contacts') navigate(`/campaigns/${campaign.id}/contacts`)
+          else if (target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
           else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
         }}
       />
