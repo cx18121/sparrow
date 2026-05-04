@@ -359,6 +359,42 @@ function StepName({
 
 // ---------- Step 2: Filters ----------
 
+const SIGNAL_YC = 'signal:yc-backed'
+
+// Headcount buckets used by the size chips. Each chip writes a (min, max)
+// pair into the audience; clicking the active chip clears both. Buckets
+// match how students mentally segment company size, not raw deciles.
+const SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; min: number | null; max: number | null }> = [
+  { key: 'tiny',  label: 'Tiny · <10',     min: null, max: 9 },
+  { key: 'small', label: 'Small · 10–50',  min: 10,   max: 50 },
+  { key: 'mid',   label: 'Mid · 50–250',   min: 50,   max: 250 },
+  { key: 'large', label: 'Large · 250+',   min: 250,  max: null },
+]
+
+function activeSizeBucket(audience: Audience): string | null {
+  const match = SIZE_BUCKETS.find(b => b.min === audience.headcountMin && b.max === audience.headcountMax)
+  return match ? match.key : null
+}
+
+// Sorts YC batch strings newest-first. Handles both compact ("W26", "S25",
+// "F24") and long ("Winter 2026", "Summer 2025") forms by extracting the
+// year and a season ordinal. "Unspecified" sinks to the bottom.
+function sortBatchesNewestFirst(batches: string[]): string[] {
+  const seasonRank: Record<string, number> = { W: 0, X: 1, S: 2, F: 3, winter: 0, spring: 1, summer: 2, fall: 3 }
+  const score = (raw: string): number => {
+    if (/^unspecified$/i.test(raw)) return -Infinity
+    const compact = raw.match(/^([WSFX])(\d{2})$/i)
+    if (compact) {
+      const year = 2000 + parseInt(compact[2], 10)
+      return year * 10 + (3 - (seasonRank[compact[1].toUpperCase()] ?? 0))
+    }
+    const long = raw.match(/(winter|spring|summer|fall)\s+(\d{4})/i)
+    if (long) return parseInt(long[2], 10) * 10 + (3 - (seasonRank[long[1].toLowerCase()] ?? 0))
+    return 0
+  }
+  return [...batches].sort((a, b) => score(b) - score(a))
+}
+
 function StepFilters({
   audience, includePreviouslySaved, options,
   onAudienceChange, onTogglePrev,
@@ -369,59 +405,124 @@ function StepFilters({
   onAudienceChange: (a: Audience) => void
   onTogglePrev: (v: boolean) => void
 }) {
-  const [advancedOpen, setAdvancedOpen] = useState(
-    Boolean(audience.batch || audience.headcountMin != null || audience.headcountMax != null)
-  )
+  const [showAllBatches, setShowAllBatches] = useState(false)
 
   const setRegion = (r: RegionFilter | null) =>
     onAudienceChange({ ...audience, region: audience.region === r ? null : r })
 
   const toggleTag = (namespaced: string) => {
     const has = audience.tags.includes(namespaced)
-    onAudienceChange({
-      ...audience,
-      tags: has ? audience.tags.filter(t => t !== namespaced) : [...audience.tags, namespaced],
-    })
+    let nextTags = has ? audience.tags.filter(t => t !== namespaced) : [...audience.tags, namespaced]
+    // Clearing yc-backed must also clear the batch — otherwise a stale
+    // batch keeps applying silently and the preview drops without a
+    // visible reason.
+    const next: Audience = { ...audience, tags: nextTags }
+    if (namespaced === SIGNAL_YC && has) next.batch = null
+    onAudienceChange(next)
   }
+
+  const setBatch = (batch: string | null) =>
+    onAudienceChange({ ...audience, batch: audience.batch === batch ? null : batch })
+
+  const setSize = (key: string) => {
+    if (activeSizeBucket(audience) === key) {
+      onAudienceChange({ ...audience, headcountMin: null, headcountMax: null })
+      return
+    }
+    const bucket = SIZE_BUCKETS.find(b => b.key === key)
+    if (!bucket) return
+    onAudienceChange({ ...audience, headcountMin: bucket.min, headcountMax: bucket.max })
+  }
+
+  const ycSelected = audience.tags.includes(SIGNAL_YC)
+  const sortedBatches = useMemo(() => sortBatchesNewestFirst(options.batches || []), [options.batches])
+  const visibleBatches = showAllBatches ? sortedBatches : sortedBatches.slice(0, 8)
+  const sizeKey = activeSizeBucket(audience)
 
   return (
     <section>
       <StepHeader
         icon={Filter}
         title="Who should Sparrow find?"
-        helper="Pick filters and watch the audience preview update live."
       />
       <div className="mt-2 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Filter pills */}
         <div className="space-y-5">
           <FilterRow label="Region">
-            <FilterChip
-              active={audience.isHiring === true}
-              onClick={() => onAudienceChange({ ...audience, isHiring: audience.isHiring ? null : true })}
-              dot
-            >
-              Hiring only
-            </FilterChip>
             <FilterChip active={audience.region === REGION_US} onClick={() => setRegion(REGION_US)}>US</FilterChip>
             <FilterChip active={audience.region === REGION_INTL} onClick={() => setRegion(REGION_INTL)}>International</FilterChip>
             <FilterChip active={audience.region === REGION_REMOTE} onClick={() => setRegion(REGION_REMOTE)}>Remote</FilterChip>
           </FilterRow>
 
+          <FilterRow label="Hiring">
+            <FilterChip
+              active={audience.isHiring === true}
+              onClick={() => onAudienceChange({ ...audience, isHiring: audience.isHiring ? null : true })}
+              dot
+            >
+              Currently hiring
+            </FilterChip>
+          </FilterRow>
+
+          <FilterRow label="Size">
+            {SIZE_BUCKETS.map(b => (
+              <FilterChip
+                key={b.key}
+                active={sizeKey === b.key}
+                onClick={() => setSize(b.key)}
+              >
+                {b.label}
+              </FilterChip>
+            ))}
+            {sizeKey && (
+              <span className="self-center pl-1 text-[11px] text-muted/80">
+                Only matches companies with known headcount
+              </span>
+            )}
+          </FilterRow>
+
           {SECTOR_NAMESPACES.map(ns => {
             const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
             if (tags.length < 2) return null
+            const showBatchPicker = ns === 'signal' && ycSelected && sortedBatches.length > 0
             return (
-              <FilterRow key={ns} label={NS_LABEL[ns] || ns}>
-                {tags.map(t => (
-                  <FilterChip
-                    key={t.namespaced}
-                    active={audience.tags.includes(t.namespaced)}
-                    onClick={() => toggleTag(t.namespaced)}
-                  >
-                    {t.name}
-                  </FilterChip>
-                ))}
-              </FilterRow>
+              <div key={ns}>
+                <FilterRow label={NS_LABEL[ns] || ns}>
+                  {tags.map(t => (
+                    <FilterChip
+                      key={t.namespaced}
+                      active={audience.tags.includes(t.namespaced)}
+                      onClick={() => toggleTag(t.namespaced)}
+                    >
+                      {t.name}
+                    </FilterChip>
+                  ))}
+                </FilterRow>
+                {showBatchPicker && (
+                  <div className="mt-2 ml-[76px] flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
+                      Batch
+                    </span>
+                    <FilterChip active={!audience.batch} onClick={() => setBatch(null)}>
+                      Any
+                    </FilterChip>
+                    {visibleBatches.map(b => (
+                      <FilterChip key={b} active={audience.batch === b} onClick={() => setBatch(b)}>
+                        {b}
+                      </FilterChip>
+                    ))}
+                    {!showAllBatches && sortedBatches.length > 8 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllBatches(true)}
+                        className="text-[11px] font-medium text-muted hover:text-dark"
+                      >
+                        + {sortedBatches.length - 8} more
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )
           })}
 
@@ -442,53 +543,6 @@ function StepFilters({
                 </span>
               </span>
             </label>
-          </div>
-
-          <div className="border-t border-warm-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen(o => !o)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted hover:text-dark transition-colors"
-              aria-expanded={advancedOpen}
-            >
-              <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
-              Advanced
-            </button>
-            {advancedOpen && (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="label">YC Batch</label>
-                  <select
-                    value={audience.batch || ''}
-                    onChange={e => onAudienceChange({ ...audience, batch: e.target.value || null })}
-                    className="select"
-                  >
-                    <option value="">Any batch</option>
-                    {(options.batches || []).map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Min employees</label>
-                  <input
-                    type="number" min="0"
-                    value={audience.headcountMin ?? ''}
-                    onChange={e => onAudienceChange({ ...audience, headcountMin: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 10"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Max employees</label>
-                  <input
-                    type="number" min="0"
-                    value={audience.headcountMax ?? ''}
-                    onChange={e => onAudienceChange({ ...audience, headcountMax: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 200"
-                    className="input"
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -556,6 +610,10 @@ function AudiencePreview({
       <p className="mt-1 text-xs text-muted">
         {errored ? 'Could not load preview' : count === 1 ? 'company matches' : 'companies match'}
       </p>
+      <p className="mt-3 text-[11px] leading-5 text-muted/70">
+        Live count from the verified company pool
+        {excludePreviouslySaved ? ', minus anyone you already saved' : ''}.
+      </p>
       {sample.length > 0 && (
         <>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Sample</p>
@@ -592,7 +650,7 @@ function StepTemplate({
         <div className="space-y-1.5">
           {templates.length === 0 && (
             <p className="rounded-2xl border border-dashed border-warm-300 bg-warm-50 px-4 py-6 text-xs text-muted">
-              You don't have any templates yet. You can create one from Templates after launching the campaign — or skip below to write each draft from scratch.
+              No saved templates yet. Skip below to let Sparrow draft each email from scratch, or add a template from Templates first.
             </p>
           )}
           {templates.map(t => {
@@ -616,13 +674,14 @@ function StepTemplate({
           <button
             type="button"
             onClick={() => onSelect(null)}
-            className={`mt-1 inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-xs transition-colors ${
+            className={`mt-1 flex w-full flex-col items-start gap-0.5 rounded-2xl border px-4 py-3 text-left transition-colors ${
               selectedId === null
-                ? 'border-primary bg-primary/5 text-dark'
-                : 'border-dashed border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
+                ? 'border-primary bg-primary/5'
+                : 'border-dashed border-warm-300 bg-warm-50 hover:border-primary/30'
             }`}
           >
-            <span>Skip — write each draft from scratch</span>
+            <span className="text-sm font-medium text-dark">No template</span>
+            <span className="text-xs text-muted">Sparrow drafts each email fresh from the lead's context.</span>
           </button>
         </div>
 
@@ -639,7 +698,7 @@ function StepTemplate({
           ) : (
             <p className="text-sm text-muted">
               {selectedId === null
-                ? 'You\'ll write each draft from scratch. Sparrow will still personalize body content per company.'
+                ? 'Without a template, Sparrow drafts each email from the lead\'s company context — no shared subject or skeleton to keep edits aligned to.'
                 : 'Select a template on the left to preview it here.'}
             </p>
           )}
@@ -709,7 +768,7 @@ function StepHeader({
 }: {
   icon: React.ComponentType<{ size?: number; className?: string }>
   title: string
-  helper: string
+  helper?: string
 }) {
   return (
     <div className="mb-6 flex items-start gap-3">
@@ -718,7 +777,7 @@ function StepHeader({
       </div>
       <div>
         <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-dark">{title}</h2>
-        <p className="mt-1 text-sm text-muted">{helper}</p>
+        {helper && <p className="mt-1 text-sm text-muted">{helper}</p>}
       </div>
     </div>
   )

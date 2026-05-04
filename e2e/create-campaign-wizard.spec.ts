@@ -79,9 +79,11 @@ test.describe('Create campaign wizard', () => {
     await expect(dedup).not.toBeChecked()
     await page.getByRole('button', { name: /Continue/i }).click()
 
-    // Step 3: Template — list shows the sample template + skip option
+    // Step 3: Template — list shows the sample template + the "no template"
+    // skip affordance (renamed from "Skip — write each draft from scratch"
+    // to make clear that Sparrow still drafts; the user isn't writing manually).
     await expect(page.locator('text=/Pick a template/i')).toBeVisible()
-    await page.locator('text=/Skip — write each draft from scratch/i').click()
+    await page.getByRole('button', { name: /No template/i }).click()
     await page.getByRole('button', { name: /Continue/i }).click()
 
     // Step 4: Review — shows name, audience summary, and the two CTAs
