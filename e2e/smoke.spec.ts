@@ -35,24 +35,26 @@ test.describe('Sparrow smoke tests', () => {
     await expect(page.locator('text=/Create your first campaign|Good morning|Welcome/i').first()).toBeVisible({ timeout: 10_000 })
   })
 
-  test('sidebar exposes the three top-level tabs (Phase 4e IA)', async ({ page }) => {
-    // Use a viewport wide enough to render the desktop sidebar (tabs are hidden on mobile)
+  test('top nav exposes the three top-level tabs', async ({ page }) => {
+    // Wide viewport so the desktop top nav renders (mobile uses bottom nav).
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/dashboard')
     await page.waitForSelector('nav, [role="navigation"]', { timeout: 10_000 })
 
-    // After Phase 4e the sidebar settles on Home / Templates / Settings —
-    // per-campaign work moved into the workspace at /campaigns/:id/*.
+    // Phase 4e settled global navigation on Home / Templates / Settings;
+    // per-campaign work lives inside the workspace at /campaigns/:id/*.
+    // Phase post-4e moved this from a left sidebar to a horizontal top nav
+    // because three items don't justify a vertical rail.
     const expectedTabs = ['Home', 'Templates', 'Settings']
     for (const tab of expectedTabs) {
       const count = await page.locator(`nav >> text=${tab}`).count()
-      expect(count, `Tab "${tab}" not found in sidebar`).toBeGreaterThan(0)
+      expect(count, `Tab "${tab}" not found in top nav`).toBeGreaterThan(0)
     }
 
-    // The retired top-level surfaces should no longer appear as sidebar items.
+    // The retired top-level surfaces should not appear as global nav items.
     for (const retired of ['Discover', 'Contacts', 'Drafts', 'Campaigns']) {
       const count = await page.locator(`nav >> text=${retired}`).count()
-      expect(count, `Retired tab "${retired}" still in sidebar`).toBe(0)
+      expect(count, `Retired tab "${retired}" still in top nav`).toBe(0)
     }
   })
 

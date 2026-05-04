@@ -70,10 +70,29 @@ test.describe('Home page', () => {
       leads: [SAMPLE_LEAD],
       templates: [SAMPLE_TEMPLATE],
     })
+    // Override the default profile so workspaceConfig.senderName matches the
+    // signed-in identity. The greeting reads from workspaceConfig.senderName,
+    // not from supabase user metadata, so without this override the greeting
+    // would render "Good morning, Demo." and the /Alex/ assertion would only
+    // pass via sidebar/topnav user-name bleed (not what we want to test).
+    await page.route('**/api/profile', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          profile: {
+            onboardingCompleted: true,
+            workspaceConfig: { senderName: 'Alex Tester', templateId: null },
+            hasClaudeKey: true,
+            hasGoogleRefreshToken: true,
+          },
+        }),
+      })
+    )
     await page.goto('/dashboard')
 
-    // Greeting (Outfit display, contains user's first name)
-    await expect(page.locator('text=/Alex/').first()).toBeVisible({ timeout: 10_000 })
+    // Greeting (Outfit display, "Good morning, Alex.")
+    await expect(page.locator('text=/Good morning, Alex/').first()).toBeVisible({ timeout: 10_000 })
 
     // 3 KPI labels — must all exist
     await expect(page.locator('text=/^lead pool$/i').first()).toBeVisible()
