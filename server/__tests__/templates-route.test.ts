@@ -55,25 +55,47 @@ describe("templates route — GET", () => {
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
-  it("returns list of user's templates and shared templates", async () => {
+  it("returns sanitized 500 JSON when auth lookup fails", async () => {
+    mockGetUserId.mockRejectedValue(new Error("Supabase unavailable"));
+    const req = makeReq({ method: "GET" });
+    const res = makeRes();
+
+    await expect(handler(req, res)).resolves.not.toThrow();
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: "Internal server error" });
+  });
+
+  it("returns only the user's templates", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     const templates = [
       { id: "t-1", userId: USER_ID, name: "My Template", isShared: false },
-      { id: "t-2", userId: "other-user", name: "Shared Template", isShared: true },
     ];
     mockPrisma.template.findMany.mockResolvedValue(templates);
     const req = makeReq({ method: "GET" });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockPrisma.template.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: USER_ID },
+    }));
     const jsonArg = res.json.mock.calls[0][0];
-    expect(jsonArg.items).toHaveLength(2);
+    expect(jsonArg.items).toHaveLength(1);
   });
 });
 
 describe("templates route — POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("returns 400 on invalid JSON body", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    const req = makeReq({ method: "POST", body: "{not json" });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "Invalid JSON body" });
   });
 
   it("returns 401 without userId", async () => {
@@ -102,6 +124,23 @@ describe("templates route — POST", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(newTemplate);
+  });
+
+  it("persists verbatim:true when supplied; defaults to false otherwise", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.template.create.mockResolvedValue({ id: "t-v" });
+
+    const reqVerbatim = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B", verbatim: true } });
+    await handler(reqVerbatim, makeRes());
+    expect(mockPrisma.template.create).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ verbatim: true }),
+    }));
+
+    const reqDefault = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B" } });
+    await handler(reqDefault, makeRes());
+    expect(mockPrisma.template.create).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ verbatim: false }),
+    }));
   });
 });
 

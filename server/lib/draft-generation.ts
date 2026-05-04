@@ -158,11 +158,11 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   } = await resolveDraftTarget(params);
 
   // Resolve template
-  let userTemplate: { subject: string; body: string } | null = null;
+  let userTemplate: { subject: string; body: string; verbatim: boolean } | null = null;
   if (templateId) {
     const t = await prisma.template.findUnique({ where: { id: templateId } });
     if (!t || t.userId !== userId) throw new GenerationError("Template not found. Select a different template and try again.", 404);
-    userTemplate = { subject: t.subject, body: t.body };
+    userTemplate = { subject: t.subject, body: t.body, verbatim: t.verbatim };
   }
 
   // Resolve sender profile (throws ProfileError on missing API key or decrypt failure)
@@ -188,19 +188,39 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     apiKey: profile.apiKey,
   });
 
+  // Verbatim mode: if the template has feature_line and we have one, OR the
+  // template doesn't reference feature_line at all, skip the AI rewrite and
+  // just substitute merge tags. If feature_line is referenced but research
+  // didn't yield one, fall back to the AI path so the AI can patch around
+  // the empty slot — sending a verbatim render with a missing feature
+  // sentence would ship awkward grammar to the recipient.
+  const verbatimSafe = userTemplate?.verbatim
+    && (!/\{\{(feature_line|featureLine)\}\}/.test(userTemplate.body) || fit.featureLine);
+
   const draftInput: DraftInput = userTemplate
-    ? {
-        kind: "template",
-        body: userTemplate.body,
-        contact: contactInfo,
-        company: companyInfo,
-        subjectTemplate: userTemplate.subject,
-        senderName: profile.senderName,
-        senderContext,
-        apiKey: profile.apiKey,
-        featureLine: fit.featureLine,
-        fitAngle: fit.fitAngle,
-      }
+    ? verbatimSafe
+      ? {
+          kind: "verbatim",
+          body: userTemplate.body,
+          contact: contactInfo,
+          company: companyInfo,
+          subjectTemplate: userTemplate.subject,
+          senderName: profile.senderName,
+          featureLine: fit.featureLine,
+          fitAngle: fit.fitAngle,
+        }
+      : {
+          kind: "template",
+          body: userTemplate.body,
+          contact: contactInfo,
+          company: companyInfo,
+          subjectTemplate: userTemplate.subject,
+          senderName: profile.senderName,
+          senderContext,
+          apiKey: profile.apiKey,
+          featureLine: fit.featureLine,
+          fitAngle: fit.fitAngle,
+        }
     : {
         kind: "ai",
         contact: contactInfo,

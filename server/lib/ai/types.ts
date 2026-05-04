@@ -57,10 +57,23 @@ export interface AiDraftInput extends DraftBase {
   fitAngle?: string | null
 }
 
+// Verbatim mode — template body and subject are rendered exactly as
+// authored, with merge tags (including {{feature_line}} / {{fit_angle}})
+// substituted from the AI research pass. No Claude rewrite is invoked,
+// so the email goes out word-for-word as the template author wrote it.
+// Used when Template.verbatim = true and either the template doesn't
+// reference feature_line, or research produced one.
+export interface VerbatimDraftInput extends DraftBase {
+  kind: 'verbatim'
+  body: string
+  featureLine?: string | null
+  fitAngle?: string | null
+}
+
 // Fallback mode — generic email used when AI generation fails. Reachable as
 // a deliberate input choice, not just an exception recovery path.
 export interface FallbackDraftInput extends DraftBase {
   kind: 'fallback'
 }
 
-export type DraftInput = TemplateDraftInput | AiDraftInput | FallbackDraftInput
+export type DraftInput = TemplateDraftInput | AiDraftInput | VerbatimDraftInput | FallbackDraftInput

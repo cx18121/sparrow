@@ -84,6 +84,7 @@ export interface Template {
   subject: string
   body: string
   isShared: boolean
+  verbatim: boolean
   createdAt: string
   updatedAt: string
 }

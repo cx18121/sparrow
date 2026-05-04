@@ -154,6 +154,12 @@ model Template {
   subject   String
   body      String   @db.Text
   isShared  Boolean  @default(false)
+  // When true, draft generation skips the Claude rewrite pass for this
+  // template — only merge-tag substitution runs, including the AI-derived
+  // {{feature_line}} / {{fit_angle}}. Lets template authors write the exact
+  // wording and have the AI plug in only the parts that depend on
+  // per-recipient research.
+  verbatim  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

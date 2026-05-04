@@ -551,6 +551,24 @@ export default function TemplatesTab({ workspaceConfig }) {
                       placeholder="Write your email here… Use the variable buttons to insert recipient details."
                     />
                   </div>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-warm-200 bg-warm-50/60 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selected.verbatim)}
+                      onChange={e => onUpdate({ id: selected.id, verbatim: e.target.checked }).catch((err: any) => {
+                        setToast({ type: 'error', title: 'Could not update template', message: err?.message || 'Please try again.' })
+                      })}
+                      className="mt-0.5 cursor-pointer"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-dark">Send this template verbatim</span>
+                      <span className="block text-xs text-muted">
+                        Skip the AI rewrite — keep the wording exactly as authored, only fill merge tags including
+                        {' '}<span className="font-mono text-primary">{'{{feature_line}}'}</span> from web research.
+                        If a research run yields no feature line for a recipient, the AI rewrite kicks in for that draft only.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">

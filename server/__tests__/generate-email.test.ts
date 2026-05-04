@@ -267,6 +267,49 @@ describe("generateEmailDraft — Template mode (AI-personalized skeleton)", () =
   });
 });
 
+describe("generateEmailDraft — Verbatim mode", () => {
+  it("returns the template body word-for-word with merge tags substituted, no Claude call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const draft = await generateEmailDraft({
+      kind: "verbatim",
+      contact: baseAi.contact,
+      company: baseAi.company,
+      subjectTemplate: "Quick thought on {{company}}",
+      senderName: "Alex",
+      body: "Hi {{first_name}}, I noticed {{company}} just shipped {{feature_line}}. {{fit_angle}} feels like a fit.\n\nBest,\n{{sender_name}}",
+      featureLine: "the agent eval harness",
+      fitAngle: "My multi-agent eval project",
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(draft.subject).toBe("Quick thought on Acme AI");
+    expect(draft.body).toBe(
+      "Hi Sarah, I noticed Acme AI just shipped the agent eval harness. My multi-agent eval project feels like a fit.\n\nBest,\nAlex",
+    );
+  });
+
+  it("substitutes empty strings when feature_line is null", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const draft = await generateEmailDraft({
+      kind: "verbatim",
+      contact: baseAi.contact,
+      company: baseAi.company,
+      subjectTemplate: "Hello {{first_name}}",
+      senderName: "Alex",
+      body: "Hi {{first_name}}, saw {{feature_line}} — wanted to chat.",
+      featureLine: null,
+      fitAngle: null,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(draft.body).toBe("Hi Sarah, saw  — wanted to chat.");
+  });
+});
+
 describe("substituteVariables — merge tags", () => {
   const contact = { name: "Sarah Chen", title: "Head of Engineering" };
   const company = { name: "Momentum AI" };

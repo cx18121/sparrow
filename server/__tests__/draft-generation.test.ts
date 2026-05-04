@@ -315,6 +315,7 @@ describe("generateDraft — Template path", () => {
       id: "tmpl-1",
       userId: USER_ID,
       isShared: false,
+      verbatim: false,
       subject: "Hello from {{senderName}}",
       body: "Hi {{firstName}}, I'm reaching out about {{company}}.",
     });
@@ -329,6 +330,63 @@ describe("generateDraft — Template path", () => {
     );
     expect(draftInputArg.senderContext).toBe("sender context string");
     expect(draftInputArg.apiKey).toBe(mockProfile.apiKey);
+  });
+
+  it("uses verbatim mode when the template is marked verbatim and feature_line is referenced + present", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+    mockPrisma.template.findUnique.mockResolvedValue({
+      id: "tmpl-v",
+      userId: USER_ID,
+      isShared: false,
+      verbatim: true,
+      subject: "Quick thought on {{company}}",
+      body: "Hi {{first_name}}, saw {{feature_line}} — quick chat?",
+    });
+    mockPickFitAngle.mockResolvedValue({ featureLine: "the eval harness", fitAngle: "my eval project" });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", templateId: "tmpl-v" });
+
+    expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("verbatim");
+  });
+
+  it("falls back to template-AI mode when verbatim template references feature_line but research yielded none", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+    mockPrisma.template.findUnique.mockResolvedValue({
+      id: "tmpl-v",
+      userId: USER_ID,
+      isShared: false,
+      verbatim: true,
+      subject: "Hi",
+      body: "Hi {{first_name}}, saw {{feature_line}} — quick chat?",
+    });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", templateId: "tmpl-v" });
+
+    expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("template");
+  });
+
+  it("uses verbatim mode for templates that don't reference feature_line at all", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+    mockPrisma.template.findUnique.mockResolvedValue({
+      id: "tmpl-static",
+      userId: USER_ID,
+      isShared: false,
+      verbatim: true,
+      subject: "Hello",
+      body: "Hi {{first_name}}, hope you're well. Quick question — coffee?",
+    });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", templateId: "tmpl-static" });
+
+    expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("verbatim");
   });
 
   it("throws GenerationError(404) when templateId is provided but template not found", async () => {

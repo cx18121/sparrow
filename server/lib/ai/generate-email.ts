@@ -14,6 +14,7 @@ import type {
   EmailDraft,
   FallbackDraftInput,
   TemplateDraftInput,
+  VerbatimDraftInput,
 } from './types.js'
 
 const GENERATION_MODEL = 'claude-haiku-4-5-20251001'
@@ -124,6 +125,13 @@ function draftFallback(input: FallbackDraftInput): EmailDraft {
   }
 }
 
+function draftVerbatim(input: VerbatimDraftInput): EmailDraft {
+  const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
+  const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company, ai)
+  const body = substituteVariables(input.body, input.contact, input.senderName, input.company, ai)
+  return { subject, body }
+}
+
 function stripPlaceholders(text: string): string {
   return text.replace(/\{\{[^}]+\}\}/g, '[Company]')
 }
@@ -202,6 +210,8 @@ export async function generateEmailDraft(input: DraftInput): Promise<EmailDraft>
   switch (input.kind) {
     case 'template':
       return draftFromTemplate(input)
+    case 'verbatim':
+      return draftVerbatim(input)
     case 'fallback':
       return draftFallback(input)
     case 'ai':

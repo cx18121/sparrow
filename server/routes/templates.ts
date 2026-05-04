@@ -2,22 +2,23 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
+import { parseBody } from "../lib/parse-params.js";
+import { sendRouteError } from "../lib/route-error.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
   try {
-    if (req.method === "GET") return list(req, res, userId);
-    if (req.method === "POST") return create(req, res, userId);
-    if (req.method === "PATCH") return update(req, res, userId);
-    if (req.method === "DELETE") return remove(req, res, userId);
+    const userId = await getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    if (req.method === "GET") return await list(req, res, userId);
+    if (req.method === "POST") return await create(req, res, userId);
+    if (req.method === "PATCH") return await update(req, res, userId);
+    if (req.method === "DELETE") return await remove(req, res, userId);
 
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
-    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
-    return res.status(500).json({ error: "Internal server error" });
+    return sendRouteError(res, err);
   }
 }
 
@@ -27,9 +28,7 @@ function trimLimited(value: string, maxLength: number): string {
 
 async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
   const items = await prisma.template.findMany({
-    where: {
-      OR: [{ userId }, { isShared: true }],
-    },
+    where: { userId },
     orderBy: { updatedAt: "desc" },
   });
   res.status(200).json({ items });
@@ -37,7 +36,7 @@ async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { name, subject, body: content } = body ?? {};
+  const { name, subject, body: content, verbatim } = body ?? {};
   if (typeof name !== "string" || typeof subject !== "string" || typeof content !== "string") {
     return res.status(400).json({ error: "name, subject, and body are required" });
   }
@@ -52,6 +51,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       subject: trimLimited(subject, 300),
       body: content.slice(0, 50_000),
       isShared: false,
+      verbatim: verbatim === true,
     },
   });
   res.status(201).json(template);
@@ -59,7 +59,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { id, name, subject, body: content } = body ?? {};
+  const { id, name, subject, body: content, verbatim } = body ?? {};
   if (typeof id !== "string") return res.status(400).json({ error: "id is required" });
   if (name !== undefined && typeof name !== "string") {
     return res.status(400).json({ error: "name must be a string" });
@@ -69,6 +69,9 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   }
   if (content !== undefined && typeof content !== "string") {
     return res.status(400).json({ error: "body must be a string" });
+  }
+  if (verbatim !== undefined && typeof verbatim !== "boolean") {
+    return res.status(400).json({ error: "verbatim must be a boolean" });
   }
   if (
     (typeof name === "string" && name.length > 120) ||
@@ -89,6 +92,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(name !== undefined && { name }),
       ...(subject !== undefined && { subject }),
       ...(content !== undefined && { body: content }),
+      ...(verbatim !== undefined && { verbatim }),
     },
   });
   res.status(200).json(template);
@@ -105,16 +109,4 @@ async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
 
   await prisma.template.delete({ where: { id } });
   res.status(204).end();
-}
-
-function parseBody(req: VercelRequest): Record<string, unknown> | null {
-  if (!req.body) return null;
-  if (typeof req.body === "string") {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return null;
-    }
-  }
-  return req.body as Record<string, unknown>;
 }
