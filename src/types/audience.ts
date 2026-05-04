@@ -11,8 +11,6 @@ export interface Audience {
   stage: string | null
   batch: string | null
   isHiring: boolean | null
-  headcountMin: number | null
-  headcountMax: number | null
 }
 
 // Region special values. Plain region strings (e.g. "Europe") also accepted.
@@ -28,20 +26,19 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 export const EMPTY_AUDIENCE: Audience = {
-  tags: [], region: null, stage: null, batch: null,
-  isHiring: null, headcountMin: null, headcountMax: null,
+  tags: [], region: null, stage: null, batch: null, isHiring: null,
 }
 
 // Build an Audience from raw Campaign fields stored in the DB / wire format.
-// Keeps callers from having to know which fields are nullable how.
+// Keeps callers from having to know which fields are nullable how. The
+// filterHeadcountMin/Max wire fields are tolerated for back-compat with
+// pre-headcount-removal campaigns but never read into the active Audience.
 export function audienceFromCampaign(c: {
   filterTags?: string[] | null
   filterRegion?: string | null
   filterStage?: string | null
   filterBatch?: string | null
   filterIsHiring?: boolean | null
-  filterHeadcountMin?: number | null
-  filterHeadcountMax?: number | null
 }): Audience {
   return {
     tags: c.filterTags ?? [],
@@ -49,12 +46,12 @@ export function audienceFromCampaign(c: {
     stage: c.filterStage ?? null,
     batch: c.filterBatch ?? null,
     isHiring: c.filterIsHiring ?? null,
-    headcountMin: c.filterHeadcountMin ?? null,
-    headcountMax: c.filterHeadcountMax ?? null,
   }
 }
 
-// Inverse: serialize an Audience to the wire-format filter* fields.
+// Inverse: serialize an Audience to the wire-format filter* fields. Sets
+// filterHeadcountMin/Max to null so any previously-saved values get cleared
+// on the next save (no point keeping a filter we no longer apply).
 export function audienceToCampaignFields(a: Audience) {
   return {
     filterTags: a.tags,
@@ -62,8 +59,8 @@ export function audienceToCampaignFields(a: Audience) {
     filterStage: a.stage,
     filterBatch: a.batch,
     filterIsHiring: a.isHiring,
-    filterHeadcountMin: a.headcountMin,
-    filterHeadcountMax: a.headcountMax,
+    filterHeadcountMin: null,
+    filterHeadcountMax: null,
   }
 }
 
@@ -75,13 +72,9 @@ export function audienceToDisplayPills(a: Audience): string[] {
     a.stage,
     a.batch,
     a.isHiring != null ? (a.isHiring ? 'Hiring' : 'Not hiring') : null,
-    a.headcountMin != null || a.headcountMax != null
-      ? `${a.headcountMin ?? 0}–${a.headcountMax ?? '∞'} employees`
-      : null,
   ].filter((v): v is string => Boolean(v))
 }
 
 export function isAudienceEmpty(a: Audience): boolean {
-  return a.tags.length === 0 && !a.region && !a.stage && !a.batch
-    && a.isHiring == null && a.headcountMin == null && a.headcountMax == null
+  return a.tags.length === 0 && !a.region && !a.stage && !a.batch && a.isHiring == null
 }

@@ -62,8 +62,6 @@ function normaliseAudience(input: Partial<Audience>): Audience {
     stage: typeof input.stage === "string" ? input.stage : null,
     batch: typeof input.batch === "string" ? input.batch : null,
     isHiring: typeof input.isHiring === "boolean" ? input.isHiring : null,
-    headcountMin: typeof input.headcountMin === "number" ? input.headcountMin : null,
-    headcountMax: typeof input.headcountMax === "number" ? input.headcountMax : null,
   };
 }
 

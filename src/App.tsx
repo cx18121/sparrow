@@ -714,7 +714,7 @@ function AppShell() {
           onTabChange={handleTabChange}
         />
 
-        <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
+        <main className="relative z-10 flex-1 overflow-y-auto bg-surface pb-24 md:pb-0">
           {resourceFetchErrors.length > 0 && (
             <div className="px-4 pt-3 sm:px-6 lg:px-8">
               <Banner variant="warning" icon={AlertCircle}>

@@ -233,6 +233,13 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
   const activeCount = campaigns.filter(c => c.status === 'active').length
   const firstName = workspaceConfig?.senderName?.trim().split(' ')[0] || ''
 
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 17) return 'Good afternoon'
+    return 'Good evening'
+  })()
+
   const greetingStat = useMemo(() => {
     const parts: string[] = []
     if (drafts.length) parts.push(`${drafts.length} draft${drafts.length === 1 ? '' : 's'} waiting`)
@@ -290,12 +297,15 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Greeting strip */}
-      <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-[-0.03em] text-dark">
-            {firstName ? `Good morning, ${firstName}.` : 'Welcome back.'}
+          <p className="page-eyebrow">Home</p>
+          <h1 className="mt-2 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] font-semibold leading-[1.1] tracking-[-0.03em] text-dark">
+            {firstName ? `${greeting}, ${firstName}.` : 'Welcome back.'}
           </h1>
-          {greetingStat && <p className="mt-1 text-sm text-muted">{greetingStat}</p>}
+          {greetingStat && (
+            <p className="mt-2 text-sm leading-relaxed text-muted">{greetingStat}</p>
+          )}
         </div>
         <button onClick={openCreate} className="btn-primary self-start lg:self-auto">
           <Plus size={14} /> New campaign
@@ -333,10 +343,10 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
 
       {/* Campaign grid */}
       <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-base font-semibold text-dark">Your campaigns</h2>
-          <span className="text-xs text-muted">
-            {campaigns.length} {campaigns.length === 1 ? 'total' : 'total'}
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Campaigns</h2>
+          <span className="text-xs tabular-nums text-muted">
+            {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
           </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

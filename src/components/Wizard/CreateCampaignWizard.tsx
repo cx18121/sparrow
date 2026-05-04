@@ -361,20 +361,6 @@ function StepName({
 
 const SIGNAL_YC = 'signal:yc-backed'
 
-// Headcount buckets used by the size chips. Each chip writes a (min, max)
-// pair into the audience; clicking the active chip clears both. Buckets
-// match how students mentally segment company size, not raw deciles.
-const SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; min: number | null; max: number | null }> = [
-  { key: 'tiny',  label: 'Tiny · <10',     min: null, max: 9 },
-  { key: 'small', label: 'Small · 10–50',  min: 10,   max: 50 },
-  { key: 'mid',   label: 'Mid · 50–250',   min: 50,   max: 250 },
-]
-
-function activeSizeBucket(audience: Audience): string | null {
-  const match = SIZE_BUCKETS.find(b => b.min === audience.headcountMin && b.max === audience.headcountMax)
-  return match ? match.key : null
-}
-
 // Sorts YC batch strings newest-first. Handles both compact ("W26", "S25",
 // "F24") and long ("Winter 2026", "Summer 2025") forms by extracting the
 // year and a season ordinal. "Unspecified" sinks to the bottom.
@@ -423,20 +409,9 @@ function StepFilters({
   const setBatch = (batch: string | null) =>
     onAudienceChange({ ...audience, batch: audience.batch === batch ? null : batch })
 
-  const setSize = (key: string) => {
-    if (activeSizeBucket(audience) === key) {
-      onAudienceChange({ ...audience, headcountMin: null, headcountMax: null })
-      return
-    }
-    const bucket = SIZE_BUCKETS.find(b => b.key === key)
-    if (!bucket) return
-    onAudienceChange({ ...audience, headcountMin: bucket.min, headcountMax: bucket.max })
-  }
-
   const ycSelected = audience.tags.includes(SIGNAL_YC)
   const sortedBatches = useMemo(() => sortBatchesNewestFirst(options.batches || []), [options.batches])
   const visibleBatches = showAllBatches ? sortedBatches : sortedBatches.slice(0, 8)
-  const sizeKey = activeSizeBucket(audience)
 
   return (
     <section>
@@ -461,23 +436,6 @@ function StepFilters({
             >
               Currently hiring
             </FilterChip>
-          </FilterRow>
-
-          <FilterRow label="Size">
-            {SIZE_BUCKETS.map(b => (
-              <FilterChip
-                key={b.key}
-                active={sizeKey === b.key}
-                onClick={() => setSize(b.key)}
-              >
-                {b.label}
-              </FilterChip>
-            ))}
-            {sizeKey && (
-              <span className="self-center pl-1 text-[11px] text-muted/80">
-                Only matches companies with known headcount
-              </span>
-            )}
           </FilterRow>
 
           {SECTOR_NAMESPACES.map(ns => {
@@ -588,7 +546,7 @@ function AudiencePreview({
     return () => { cancelled = true; window.clearTimeout(handle) }
   }, [
     audience.tags.join(','), audience.region, audience.stage, audience.batch,
-    audience.isHiring, audience.headcountMin, audience.headcountMax,
+    audience.isHiring,
     excludePreviouslySaved,
   ])
 

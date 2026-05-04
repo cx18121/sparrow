@@ -8,7 +8,7 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
-  List, ListOrdered, Eye, Edit3, Search, Copy, Save, Loader2, Check, X, Library,
+  List, ListOrdered, Eye, Edit3, Search, Copy, Loader2, Check, X, Library, MoreHorizontal,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
@@ -54,7 +54,7 @@ function ToolbarButton({ onClick, active, title, children }) {
       onMouseDown={(e) => { e.preventDefault(); onClick() }}
       title={title}
       className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-        active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-neutral-100/70 hover:text-dark'
+        active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-warm-100 hover:text-dark'
       }`}
     >
       {children}
@@ -111,8 +111,8 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
   if (!editor) return null
 
   return (
-    <div className="tiptap-editor overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 shadow-card">
-      <div className="flex flex-wrap items-center gap-1 border-b border-neutral-200 bg-neutral-50/80 px-3 py-2">
+    <div className="tiptap-editor overflow-hidden rounded-2xl border border-warm-200 bg-panel">
+      <div className="flex flex-wrap items-center gap-1 border-b border-warm-200 bg-warm-50/80 px-3 py-2">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={13} />
         </ToolbarButton>
@@ -122,18 +122,18 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
         <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
           <UnderlineIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-neutral-100 mx-1" />
+        <div className="w-px h-4 bg-warm-200 mx-1" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
           <List size={13} />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
           <ListOrdered size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-neutral-100 mx-1" />
+        <div className="w-px h-4 bg-warm-200 mx-1" />
         <ToolbarButton onClick={openLink} active={editor.isActive('link') || linkOpen} title="Add link">
           <LinkIcon size={13} />
         </ToolbarButton>
-        <div className="w-px h-4 bg-neutral-100 mx-1 ml-auto" />
+        <div className="w-px h-4 bg-warm-200 mx-1 ml-auto" />
         <div className="flex items-center gap-1">
           {VARIABLES.map(v => (
             <button
@@ -149,7 +149,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
       </div>
 
       {linkOpen && (
-        <div className="flex items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-warm-200 bg-warm-50 px-3 py-2">
           <LinkIcon size={12} className="shrink-0 text-muted" />
           <input
             ref={linkInputRef}
@@ -161,7 +161,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
               if (e.key === 'Escape') cancelLink()
             }}
             placeholder="https://..."
-            className="flex-1 rounded-xl border border-neutral-300 px-3 py-1.5 text-xs text-dark outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+            className="flex-1 rounded-xl border border-warm-200 px-3 py-1.5 text-xs text-dark outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
           />
           <button
             type="button"
@@ -199,13 +199,14 @@ export default function TemplatesTab({ workspaceConfig }) {
   const [form, setForm] = useState({ name: '', subject: '' })
   const [editingId, setEditingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [savingExplicit, setSavingExplicit] = useState(false)
   const [saved, setSaved] = useState(false)
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
   const [toast, setToast] = useState(null)
+  const [moreOpen, setMoreOpen] = useState(false)
   const flushTimerRef = useRef(null)
   const draftRef = useRef(draft)
   const draftDirtyRef = useRef(false)
+  const moreRef = useRef(null)
 
   const previewData = useMemo(() => ({
     ...sampleContactData,
@@ -238,6 +239,14 @@ export default function TemplatesTab({ workspaceConfig }) {
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
   }, [])
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const flushDraft = (override = undefined) => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current)
@@ -254,6 +263,8 @@ export default function TemplatesTab({ workspaceConfig }) {
         if (latest.id === next.id && latest.subject === next.subject && latest.body === next.body) {
           draftDirtyRef.current = false
         }
+        setSaved(true)
+        setTimeout(() => setSaved(false), 1500)
       })
       .catch(err => {
         setToast({ type: 'error', title: 'Could not save template', message: err?.message || 'Please try again.' })
@@ -265,17 +276,6 @@ export default function TemplatesTab({ workspaceConfig }) {
     setDraft(next)
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
     flushTimerRef.current = setTimeout(() => flushDraft(next), 500)
-  }
-
-  const saveExplicit = async () => {
-    setSavingExplicit(true)
-    try {
-      await flushDraft()
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } finally {
-      setSavingExplicit(false)
-    }
   }
 
   const allFiltered = templates.filter(t =>
@@ -361,13 +361,13 @@ export default function TemplatesTab({ workspaceConfig }) {
                 <button
                   key={t.id}
                   onClick={() => switchTemplate(t.id, 'edit')}
-                  className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                  className={`w-full rounded-xl px-4 py-3 text-left transition-colors duration-150 ${
                     selectedId === t.id
-                      ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(245,203,92,0.08)]'
-                      : 'border-neutral-200/15 bg-surface hover:-translate-y-0.5 hover:border-neutral-300/30'
+                      ? 'bg-primary/8'
+                      : 'hover:bg-warm-100'
                   }`}
                 >
-                  <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
+                  <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark/90'}`}>{t.name}</p>
                   <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
                 </button>
               ))}
@@ -389,14 +389,14 @@ export default function TemplatesTab({ workspaceConfig }) {
                   <button
                     key={t.id}
                     onClick={() => switchTemplate(t.id, 'preview')}
-                    className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
+                    className={`w-full rounded-xl px-4 py-3 text-left transition-colors duration-150 ${
                       selectedId === t.id
-                        ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(245,203,92,0.08)]'
-                        : 'border-neutral-200/15 bg-surface hover:-translate-y-0.5 hover:border-neutral-300/30'
+                        ? 'bg-primary/8'
+                        : 'hover:bg-warm-100'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark'}`}>{t.name}</p>
+                      <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark/90'}`}>{t.name}</p>
                     </div>
                     <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
                   </button>
@@ -411,76 +411,105 @@ export default function TemplatesTab({ workspaceConfig }) {
             <EmptyState>Select or create a template to start editing.</EmptyState>
           ) : (
             <>
-              <div className="page-toolbar">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
+              <div>
+                {/* Name row + actions */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
                       {selectedIsLibrary && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-muted">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-warm-100 px-2.5 py-1 text-[11px] font-medium text-muted">
                           <Library size={10} /> Library
                         </span>
                       )}
+                      {workspaceConfig?.templateId === selected.id && (
+                        <Badge variant="draft">Default</Badge>
+                      )}
                     </div>
-                    {workspaceConfig?.templateId === selected.id && (
-                      <div className="mt-2">
-                        <Badge variant="draft">Default template</Badge>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
+                    {!selectedIsLibrary && saved && (
+                      <span className="inline-flex items-center gap-1 text-xs text-primary/80">
+                        <Check size={11} /> Saved
+                      </span>
+                    )}
                     {selectedIsLibrary ? (
                       <button onClick={() => duplicate(selected)} className="btn-primary text-xs">
                         <Copy size={13} /> Clone to my templates
                       </button>
                     ) : (
-                      <>
-                        <div className="segmented-control">
-                          <button
-                            type="button"
-                            onClick={() => setView('edit')}
-                            className={`segmented-chip ${view === 'edit' ? 'segmented-chip-active' : ''}`}
-                          >
-                            <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setView('preview')}
-                            className={`segmented-chip ${view === 'preview' ? 'segmented-chip-active' : ''}`}
-                          >
-                            <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
-                          </button>
-                        </div>
+                      <div className="relative" ref={moreRef}>
                         <button
-                          onClick={saveExplicit}
-                          disabled={savingExplicit || view !== 'edit'}
-                          className={`btn-primary text-xs ${view !== 'edit' ? 'invisible' : ''}`}
+                          type="button"
+                          onClick={() => setMoreOpen(o => !o)}
+                          className="btn-ghost p-2 text-muted hover:text-dark"
+                          title="More options"
                         >
-                          {savingExplicit
-                            ? <><Loader2 size={13} className="animate-spin" /> Saving</>
-                            : saved
-                            ? <><Check size={13} /> Saved</>
-                            : <><Save size={13} /> Save</>}
+                          <MoreHorizontal size={16} />
                         </button>
-                        <button onClick={() => duplicate(selected)} className="btn-ghost text-xs">
-                          <Copy size={13} /> Duplicate
-                        </button>
-                        <button onClick={() => openRename(selected)} className="btn-ghost text-xs">
-                          <Edit3 size={13} /> Rename
-                        </button>
-                        <div className="h-4 w-px bg-neutral-200 mx-1" />
-                        <button onClick={() => setDeleteTarget(selected.id)} className="btn-ghost text-xs hover:text-red-500">
-                          <Trash2 size={13} /> Delete
-                        </button>
-                      </>
+                        {moreOpen && (
+                          <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[160px] rounded-2xl border border-accent/20 bg-panel py-1.5 shadow-modal animate-fade-in">
+                            <button
+                              type="button"
+                              onClick={() => { setMoreOpen(false); duplicate(selected) }}
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark transition-colors hover:bg-warm-100"
+                            >
+                              <Copy size={13} className="text-muted" /> Duplicate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setMoreOpen(false); openRename(selected) }}
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-dark transition-colors hover:bg-warm-100"
+                            >
+                              <Edit3 size={13} className="text-muted" /> Rename
+                            </button>
+                            <div className="my-1 h-px bg-accent/15" />
+                            <button
+                              type="button"
+                              onClick={() => { setMoreOpen(false); setDeleteTarget(selected.id) }}
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
+
+                {/* Underline tab nav — matches workspace sub-tab pattern */}
+                {!selectedIsLibrary && (
+                  <nav className="mt-4 flex gap-1 border-b border-warm-200">
+                    <button
+                      type="button"
+                      onClick={() => setView('edit')}
+                      className={`relative px-3 py-2.5 text-sm font-medium transition-colors ${
+                        view === 'edit'
+                          ? 'text-dark after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                          : 'text-muted hover:text-dark'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setView('preview')}
+                      className={`relative px-3 py-2.5 text-sm font-medium transition-colors ${
+                        view === 'preview'
+                          ? 'text-dark after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                          : 'text-muted hover:text-dark'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
+                    </button>
+                  </nav>
+                )}
               </div>
 
               {view === 'edit' && !selectedIsLibrary ? (
-                <div className="card p-6 space-y-5">
+                <div className="space-y-5 rounded-2xl border border-warm-200 bg-panel px-5 py-5">
                   <div>
                     <label className="label">Subject line</label>
                     <input
@@ -502,15 +531,15 @@ export default function TemplatesTab({ workspaceConfig }) {
                   </div>
                 </div>
               ) : (
-                <div className="card overflow-hidden">
-                  <div className="border-b border-neutral-200 bg-neutral-50/80 px-6 py-4">
+                <div className="overflow-hidden rounded-2xl border border-warm-200">
+                  <div className="border-b border-warm-200 bg-warm-50/60 px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
                     <p className="mt-2 text-sm font-medium text-dark">
                       {fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}
                     </p>
                   </div>
                   <div
-                    className="template-preview prose prose-sm max-w-none p-6 text-dark"
+                    className="template-preview prose prose-sm max-w-none bg-panel p-6 text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                 </div>

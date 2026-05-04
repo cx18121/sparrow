@@ -58,8 +58,13 @@ export interface ApolloOrganization {
   name: string;
   primary_domain: string | null;
   website_url: string | null;
-  industry: string | null;
-  estimated_num_employees: number | null;
+  // Apollo's /mixed_companies/search response does NOT include the
+  // estimated_num_employees or industry-string fields some other Apollo
+  // endpoints carry. The enrichment script derives industry from the
+  // sic_codes / naics_codes list instead — see scripts/_lib/sic-mapping.ts.
+  sic_codes: string[] | null;
+  naics_codes: string[] | null;
+  founded_year: number | null;
 }
 
 export interface EnrichResult {

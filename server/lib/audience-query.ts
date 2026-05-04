@@ -27,8 +27,6 @@ export function audienceFromCampaign(c: CampaignFilters): Audience {
     stage: c.filterStage ?? null,
     batch: c.filterBatch ?? null,
     isHiring: c.filterIsHiring ?? null,
-    headcountMin: c.filterHeadcountMin ?? null,
-    headcountMax: c.filterHeadcountMax ?? null,
   };
 }
 
@@ -68,11 +66,5 @@ export function audienceToPrismaWhere(a: Audience) {
     ...(a.stage && { stage: a.stage }),
     ...(a.batch && { batch: a.batch }),
     ...(a.isHiring != null && { isHiring: a.isHiring }),
-    ...((a.headcountMin != null || a.headcountMax != null) && {
-      headcount: {
-        ...(a.headcountMin != null && { gte: a.headcountMin }),
-        ...(a.headcountMax != null && { lte: a.headcountMax }),
-      },
-    }),
   };
 }

@@ -202,7 +202,7 @@ describe("selectCandidateIds", () => {
     expect(call.where.isHiring).toBe(true);
   });
 
-  it("applies headcount range to the where clause", async () => {
+  it("ignores legacy filterHeadcountMin/Max on the campaign (headcount filter retired)", async () => {
     mockPrisma.campaignLead.findMany.mockResolvedValue([]);
     mockPrisma.company.findMany.mockResolvedValue([]);
 
@@ -214,7 +214,7 @@ describe("selectCandidateIds", () => {
     );
 
     const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.headcount).toEqual({ gte: 10, lte: 50 });
+    expect(call.where.headcount).toBeUndefined();
   });
 
   it("does not add id exclusion clause when there are no excluded IDs", async () => {
