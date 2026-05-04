@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
+import { AlertCircle, LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
 import Badge from './components/ui/Badge'
+import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
@@ -122,6 +123,10 @@ function AppShell() {
   const [hasResourceCache, setHasResourceCache] = useState(false)
   const [serverProfile, setServerProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  // Names of any resource fetches that failed on the most recent refresh.
+  // Drives the "showing cached data" banner. Empty array = all healthy.
+  const [resourceFetchErrors, setResourceFetchErrors] = useState<string[]>([])
+  const [resourceLoadCount, setResourceLoadCount] = useState(0)
   const [activeCampaign, setActiveCampaign] = useState<{ id: string; name: string } | null>(() => {
     try { return JSON.parse(sessionStorage.getItem('cf_active_campaign') || 'null') } catch { return null }
   })
@@ -326,10 +331,10 @@ function AppShell() {
         })
 
     Promise.all([
-      keepCachedOnError('fetchTemplates', fetchTemplates()),
-      keepCachedOnError('fetchCampaigns', fetchCampaigns()),
-      keepCachedOnError('fetchLeads', fetchLeads()),
-      keepCachedOnError('fetchCustomContacts', fetchCustomContacts()),
+      keepCachedOnError('templates', fetchTemplates()),
+      keepCachedOnError('campaigns', fetchCampaigns()),
+      keepCachedOnError('leads', fetchLeads()),
+      keepCachedOnError('contacts', fetchCustomContacts()),
     ]).then(([t, c, l, cc]) => {
       if (cancelled) return
       setTemplates(t.ok ? (t.res?.items || []) : (cachedData?.templates || []))
@@ -338,10 +343,18 @@ function AppShell() {
       setCustomContacts(cc.ok ? (cc.res?.items || []) : (cachedData?.customContacts || []))
       setDataLoaded(true)
       setHasResourceCache(true)
+      // Track which fetches failed so the user can see they are looking at
+      // cached data. Cleared on the next successful run.
+      const failed: string[] = []
+      if (!t.ok) failed.push('templates')
+      if (!c.ok) failed.push('campaigns')
+      if (!l.ok) failed.push('leads')
+      if (!cc.ok) failed.push('contacts')
+      setResourceFetchErrors(failed)
     })
 
     return () => { cancelled = true }
-  }, [user])
+  }, [user, resourceLoadCount])
 
   useEffect(() => {
     const { userId } = apiGetAuth()
@@ -721,6 +734,24 @@ function AppShell() {
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
+        {resourceFetchErrors.length > 0 && (
+          <div className="px-4 pt-3 sm:px-6 lg:px-8">
+            <Banner variant="warning" icon={AlertCircle}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Some data could not refresh ({resourceFetchErrors.join(', ')}). Showing cached results.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setResourceLoadCount(n => n + 1)}
+                  className="shrink-0 text-xs font-semibold underline-offset-2 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            </Banner>
+          </div>
+        )}
         <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           {activeCampaign ? (
             <>
