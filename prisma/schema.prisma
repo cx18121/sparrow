@@ -118,7 +118,8 @@ model CustomContact {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  emails Email[]
+  emails    Email[]
+  campaigns CampaignCustomContact[]
 
   @@index([userId])
   @@schema("public")
@@ -191,8 +192,9 @@ model Campaign {
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
 
-  seenCompanies CampaignSeenCompany[]
-  leads         CampaignLead[]
+  seenCompanies  CampaignSeenCompany[]
+  leads          CampaignLead[]
+  customContacts CampaignCustomContact[]
 
   @@index([userId])
   @@index([status])
@@ -237,6 +239,20 @@ model CampaignLead {
   @@unique([campaignId, batchNumber, userLeadId])
   @@index([campaignId])
   @@index([campaignId, batchNumber])
+  @@schema("public")
+}
+
+model CampaignCustomContact {
+  id              String        @id @default(cuid())
+  campaignId      String
+  campaign        Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customContactId String
+  customContact   CustomContact @relation(fields: [customContactId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([campaignId, customContactId])
+  @@index([campaignId])
+  @@index([customContactId])
   @@schema("public")
 }
 
