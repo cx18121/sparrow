@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowRight, FileText, Plus, Send, Sparkles, Users,
+  ArrowRight, FileText, Plus, Send, Users,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
@@ -139,18 +139,24 @@ function NewCampaignCard({ onClick }: { onClick: () => void }) {
 
 function WelcomeCard({ name, onCreate }: { name: string; onCreate: () => void }) {
   return (
-    <div className="mx-auto mt-12 flex max-w-md flex-col items-center rounded-3xl border border-warm-200 bg-panel px-8 py-10 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <Sparkles size={20} />
-      </div>
-      <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-dark">
-        {name ? `Welcome, ${name}` : 'Welcome to Sparrow'}
-      </h2>
-      <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-        A campaign is a single outreach project — its own audience filters, template, and lead pool.
-        Start one and Sparrow finds matching companies, drafts emails, and sends them on your schedule.
+    <div className="mx-auto mt-20 flex max-w-xl flex-col items-start text-left sm:mt-28">
+      {/* Quiet display-font anchor at low opacity so the eye has a focal
+          point without resorting to an icon chip in a rounded square. */}
+      <span
+        aria-hidden
+        className="font-display text-[7rem] font-semibold leading-none tracking-[-0.06em] text-primary/10 sm:text-[9rem]"
+      >
+        s
+      </span>
+
+      <h1 className="-mt-3 font-display text-[clamp(2.25rem,4.5vw,3.5rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-dark">
+        {name ? `Welcome, ${name}.` : 'Welcome to Sparrow.'}
+      </h1>
+      <p className="mt-3 text-base leading-7 text-muted">
+        Each campaign carries its own audience, template, and lead pool.
       </p>
-      <button onClick={onCreate} className="btn-primary mt-6">
+
+      <button onClick={onCreate} className="btn-primary mt-7">
         <Plus size={14} /> Create your first campaign
       </button>
     </div>
