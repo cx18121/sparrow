@@ -102,6 +102,5 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
   await page.route('**/api/emails?combined=true**', route => json(route, { drafts, sent }))
   await page.route('**/api/emails?countToday=true**', route => json(route, { count: 0 }))
   await page.route('**/api/emails**', route => json(route, { items: [...drafts, ...sent] }))
-  await page.route('**/api/industries', route => json(route, { items: [] }))
   await page.route('**/api/account', route => json(route, { success: true }))
 }
