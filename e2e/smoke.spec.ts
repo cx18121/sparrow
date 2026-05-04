@@ -42,7 +42,7 @@ test.describe('Sparrow smoke tests', () => {
     await page.waitForSelector('nav, [role="navigation"]', { timeout: 10_000 })
 
     // Each tab must be present in the sidebar's DOM — previously Templates and Contacts were filtered out entirely
-    const tabs = ['Dashboard', 'Campaigns', 'Discover', 'Contacts', 'Drafts', 'Templates', 'Settings']
+    const tabs = ['Home', 'Campaigns', 'Discover', 'Contacts', 'Drafts', 'Templates', 'Settings']
     for (const tab of tabs) {
       const count = await page.locator(`nav >> text=${tab}`).count()
       expect(count, `Tab "${tab}" not found in sidebar`).toBeGreaterThan(0)

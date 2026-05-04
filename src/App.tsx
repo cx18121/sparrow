@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { AlertCircle, LayoutDashboard, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
+import { AlertCircle, Home, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
 import Badge from './components/ui/Badge'
 import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -32,8 +32,13 @@ import {
 // Campaign status case conversion is now sealed inside src/lib/api.ts.
 // The wire format never leaks past that seam.
 
+// Per redesign PRD the global sidebar settles on Home / Templates / Settings.
+// Discover / Contacts / Drafts / Campaigns stay listed for now because their
+// functionality has not yet moved into the campaign workspace (Phase 3-4).
+// Once that lands the four middle entries can be removed and the routes
+// become pure campaign-scoped sub-tabs.
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { id: 'dashboard', label: 'Home', icon: Home, path: '/dashboard' },
   { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
   { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
   { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
