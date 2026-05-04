@@ -53,12 +53,12 @@ async function reconcileGmailGrant(session: any): Promise<void> {
   // when the marker is set so we don't paw at unrelated sessions.
   const refreshToken: string | null = session?.provider_refresh_token ?? null
   if (refreshToken && pending) {
-    try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
     try {
       await saveProfile({ googleRefreshToken: refreshToken })
+      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
+      return
     } catch { /* fall through to redirect path on next tick */ }
-    return
   }
 
   // Without the marker we don't reconcile — saves a /api/profile round trip
@@ -94,8 +94,8 @@ async function reconcileGmailGrant(session: any): Promise<void> {
       try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
       if (res?.url) window.location.assign(res.url)
     } catch {
-      // Reconciliation is best-effort. The Settings Connect button remains
-      // available as a manual reconnect path if this silently fails.
+      // Reconciliation is best-effort after this point. The primary path is
+      // saving Supabase's provider_refresh_token above.
       try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
     } finally {
       gmailReconcileInFlight = null
@@ -121,7 +121,7 @@ export function AuthProvider({ children }) {
       return
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async () => {
       // Re-check: onAuthStateChange may have fired SIGNED_OUT before this resolves.
       const { data: { session: current } } = await supabase.auth.getSession()
       if (!current) {
@@ -129,11 +129,9 @@ export function AuthProvider({ children }) {
         setLoading(false)
         return
       }
-      if (session) {
-        applySessionToApiClient(session)
-        reconcileGmailGrant(session).catch(() => {})
-      }
-      setUser(session?.user ?? null)
+      applySessionToApiClient(current)
+      reconcileGmailGrant(current).catch(() => {})
+      setUser(current.user)
       setLoading(false)
     })
 
