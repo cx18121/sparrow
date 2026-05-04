@@ -14,7 +14,6 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { format } from 'date-fns'
-import { generateEmail } from '../../lib/api'
 import { useDraftFlow } from '../../hooks/useDraftFlow'
 
 const PAGE_SIZE = 10
@@ -269,22 +268,24 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
       .catch(err => setToast({ type: 'error', title: 'Could not update status', message: err?.message || 'Please try again.' }))
   }
 
-  const buildGeneratePayload = (row) => {
-    const preferredId = workspaceConfig?.templateId || undefined
-    const templateId = preferredId && templates.some(t => t.id === preferredId) ? preferredId : undefined
-    // Bulk-generate explicitly opts into save:true — server default is false (preview-only).
-    return row._custom
-      ? { customContactId: row.id, templateId, includeResumeBullet: false, save: true }
-      : { userLeadId: row.id, templateId, includeResumeBullet: false, save: true }
-  }
-
   const bulkGenerateDrafts = async () => {
     if (bulkGenerating || selectedEligibleRows.length === 0) return
+    const preferredId = workspaceConfig?.templateId || undefined
+    const templateId = preferredId && templates.some(t => t.id === preferredId) ? preferredId : undefined
+    const targets = selectedEligibleRows.map(row => ({
+      kind: row._custom ? 'custom' as const : 'lead' as const,
+      id: row.id,
+    }))
     setBulkGenerating(true)
     try {
-      const results = await Promise.allSettled(selectedEligibleRows.map(row => generateEmail(buildGeneratePayload(row))))
-      const succeeded = results.filter(result => result.status === 'fulfilled').length
-      const failed = results.length - succeeded
+      // Routes through useDraftFlow.bulkGenerate so the reentrancy guard +
+      // generating flag are shared with single-draft generation. Bulk opts
+      // into save:true inside the hook — different from preview-then-save.
+      const { succeeded, failed, skipped } = await draftFlow.bulkGenerate(targets, { templateId, includeResumeBullet: false })
+      if (skipped > 0) {
+        setToast({ type: 'info', title: 'Generation already running', message: 'Wait for the current run to finish.' })
+        return
+      }
       setToast({
         type: failed ? 'info' : 'success',
         title: `${succeeded} draft${succeeded !== 1 ? 's' : ''} generated`,
