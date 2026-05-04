@@ -1,9 +1,10 @@
 import React from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { CalendarClock, FileText, Send, Settings as SettingsIcon } from 'lucide-react'
+import { CalendarClock, FileText, Send } from 'lucide-react'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
 import DraftsTab from '../Drafts/DraftsTab'
+import SettingsTabImpl from './SettingsTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
@@ -134,15 +135,7 @@ export function SentTab() {
   )
 }
 
-export function SettingsTab() {
-  return (
-    <ComingSoonCard
-      icon={SettingsIcon}
-      title="Settings — edit the campaign"
-      body="Filters, template, batch size, dedup toggle, attachments — all editable inline here. Moves over from the legacy modal next phase."
-    />
-  )
-}
+export { SettingsTabImpl as SettingsTab }
 
 // ---------- shared ----------
 

@@ -218,6 +218,43 @@ test.describe('Campaign workspace shell', () => {
     await expect(page.locator('text=/Browsing for/i').first()).toBeVisible()
   })
 
+  test('Settings sub-tab renders inline editor with campaign data (Phase 4d)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/settings')
+    // The placeholder Coming-Soon copy from before 4d must be gone.
+    await expect(page.locator('text=/Moves over from the legacy modal/i')).toHaveCount(0)
+    // Header + name input prefilled from the campaign.
+    await expect(page.locator('text=/Campaign settings/i').first()).toBeVisible({ timeout: 10_000 })
+    const nameInput = page.locator('input.input').first()
+    await expect(nameInput).toHaveValue(SAMPLE_CAMPAIGN.name)
+    // Save bar appears only when dirty.
+    await expect(page.getByRole('button', { name: /Save changes/i })).toHaveCount(0)
+    await nameInput.fill(`${SAMPLE_CAMPAIGN.name} (edited)`)
+    await expect(page.getByRole('button', { name: /Save changes/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Discard/i })).toBeVisible()
+    // Discard reverts and hides the save bar.
+    await page.getByRole('button', { name: /Discard/i }).click()
+    await expect(nameInput).toHaveValue(SAMPLE_CAMPAIGN.name)
+    await expect(page.getByRole('button', { name: /Save changes/i })).toHaveCount(0)
+  })
+
+  test('Settings sub-tab Delete confirms and navigates back to Home (Phase 4d)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/settings')
+    await page.getByRole('button', { name: /Delete campaign/i }).click()
+    // Confirm dialog appears with the campaign name in the body.
+    await expect(page.locator(`text=/${SAMPLE_CAMPAIGN.name}/`).first()).toBeVisible()
+    // Confirm — the danger button in the modal is the second "Delete" surface.
+    await page.locator('.btn-danger').filter({ hasText: /^Delete$/ }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 5_000 })
+  })
+
   test('optimistic temp-id campaign card is rendered as non-clickable', async ({ page }) => {
     const tempCampaign = { ...SAMPLE_CAMPAIGN, id: 'temp-pending-123', name: 'Optimistic pending' }
     await mockApi(page, {
