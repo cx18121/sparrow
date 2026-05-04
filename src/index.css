@@ -23,13 +23,19 @@
     outline: none;
   }
 
+  /* Phase 5c: focus-visible ring is dark espresso (not primary green) so
+   * it stays visible on the primary-green button — the previous green-on-
+   * green ring effectively disappeared. The white outline-spacer creates
+   * a subtle halo that keeps the ring readable against any panel color.
+   */
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline: 2px solid rgba(85, 122, 87, 0.70);
+    outline: 2px solid #2C1F10;
     outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(253, 250, 245, 0.85);
   }
 
   ::-webkit-scrollbar {
