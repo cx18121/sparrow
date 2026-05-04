@@ -164,6 +164,13 @@ function AppShell() {
     navigate('/campaigns')
   }, [navigate])
 
+  // Only the Google-OAuth-callback query params actually feed the onboarding
+  // gate. Reading these out here narrows the effect's deps so it doesn't
+  // re-fire on every routed query change (e.g. ?saved=1 toasts).
+  const onboardingSearchParams = new URLSearchParams(location.search)
+  const googleConnectedParam = onboardingSearchParams.get('google_connected')
+  const googleErrorParam = onboardingSearchParams.get('google_error')
+
   useEffect(() => {
     if (!user) {
       if (previousOnboardingKeyRef.current) {
@@ -183,9 +190,8 @@ function AppShell() {
     const storageKey = getOnboardingStorageKey(user)
     const sessionKey = storageKey ? `${storageKey}_session` : null
     const forceKey = getOnboardingForceKey(user)
-    const searchParams = new URLSearchParams(location.search)
-    const googleConnectedReturn = searchParams.has('google_connected')
-    const googleConnectReturn = googleConnectedReturn || searchParams.has('google_error')
+    const googleConnectedReturn = !!googleConnectedParam
+    const googleConnectReturn = googleConnectedReturn || !!googleErrorParam
     if (googleConnectedReturn && forceKey) sessionStorage.removeItem(forceKey)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const bypassedThisSession = sessionKey ? isOnboardingSessionBypass(sessionStorage.getItem(sessionKey)) : false
@@ -277,7 +283,7 @@ function AppShell() {
       })
 
     return () => { cancelled = true }
-  }, [location.search, user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, googleConnectedParam, googleErrorParam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate templates / sequences / campaigns / leads from the API after auth.
   // Check both React user state and module-level auth (set synchronously before state updates).
