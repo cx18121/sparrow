@@ -15,6 +15,9 @@ export interface DraftCompany {
   stage: string | null
   industry: string | null
   isHiring: boolean
+  // Bare hostname like "acme.ai" — used to scope web_search via allowed_domains
+  // during fit-angle research. Null for custom contacts where we have no domain.
+  domain?: string | null
 }
 
 // Fields shared across every draft kind. The subject is template-driven in all
@@ -26,15 +29,27 @@ interface DraftBase {
   senderName: string | null
 }
 
-// Verbatim mode — the template body is delivered as-is with {{variable}}
-// substitution only. ADR-0002: AI must not rewrite a user-authored Template.
+// Template mode — the template body is a merge-tag skeleton. Variables are
+// substituted first, then AI rewrites the body per recipient using company and
+// sender context. featureLine/fitAngle are research outputs woven into the
+// personalization pass — same semantics as AI mode.
 export interface TemplateDraftInput extends DraftBase {
   kind: 'template'
   body: string
+  senderContext: string
+  styleInstruction?: string | null
+  exampleBodies?: string[] | null
+  apiKey: string
+  featureLine?: string | null
+  fitAngle?: string | null
 }
 
 // AI mode — Anthropic generates the body from sender context, company info,
 // and an optional interest hook. styleInstruction tunes voice.
+//
+// featureLine: a specific company surface the sender wants to work on (output
+// of researchFitAngle). fitAngle: the resume project that opens the
+// conversation. Both null → email drafts without those personalization lines.
 export interface AiDraftInput extends DraftBase {
   kind: 'ai'
   interestHook: string | null
@@ -42,6 +57,8 @@ export interface AiDraftInput extends DraftBase {
   styleInstruction?: string | null
   exampleBodies?: string[] | null
   apiKey: string
+  featureLine?: string | null
+  fitAngle?: string | null
 }
 
 // Fallback mode — generic email used when AI generation fails. Reachable as

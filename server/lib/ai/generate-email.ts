@@ -45,8 +45,52 @@ export function buildSubjectLine(
   return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company)
 }
 
-function draftFromTemplate(input: TemplateDraftInput): EmailDraft {
-  const body = substituteVariables(input.body, input.contact, input.senderName, input.company)
+function buildTemplateSkeleton(input: TemplateDraftInput): string {
+  return stripPlaceholders(substituteVariables(input.body, input.contact, input.senderName, input.company))
+}
+
+function buildTemplatePrompt(input: TemplateDraftInput): string {
+  const skeleton = buildTemplateSkeleton(input)
+  const basePrompt = buildPrompt({
+    kind: 'ai',
+    contact: input.contact,
+    company: input.company,
+    subjectTemplate: input.subjectTemplate,
+    senderName: input.senderName,
+    interestHook: null,
+    senderContext: input.senderContext,
+    styleInstruction: input.styleInstruction,
+    exampleBodies: input.exampleBodies,
+    apiKey: input.apiKey,
+    featureLine: input.featureLine ?? null,
+    fitAngle: input.fitAngle ?? null,
+  })
+
+  return [
+    basePrompt,
+    '',
+    'Template skeleton:',
+    skeleton,
+    '',
+    'Use the template skeleton as the structure and intent, but personalize the wording with the contact, company, and sender context. Do not leave merge tags or bracketed placeholders in the output.',
+  ].join('\n')
+}
+
+async function draftFromTemplate(input: TemplateDraftInput): Promise<EmailDraft> {
+  const rawBody = await callClaude({
+    apiKey: input.apiKey,
+    model: GENERATION_MODEL,
+    system: [
+      EMAIL_GENERATION_SYSTEM_PROMPT,
+      input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    userContent: buildTemplatePrompt(input),
+    maxTokens: 1024,
+  })
+
+  const body = await humanizeEmailBody(rawBody, input.apiKey)
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)
   return { subject, body }
 }
@@ -88,6 +132,20 @@ function buildPrompt(input: AiDraftInput): string {
 
   const companyLabel = input.company.name ? ` at ${input.company.name}` : ''
 
+  const featureLine = input.kind === 'ai' ? input.featureLine ?? null : null
+  const fitAngle = input.kind === 'ai' ? input.fitAngle ?? null : null
+
+  const personalizationNote =
+    featureLine || fitAngle
+      ? [
+          'Personalization (use these verbatim, do not paraphrase):',
+          featureLine ? `- Feature to work on at the company: "${featureLine}". Reference it as the thing the sender wants to contribute to.` : null,
+          fitAngle ? `- Resume angle: "${fitAngle}". Use it as the bridge connecting the sender to that feature.` : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : null
+
   return [
     styleGuidance,
     '',
@@ -100,6 +158,7 @@ function buildPrompt(input: AiDraftInput): string {
     companyContext ? `Company: ${companyContext}` : null,
     `Sender: ${input.senderContext}`,
     hookNote,
+    personalizationNote,
     '',
     'Output only the email body — no subject line.',
   ]
