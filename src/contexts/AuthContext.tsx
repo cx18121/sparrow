@@ -26,6 +26,7 @@ const GOOGLE_AUTH_SCOPES = [
 // sign-in via the same AuthScreen). Cleared after the post-sign-in Gmail
 // reconciliation runs once.
 const GMAIL_RECONCILE_KEY = 'cf_gmail_reconcile_pending'
+const PROFILE_UPDATED_EVENT = 'sparrow:profile-updated'
 
 function applySessionToApiClient(session) {
   setApiUserId(session?.user?.id ?? null)
@@ -53,7 +54,10 @@ async function reconcileGmailGrant(session: any): Promise<void> {
   const refreshToken: string | null = session?.provider_refresh_token ?? null
   if (refreshToken && pending) {
     try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
-    try { await saveProfile({ googleRefreshToken: refreshToken }) } catch { /* fall through to redirect path on next tick */ }
+    try {
+      await saveProfile({ googleRefreshToken: refreshToken })
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
+    } catch { /* fall through to redirect path on next tick */ }
     return
   }
 

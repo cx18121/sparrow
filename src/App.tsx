@@ -147,6 +147,11 @@ function AppShell() {
       .catch(() => { setProfileLoading(false) })
   }, [])
 
+  useEffect(() => {
+    window.addEventListener('sparrow:profile-updated', refreshProfile)
+    return () => window.removeEventListener('sparrow:profile-updated', refreshProfile)
+  }, [refreshProfile])
+
   // Workspace routes (`/campaigns/:id/<sub>`) live outside the global TABS
   // list — derive the active label from the URL segment so the top bar still
   // reads correctly inside a campaign workspace.

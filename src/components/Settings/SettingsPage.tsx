@@ -735,12 +735,15 @@ export default function SettingsPage({
     const success = params.get('google_connected')
     if (!error && !success) return
     setOauthResult(error ? { kind: 'error', message: googleErrorMessage(error) } : { kind: 'success' })
-    if (error || success) setActive('account')
+    if (error || success) {
+      setActive('account')
+      if (success) onRefreshProfile?.()
+    }
     params.delete('google_error')
     params.delete('google_connected')
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
     window.history.replaceState(null, '', next)
-  }, [])
+  }, [onRefreshProfile])
 
   const saveWorkspace = async (updater: any, label = 'Settings saved') => {
     try {

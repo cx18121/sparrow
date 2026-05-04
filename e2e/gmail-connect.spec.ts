@@ -88,10 +88,28 @@ test.describe('Gmail connect button', () => {
   })
 
   test('surfaces success banner when callback redirects back with ?google_connected=1', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] }) // default profile has Gmail connected
+    let profileCalls = 0
+    await mockApi(page, { templates: [SAMPLE_TEMPLATE], profile: { hasGoogleRefreshToken: false } })
+    await page.route('**/api/profile', route => {
+      profileCalls += 1
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          profile: {
+            onboardingCompleted: true,
+            workspaceConfig: { senderName: 'Demo User', templateId: null },
+            hasClaudeKey: true,
+            hasGoogleRefreshToken: profileCalls > 1,
+          },
+        }),
+      })
+    })
     await page.goto('/settings?google_connected=1')
     const banner = page.locator('text=/Gmail connected/i').first()
     await expect(banner).toBeVisible({ timeout: 5000 })
+    await page.getByRole('tab', { name: /Account/ }).click()
+    await expect(page.locator('text=/Ready to send drafts/i').first()).toBeVisible({ timeout: 5000 })
   })
 })
 
