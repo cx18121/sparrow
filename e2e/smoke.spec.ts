@@ -27,9 +27,12 @@ test.describe('Sparrow smoke tests', () => {
     await mockApi(page)
   })
 
-  test('app loads to dashboard', async ({ page }) => {
+  test('app loads to home', async ({ page }) => {
     await page.goto('/dashboard')
-    await expect(page.locator('text=/Hi, Demo|Setup|Recent activity/i').first()).toBeVisible({ timeout: 10_000 })
+    // Home page content: greeting OR welcome card (depending on whether
+    // campaigns exist). The default mock has no campaigns, so the welcome
+    // card with "Create your first campaign" should render.
+    await expect(page.locator('text=/Create your first campaign|Good morning|Welcome/i').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('all main tabs are reachable from sidebar (regression: bug 4 + 5)', async ({ page }) => {

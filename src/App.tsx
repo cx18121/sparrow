@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
 import DashboardTab from './components/Dashboard/DashboardTab'
+import HomePage from './components/Home/HomePage'
 import LeadDiscoveryTab from './components/LeadDiscovery/LeadDiscoveryTab'
 import CampaignsTab from './components/Campaigns/CampaignsTab'
 import ContactsTab from './components/Contacts/ContactsTab'
@@ -800,6 +801,12 @@ function AppShell() {
           <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
+                <HomePage
+                  workspaceConfig={workspaceConfig}
+                  onEnterCampaign={enterCampaign}
+                />
+              } />
+              <Route path="/dashboard-legacy" element={
                 <DashboardTab
                   workspaceConfig={workspaceConfig}
                   profile={serverProfile}
