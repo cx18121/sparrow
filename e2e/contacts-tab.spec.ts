@@ -155,4 +155,76 @@ test.describe('Contacts sub-tab', () => {
 
     expect(generateCalled).toBe(true)
   })
+
+  test('select-all + bulk Generate triggers /api/emails/generate per selected no-draft lead', async ({ page }) => {
+    const SAVED_LEAD_2 = {
+      ...SAVED_LEAD,
+      id: 'lead_contacts_2',
+      contactId: 'contact_contacts_2',
+      contact: { id: 'contact_contacts_2', name: 'Devon Park', email: 'devon@acme.test', title: 'CTO' },
+    }
+
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+    })
+    await page.route('**/api/campaign-leads**', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [SAVED_LEAD, SAVED_LEAD_2] }) })
+    )
+
+    let generateCalls = 0
+    await page.route('**/api/emails/generate', route => {
+      generateCalls++
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ subject: 'Quick', body: 'Hi', emailId: `em_${generateCalls}` }),
+      })
+    })
+
+    await page.goto(`/campaigns/${CAMPAIGN_ID}/contacts`)
+    await expect(page.locator('text=/Sarah Chen/').first()).toBeVisible({ timeout: 10_000 })
+
+    await page.getByLabel('Select all').check()
+    await expect(page.locator('text=/2 selected/')).toBeVisible()
+
+    await page.getByRole('button', { name: /^Generate \(2\)$/ }).click()
+
+    await expect.poll(() => generateCalls, { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+  })
+
+  test('bulk Remove deletes selected campaign-lead links via DELETE /api/campaign-leads', async ({ page }) => {
+    const LEAD_A = { ...SAVED_LEAD, campaignLeadId: 'cl_a' }
+    const LEAD_B = { ...SAVED_LEAD, id: 'lead_contacts_2', campaignLeadId: 'cl_b', contact: { id: 'c2', name: 'Devon Park', title: 'CTO' } }
+
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+    })
+    let removed = false
+    await page.route('**/api/campaign-leads**', route => {
+      const method = route.request().method()
+      if (method === 'DELETE') {
+        removed = true
+        return route.fulfill({ status: 204, body: '' })
+      }
+      const items = removed ? [LEAD_B] : [LEAD_A, LEAD_B]
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items }) })
+    })
+    await page.addInitScript(() => { window.confirm = () => true })
+
+    await page.goto(`/campaigns/${CAMPAIGN_ID}/contacts`)
+    await expect(page.locator('text=/Sarah Chen/').first()).toBeVisible({ timeout: 10_000 })
+
+    // Select first row only via the per-row checkbox (Sarah Chen).
+    await page.getByLabel('Select Sarah Chen').check()
+    await expect(page.locator('text=/1 selected/')).toBeVisible()
+
+    await page.getByRole('button', { name: /^Remove$/ }).click()
+
+    await expect.poll(() => removed, { timeout: 10_000 }).toBe(true)
+    // After remove + reload, only Devon Park is left.
+    await expect(page.locator('text=/Devon Park/')).toBeVisible()
+    await expect(page.locator('text=/Sarah Chen/')).toHaveCount(0)
+  })
 })

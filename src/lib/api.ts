@@ -1,6 +1,6 @@
 import { isDemo, supabase } from './supabase'
 import type {
-  Campaign, CampaignBatchResponse, CampaignOptions, CompanyListResponse, CustomContact,
+  Campaign, CampaignOptions, CompanyListResponse, CustomContact,
   DashboardEmailsResponse, Email, GenerateEmailResponse, PageResponse, SendEmailResponse,
   SentTodayCountResponse, Template, UserLead,
   ApolloSearchResponse, ApolloRevealResponse,
@@ -162,12 +162,9 @@ function qs(params: Record<string, unknown>) {
   return s ? `?${s}` : ''
 }
 
-export const fetchHealth = () => request<{ ok: true }>('/health')
-
 export const fetchCompanies = (params: Record<string, unknown> = {}) =>
   request<CompanyListResponse>(`/companies${qs(params)}`)
 export const resetDiscoverySeen = () => request<void>('/companies?seen=discovery', { method: 'DELETE' })
-export const fetchIndustries = () => request<{ items: string[] }>('/industries')
 
 export const apolloSearch = (domain: string, companyId: string) =>
   request<ApolloSearchResponse>('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
@@ -175,16 +172,7 @@ export const apolloSearch = (domain: string, companyId: string) =>
 export const revealApolloContact = (personId: string, companyId: string, domain: string) =>
   request<ApolloRevealResponse>('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })
 
-export const fetchContacts = (params: Record<string, unknown> = {}) =>
-  request<PageResponse<UserLead>>(`/contacts${qs(params)}`)
-
 export const fetchCustomContacts = () => request<PageResponse<CustomContact>>('/custom-contacts')
-export const createCustomContact = (data: Partial<CustomContact>) =>
-  request<CustomContact>('/custom-contacts', { method: 'POST', body: JSON.stringify(data) })
-export const updateCustomContact = (data: Partial<CustomContact> & { id: string }) =>
-  request<CustomContact>('/custom-contacts', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteCustomContact = (id: string) =>
-  request<void>(`/custom-contacts${qs({ id })}`, { method: 'DELETE' })
 
 export const fetchLeads = (params: Record<string, unknown> = {}) =>
   request<PageResponse<UserLead>>(`/leads${qs(params)}`)
@@ -247,12 +235,6 @@ export const updateCampaign = async (data: Partial<UiCampaign> & { id: string })
 export const deleteCampaign = (id: string) =>
   request<void>(`/campaigns${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchCampaignBatch = (campaignId: string) =>
-  request<CampaignBatchResponse>(`/campaign-batch${qs({ campaignId })}`)
-export const generateCampaignBatch = (campaignId: string) =>
-  request<CampaignBatchResponse>('/campaign-batch', { method: 'POST', body: JSON.stringify({ campaignId }) })
-export const resetCampaignSeen = (campaignId: string) =>
-  request<{ reset: true }>(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
 export const fetchCampaignOptions = () => request<CampaignOptions>('/campaign-options')
 
 export const queryAudience = (
@@ -268,8 +250,8 @@ export const fetchCampaignLeads = (campaignId: string) =>
   request<PageResponse<UserLead>>(`/campaign-leads${qs({ campaignId })}`)
 export const addCampaignLead = (campaignId: string, userLeadId: string) =>
   request<UserLead>('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
-export const deleteCampaignLead = (id: string) =>
-  request<void>(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })
+export const removeCampaignLead = (campaignLeadId: string) =>
+  request<void>(`/campaign-leads${qs({ id: campaignLeadId })}`, { method: 'DELETE' })
 
 export function deleteAccount() {
   const tokenAtClick = currentAccessToken
