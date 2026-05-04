@@ -263,7 +263,7 @@ export function ContactsSubTab() {
 }
 
 export function DraftsSubTab() {
-  const { campaign, workspaceConfig, profile, profileLoading } = useWorkspaceContext()
+  const { campaign, workspaceConfig, profile, profileLoading, onRefreshProfile } = useWorkspaceContext()
   const navigate = useNavigate()
   // Phase 4b: mount the existing Drafts queue scoped to this campaign.
   // `lockedTab='draft'` hides the Drafts/Sent segmented control inside the
@@ -279,9 +279,10 @@ export function DraftsSubTab() {
         workspaceConfig={workspaceConfig}
         profile={profile}
         profileLoading={profileLoading}
+        onRefreshProfile={onRefreshProfile}
         onNavigate={(target) => {
           // Empty-state CTAs jump to the matching workspace sub-tab.
-          if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
+          if (target === 'settings') navigate('/settings')
           else if (target === 'contacts') navigate(`/campaigns/${campaign.id}/contacts`)
           else if (target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
           else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
@@ -307,7 +308,7 @@ function ClaudeKeyMissingBanner({ profile, profileLoading }: { profile: any; pro
 }
 
 export function SentTab() {
-  const { campaign, workspaceConfig, profile, profileLoading } = useWorkspaceContext()
+  const { campaign, workspaceConfig, profile, profileLoading, onRefreshProfile } = useWorkspaceContext()
   const navigate = useNavigate()
   // Phase 4c: same DraftsTab component, locked to the sent list. The component
   // gates Send/Edit/Delete/attachment controls on `tab === 'draft'` already, so
@@ -319,8 +320,9 @@ export function SentTab() {
       workspaceConfig={workspaceConfig}
       profile={profile}
       profileLoading={profileLoading}
+      onRefreshProfile={onRefreshProfile}
       onNavigate={(target) => {
-        if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
+        if (target === 'settings') navigate('/settings')
         else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
         else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
       }}

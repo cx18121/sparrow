@@ -134,7 +134,33 @@ test.describe('Drafts UX', () => {
     await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
 
     await expect(page.locator('text=/Gmail not connected\\. Connect in Settings\\./i').first()).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByRole('button', { name: /Open Settings/i })).toBeVisible()
+    await page.getByRole('button', { name: /Open Settings/i }).click()
+    await expect(page).toHaveURL(/\/settings$/)
+  })
+
+  test('refreshes Gmail status and hides the disconnected banner when connected', async ({ page }) => {
+    let profileCalls = 0
+    await mockApi(page, {
+      campaigns: [CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      drafts: [draft()],
+      profile: { hasGoogleRefreshToken: false },
+    })
+    await page.route('**/api/profile', route => {
+      profileCalls += 1
+      return json(route, {
+        profile: {
+          onboardingCompleted: true,
+          workspaceConfig: { senderName: 'Demo User', templateId: null },
+          hasClaudeKey: true,
+          hasGoogleRefreshToken: profileCalls > 1,
+        },
+      })
+    })
+
+    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
+
+    await expect(page.locator('text=/Gmail not connected\\. Connect in Settings\\./i')).toHaveCount(0, { timeout: 10_000 })
   })
 
   test('deletes a selected draft and removes it from the queue', async ({ page }) => {

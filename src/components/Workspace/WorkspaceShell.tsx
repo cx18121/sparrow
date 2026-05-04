@@ -27,6 +27,7 @@ interface WorkspaceShellProps {
   workspaceConfig: any
   profile: any
   profileLoading: boolean
+  onRefreshProfile?: (() => void | Promise<unknown>) | null
 }
 
 // Shape of what nested sub-tabs see via useOutletContext.
@@ -35,9 +36,10 @@ export interface WorkspaceOutletContext {
   workspaceConfig: any
   profile: any
   profileLoading: boolean
+  onRefreshProfile?: (() => void | Promise<unknown>) | null
 }
 
-export default function WorkspaceShell({ workspaceConfig, profile, profileLoading }: WorkspaceShellProps) {
+export default function WorkspaceShell({ workspaceConfig, profile, profileLoading, onRefreshProfile }: WorkspaceShellProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { campaigns, dataLoaded } = useAppData()
@@ -74,7 +76,7 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
       <WorkspaceHeader campaign={campaign} />
       <SubTabNav campaignId={campaign.id} />
       <div className="mt-5">
-        <Outlet context={{ campaign, workspaceConfig, profile, profileLoading } satisfies WorkspaceOutletContext} />
+        <Outlet context={{ campaign, workspaceConfig, profile, profileLoading, onRefreshProfile } satisfies WorkspaceOutletContext} />
       </div>
     </div>
   )

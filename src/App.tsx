@@ -510,7 +510,7 @@ function AppShell() {
               <Route path="/dashboard" element={
                 <HomePage workspaceConfig={workspaceConfig} />
               } />
-              <Route path="/campaigns/:id" element={<WorkspaceShell workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />}>
+              <Route path="/campaigns/:id" element={<WorkspaceShell workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} onRefreshProfile={refreshProfile} />}>
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<WorkspaceOverview />} />
                 <Route path="leads" element={<WorkspaceLeads />} />

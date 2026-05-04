@@ -107,6 +107,7 @@ function writeDraftCache(tab, items) {
 
 export default function DraftsTab({
   onNavigate,
+  onRefreshProfile,
   workspaceConfig,
   profile = null,
   profileLoading = true,
@@ -114,6 +115,7 @@ export default function DraftsTab({
   lockedTab = null,
 }: {
   onNavigate?: ((tab: string) => void) | null
+  onRefreshProfile?: (() => void | Promise<unknown>) | null
   workspaceConfig?: any
   profile?: any
   profileLoading?: boolean
@@ -177,6 +179,14 @@ export default function DraftsTab({
     if (profileLoading) return
     setGmailStatus(profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected')
   }, [profile, profileLoading])
+
+  useEffect(() => {
+    if (!onRefreshProfile) return
+    onRefreshProfile()
+    const refreshOnFocus = () => onRefreshProfile()
+    window.addEventListener('focus', refreshOnFocus)
+    return () => window.removeEventListener('focus', refreshOnFocus)
+  }, [onRefreshProfile])
 
   useEffect(() => {
     let cancelled = false
