@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   Search, Users, Globe, Filter,
   CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
@@ -125,7 +125,19 @@ interface LeadDiscoveryTabProps {
 }
 
 export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = null, campaignFilters = null }: LeadDiscoveryTabProps) {
-  const { refreshLeads } = useAppData()
+  const { leads, refreshLeads } = useAppData()
+  // Set of apolloPersonIds already saved as UserLeads — used to disable the
+  // Save button on previously-saved contacts in the Find-contacts modal,
+  // even after a tab switch or a re-open of the same company. Combined with
+  // local savedIds (this-session saves before refreshLeads commits) so the
+  // button reads correctly during the optimistic window too.
+  const persistedSavedApolloIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const l of leads) {
+      if (l.apolloPersonId) set.add(l.apolloPersonId)
+    }
+    return set
+  }, [leads])
   const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState(new Set())
@@ -681,7 +693,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
                       email={revealedEmails[preview.id]}
                       onSave={handleSaveLead}
                       saving={savingIds.has(preview.id)}
-                      saved={savedIds.has(preview.id)}
+                      saved={savedIds.has(preview.id) || persistedSavedApolloIds.has(preview.id)}
                     />
                   ))}
                   {savedIds.size > 0 && (
