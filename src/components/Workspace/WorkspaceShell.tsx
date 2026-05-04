@@ -28,9 +28,18 @@ interface WorkspaceShellProps {
   // Sync the URL-derived active campaign back to App-level state so legacy
   // tabs (Discover) keep working. Removed in Phase 4.
   onCampaignActive: (campaign: { id: string; name: string } | null) => void
+  // Forwarded into the outlet so sub-tabs that mount existing top-level
+  // components (LeadDiscovery, Drafts, Settings) can pass it along.
+  workspaceConfig: any
 }
 
-export default function WorkspaceShell({ onCampaignActive }: WorkspaceShellProps) {
+// Shape of what nested sub-tabs see via useOutletContext.
+export interface WorkspaceOutletContext {
+  campaign: UiCampaign
+  workspaceConfig: any
+}
+
+export default function WorkspaceShell({ onCampaignActive, workspaceConfig }: WorkspaceShellProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { campaigns, dataLoaded } = useAppData()
@@ -76,7 +85,7 @@ export default function WorkspaceShell({ onCampaignActive }: WorkspaceShellProps
       <WorkspaceHeader campaign={campaign} />
       <SubTabNav campaignId={campaign.id} />
       <div className="mt-6">
-        <Outlet context={{ campaign } satisfies { campaign: UiCampaign }} />
+        <Outlet context={{ campaign, workspaceConfig } satisfies WorkspaceOutletContext} />
       </div>
     </div>
   )

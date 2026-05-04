@@ -111,7 +111,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCampaign = null, onExitCampaign = null, campaignFilters = null }) {
+export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, activeCampaign = null, onExitCampaign = null, campaignFilters = null }) {
   const { refreshLeads } = useAppData()
   const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')

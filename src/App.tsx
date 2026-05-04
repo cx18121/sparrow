@@ -855,7 +855,7 @@ function AppShell() {
                   exitCampaign={exitCampaign}
                 />
               } />
-              <Route path="/campaigns/:id" element={<WorkspaceShell onCampaignActive={setWorkspaceActiveCampaign} />}>
+              <Route path="/campaigns/:id" element={<WorkspaceShell onCampaignActive={setWorkspaceActiveCampaign} workspaceConfig={workspaceConfig} />}>
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<WorkspaceOverview />} />
                 <Route path="leads" element={<WorkspaceLeads />} />

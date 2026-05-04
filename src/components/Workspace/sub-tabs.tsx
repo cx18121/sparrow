@@ -1,21 +1,22 @@
 import React from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { CalendarClock, FileText, Inbox, Send, Settings as SettingsIcon, Users } from 'lucide-react'
+import { CalendarClock, FileText, Inbox, Send, Settings as SettingsIcon } from 'lucide-react'
 import Pill from '../ui/Pill'
+import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import type { UiCampaign } from '../../contexts/AppDataContext'
+import type { WorkspaceOutletContext } from './WorkspaceShell'
 
-// Phase 3 placeholder sub-tabs. Each one shows enough of the active campaign
-// to feel real (name, status, audience pills) plus a "coming soon" notice
-// for the content that lands in Phase 4. Overview is the only one that
-// reads campaign metadata directly; the rest just say what's coming.
-
-interface OutletShape {
-  campaign: UiCampaign
-}
+// Workspace sub-tabs. Overview reads campaign metadata directly. Phase 4
+// migrations: Leads now mounts the existing LeadDiscoveryTab scoped to this
+// campaign; Drafts / Sent / Settings remain placeholders until 4b–4d.
 
 function useWorkspaceCampaign(): UiCampaign {
-  return useOutletContext<OutletShape>().campaign
+  return useOutletContext<WorkspaceOutletContext>().campaign
+}
+
+function useWorkspaceContext(): WorkspaceOutletContext {
+  return useOutletContext<WorkspaceOutletContext>()
 }
 
 export function OverviewTab() {
@@ -70,11 +71,17 @@ export function OverviewTab() {
 }
 
 export function LeadsTab() {
+  const { campaign, workspaceConfig } = useWorkspaceContext()
+  // Phase 4a: mount the existing Discover surface in-place. The campaign
+  // doubles as activeCampaign (so saved leads land in this campaign) and
+  // as campaignFilters (it carries all filter* fields directly). Navigation
+  // props are intentionally undefined — the workspace header owns navigation
+  // now, so the toast actions and the "exit campaign" X are dropped.
   return (
-    <ComingSoonCard
-      icon={Users}
-      title="Leads — saved prospects for this campaign"
-      body="In the next phase, the Discover surface moves into this sub-tab so you stay scoped to one campaign while you find people."
+    <LeadDiscoveryTab
+      workspaceConfig={workspaceConfig}
+      activeCampaign={{ id: campaign.id, name: campaign.name }}
+      campaignFilters={campaign}
     />
   )
 }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { mockApi, SAMPLE_COMPANY, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 // Phase 3 — campaign workspace shell.
 //   - Clicking a campaign card on Home navigates to /campaigns/:id/overview
@@ -99,15 +99,30 @@ test.describe('Campaign workspace shell', () => {
       campaigns: [SAMPLE_CAMPAIGN],
       templates: [SAMPLE_TEMPLATE],
     })
-    await page.goto('/campaigns/cmp_workspace_1/leads')
-    await expect(page).toHaveURL(/\/campaigns\/cmp_workspace_1\/leads/, { timeout: 10_000 })
-    await expect(page.locator('text=/saved prospects/i').first()).toBeVisible()
+    await page.goto('/campaigns/cmp_workspace_1/sent')
+    await expect(page).toHaveURL(/\/campaigns\/cmp_workspace_1\/sent/, { timeout: 10_000 })
+    // Sent is still a placeholder until 4c — its coming-soon copy is what we expect.
+    await expect(page.locator('text=/per-campaign send log/i').first()).toBeVisible()
   })
 
   test('unknown campaign id renders a not-found card instead of crashing', async ({ page }) => {
     await mockApi(page, { campaigns: [], templates: [] })
     await page.goto('/campaigns/cmp_does_not_exist/overview')
     await expect(page.locator('text=/Campaign not found/i').first()).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('Leads sub-tab mounts Discover and shows companies (Phase 4a)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      companies: [SAMPLE_COMPANY],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/leads')
+    // The Discover surface renders the sample company plus its Find contacts CTA.
+    await expect(page.locator(`text=${SAMPLE_COMPANY.name}`).first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('button', { name: /Find contacts/i }).first()).toBeVisible()
+    // The "Browsing for X" banner confirms the workspace is scoping the discover.
+    await expect(page.locator('text=/Browsing for/i').first()).toBeVisible()
   })
 
   test('optimistic temp-id campaign card is rendered as non-clickable', async ({ page }) => {
