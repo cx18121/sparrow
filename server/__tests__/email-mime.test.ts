@@ -28,7 +28,8 @@ describe("email MIME helpers", () => {
   it("removes script blocks, event handlers, and javascript links from HTML", () => {
     const html = sanitizeHtml('<p onclick="steal()">Hi</p><script>alert(1)</script><a href="javascript:evil()">x</a>');
 
-    expect(html).toBe('<p >Hi</p><a href="about:blank"evil()">x</a>');
+    expect(html).toBe('<p >Hi</p><a href="about:blank">x</a>');
+    expect(sanitizeHtml("<a href=javascript:evil()>x</a>")).toBe('<a href="about:blank">x</a>');
   });
 
   it("builds chunked base64 attachments with inferred fallback MIME type", () => {
