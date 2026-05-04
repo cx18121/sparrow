@@ -281,8 +281,12 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
     }
   }
 
+  // Still loading from network with no local cache — return null to avoid
+  // flashing an empty full-page layout then switching to WelcomeCard.
+  if (dataLoading) return null
+
   // Empty state: no campaigns, no stats - just one welcome card.
-  if (dataLoaded && campaigns.length === 0) {
+  if (campaigns.length === 0) {
     return (
       <div className="page-shell">
         <Toast toast={toast} onClose={() => setToast(null)} />
