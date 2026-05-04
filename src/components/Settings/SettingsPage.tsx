@@ -1,14 +1,30 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   Plus, Check, X,
-  Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2, FileText, UploadCloud, Paperclip,
+  Building2, Briefcase, Target, CheckCircle2, Circle, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
 import { generateStyleGuide, deleteAccount } from '../../lib/api'
+import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { supabase, isDemo } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+
+// Maps the `google_error` codes returned by /api/google/callback into copy a
+// student can act on. Anything not in the map gets a generic message.
+const GOOGLE_ERROR_COPY: Record<string, string> = {
+  callback_failed: 'Could not connect Gmail — Google rejected the sign-in. Try again, or remove access at myaccount.google.com first.',
+  missing_code: 'Gmail connection failed — sign-in did not complete. Try again.',
+  missing_refresh_token: 'Gmail connection failed — Google did not issue a refresh token. Remove access at myaccount.google.com and reconnect.',
+  profile_save_failed: 'Could not save your Gmail token. Try again, or contact support if this keeps happening.',
+  missing_google_config: 'Gmail integration is not configured on the server. Contact support.',
+}
+
+function googleErrorMessage(code: string | null): string {
+  if (!code) return ''
+  return GOOGLE_ERROR_COPY[code] ?? `Could not connect Gmail (${code}). Try again.`
+}
 
 function Section({ title, children }) {
   return (
@@ -28,10 +44,12 @@ function SetupReadinessPanel({ workspaceConfig, templates, profile, profileLoadi
   const hasSender = !!workspaceConfig?.senderName?.trim()
   const items = [
     {
+      // The button only shows when Gmail is not connected, so the label reads
+      // "Connect" — not "Reconnect" (that would imply a previous link existed).
       label: 'Google connected',
       detail: hasGoogle ? 'Connected.' : 'Connect Google to enable Gmail sending.',
       done: hasGoogle,
-      action: onConnectGoogle ? { label: 'Reconnect', onClick: onConnectGoogle } : null,
+      action: onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null,
     },
     {
       label: 'Claude key added',
@@ -706,6 +724,27 @@ function DangerZoneSection() {
 
 export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, templates, profile, profileLoading, onRefreshProfile, onGoToOnboarding, onConnectGoogle, onNavigate }) {
   const [toast, setToast] = useState(null)
+  const [oauthResult, setOauthResult] = useState<{ kind: 'success' } | { kind: 'error'; message: string } | null>(null)
+
+  // The Gmail OAuth callback at /api/google/callback redirects back here with
+  // either ?google_connected=1 (success) or ?google_error=<code> (failure).
+  // Read the params, surface a banner, then strip them from the URL so a
+  // refresh does not re-fire the banner.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('google_error')
+    const success = params.get('google_connected')
+    if (!error && !success) return
+    setOauthResult(error
+      ? { kind: 'error', message: googleErrorMessage(error) }
+      : { kind: 'success' }
+    )
+    params.delete('google_error')
+    params.delete('google_connected')
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
+    window.history.replaceState(null, '', next)
+  }, [])
+
   const saveWorkspace = async (updater, label = 'Settings saved') => {
     try {
       await onSaveWorkspaceConfig(updater)
@@ -727,6 +766,16 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
       <div className="flex items-center gap-4">
         <h1 className="text-xl font-semibold text-dark">Settings</h1>
       </div>
+      {oauthResult?.kind === 'success' && (
+        <Banner variant="success" icon={Check}>
+          Gmail connected. You can now send emails from Drafts.
+        </Banner>
+      )}
+      {oauthResult?.kind === 'error' && (
+        <Banner variant="danger" icon={AlertCircle}>
+          {oauthResult.message}
+        </Banner>
+      )}
       <SetupReadinessPanel
         workspaceConfig={workspaceConfig}
         templates={templates}
@@ -734,7 +783,14 @@ export default function SettingsPage({ workspaceConfig, onSaveWorkspaceConfig, t
         profileLoading={profileLoading}
         onRefreshProfile={onRefreshProfile}
         onGoToOnboarding={onGoToOnboarding}
-        onConnectGoogle={onConnectGoogle}
+        // Wrap onConnectGoogle so any synchronous error returned by the auth
+        // context (demo-mode rejection, network failure before redirect) is
+        // surfaced as a banner instead of disappearing silently. On success
+        // the redirect happens before this handler resolves.
+        onConnectGoogle={onConnectGoogle ? async () => {
+          const res = await onConnectGoogle()
+          if (res?.error?.message) setOauthResult({ kind: 'error', message: res.error.message })
+        } : null}
         onNavigate={onNavigate}
       />
       <WorkspaceProfileSection
