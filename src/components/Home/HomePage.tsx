@@ -5,16 +5,20 @@ import {
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
-import { fetchEmails } from '../../lib/api'
+import { fetchCampaignOptions, fetchEmails } from '../../lib/api'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
-import CampaignFormModal, { INITIAL_FORM, type CampaignFormValue } from '../Campaigns/CampaignFormModal'
+import CreateCampaignWizard, { submissionToCampaignPayload, type WizardSubmission } from '../Wizard/CreateCampaignWizard'
+import type { CampaignOptions } from '../../types/api'
 
-// Phase 1 of the campaigns-as-workspaces redesign. Replaces the old Dashboard.
-// Keeps the existing CampaignFormModal — Phase 2 will replace it with the
-// full-screen 4-step wizard. The other top-level tabs (Discover, Contacts,
-// Drafts, Templates) remain reachable from the sidebar until Phase 4 folds
-// them into the campaign workspace.
+// Phase 1 stood up the new campaigns-first surface; Phase 2 replaces the
+// modal-based campaign creator with the full-screen 4-step wizard. The other
+// top-level tabs (Discover, Contacts, Drafts, Templates) remain reachable
+// from the sidebar until Phase 4 folds them into the campaign workspace.
+
+const EMPTY_OPTIONS: CampaignOptions = {
+  industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0,
+}
 
 const STATUS_VARIANT: Record<UiCampaign['status'], 'success' | 'warning' | 'info'> = {
   active: 'success',
@@ -157,8 +161,9 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
   const [sent, setSent] = useState<any[]>([])
   const [emailsLoading, setEmailsLoading] = useState(true)
   const [emailsError, setEmailsError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [options, setOptions] = useState<CampaignOptions>(EMPTY_OPTIONS)
   const [toast, setToast] = useState<{ type: string; title: string; message?: string } | null>(null)
 
   useEffect(() => {
@@ -177,6 +182,18 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
       })
     return () => { cancelled = true }
   }, [])
+
+  // Lazy-load campaign options the first time the wizard opens — they're only
+  // needed for filter pill rendering in Step 2 and don't justify the cost on
+  // every Home render.
+  useEffect(() => {
+    if (!wizardOpen) return
+    let cancelled = false
+    fetchCampaignOptions()
+      .then(res => { if (!cancelled) setOptions(res) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [wizardOpen])
 
   const sentThisWeek = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
@@ -202,41 +219,27 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
     return [...campaigns].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   }, [campaigns])
 
-  const openCreate = () => setModalOpen(true)
+  const openCreate = () => setWizardOpen(true)
 
-  const handleFormSave = async (form: CampaignFormValue) => {
+  const handleWizardSubmit = async (submission: WizardSubmission) => {
     setSaving(true)
     try {
-      const created = await createCampaign({
-        name: form.name,
-        subject: form.subject || null,
-        status: 'active',
-        templateId: form.templateId || null,
-        filterTags: form.filterTags,
-        filterRegion: form.filterRegion || null,
-        filterStage: form.filterStage || null,
-        filterBatch: form.filterBatch || null,
-        filterIsHiring: form.filterIsHiring,
-        filterHeadcountMin: form.filterHeadcountMin ? Number(form.filterHeadcountMin) : null,
-        filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
-        batchSize: Number(form.batchSize) || 10,
-        tone: form.tone || null,
-        attachmentIds: form.attachmentIds,
-      })
-      setModalOpen(false)
+      const payload = submissionToCampaignPayload(submission)
+      // Honor the workspace default template when the wizard left it unset.
+      if (!payload.templateId && workspaceConfig?.templateId) {
+        payload.templateId = workspaceConfig.templateId
+      }
+      const created = await createCampaign(payload)
+      setWizardOpen(false)
       onEnterCampaign({ id: created.id, name: created.name })
+      return created
     } catch (err: any) {
       setToast({ type: 'error', title: 'Could not create campaign', message: err?.message || 'Try again.' })
+      throw err
     } finally {
       setSaving(false)
     }
   }
-
-  const initialForm = useMemo<CampaignFormValue>(() => ({
-    ...INITIAL_FORM,
-    templateId: workspaceConfig?.templateId || '',
-    subject: '',
-  }), [workspaceConfig?.templateId])
 
   // Empty state: no campaigns, no stats — just one welcome card.
   if (dataLoaded && campaigns.length === 0) {
@@ -244,16 +247,13 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
       <div className="page-shell">
         <Toast toast={toast} onClose={() => setToast(null)} />
         <WelcomeCard name={firstName} onCreate={openCreate} />
-        <CampaignFormModal
-          open={modalOpen}
-          editing={false}
-          initialForm={initialForm}
+        <CreateCampaignWizard
+          open={wizardOpen}
           templates={templates}
-          options={{ industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0 }}
-          workspaceConfig={workspaceConfig}
+          options={options}
           saving={saving}
-          onClose={() => setModalOpen(false)}
-          onSave={handleFormSave}
+          onCancel={() => setWizardOpen(false)}
+          onSubmit={handleWizardSubmit}
         />
       </div>
     )
@@ -329,16 +329,13 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
         </div>
       </section>
 
-      <CampaignFormModal
-        open={modalOpen}
-        editing={false}
-        initialForm={initialForm}
+      <CreateCampaignWizard
+        open={wizardOpen}
         templates={templates}
-        options={{ industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0 }}
-        workspaceConfig={workspaceConfig}
+        options={options}
         saving={saving}
-        onClose={() => setModalOpen(false)}
-        onSave={handleFormSave}
+        onCancel={() => setWizardOpen(false)}
+        onSubmit={handleWizardSubmit}
       />
     </div>
   )
