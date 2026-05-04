@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { audienceToPrismaWhere } from "../lib/audience-query.js";
 import { parseBody } from "../lib/parse-params.js";
+import { sendRouteError } from "../lib/route-error.js";
 import { shuffle } from "../lib/company-selection.js";
 import type { Audience } from "../../src/types/audience.js";
 
@@ -71,36 +72,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const userId = await getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const body = parseBody(req) ?? {};
-  const audienceInput = (body as { audience?: unknown }).audience;
-  if (!isAudienceLike(audienceInput)) {
-    return res.status(400).json({ error: "audience is required" });
-  }
-
-  const audience = normaliseAudience(audienceInput);
-  const excludePreviouslySaved =
-    (body as { excludePreviouslySaved?: unknown }).excludePreviouslySaved !== false;
-
-  const baseWhere = audienceToPrismaWhere(audience);
-
-  let where: Record<string, unknown> = baseWhere;
-  if (excludePreviouslySaved) {
-    const savedCompanyIds = await prisma.userLead.findMany({
-      where: { userId },
-      select: { companyId: true },
-      distinct: ["companyId"],
-    });
-    const ids = savedCompanyIds.map(r => r.companyId).filter((id): id is string => Boolean(id));
-    if (ids.length > 0) {
-      where = { ...baseWhere, id: { notIn: ids } };
+    const body = parseBody(req) ?? {};
+    const audienceInput = (body as { audience?: unknown }).audience;
+    if (!isAudienceLike(audienceInput)) {
+      return res.status(400).json({ error: "audience is required" });
     }
+
+    const audience = normaliseAudience(audienceInput);
+    const excludePreviouslySaved =
+      (body as { excludePreviouslySaved?: unknown }).excludePreviouslySaved !== false;
+
+    const baseWhere = audienceToPrismaWhere(audience);
+
+    let where: Record<string, unknown> = baseWhere;
+    if (excludePreviouslySaved) {
+      const savedCompanyIds = await prisma.userLead.findMany({
+        where: { userId },
+        select: { companyId: true },
+        distinct: ["companyId"],
+      });
+      const ids = savedCompanyIds.map(r => r.companyId).filter((id): id is string => Boolean(id));
+      if (ids.length > 0) {
+        where = { ...baseWhere, id: { notIn: ids } };
+      }
+    }
+
+    const count = await prisma.company.count({ where });
+    const sample = await pickRandomSample(where, count);
+
+    return res.status(200).json({ count, sample });
+  } catch (err) {
+    return sendRouteError(res, err);
   }
-
-  const count = await prisma.company.count({ where });
-  const sample = await pickRandomSample(where, count);
-
-  return res.status(200).json({ count, sample });
 }

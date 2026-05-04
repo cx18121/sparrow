@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
 import { generateDraft, GenerationError, ProfileError } from "../../lib/draft-generation.js";
 import { parseBody } from "../../lib/parse-params.js";
+import { sendRouteError } from "../../lib/route-error.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -9,17 +10,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-  const body = parseBody(req) ?? {};
-  const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, includeResumeBullet, save } = body as Record<string, unknown>;
-
-  if (!userLeadId && !customContactId) {
-    return res.status(400).json({ error: "userLeadId or customContactId is required" });
-  }
-
   try {
+    const userId = await getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const body = parseBody(req) ?? {};
+    const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, includeResumeBullet, save } = body as Record<string, unknown>;
+
+    if (!userLeadId && !customContactId) {
+      return res.status(400).json({ error: "userLeadId or customContactId is required" });
+    }
+
     const result = await generateDraft({
       userId,
       userLeadId: userLeadId as string | undefined,
@@ -35,6 +36,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     if (err instanceof GenerationError) return res.status(err.status).json({ error: err.message });
     if (err instanceof ProfileError) return res.status(err.status).json({ error: err.message });
-    return res.status(500).json({ error: "Could not generate email" });
+    return sendRouteError(res, err, "Could not generate email");
   }
 }

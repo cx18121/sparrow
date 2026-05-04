@@ -24,10 +24,6 @@ export interface AppDataContextValue {
   updateLead: (data: { id: string; status?: string; notes?: string | null }) => Promise<UserLead>
   deleteLead: (id: string) => Promise<void>
 
-  createCustomContact: (data: Partial<CustomContact>) => Promise<CustomContact>
-  updateCustomContact: (data: Partial<CustomContact> & { id: string }) => Promise<CustomContact>
-  deleteCustomContact: (id: string) => Promise<void>
-
   createTemplate: (data: Partial<Template>) => Promise<Template>
   updateTemplate: (data: Partial<Template> & { id: string }) => Promise<Template>
   deleteTemplate: (id: string) => Promise<void>
