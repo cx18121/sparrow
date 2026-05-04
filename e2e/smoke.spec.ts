@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_LEAD, SAMPLE_TEMPLATE, SAMPLE_COMPANY } from './fixtures/api-mocks'
+import { mockApi, SAMPLE_TEMPLATE, SAMPLE_COMPANY } from './fixtures/api-mocks'
 
 // In demo mode (VITE_SUPABASE_URL unset) the AuthContext seeds a localStorage demo
 // user when sign-in runs. We pre-seed it here so tests can skip the auth screen.
@@ -35,69 +35,85 @@ test.describe('Sparrow smoke tests', () => {
     await expect(page.locator('text=/Create your first campaign|Good morning|Welcome/i').first()).toBeVisible({ timeout: 10_000 })
   })
 
-  test('all main tabs are reachable from sidebar (regression: bug 4 + 5)', async ({ page }) => {
+  test('sidebar exposes the three top-level tabs (Phase 4e IA)', async ({ page }) => {
     // Use a viewport wide enough to render the desktop sidebar (tabs are hidden on mobile)
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto('/dashboard')
     await page.waitForSelector('nav, [role="navigation"]', { timeout: 10_000 })
 
-    // Each tab must be present in the sidebar's DOM — previously Templates and Contacts were filtered out entirely
-    const tabs = ['Home', 'Campaigns', 'Discover', 'Contacts', 'Drafts', 'Templates', 'Settings']
-    for (const tab of tabs) {
+    // After Phase 4e the sidebar settles on Home / Templates / Settings —
+    // per-campaign work moved into the workspace at /campaigns/:id/*.
+    const expectedTabs = ['Home', 'Templates', 'Settings']
+    for (const tab of expectedTabs) {
       const count = await page.locator(`nav >> text=${tab}`).count()
       expect(count, `Tab "${tab}" not found in sidebar`).toBeGreaterThan(0)
     }
-  })
 
-  test('navigation between tabs does not crash', async ({ page }) => {
-    await page.goto('/dashboard')
-    await page.waitForSelector('nav, [role="navigation"]')
-
-    for (const path of ['/campaigns', '/leads', '/contacts', '/drafts', '/templates', '/settings']) {
-      const errors: string[] = []
-      page.on('pageerror', e => errors.push(e.message))
-      await page.goto(path)
-      // Give React time to mount and any errors to surface
-      await page.waitForLoadState('networkidle')
-      expect(errors, `Errors visiting ${path}: ${errors.join(', ')}`).toHaveLength(0)
+    // The retired top-level surfaces should no longer appear as sidebar items.
+    for (const retired of ['Discover', 'Contacts', 'Drafts', 'Campaigns']) {
+      const count = await page.locator(`nav >> text=${retired}`).count()
+      expect(count, `Retired tab "${retired}" still in sidebar`).toBe(0)
     }
   })
 
-  test('campaigns page shows empty state quickly without spinner blocker (regression: bug 6)', async ({ page }) => {
-    await page.goto('/campaigns')
-    // Should resolve to either "Loading…" briefly or empty state, never get stuck
-    await expect(page.locator('text=/No campaigns yet|Create a campaign/i').first()).toBeVisible({ timeout: 5_000 })
+  test('legacy bookmarks redirect to /dashboard (Phase 4e)', async ({ page }) => {
+    await page.goto('/dashboard')
+    await page.waitForSelector('nav, [role="navigation"]')
+
+    // Each retired path should land softly on Home — no crash, no stale route.
+    for (const path of ['/campaigns', '/leads', '/contacts', '/drafts']) {
+      const errors: string[] = []
+      page.on('pageerror', e => errors.push(e.message))
+      await page.goto(path)
+      await page.waitForLoadState('networkidle')
+      expect(errors, `Errors visiting ${path}: ${errors.join(', ')}`).toHaveLength(0)
+      await expect(page).toHaveURL(/\/dashboard/)
+    }
   })
 
-  test('templates tab is reachable and renders (regression: bug 4)', async ({ page }) => {
+  test('templates tab is reachable and renders', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     await page.goto('/templates')
     await expect(page.getByText(SAMPLE_TEMPLATE.name).first()).toBeVisible({ timeout: 10_000 })
   })
 
-  test('contacts tab is reachable and shows leads (regression: bug 5)', async ({ page }) => {
-    await mockApi(page, { leads: [SAMPLE_LEAD] })
-    await page.goto('/contacts')
-    await expect(page.getByText(SAMPLE_LEAD.contact.name)).toBeVisible({ timeout: 10_000 })
-  })
-
-  test('discover page works without an active campaign (regression: bug 4)', async ({ page }) => {
-    await mockApi(page, { companies: [SAMPLE_COMPANY] })
-    await page.goto('/leads')
-    // Should NOT redirect to /campaigns
-    await expect(page).toHaveURL(/\/leads/)
-    await expect(page.getByText(SAMPLE_COMPANY.name)).toBeVisible({ timeout: 10_000 })
-  })
-
-  test('discover does not auto-search Apollo for every company on page load (regression: bug 2)', async ({ page }) => {
+  test('discover does not auto-search Apollo on first paint inside a workspace (regression: bug 2)', async ({ page }) => {
     let apolloSearchCount = 0
-    await mockApi(page, { companies: Array.from({ length: 5 }, (_, i) => ({ ...SAMPLE_COMPANY, id: `co_${i}`, name: `Company ${i}` })) })
+    const campaign = {
+      id: 'cmp_smoke_1',
+      userId: 'demo',
+      name: 'Smoke campaign',
+      subject: 'hi',
+      status: 'ACTIVE' as const,
+      templateId: SAMPLE_TEMPLATE.id,
+      filterTags: [],
+      filterRegion: null,
+      filterStage: null,
+      filterBatch: null,
+      filterIsHiring: null,
+      filterHeadcountMin: null,
+      filterHeadcountMax: null,
+      batchSize: 10,
+      currentBatch: 0,
+      tone: null,
+      attachmentIds: [],
+      scheduledAt: null,
+      template: { id: SAMPLE_TEMPLATE.id, name: SAMPLE_TEMPLATE.name },
+      includePreviouslySaved: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    await mockApi(page, {
+      campaigns: [campaign],
+      templates: [SAMPLE_TEMPLATE],
+      companies: Array.from({ length: 5 }, (_, i) => ({ ...SAMPLE_COMPANY, id: `co_${i}`, name: `Company ${i}` })),
+    })
     await page.route('**/api/apollo-search', route => {
       if (route.request().method() === 'POST') apolloSearchCount += 1
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ previews: [], companyId: 'x' }) })
     })
 
-    await page.goto('/leads')
+    await page.goto(`/campaigns/${campaign.id}/leads`)
     await page.waitForLoadState('networkidle')
 
     // Background loop used to fire one POST per company. With the fix, it only fires when

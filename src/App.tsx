@@ -1,19 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { AlertCircle, Home, Search, Users, Mail, FileText, Settings as SettingsIcon, Inbox, ChevronLeft } from 'lucide-react'
+import { AlertCircle, Home, FileText, Settings as SettingsIcon, ChevronLeft } from 'lucide-react'
 import Badge from './components/ui/Badge'
 import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
-import DashboardTab from './components/Dashboard/DashboardTab'
 import HomePage from './components/Home/HomePage'
-import LeadDiscoveryTab from './components/LeadDiscovery/LeadDiscoveryTab'
-import CampaignsTab from './components/Campaigns/CampaignsTab'
-import ContactsTab from './components/Contacts/ContactsTab'
 import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
-import DraftsTab from './components/Drafts/DraftsTab'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
 import WorkspaceShell from './components/Workspace/WorkspaceShell'
 import {
@@ -33,27 +28,29 @@ import {
   fetchLeads, updateLead, deleteLead,
   fetchCustomContacts, createCustomContact, updateCustomContact, deleteCustomContact,
   apiGetAuth,
-  fetchCompanies as apiFetchCompanies,
-  fetchCampaignOptions,
 } from './lib/api'
 
 // Campaign status case conversion is now sealed inside src/lib/api.ts.
 // The wire format never leaks past that seam.
 
-// Per redesign PRD the global sidebar settles on Home / Templates / Settings.
-// Discover / Contacts / Drafts / Campaigns stay listed for now because their
-// functionality has not yet moved into the campaign workspace (Phase 3-4).
-// Once that lands the four middle entries can be removed and the routes
-// become pure campaign-scoped sub-tabs.
+// Per the redesign PRD the global sidebar is Home / Templates / Settings.
+// Per-campaign work lives inside the workspace at /campaigns/:id/* — the
+// legacy top-level Discover / Contacts / Drafts / Campaigns surfaces were
+// retired in Phase 4e and old bookmarks redirect to /dashboard via the
+// catch-all route below.
 const TABS = [
   { id: 'dashboard', label: 'Home', icon: Home, path: '/dashboard' },
-  { id: 'campaigns', label: 'Campaigns', icon: Mail, path: '/campaigns' },
-  { id: 'leads', label: 'Discover', icon: Search, path: '/leads' },
-  { id: 'contacts', label: 'Contacts', icon: Users, path: '/contacts' },
-  { id: 'drafts', label: 'Drafts', icon: Inbox, path: '/drafts' },
   { id: 'templates', label: 'Templates', icon: FileText, path: '/templates' },
   { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
 ]
+
+const WORKSPACE_SUB_TAB_LABEL: Record<string, string> = {
+  overview: 'Overview',
+  leads: 'Leads',
+  drafts: 'Drafts',
+  sent: 'Sent',
+  settings: 'Settings',
+}
 
 const getOnboardingStorageKey = (user) => {
   if (!user) return null
@@ -154,11 +151,17 @@ function AppShell() {
       .catch(() => { setProfileLoading(false) })
   }, [])
 
-  const activeTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
-  const activeTab = activeTabItem.id
-
-  // In campaign mode: hide Dashboard (not needed mid-workflow). All other tabs always visible.
-  const visibleTabs = TABS.filter(t => !(activeCampaign && t.id === 'dashboard'))
+  // Workspace routes (`/campaigns/:id/<sub>`) live outside the global TABS
+  // list — derive the active label from the URL segment so the top bar still
+  // reads correctly inside a campaign workspace.
+  const workspaceSubTabMatch = location.pathname.match(/^\/campaigns\/[^/]+\/([^/]+)/)
+  const workspaceSubTabKey = workspaceSubTabMatch?.[1] ?? null
+  const isInsideWorkspace = !!workspaceSubTabKey
+  const globalTabItem = TABS.find(t => location.pathname.startsWith(t.path)) || TABS[0]
+  const activeTab = isInsideWorkspace ? null : globalTabItem.id
+  const activeTabLabel = isInsideWorkspace
+    ? (WORKSPACE_SUB_TAB_LABEL[workspaceSubTabKey ?? ''] ?? '')
+    : globalTabItem.label
 
   // Full campaign record for the active campaign (filter data, status, etc.)
   const activeCampaignFull = activeCampaign
@@ -397,34 +400,6 @@ function AppShell() {
       data: { templates, campaigns, leads, customContacts },
     })
   }, [campaigns, customContacts, dataLoaded, leads, templates, user])
-
-  // Prefetch Discover page data in the background so the tab is populated on first visit.
-  useEffect(() => {
-    if (!dataLoaded) return
-    const existing = (() => { try { return JSON.parse(sessionStorage.getItem('cf_discover_state') || 'null') } catch { return null } })()
-    if (existing?.companies?.length > 0) return
-    Promise.all([
-      apiFetchCompanies({ limit: 20, random: 'true' }),
-      fetchCampaignOptions(),
-    ]).then(([companiesData, options]) => {
-      try {
-        sessionStorage.setItem('cf_discover_state', JSON.stringify({
-          companies: companiesData.items ?? [],
-          nextCursor: companiesData.nextCursor ?? null,
-          hasMore: companiesData.hasMore ?? false,
-          meta: { seenTotal: companiesData.seenTotal ?? 0, usingFallback: companiesData.usingFallback ?? false },
-          search: '',
-          isHiring: false,
-          regionFilter: null,
-          selectedTags: [],
-          tagOptions: options.tags || {},
-          hiringCount: options.hiringCount ?? null,
-          regionCounts: { us: options.usCount ?? null, intl: options.intlCount ?? null, remote: options.remoteCount ?? null },
-          pageSize: 20,
-        }))
-      } catch {}
-    }).catch(() => {})
-  }, [dataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Templates ──
   const createTemplateHandler = async (data) => {
@@ -761,7 +736,7 @@ function AppShell() {
       <div className="dashboard-backdrop fixed inset-0" />
       <Sidebar
         activeTab={activeTab}
-        tabs={visibleTabs}
+        tabs={TABS}
         onTabChange={handleTabChange}
       />
 
@@ -803,12 +778,12 @@ function AppShell() {
                 )}
               </div>
               <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-muted md:block">
-                {activeTabItem.label}
+                {activeTabLabel}
               </span>
             </>
           ) : (
             <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
-              {activeTabItem.label}
+              {activeTabLabel}
             </h1>
           )}
         </div>
@@ -837,24 +812,6 @@ function AppShell() {
                   onEnterCampaign={enterCampaign}
                 />
               } />
-              <Route path="/dashboard-legacy" element={
-                <DashboardTab
-                  workspaceConfig={workspaceConfig}
-                  profile={serverProfile}
-                  profileLoading={profileLoading}
-                  onNavigate={handleTabChange}
-                  onConnectGoogle={connectGoogle}
-                />
-              } />
-              <Route path="/campaigns" element={
-                <CampaignsTab
-                  workspaceConfig={workspaceConfig}
-                  onNavigate={handleTabChange}
-                  onEnterCampaign={enterCampaign}
-                  activeCampaign={activeCampaign}
-                  exitCampaign={exitCampaign}
-                />
-              } />
               <Route path="/campaigns/:id" element={<WorkspaceShell onCampaignActive={setWorkspaceActiveCampaign} workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />}>
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<WorkspaceOverview />} />
@@ -864,22 +821,6 @@ function AppShell() {
                 <Route path="settings" element={<WorkspaceSettings />} />
                 <Route path="*" element={<Navigate to="overview" replace />} />
               </Route>
-              <Route path="/leads" element={
-                <LeadDiscoveryTab
-                  workspaceConfig={workspaceConfig}
-                  onNavigate={handleTabChange}
-                  activeCampaign={activeCampaign}
-                  onExitCampaign={exitCampaign}
-                  campaignFilters={activeCampaignFull}
-                />
-              } />
-              <Route path="/contacts" element={
-                <ContactsTab
-                  workspaceConfig={workspaceConfig}
-                  onNavigate={handleTabChange}
-                />
-              } />
-              <Route path="/drafts" element={<DraftsTab onNavigate={handleTabChange} workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />} />
               <Route path="/templates" element={
                 <TemplatesTab workspaceConfig={workspaceConfig} />
               } />
