@@ -247,6 +247,16 @@ export const generateCampaignBatch = (campaignId: string) =>
 export const resetCampaignSeen = (campaignId: string) =>
   request<{ reset: true }>(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
 export const fetchCampaignOptions = () => request<CampaignOptions>('/campaign-options')
+
+export const queryAudience = (
+  audience: import('../types/audience').Audience,
+  excludePreviouslySaved = true,
+) =>
+  request<{ count: number; sample: string[] }>('/audience-query', {
+    method: 'POST',
+    body: JSON.stringify({ audience, excludePreviouslySaved }),
+  })
+
 export const fetchCampaignLeads = (campaignId: string) =>
   request<PageResponse<UserLead>>(`/campaign-leads${qs({ campaignId })}`)
 export const addCampaignLead = (campaignId: string, userLeadId: string) =>

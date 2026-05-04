@@ -73,6 +73,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
+    includePreviouslySaved,
   } = body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
 
@@ -106,6 +107,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
       attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [],
+      includePreviouslySaved: typeof includePreviouslySaved === "boolean" ? includePreviouslySaved : false,
     },
     include: {
       template: { select: { id: true, name: true } },
@@ -120,6 +122,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
     id, name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
     filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
+    includePreviouslySaved,
   } = body ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
 
@@ -162,6 +165,9 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
       ...(attachmentIds !== undefined && { attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [] }),
+      ...(includePreviouslySaved !== undefined && {
+        includePreviouslySaved: typeof includePreviouslySaved === "boolean" ? includePreviouslySaved : false,
+      }),
     },
     include: {
       template: { select: { id: true, name: true } },

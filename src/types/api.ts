@@ -109,6 +109,7 @@ export interface Campaign {
   currentBatch: number
   tone: string | null
   attachmentIds: string[]
+  includePreviouslySaved: boolean
   createdAt: string
   updatedAt: string
 }

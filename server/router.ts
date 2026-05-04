@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import apolloSearch from "./routes/apollo-search.js";
+import audienceQuery from "./routes/audience-query.js";
 import campaignBatch from "./routes/campaign-batch.js";
 import campaignLeads from "./routes/campaign-leads.js";
 import campaignOptions from "./routes/campaign-options.js";
@@ -42,6 +43,7 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/campaign-leads": campaignLeads,
   "/api/campaign-options": campaignOptions,
   "/api/apollo-search": apolloSearch,
+  "/api/audience-query": audienceQuery,
   "/api/industries": industries,
   "/api/style-guide": styleGuide,
 };

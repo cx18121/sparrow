@@ -1,0 +1,1 @@
+ALTER TABLE "Campaign" ADD COLUMN IF NOT EXISTS "includePreviouslySaved" BOOLEAN NOT NULL DEFAULT false;

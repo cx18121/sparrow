@@ -31,9 +31,9 @@ model Company {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  contacts     Contact[]
-  userLeads    UserLead[]
-  campaignSeen CampaignSeenCompany[]
+  contacts      Contact[]
+  userLeads     UserLead[]
+  campaignSeen  CampaignSeenCompany[]
   discoverySeen DiscoverySeenCompany[]
 
   @@index([stage])
@@ -158,28 +158,33 @@ model Template {
 }
 
 model Campaign {
-  id                 String         @id @default(cuid())
-  userId             String
-  name               String
-  subject            String?
-  status             CampaignStatus @default(DRAFT)
-  templateId         String?
-  template           Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  scheduledAt        DateTime?
-  filterIndustry     String?
-  filterRegion       String?
-  filterStage        String?
-  filterBatch        String?
-  filterIsHiring     Boolean?
-  filterHeadcountMin Int?
-  filterHeadcountMax Int?
-  filterTags         String[]
-  batchSize          Int            @default(10)
-  currentBatch       Int            @default(0)
-  tone               String?
-  attachmentIds      Json           @default("[]")
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                     String         @id @default(cuid())
+  userId                 String
+  name                   String
+  subject                String?
+  status                 CampaignStatus @default(DRAFT)
+  templateId             String?
+  template               Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  scheduledAt            DateTime?
+  filterIndustry         String?
+  filterRegion           String?
+  filterStage            String?
+  filterBatch            String?
+  filterIsHiring         Boolean?
+  filterHeadcountMin     Int?
+  filterHeadcountMax     Int?
+  filterTags             String[]
+  batchSize              Int            @default(10)
+  currentBatch           Int            @default(0)
+  tone                   String?
+  attachmentIds          Json           @default("[]")
+  // When false (default), batch generation excludes companies the user has
+  // already saved in any other campaign. Toggle exposed in the create wizard
+  // (Step 2) and the campaign settings sub-tab. Enforcement lives in
+  // server/lib/company-selection.ts.
+  includePreviouslySaved Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   seenCompanies CampaignSeenCompany[]
   leads         CampaignLead[]
