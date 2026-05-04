@@ -126,18 +126,18 @@ describe("templates route — POST", () => {
     expect(res.json).toHaveBeenCalledWith(newTemplate);
   });
 
-  it("persists verbatim:true when supplied; defaults to false otherwise", async () => {
+  it("defaults verbatim to true; honors explicit false", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     mockPrisma.template.create.mockResolvedValue({ id: "t-v" });
 
-    const reqVerbatim = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B", verbatim: true } });
-    await handler(reqVerbatim, makeRes());
+    const reqDefault = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B" } });
+    await handler(reqDefault, makeRes());
     expect(mockPrisma.template.create).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({ verbatim: true }),
     }));
 
-    const reqDefault = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B" } });
-    await handler(reqDefault, makeRes());
+    const reqExplicitFalse = makeReq({ method: "POST", body: { name: "V", subject: "S", body: "B", verbatim: false } });
+    await handler(reqExplicitFalse, makeRes());
     expect(mockPrisma.template.create).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({ verbatim: false }),
     }));

@@ -51,7 +51,9 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       subject: trimLimited(subject, 300),
       body: content.slice(0, 50_000),
       isShared: false,
-      verbatim: verbatim === true,
+      // Verbatim is the default for new templates — the user opts INTO
+      // AI-rewrite, not out of it. Explicit false stays respected.
+      verbatim: verbatim === false ? false : true,
     },
   });
   res.status(201).json(template);
