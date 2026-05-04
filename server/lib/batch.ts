@@ -10,7 +10,7 @@
 // Callers depend on the Batch interface, not on CampaignLead / CampaignSeenCompany
 // directly. The Prisma layout is an implementation detail.
 
-import { prisma } from "./prisma.js";
+import { prisma, type Db } from "./prisma.js";
 import { enrichContactFromDomain } from "./apollo-enrichment.js";
 import { selectCandidateIds } from "./company-selection.js";
 import { consumeDurableDailyQuota, QuotaError } from "./rate-limit.js";
@@ -29,8 +29,8 @@ export interface BatchHistory {
   seenTotal: number;
 }
 
-async function requireOwnedCampaign(campaignId: string, userId: string) {
-  const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+async function requireOwnedCampaign(campaignId: string, userId: string, db: Db = prisma) {
+  const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign || campaign.userId !== userId) throw new HttpError(404, "Campaign not found");
   return campaign;
 }
@@ -75,122 +75,146 @@ export const Batch = {
   // Generates the next Batch. Selects unseen companies via the Audience filters,
   // enriches each via Apollo if no Contact exists, creates UserLeads, and records
   // CampaignLeads under a new batch number. Advances Campaign.currentBatch.
+  //
+  // Bug 10H: serialized per-campaign via a Postgres advisory transaction lock.
+  // Concurrent generates against the same campaignId would otherwise:
+  //   - both read the same `currentBatch` and produce duplicate batch rows
+  //   - race on CampaignSeenCompany inserts and select overlapping companies
+  //   - double-spend Apollo reveal quota for the same domain
+  // pg_advisory_xact_lock waits for the lock; the second caller queues until
+  // the first finishes. The Apollo HTTP calls inside the txn are tolerated
+  // because the timeout is generous and per-campaign concurrency in this
+  // product is very low (one user, one click).
   async generate(
     campaignId: string,
     userId: string,
     apolloKey: string | null
   ): Promise<BatchValue> {
-    const campaign = await requireOwnedCampaign(campaignId, userId);
+    return prisma.$transaction(async (tx) => {
+      // hashtext returns int4 — the two-arg form pg_advisory_xact_lock(int4, int4)
+      // is the safest cross-DB choice. Using a single-arg int8 hash would be
+      // fine too, but hashtext is already a stable Postgres function and works
+      // without casting.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${campaignId}::text))`;
 
-    const newBatchNumber = campaign.currentBatch + 1;
-    const batchSize = Math.min(campaign.batchSize ?? 10, 50);
+      const campaign = await requireOwnedCampaign(campaignId, userId, tx);
 
-    const seen = await prisma.campaignSeenCompany.findMany({
-      where: { campaignId },
-      select: { companyId: true },
-    });
-    const seenIds = seen.map(s => s.companyId);
+      const newBatchNumber = campaign.currentBatch + 1;
+      const batchSize = Math.min(campaign.batchSize ?? 10, 50);
 
-    const { selectedIds, usingFallback } = await selectCandidateIds(
-      campaignId, campaign, seenIds, batchSize
-    );
+      const seen = await tx.campaignSeenCompany.findMany({
+        where: { campaignId },
+        select: { companyId: true },
+      });
+      const seenIds = seen.map(s => s.companyId);
 
-    if (selectedIds.length === 0) {
-      return {
-        leads: [], total: 0,
-        currentBatch: campaign.currentBatch,
-        seenTotal: seenIds.length,
-        usingFallback: false,
-      };
-    }
+      const { selectedIds, usingFallback } = await selectCandidateIds(
+        campaignId, campaign, seenIds, batchSize, tx
+      );
 
-    const companies = await prisma.company.findMany({
-      where: { id: { in: selectedIds } },
-      include: {
-        contacts: {
-          where: { email: { not: null } },
-          orderBy: { lastVerifiedAt: "desc" },
-          take: 1,
-          select: { id: true, name: true, email: true, title: true },
-        },
-      },
-    });
-
-    // Track which companies actually got a CampaignLead. We mark seen *after*
-    // the loop so a mid-loop failure (Apollo quota, Prisma error) doesn't
-    // permanently exclude companies for which no lead was created.
-    const successfullySeenIds: string[] = [];
-
-    const createdLeads = [];
-    for (const company of companies) {
-      let contact: { id: string; name: string | null; email: string | null; title: string | null } | null =
-        company.contacts[0] ?? null;
-      let apolloPersonId: string | null = null;
-
-      if (!contact && apolloKey && company.domain) {
-        try {
-          await consumeDurableDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50));
-        } catch (err) {
-          if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
-          throw err;
-        }
-        const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey);
-        contact = enriched.contact;
-        apolloPersonId = enriched.apolloPersonId;
+      if (selectedIds.length === 0) {
+        return {
+          leads: [], total: 0,
+          currentBatch: campaign.currentBatch,
+          seenTotal: seenIds.length,
+          usingFallback: false,
+        };
       }
 
-      const contactId = contact?.id ?? null;
-
-      let userLead = await prisma.userLead.findFirst({ where: { userId, companyId: company.id, contactId } });
-      if (!userLead) {
-        userLead = await prisma.userLead.create({
-          data: {
-            userId, companyId: company.id, contactId,
-            apolloPersonId: apolloPersonId ?? undefined,
-            status: "SAVED",
-            notes: `Added via campaign: ${campaign.name}`,
+      const companies = await tx.company.findMany({
+        where: { id: { in: selectedIds } },
+        include: {
+          contacts: {
+            where: { email: { not: null } },
+            orderBy: { lastVerifiedAt: "desc" },
+            take: 1,
+            select: { id: true, name: true, email: true, title: true },
           },
+        },
+      });
+
+      // Track which companies actually got a CampaignLead. We mark seen *after*
+      // the loop so a mid-loop failure (Apollo quota, Prisma error) doesn't
+      // permanently exclude companies for which no lead was created.
+      const successfullySeenIds: string[] = [];
+
+      const createdLeads = [];
+      for (const company of companies) {
+        let contact: { id: string; name: string | null; email: string | null; title: string | null } | null =
+          company.contacts[0] ?? null;
+        let apolloPersonId: string | null = null;
+
+        if (!contact && apolloKey && company.domain) {
+          try {
+            await consumeDurableDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50), tx);
+          } catch (err) {
+            if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
+            throw err;
+          }
+          const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey, tx);
+          contact = enriched.contact;
+          apolloPersonId = enriched.apolloPersonId;
+        }
+
+        const contactId = contact?.id ?? null;
+
+        let userLead = await tx.userLead.findFirst({ where: { userId, companyId: company.id, contactId } });
+        if (!userLead) {
+          userLead = await tx.userLead.create({
+            data: {
+              userId, companyId: company.id, contactId,
+              apolloPersonId: apolloPersonId ?? undefined,
+              status: "SAVED",
+              notes: `Added via campaign: ${campaign.name}`,
+            },
+          });
+        } else if (apolloPersonId && !userLead.apolloPersonId) {
+          await tx.userLead.update({ where: { id: userLead.id }, data: { apolloPersonId } });
+        }
+
+        await tx.campaignLead.upsert({
+          where: { campaignId_batchNumber_userLeadId: { campaignId, batchNumber: newBatchNumber, userLeadId: userLead.id } },
+          create: { campaignId, userLeadId: userLead.id, batchNumber: newBatchNumber },
+          update: {},
         });
-      } else if (apolloPersonId && !userLead.apolloPersonId) {
-        await prisma.userLead.update({ where: { id: userLead.id }, data: { apolloPersonId } });
+
+        successfullySeenIds.push(company.id);
+
+        createdLeads.push({
+          ...userLead,
+          emails: [],
+          company: {
+            id: company.id, name: company.name, domain: company.domain, oneLiner: company.oneLiner,
+            industry: company.industry, region: company.region, stage: company.stage,
+            batch: company.batch, isHiring: company.isHiring,
+          },
+          contact,
+        });
       }
 
-      await prisma.campaignLead.upsert({
-        where: { campaignId_batchNumber_userLeadId: { campaignId, batchNumber: newBatchNumber, userLeadId: userLead.id } },
-        create: { campaignId, userLeadId: userLead.id, batchNumber: newBatchNumber },
-        update: {},
-      });
+      if (!usingFallback && successfullySeenIds.length > 0) {
+        await tx.campaignSeenCompany.createMany({
+          data: successfullySeenIds.map(companyId => ({ campaignId, companyId })),
+          skipDuplicates: true,
+        });
+      }
 
-      successfullySeenIds.push(company.id);
+      await tx.campaign.update({ where: { id: campaignId }, data: { currentBatch: newBatchNumber } });
 
-      createdLeads.push({
-        ...userLead,
-        emails: [],
-        company: {
-          id: company.id, name: company.name, domain: company.domain, oneLiner: company.oneLiner,
-          industry: company.industry, region: company.region, stage: company.stage,
-          batch: company.batch, isHiring: company.isHiring,
-        },
-        contact,
-      });
-    }
-
-    if (!usingFallback && successfullySeenIds.length > 0) {
-      await prisma.campaignSeenCompany.createMany({
-        data: successfullySeenIds.map(companyId => ({ campaignId, companyId })),
-        skipDuplicates: true,
-      });
-    }
-
-    await prisma.campaign.update({ where: { id: campaignId }, data: { currentBatch: newBatchNumber } });
-
-    return {
-      leads: createdLeads,
-      total: createdLeads.length,
-      currentBatch: newBatchNumber,
-      seenTotal: usingFallback ? seenIds.length : seenIds.length + successfullySeenIds.length,
-      usingFallback,
-    };
+      return {
+        leads: createdLeads,
+        total: createdLeads.length,
+        currentBatch: newBatchNumber,
+        seenTotal: usingFallback ? seenIds.length : seenIds.length + successfullySeenIds.length,
+        usingFallback,
+      };
+    }, {
+      // Apollo enrichment can take several seconds per company; a worst-case
+      // batch of 50 with all-empty contact rows is theoretically minutes, so
+      // give the txn enough headroom while still capping accidental runaway.
+      timeout: 120_000,
+      maxWait: 10_000,
+    });
   },
 
   // Reads the most recently generated batch.

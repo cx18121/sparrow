@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import { prisma, type Db } from "./prisma.js";
 import { audienceFromCampaign, audienceToPrismaWhere, buildTagFilters, type CampaignFilters } from "./audience-query.js";
 
 export type { CampaignFilters };
@@ -26,9 +26,10 @@ export async function selectCandidateIds(
   campaignId: string,
   campaign: CampaignFilters,
   seenIds: string[],
-  batchSize: number
+  batchSize: number,
+  db: Db = prisma
 ): Promise<{ selectedIds: string[]; usingFallback: boolean }> {
-  const existingLeads = await prisma.campaignLead.findMany({
+  const existingLeads = await db.campaignLead.findMany({
     where: { campaignId },
     select: { userLead: { select: { companyId: true } } },
   });
@@ -39,14 +40,14 @@ export async function selectCandidateIds(
 
   const baseWhere = buildCampaignWhere(campaign);
 
-  let candidates = await prisma.company.findMany({
+  let candidates = await db.company.findMany({
     where: { ...baseWhere, ...(excludedIds.length > 0 && { id: { notIn: excludedIds } }) },
     select: { id: true },
   });
 
   const usingFallback = candidates.length === 0;
   if (usingFallback) {
-    candidates = await prisma.company.findMany({ where: baseWhere, select: { id: true } });
+    candidates = await db.company.findMany({ where: baseWhere, select: { id: true } });
   }
 
   return {

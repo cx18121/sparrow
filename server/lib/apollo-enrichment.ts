@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import { prisma, type Db } from "./prisma.js";
 import { revealPerson, enrichDomain } from "./apollo.js";
 
 // Workflow helpers that combine Apollo HTTP primitives with DB writes.
@@ -24,11 +24,12 @@ interface RevealShape {
 // for whatever HTTP/credit cost produced the reveal.
 export async function upsertContactFromReveal(
   reveal: RevealShape,
-  companyId: string
+  companyId: string,
+  db: Db = prisma
 ): Promise<SavedContact | null> {
   if (!reveal.email) return null;
 
-  const saved = await prisma.contact.upsert({
+  const saved = await db.contact.upsert({
     where: { email: reveal.email },
     create: {
       companyId,
@@ -57,11 +58,12 @@ export async function upsertContactFromReveal(
 export async function enrichContactFromDomain(
   domain: string,
   companyId: string,
-  apiKey: string
+  apiKey: string,
+  db: Db = prisma
 ): Promise<{ contact: SavedContact | null; apolloPersonId: string | null }> {
   const enriched = await enrichDomain(domain, apiKey);
   if (!enriched) return { contact: null, apolloPersonId: null };
-  const contact = await upsertContactFromReveal(enriched, companyId);
+  const contact = await upsertContactFromReveal(enriched, companyId, db);
   return { contact, apolloPersonId: enriched.personId };
 }
 

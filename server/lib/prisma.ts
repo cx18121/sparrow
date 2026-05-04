@@ -1,5 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+// Either the singleton client or the transactional client passed by
+// `prisma.$transaction(async tx => ...)`. Helpers that need to participate
+// in a caller's transaction take a `Db` arg that defaults to the singleton.
+export type Db = PrismaClient | Prisma.TransactionClient;
 
 // Serverless-safe singleton: cache the client across warm invocations
 // in the same Lambda container via globalThis. Each cold start creates

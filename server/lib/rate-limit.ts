@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import { prisma, type Db } from "./prisma.js";
 
 type DailyBucket = Record<string, number> & { day: string };
 
@@ -38,10 +38,11 @@ export async function consumeDurableDailyQuota(
   subjectId: string,
   action: string,
   limit: number,
+  db: Db = prisma,
 ): Promise<void> {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
   const day = todayKey();
-  const row = await prisma.dailyQuota.upsert({
+  const row = await db.dailyQuota.upsert({
     where: {
       scope_subjectId_action_day: { scope, subjectId, action, day },
     },
