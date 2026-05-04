@@ -690,58 +690,56 @@ function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen bg-surface md:h-screen md:overflow-hidden">
-      <div className="dashboard-backdrop fixed inset-0" />
-      <Sidebar
-        activeTab={activeTab}
-        tabs={TABS}
-        onTabChange={handleTabChange}
-      />
+    <AppDataProvider value={{
+      campaigns, leads, customContacts, templates,
+      dataLoaded, hasResourceCache,
+      createCampaign: createCampaignHandler,
+      updateCampaign: updateCampaignHandler,
+      deleteCampaign: deleteCampaignHandler,
+      refreshLeads,
+      updateLead: updateLeadHandler,
+      deleteLead: deleteLeadHandler,
+      createCustomContact: createCustomContactHandler,
+      updateCustomContact: updateCustomContactHandler,
+      deleteCustomContact: deleteCustomContactHandler,
+      createTemplate: createTemplateHandler,
+      updateTemplate: updateTemplateHandler,
+      deleteTemplate: deleteTemplateHandler,
+    }}>
+      <div className="flex min-h-screen bg-surface md:h-screen md:overflow-hidden">
+        <div className="dashboard-backdrop fixed inset-0" />
+        <Sidebar
+          activeTab={activeTab}
+          tabs={TABS}
+          onTabChange={handleTabChange}
+        />
 
-      <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
-        {resourceFetchErrors.length > 0 && (
-          <div className="px-4 pt-3 sm:px-6 lg:px-8">
-            <Banner variant="warning" icon={AlertCircle}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  Some data could not refresh ({resourceFetchErrors.join(', ')}). Showing cached results.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setResourceLoadCount(n => n + 1)}
-                  className="shrink-0 text-xs font-semibold underline-offset-2 hover:underline"
-                >
-                  Retry
-                </button>
-              </div>
-            </Banner>
-          </div>
-        )}
-        {!isInsideWorkspace && (
-          <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-            <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
-              {activeTabLabel}
-            </h1>
-          </div>
-        )}
-        <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
-          <AppDataProvider value={{
-            campaigns, leads, customContacts, templates,
-            dataLoaded, hasResourceCache,
-            createCampaign: createCampaignHandler,
-            updateCampaign: updateCampaignHandler,
-            deleteCampaign: deleteCampaignHandler,
-            refreshLeads,
-            updateLead: updateLeadHandler,
-            deleteLead: deleteLeadHandler,
-            createCustomContact: createCustomContactHandler,
-            updateCustomContact: updateCustomContactHandler,
-            deleteCustomContact: deleteCustomContactHandler,
-            createTemplate: createTemplateHandler,
-            updateTemplate: updateTemplateHandler,
-            deleteTemplate: deleteTemplateHandler,
-          }}>
-          <Routes>
+        <main className="relative z-10 flex-1 overflow-y-auto pb-24 md:pb-0">
+          {resourceFetchErrors.length > 0 && (
+            <div className="px-4 pt-3 sm:px-6 lg:px-8">
+              <Banner variant="warning" icon={AlertCircle}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Some data could not refresh ({resourceFetchErrors.join(', ')}). Showing cached results.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setResourceLoadCount(n => n + 1)}
+                    className="shrink-0 text-xs font-semibold underline-offset-2 hover:underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </Banner>
+            </div>
+          )}
+          {/* The previous sticky header bar (h-14, bg-neutral-100/90) sat at
+              the top of every non-workspace surface and just repeated the
+              active tab label. The sidebar already conveys which tab is
+              active and the page content carries its own title, so the bar
+              was visual noise. Removed. */}
+          <div className="flex min-h-screen flex-col">
+            <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
                 <HomePage workspaceConfig={workspaceConfig} />
@@ -773,25 +771,25 @@ function AppShell() {
               } />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
-          </AppDataProvider>
-          <footer className="mt-auto py-6 text-center text-xs text-muted">
-            Made by{' '}
-            <a
-              href="https://www.cornellgenai.dev/"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              Cornell Generative AI
-            </a>
-            <span className="mx-2 opacity-40">·</span>
-            <a href="/privacy" className="transition-colors hover:text-dark">Privacy Policy</a>
-            <span className="mx-2 opacity-40">·</span>
-            <a href="/terms" className="transition-colors hover:text-dark">Terms of Service</a>
-          </footer>
-        </div>
-      </main>
-    </div>
+            <footer className="mt-auto py-6 text-center text-xs text-muted">
+              Made by{' '}
+              <a
+                href="https://www.cornellgenai.dev/"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                Cornell Generative AI
+              </a>
+              <span className="mx-2 opacity-40">·</span>
+              <a href="/privacy" className="transition-colors hover:text-dark">Privacy Policy</a>
+              <span className="mx-2 opacity-40">·</span>
+              <a href="/terms" className="transition-colors hover:text-dark">Terms of Service</a>
+            </footer>
+          </div>
+        </main>
+      </div>
+    </AppDataProvider>
   )
 }
 

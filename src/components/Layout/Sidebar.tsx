@@ -1,6 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useAppData } from '../../contexts/AppDataContext'
+import type { UiCampaign } from '../../contexts/AppDataContext'
+import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Send } from 'lucide-react'
+
+// Sidebar layout (per the latest mockup):
+//   Brand row    : forest green circle + Send icon + Sparrow wordmark, no
+//                  bottom divider (the previous border-t was the "white bar"
+//                  that crowded the top).
+//   Main nav     : Home, Templates (Settings demoted to bottom rail).
+//   Campaigns    : Active and Paused campaigns surfaced inline so the user
+//                  can jump between them without bouncing through Home.
+//                  Click a campaign → its workspace overview.
+//   Bottom rail  : Settings + user avatar menu.
+//
+// Mobile bottom-nav stays unchanged — it carries the global tabs only.
+
+const STATUS_DOT: Record<UiCampaign['status'], string> = {
+  active: 'bg-primary',
+  paused: 'bg-amber-500',
+  completed: 'bg-warm-400',
+}
 
 export default function Sidebar({
   activeTab,
@@ -8,6 +29,9 @@ export default function Sidebar({
   onTabChange,
 }) {
   const { user, signOut } = useAuth()
+  const { campaigns } = useAppData()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropRef = useRef(null)
@@ -23,6 +47,21 @@ export default function Sidebar({
   const avatarUrl = user?.user_metadata?.avatar_url
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const mainTabs = tabs.filter(t => t.id !== 'settings')
+  const settingsTab = tabs.find(t => t.id === 'settings')
+
+  // Live-list campaigns: show Active first, then Paused. Completed campaigns
+  // are intentionally hidden from the sidebar to keep it about ongoing work
+  // (Home's grid surfaces Completed for users who want to revisit them).
+  // Optimistic temp-id rows (created via createCampaign before the server
+  // response arrives) are skipped — clicking them would 404 every workspace
+  // fetch since the server doesn't know that id yet.
+  const sidebarCampaigns = [
+    ...campaigns.filter(c => c.status === 'active' && !c.id.startsWith('temp-')),
+    ...campaigns.filter(c => c.status === 'paused' && !c.id.startsWith('temp-')),
+  ]
+  const activeCampaignId = location.pathname.match(/^\/campaigns\/([^/]+)/)?.[1] ?? null
 
   const renderTabButton = (tab) => {
     const isActive = activeTab === tab.id
@@ -45,16 +84,42 @@ export default function Sidebar({
     )
   }
 
+  const renderCampaignRow = (campaign: UiCampaign) => {
+    const isActive = activeCampaignId === campaign.id
+    return (
+      <button
+        key={campaign.id}
+        type="button"
+        onClick={() => navigate(`/campaigns/${campaign.id}/overview`)}
+        title={collapsed ? campaign.name : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        className={`group flex min-h-8 w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-all duration-150 ${
+          isActive
+            ? 'bg-warm-100 text-dark'
+            : 'text-muted hover:bg-accent/10 hover:text-dark'
+        } ${collapsed ? 'justify-center' : ''}`}
+      >
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[campaign.status]}`} aria-hidden />
+        {!collapsed && (
+          <span className="min-w-0 flex-1 truncate">{campaign.name}</span>
+        )}
+      </button>
+    )
+  }
+
   return (
     <>
     <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-accent/20 bg-[#F8F4ED] transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
-      {/* Logo row */}
+      {/* Brand row — forest green badge + wordmark. No divider underneath
+          (the previous border-t crowded the top). */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
-        <div className={`flex min-w-0 items-center ${collapsed ? 'justify-center' : ''}`}>
-          {collapsed
-            ? <span className="font-display text-lg font-semibold tracking-[-0.04em] text-primary">S</span>
-            : <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
-          }
+        <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-[0_4px_12px_rgba(85,122,87,0.22)]">
+            <Send size={14} className="-rotate-12" />
+          </span>
+          {!collapsed && (
+            <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
+          )}
         </div>
         {!collapsed && (
           <button
@@ -78,17 +143,41 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="mx-3 border-t border-accent/15" />
+      {/* Main nav */}
+      <nav className="flex-1 overflow-y-auto px-2 pt-2 pb-3">
+        <div className="space-y-0.5">
+          {mainTabs.map(renderTabButton)}
+        </div>
 
-      {/* Nav — Settings stays in the main rail so the three items have rhythm
-          rather than orphaning Settings to the bottom. The bottom rail now
-          carries only the user identity menu. */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {tabs.map(renderTabButton)}
+        {/* Campaigns inline list. Hidden when collapsed (no useful affordance
+            without the names). Shows up to 8 active+paused before scrolling
+            inside the nav container. */}
+        {!collapsed && sidebarCampaigns.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-1.5 flex items-center justify-between px-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/70">
+                Campaigns
+              </span>
+            </div>
+            <div className="space-y-0">
+              {sidebarCampaigns.slice(0, 8).map(renderCampaignRow)}
+              {sidebarCampaigns.length > 8 && (
+                <button
+                  type="button"
+                  onClick={() => onTabChange('dashboard')}
+                  className="mt-1 px-2.5 py-1 text-[11px] font-medium text-muted hover:text-dark"
+                >
+                  View all ({sidebarCampaigns.length}) →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* Bottom — user menu only */}
-      <div className="shrink-0 border-t border-accent/15 px-2 py-2">
+      {/* Bottom — Settings + user menu */}
+      <div className="shrink-0 border-t border-accent/15 px-2 py-2 space-y-0.5">
+        {settingsTab && renderTabButton(settingsTab)}
         {user && (
           <div className="relative" ref={dropRef}>
             <button
