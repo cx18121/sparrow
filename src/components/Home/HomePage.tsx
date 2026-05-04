@@ -82,11 +82,22 @@ interface CampaignCardProps {
 function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
   const audience = audienceToDisplayPills(audienceFromCampaign(campaign)).slice(0, 3).join(' · ')
   const status = campaign.status
+  // Optimistic temp-id rows are pre-server commit. Letting them be clicked
+  // navigates to a workspace URL the server doesn't know about, and every
+  // fetch the workspace makes 404s. Render them muted + non-clickable until
+  // the real id arrives (typically a sub-second swap).
+  const isOptimistic = campaign.id.startsWith('temp-')
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full flex-col gap-3 rounded-2xl border border-warm-200 bg-panel px-5 py-4 text-left transition-all duration-150 hover:border-primary/30 hover:bg-warm-50"
+      disabled={isOptimistic}
+      aria-busy={isOptimistic || undefined}
+      className={`group flex w-full flex-col gap-3 rounded-2xl border border-warm-200 bg-panel px-5 py-4 text-left transition-all duration-150 ${
+        isOptimistic
+          ? 'cursor-progress opacity-60'
+          : 'hover:border-primary/30 hover:bg-warm-50'
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <Pill variant={STATUS_VARIANT[status]} dot>{STATUS_LABEL[status]}</Pill>
@@ -103,7 +114,7 @@ function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
         <div className="text-right text-sm font-medium tabular-nums text-dark">{campaign.batchSize ?? 10}</div>
       </div>
       <div className="flex items-center justify-between gap-3 text-xs text-muted">
-        <span>{formatRelative(campaign.updatedAt)}</span>
+        <span>{isOptimistic ? 'Saving…' : formatRelative(campaign.updatedAt)}</span>
         {templateName && <span className="truncate">{templateName}</span>}
       </div>
     </button>

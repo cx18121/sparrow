@@ -15,6 +15,14 @@ import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
 import DraftsTab from './components/Drafts/DraftsTab'
 import OnboardingScreen from './components/Onboarding/OnboardingScreen'
+import WorkspaceShell from './components/Workspace/WorkspaceShell'
+import {
+  OverviewTab as WorkspaceOverview,
+  LeadsTab as WorkspaceLeads,
+  DraftsSubTab as WorkspaceDrafts,
+  SentTab as WorkspaceSent,
+  SettingsTab as WorkspaceSettings,
+} from './components/Workspace/sub-tabs'
 
 import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
@@ -163,10 +171,15 @@ function AppShell() {
   }
 
   const enterCampaign = useCallback((campaign: { id: string; name: string }) => {
+    // Optimistic temp-id campaigns aren't persisted on the server yet —
+    // navigating into one would 404 every fetch the workspace makes. The
+    // optimistic row in Home / list views is rendered as non-clickable;
+    // this is a defense-in-depth guard for any path that calls in.
+    if (campaign.id.startsWith('temp-')) return
     const entry = { id: campaign.id, name: campaign.name }
     try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
     setActiveCampaign(entry)
-    navigate('/campaigns')
+    navigate(`/campaigns/${campaign.id}/overview`)
   }, [navigate])
 
   const exitCampaign = useCallback(() => {
@@ -174,6 +187,19 @@ function AppShell() {
     setActiveCampaign(null)
     navigate('/campaigns')
   }, [navigate])
+
+  // Workspace shell pushes URL-derived activeness back up so legacy tabs
+  // (Discover) keep their per-campaign scoping. Removed in Phase 4.
+  const setWorkspaceActiveCampaign = useCallback((entry: { id: string; name: string } | null) => {
+    if (entry) {
+      try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
+      setActiveCampaign(prev => prev?.id === entry.id ? prev : entry)
+    } else {
+      // Don't blow away the legacy state on workspace unmount — Discover
+      // and other legacy tabs still rely on it. Phase 4 deletes both
+      // halves at once.
+    }
+  }, [])
 
   // Only the Google-OAuth-callback query params actually feed the onboarding
   // gate. Reading these out here narrows the effect's deps so it doesn't
@@ -829,6 +855,15 @@ function AppShell() {
                   exitCampaign={exitCampaign}
                 />
               } />
+              <Route path="/campaigns/:id" element={<WorkspaceShell onCampaignActive={setWorkspaceActiveCampaign} />}>
+                <Route index element={<Navigate to="overview" replace />} />
+                <Route path="overview" element={<WorkspaceOverview />} />
+                <Route path="leads" element={<WorkspaceLeads />} />
+                <Route path="drafts" element={<WorkspaceDrafts />} />
+                <Route path="sent" element={<WorkspaceSent />} />
+                <Route path="settings" element={<WorkspaceSettings />} />
+                <Route path="*" element={<Navigate to="overview" replace />} />
+              </Route>
               <Route path="/leads" element={
                 <LeadDiscoveryTab
                   workspaceConfig={workspaceConfig}

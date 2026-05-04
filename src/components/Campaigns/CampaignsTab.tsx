@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
   Zap, RotateCcw, Building2, MapPin, Users, Mail,
@@ -47,7 +48,21 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const [campaignLeads, setCampaignLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
 
-  // Detail view is driven by the global activeCampaign prop, not local state.
+  // Phase 3: the per-campaign detail surface moved to /campaigns/:id/*
+  // (the WorkspaceShell). If we land here with an activeCampaign still set
+  // — typically because sessionStorage survived a refresh — push the user
+  // to the workspace instead of rendering the legacy detail branch below.
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (activeCampaign?.id) {
+      navigate(`/campaigns/${activeCampaign.id}/overview`, { replace: true })
+    }
+  }, [activeCampaign?.id, navigate])
+
+  // Detail view is driven by the global activeCampaign prop. Phase 3 redirects
+  // away before this branch can render (see effect above), so detailCampaign
+  // is effectively always null in production. Phase 4 deletes the branch
+  // outright once the workspace owns its content.
   const detailCampaign = activeCampaign
     ? campaigns.find(c => c.id === activeCampaign.id) || null
     : null
