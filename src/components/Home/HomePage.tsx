@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight, FileText, Plus, Send, Sparkles, Users,
 } from 'lucide-react'
@@ -12,9 +13,10 @@ import CreateCampaignWizard, { submissionToCampaignPayload, type WizardSubmissio
 import type { CampaignOptions } from '../../types/api'
 
 // Phase 1 stood up the new campaigns-first surface; Phase 2 replaces the
-// modal-based campaign creator with the full-screen 4-step wizard. The other
-// top-level tabs (Discover, Contacts, Drafts, Templates) remain reachable
-// from the sidebar until Phase 4 folds them into the campaign workspace.
+// modal-based campaign creator with the full-screen 4-step wizard. Phase 4e
+// retired the Discover / Contacts / Drafts / Campaigns top-level surfaces —
+// per-campaign work now lives entirely inside the workspace at
+// /campaigns/:id/* and Home navigates straight there via useNavigate().
 
 const EMPTY_OPTIONS: CampaignOptions = {
   industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0,
@@ -157,10 +159,17 @@ function WelcomeCard({ name, onCreate }: { name: string; onCreate: () => void })
 
 interface HomePageProps {
   workspaceConfig: { senderName?: string; templateId?: string | null }
-  onEnterCampaign: (c: { id: string; name: string }) => void
 }
 
-export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageProps) {
+export default function HomePage({ workspaceConfig }: HomePageProps) {
+  const navigate = useNavigate()
+  // Optimistic temp-id rows aren't persisted server-side yet — clicking
+  // through would 404 every workspace fetch. The card itself is rendered as
+  // disabled in this case; this guard is defense in depth.
+  const enterCampaign = useCallback((campaign: { id: string; name: string }) => {
+    if (campaign.id.startsWith('temp-')) return
+    navigate(`/campaigns/${campaign.id}/overview`)
+  }, [navigate])
   const {
     campaigns, leads, customContacts, templates,
     dataLoaded, hasResourceCache,
@@ -242,7 +251,7 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
       }
       const created = await createCampaign(payload)
       setWizardOpen(false)
-      onEnterCampaign({ id: created.id, name: created.name })
+      enterCampaign({ id: created.id, name: created.name })
       return created
     } catch (err: any) {
       setToast({ type: 'error', title: 'Could not create campaign', message: err?.message || 'Try again.' })
@@ -332,7 +341,7 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
                 key={campaign.id}
                 campaign={campaign}
                 templateName={tpl?.name ?? null}
-                onClick={() => onEnterCampaign({ id: campaign.id, name: campaign.name })}
+                onClick={() => enterCampaign({ id: campaign.id, name: campaign.name })}
               />
             )
           })}

@@ -22,7 +22,6 @@ async function signInDemo(page: import('@playwright/test').Page) {
       updatedAt: new Date().toISOString(),
       data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
     }))
-    sessionStorage.removeItem('cf_active_campaign')
   })
 }
 

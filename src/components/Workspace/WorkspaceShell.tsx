@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Link, NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import Badge from '../ui/Badge'
@@ -6,13 +6,9 @@ import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 
 // Phase 3 of the campaigns-as-workspaces redesign. Provides the persistent
 // shell — header (campaign name, status, back-to-Home) + sub-tab nav — for
-// every per-campaign route. Each sub-tab is a placeholder for now; Phase 4
-// migrates the existing Discover/Drafts/Contacts content into the matching
-// sub-tabs.
-//
-// URL is the source of truth for "which campaign is active." We still keep
-// the legacy activeCampaign sessionStorage in App.tsx because Discover scopes
-// itself off it; that goes away when Phase 4 folds Discover into Leads.
+// every per-campaign route. Phase 4a-d migrated Discover/Drafts/Sent/Settings
+// into the workspace sub-tabs; Phase 4e retired the legacy top-level surfaces
+// so this URL is now the only way to enter a campaign.
 
 const SUB_TABS = [
   { key: 'overview', label: 'Overview' },
@@ -25,9 +21,6 @@ const SUB_TABS = [
 export type WorkspaceSubTab = typeof SUB_TABS[number]['key']
 
 interface WorkspaceShellProps {
-  // Sync the URL-derived active campaign back to App-level state so legacy
-  // tabs (Discover) keep working. Removed in Phase 4.
-  onCampaignActive: (campaign: { id: string; name: string } | null) => void
   // Forwarded into the outlet so sub-tabs that mount existing top-level
   // components (LeadDiscovery, Drafts, Settings) can pass it along.
   workspaceConfig: any
@@ -43,21 +36,12 @@ export interface WorkspaceOutletContext {
   profileLoading: boolean
 }
 
-export default function WorkspaceShell({ onCampaignActive, workspaceConfig, profile, profileLoading }: WorkspaceShellProps) {
+export default function WorkspaceShell({ workspaceConfig, profile, profileLoading }: WorkspaceShellProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { campaigns, dataLoaded } = useAppData()
 
   const campaign = id ? campaigns.find(c => c.id === id) : null
-
-  // Push the URL-driven campaign to App.tsx so legacy tabs see it.
-  // Clear when leaving a workspace.
-  useEffect(() => {
-    if (campaign) {
-      onCampaignActive({ id: campaign.id, name: campaign.name })
-    }
-    return () => onCampaignActive(null)
-  }, [campaign?.id, campaign?.name, onCampaignActive])
 
   if (!id) return <Navigate to="/dashboard" replace />
 

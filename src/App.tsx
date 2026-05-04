@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { AlertCircle, Home, FileText, Settings as SettingsIcon, ChevronLeft } from 'lucide-react'
-import Badge from './components/ui/Badge'
+import { AlertCircle, Home, FileText, Settings as SettingsIcon } from 'lucide-react'
 import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
@@ -138,9 +137,6 @@ function AppShell() {
   // Drives the "showing cached data" banner. Empty array = all healthy.
   const [resourceFetchErrors, setResourceFetchErrors] = useState<string[]>([])
   const [resourceLoadCount, setResourceLoadCount] = useState(0)
-  const [activeCampaign, setActiveCampaign] = useState<{ id: string; name: string } | null>(() => {
-    try { return JSON.parse(sessionStorage.getItem('cf_active_campaign') || 'null') } catch { return null }
-  })
 
   useEffect(() => { templatesRef.current = templates }, [templates])
 
@@ -163,46 +159,10 @@ function AppShell() {
     ? (WORKSPACE_SUB_TAB_LABEL[workspaceSubTabKey ?? ''] ?? '')
     : globalTabItem.label
 
-  // Full campaign record for the active campaign (filter data, status, etc.)
-  const activeCampaignFull = activeCampaign
-    ? campaigns.find(c => c.id === activeCampaign.id) ?? null
-    : null
-
   const handleTabChange = (tabId) => {
     const tab = TABS.find(t => t.id === tabId)
     if (tab) navigate(tab.path)
   }
-
-  const enterCampaign = useCallback((campaign: { id: string; name: string }) => {
-    // Optimistic temp-id campaigns aren't persisted on the server yet —
-    // navigating into one would 404 every fetch the workspace makes. The
-    // optimistic row in Home / list views is rendered as non-clickable;
-    // this is a defense-in-depth guard for any path that calls in.
-    if (campaign.id.startsWith('temp-')) return
-    const entry = { id: campaign.id, name: campaign.name }
-    try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
-    setActiveCampaign(entry)
-    navigate(`/campaigns/${campaign.id}/overview`)
-  }, [navigate])
-
-  const exitCampaign = useCallback(() => {
-    try { sessionStorage.removeItem('cf_active_campaign') } catch {}
-    setActiveCampaign(null)
-    navigate('/campaigns')
-  }, [navigate])
-
-  // Workspace shell pushes URL-derived activeness back up so legacy tabs
-  // (Discover) keep their per-campaign scoping. Removed in Phase 4.
-  const setWorkspaceActiveCampaign = useCallback((entry: { id: string; name: string } | null) => {
-    if (entry) {
-      try { sessionStorage.setItem('cf_active_campaign', JSON.stringify(entry)) } catch {}
-      setActiveCampaign(prev => prev?.id === entry.id ? prev : entry)
-    } else {
-      // Don't blow away the legacy state on workspace unmount — Discover
-      // and other legacy tabs still rely on it. Phase 4 deletes both
-      // halves at once.
-    }
-  }, [])
 
   // Only the Google-OAuth-callback query params actually feed the onboarding
   // gate. Reading these out here narrows the effect's deps so it doesn't
@@ -218,8 +178,6 @@ function AppShell() {
         sessionStorage.removeItem(`${previousOnboardingKeyRef.current}_editing`)
         previousOnboardingKeyRef.current = null
       }
-      try { sessionStorage.removeItem('cf_active_campaign') } catch {}
-      setActiveCampaign(null)
       setWorkspaceConfig(createWorkspaceConfig({ user: null, templates: templatesRef.current }))
       setOnboardingState({ loaded: true, completed: false, data: null })
       setServerProfile(null)
@@ -759,34 +717,13 @@ function AppShell() {
             </Banner>
           </div>
         )}
-        <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          {activeCampaign ? (
-            <>
-              <button
-                type="button"
-                onClick={exitCampaign}
-                className="flex shrink-0 items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-dark"
-              >
-                <ChevronLeft size={14} className="shrink-0" />
-                <span className="hidden sm:inline">All campaigns</span>
-              </button>
-              <div className="h-4 w-px shrink-0 bg-neutral-300" />
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="truncate font-semibold text-dark">{activeCampaign.name}</span>
-                {activeCampaignFull && (
-                  <Badge variant={activeCampaignFull.status}>{activeCampaignFull.status}</Badge>
-                )}
-              </div>
-              <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-muted md:block">
-                {activeTabLabel}
-              </span>
-            </>
-          ) : (
+        {!isInsideWorkspace && (
+          <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-neutral-200 bg-neutral-100/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
             <h1 className="truncate font-display text-lg font-semibold tracking-[-0.03em] text-dark sm:text-xl">
               {activeTabLabel}
             </h1>
-          )}
-        </div>
+          </div>
+        )}
         <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
           <AppDataProvider value={{
             campaigns, leads, customContacts, templates,
@@ -807,12 +744,9 @@ function AppShell() {
           <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
-                <HomePage
-                  workspaceConfig={workspaceConfig}
-                  onEnterCampaign={enterCampaign}
-                />
+                <HomePage workspaceConfig={workspaceConfig} />
               } />
-              <Route path="/campaigns/:id" element={<WorkspaceShell onCampaignActive={setWorkspaceActiveCampaign} workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />}>
+              <Route path="/campaigns/:id" element={<WorkspaceShell workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} />}>
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<WorkspaceOverview />} />
                 <Route path="leads" element={<WorkspaceLeads />} />
