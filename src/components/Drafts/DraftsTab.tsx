@@ -103,8 +103,27 @@ function writeDraftCache(tab, items) {
   }
 }
 
-export default function DraftsTab({ onNavigate, workspaceConfig, profile = null, profileLoading = true }) {
-  const [tab, setTab] = useState('draft')
+export default function DraftsTab({
+  onNavigate,
+  workspaceConfig,
+  profile = null,
+  profileLoading = true,
+  campaignId = null,
+  lockedTab = null,
+}: {
+  onNavigate?: ((tab: string) => void) | null
+  workspaceConfig?: any
+  profile?: any
+  profileLoading?: boolean
+  campaignId?: string | null
+  lockedTab?: 'draft' | 'sent' | null
+}) {
+  const [tab, setTab] = useState<'draft' | 'sent'>(lockedTab ?? 'draft')
+  // When lockedTab is set (workspace sub-tab usage), the segmented Drafts/Sent
+  // control is hidden and tab is forced. Each sub-tab owns its own URL.
+  useEffect(() => {
+    if (lockedTab && lockedTab !== tab) setTab(lockedTab)
+  }, [lockedTab, tab])
   const [reviewFilter, setReviewFilter] = useState('all')
   const [drafts, setDrafts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -138,6 +157,16 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelBatchRef = useRef(false)
 
+  // Refs that mirror state — read by async callbacks (the 5s setTimeout in
+  // scheduleSend, the per-send loop in markSent) so they always see the
+  // latest values instead of the snapshot captured when the action started.
+  // Fixes bug 04: a draft edited or deleted during the undo window would
+  // otherwise be sent with stale subject/body.
+  const draftsRef = useRef(drafts)
+  draftsRef.current = drafts
+  const previewRef = useRef(preview)
+  previewRef.current = preview
+
   useEffect(() => {
     if (profileLoading) return
     setGmailStatus(profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected')
@@ -157,7 +186,9 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
       setPreview(null)
       setLoading(true)
     }
-    fetchEmails({ status: tab, limit: '200' })
+    const params: Record<string, unknown> = { status: tab, limit: '200' }
+    if (campaignId) params.campaignId = campaignId
+    fetchEmails(params)
       .then(res => {
         if (cancelled) return
         const items = res?.items || []
@@ -171,7 +202,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [loadCount, tab])
+  }, [loadCount, tab, campaignId])
 
   useEffect(() => {
     if (!loading) writeDraftCache(tab, drafts)
@@ -363,8 +394,11 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
   const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
   const markSent = async (ids: string[]) => {
+    // Read drafts via ref — the caller may have queued this through a 5s
+    // setTimeout, during which the user could have edited or deleted drafts.
+    const currentDrafts = draftsRef.current
     const sendableIds = ids.filter(id => {
-      const draft = drafts.find(d => d.id === id)
+      const draft = currentDrafts.find(d => d.id === id)
       return draft && canSendDraft(draft)
     })
     const skippedCount = ids.length - sendableIds.length
@@ -410,7 +444,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
         setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
       } catch (err: any) {
         if (err?.status === 429) { hitDailyLimit = true; break }
-        const draft = drafts.find(d => d.id === id)
+        const draft = draftsRef.current.find(d => d.id === id)
         failures.push({
           name: getRecipientName(draft) || getCompanyName(draft) || 'Unknown',
           reason: err?.message || 'Send failed',
@@ -428,7 +462,8 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     // Fix: only treat as cancelled if it actually prevented remaining sends
     const wasCancelled = cancelBatchRef.current && succeeded.length < sendableIds.length
 
-    if (preview && succeeded.includes(preview.id)) {
+    const currentPreview = previewRef.current
+    if (currentPreview && succeeded.includes(currentPreview.id)) {
       setPreview(findNextReviewDraft(succeeded))
       setEditing(false)
     }
@@ -442,7 +477,8 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     } else if (hitDailyLimit) {
       setToast({ type: 'error', title: `Daily limit reached — ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
     } else if (succeeded.length > 0) {
-      const nextReviewDraft = succeeded.includes(preview?.id) ? findNextReviewDraft(succeeded) : null
+      const previewWasSent = currentPreview?.id ? succeeded.includes(currentPreview.id) : false
+      const nextReviewDraft = previewWasSent ? findNextReviewDraft(succeeded) : null
       setToast({
         type: 'success',
         title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
@@ -466,7 +502,7 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
 
   const scheduleSend = (ids: string[]) => {
     cancelPendingSend()
-    const targetDraft = ids.length === 1 ? drafts.find(d => d.id === ids[0]) : null
+    const targetDraft = ids.length === 1 ? draftsRef.current.find(d => d.id === ids[0]) : null
     const label = targetDraft ? getRecipientName(targetDraft) : null
     setToast({
       type: 'info',
@@ -478,7 +514,12 @@ export default function DraftsTab({ onNavigate, workspaceConfig, profile = null,
     pendingSendTimerRef.current = setTimeout(() => {
       pendingSendTimerRef.current = null
       setToast(null)
-      markSent(ids)
+      // Re-derive against current drafts at fire time — markSent already uses
+      // the ref, but filtering ids here drops any that were deleted during
+      // the undo window so we don't even attempt the network call.
+      const liveIds = ids.filter(id => draftsRef.current.some(d => d.id === id))
+      if (liveIds.length === 0) return
+      markSent(liveIds)
     }, 5000)
   }
 

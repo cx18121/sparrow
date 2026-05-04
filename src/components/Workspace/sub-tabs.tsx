@@ -1,8 +1,9 @@
 import React from 'react'
-import { useOutletContext } from 'react-router-dom'
-import { CalendarClock, FileText, Inbox, Send, Settings as SettingsIcon } from 'lucide-react'
+import { useNavigate, useOutletContext } from 'react-router-dom'
+import { CalendarClock, FileText, Send, Settings as SettingsIcon } from 'lucide-react'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
+import DraftsTab from '../Drafts/DraftsTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
@@ -87,11 +88,26 @@ export function LeadsTab() {
 }
 
 export function DraftsSubTab() {
+  const { campaign, workspaceConfig, profile, profileLoading } = useWorkspaceContext()
+  const navigate = useNavigate()
+  // Phase 4b: mount the existing Drafts queue scoped to this campaign.
+  // `lockedTab='draft'` hides the Drafts/Sent segmented control inside the
+  // component — the workspace already has Drafts and Sent as separate URLs,
+  // so the inner toggle would be redundant. The Sent sub-tab gets its own
+  // mount (still a placeholder until 4c).
   return (
-    <ComingSoonCard
-      icon={Inbox}
-      title="Drafts — generated emails waiting on your review"
-      body="The Drafts queue moves in here next, scoped to just this campaign's leads. Bulk-generate is being wired through useDraftFlow at the same time."
+    <DraftsTab
+      campaignId={campaign.id}
+      lockedTab="draft"
+      workspaceConfig={workspaceConfig}
+      profile={profile}
+      profileLoading={profileLoading}
+      onNavigate={(target) => {
+        // Empty-state CTAs jump to the matching workspace sub-tab.
+        if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
+        else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
+        else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
+      }}
     />
   )
 }

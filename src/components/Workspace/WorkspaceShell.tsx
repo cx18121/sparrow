@@ -31,15 +31,19 @@ interface WorkspaceShellProps {
   // Forwarded into the outlet so sub-tabs that mount existing top-level
   // components (LeadDiscovery, Drafts, Settings) can pass it along.
   workspaceConfig: any
+  profile: any
+  profileLoading: boolean
 }
 
 // Shape of what nested sub-tabs see via useOutletContext.
 export interface WorkspaceOutletContext {
   campaign: UiCampaign
   workspaceConfig: any
+  profile: any
+  profileLoading: boolean
 }
 
-export default function WorkspaceShell({ onCampaignActive, workspaceConfig }: WorkspaceShellProps) {
+export default function WorkspaceShell({ onCampaignActive, workspaceConfig, profile, profileLoading }: WorkspaceShellProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { campaigns, dataLoaded } = useAppData()
@@ -85,7 +89,7 @@ export default function WorkspaceShell({ onCampaignActive, workspaceConfig }: Wo
       <WorkspaceHeader campaign={campaign} />
       <SubTabNav campaignId={campaign.id} />
       <div className="mt-6">
-        <Outlet context={{ campaign, workspaceConfig } satisfies WorkspaceOutletContext} />
+        <Outlet context={{ campaign, workspaceConfig, profile, profileLoading } satisfies WorkspaceOutletContext} />
       </div>
     </div>
   )
