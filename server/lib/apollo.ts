@@ -129,17 +129,22 @@ export async function checkApiHealth(apiKey: string): Promise<boolean> {
 // Defaults to retrying on rate limit (60s wait) for batch scripts. Pass
 // { retry: false } from serverless API endpoints, where rethrowing the 429
 // to the caller is correct and a 60s wait would exceed function timeout.
+// titleFilter defaults to true (CTO/Founder/CEO/etc only) — pass false to
+// see everyone Apollo has on file for the domain. The route falls back to
+// titleFilter=false when a senior-only search returns 0 results so small
+// startups without C-suite titles in Apollo still get usable contacts.
 export async function searchContacts(
   domain: string,
   apiKey: string,
-  options: { retry?: boolean } = {}
+  options: { retry?: boolean; titleFilter?: boolean } = {}
 ): Promise<ApolloSearchResult[]> {
+  const useTitles = options.titleFilter !== false;
   const call = async () => {
     const response = await axios.post(
       SEARCH_URL,
       {
         q_organization_domains_list: [domain],
-        person_titles: TARGET_TITLES,
+        ...(useTitles && { person_titles: TARGET_TITLES }),
         per_page: 10,
       },
       { headers: buildHeaders(apiKey), timeout: 15_000 }

@@ -152,6 +152,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const [apolloResults, setApolloResults] = useState([])
   const [apolloLoading, setApolloLoading] = useState(false)
   const [apolloError, setApolloError] = useState(null)
+  const [apolloUsedFallback, setApolloUsedFallback] = useState(false)
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
   const [cachedPreviews, setCachedPreviews] = useState({})
@@ -322,20 +323,25 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const handleCompanySelect = async (company) => {
     setSelectedCompany(company)
     setApolloError(null)
+    setApolloUsedFallback(false)
     setSavedIds(new Set())
     const cached = cachedPreviews[company.id]
     if (cached) {
-      setApolloResults(cached)
+      setApolloResults(cached.previews ?? cached)
+      setApolloUsedFallback(Boolean(cached.usedFallback))
       setApolloLoading(false)
     } else {
       setApolloResults([])
       setApolloLoading(true)
     }
     try {
-      const data = cached ? { previews: cached } : await apolloSearch(company.domain, company.id)
+      const data = cached
+        ? { previews: cached.previews ?? cached, usedFallback: Boolean(cached.usedFallback) }
+        : await apolloSearch(company.domain, company.id)
       const previews = data.previews || []
       setApolloResults(previews)
-      if (!cached) setCachedPreviews(prev => ({ ...prev, [company.id]: previews }))
+      setApolloUsedFallback(Boolean(data.usedFallback))
+      if (!cached) setCachedPreviews(prev => ({ ...prev, [company.id]: { previews, usedFallback: Boolean(data.usedFallback) } }))
       setRevealedEmails(prev => {
         const next = { ...prev }
         previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
@@ -357,7 +363,18 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         }
       })
     } catch (err) {
-      setApolloError(err.message)
+      // Bug 08 fix: a 404 from /api/apollo-search means this company is no
+      // longer searchable (deleted or flipped to isVerified=false) but the
+      // discover cache is still showing it. Drop the stale cache and the
+      // stale row so the user can keep working without a hard refresh.
+      if (err?.status === 404) {
+        clearDiscoverCache()
+        setCompanies(prev => prev.filter(c => c.id !== company.id))
+        setApolloError('This company is no longer available. Closing — pick another from the refreshed list.')
+        setSelectedCompany(null)
+      } else {
+        setApolloError(err.message)
+      }
     } finally {
       setApolloLoading(false)
     }
@@ -639,12 +656,19 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
                 <Banner variant="danger" icon={AlertCircle} size="sm">{apolloError}</Banner>
               )}
               {!apolloLoading && !apolloError && apolloResults.length === 0 && (
-                <EmptyState className="py-6">No contacts found for this company.</EmptyState>
+                <EmptyState className="py-6">
+                  Apollo had no contacts on file for this company. Try another from the list — small startups often aren&apos;t indexed.
+                </EmptyState>
               )}
               {!apolloLoading && !apolloError && apolloResults.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">
                     {apolloResults.length} contact{apolloResults.length !== 1 ? 's' : ''}
+                    {apolloUsedFallback && (
+                      <span className="ml-2 normal-case tracking-normal text-muted/70">
+                        · no senior matches, showing all
+                      </span>
+                    )}
                   </p>
                   {apolloResults.map(preview => (
                     <ContactRow

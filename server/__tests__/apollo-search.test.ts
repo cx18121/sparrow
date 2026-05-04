@@ -138,4 +138,57 @@ describe("POST /apollo-search — apolloSearch", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
   });
+
+  // Bug 08: when the title-filtered search returns 0 (the common case for
+  // small/non-tech startups whose teams aren't tagged with CTO/Founder/CEO
+  // in Apollo), retry without the title filter so the user sees something
+  // they can act on instead of "No contacts found" for nearly every company.
+  it("falls back to a no-title search when titled search returns 0", async () => {
+    mockConsumeQuota.mockResolvedValue(undefined);
+    const FALLBACK_PREVIEW = {
+      id: "p2", first_name: "Bob", last_name_obfuscated: "K***",
+      title: "Product Manager", has_email: true, organization: { name: "Rivet" },
+    };
+    mockSearchContacts
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([FALLBACK_PREVIEW]);
+
+    const req = makeReq({ method: "POST", body: { domain: "rivet.dev", companyId: "cmp1" } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(mockSearchContacts).toHaveBeenCalledTimes(2);
+    expect(mockSearchContacts).toHaveBeenNthCalledWith(1, "rivet.dev", "test-key", expect.objectContaining({ retry: false }));
+    expect(mockSearchContacts).toHaveBeenNthCalledWith(2, "rivet.dev", "test-key", expect.objectContaining({ retry: false, titleFilter: false }));
+    expect(res.status).toHaveBeenCalledWith(200);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.previews).toHaveLength(1);
+    expect(payload.usedFallback).toBe(true);
+  });
+
+  it("does not call the fallback search when titled search returns results", async () => {
+    mockConsumeQuota.mockResolvedValue(undefined);
+    const req = makeReq({ method: "POST", body: { domain: "rivet.dev", companyId: "cmp1" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(mockSearchContacts).toHaveBeenCalledTimes(1);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.usedFallback).toBe(false);
+  });
+
+  it("returns 200 with usedFallback=true and empty previews when both passes return 0", async () => {
+    mockConsumeQuota.mockResolvedValue(undefined);
+    mockSearchContacts.mockReset();
+    mockSearchContacts.mockResolvedValue([]);
+
+    const req = makeReq({ method: "POST", body: { domain: "rivet.dev", companyId: "cmp1" } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(mockSearchContacts).toHaveBeenCalledTimes(2);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.previews).toHaveLength(0);
+    expect(payload.usedFallback).toBe(true);
+  });
 });

@@ -218,6 +218,34 @@ test.describe('Campaign workspace shell', () => {
     await expect(page.locator('text=/Browsing for/i')).toHaveCount(0)
   })
 
+  test('Find contacts modal hints when the server fell back to a no-title search (Bug 08)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      companies: [SAMPLE_COMPANY],
+    })
+    await page.route('**/api/apollo-search', route => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            previews: [{ id: 'p1', firstName: 'Bob', lastNameObfuscated: 'K***', title: 'Product Manager', hasEmail: false, companyName: SAMPLE_COMPANY.name }],
+            companyId: SAMPLE_COMPANY.id,
+            usedFallback: true,
+          }),
+        })
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revealed: false }) })
+    })
+
+    await page.goto('/campaigns/cmp_workspace_1/leads')
+    await page.getByRole('button', { name: /Find contacts/i }).first().click()
+    // Modal opens with the preview and the broader-search hint.
+    await expect(page.locator('text=Bob').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('text=/no senior matches, showing all/i')).toBeVisible()
+  })
+
   test('Settings sub-tab renders inline editor with campaign data (Phase 4d)', async ({ page }) => {
     await mockApi(page, {
       campaigns: [SAMPLE_CAMPAIGN],

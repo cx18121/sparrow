@@ -178,6 +178,10 @@ export interface ApolloPreview {
 export interface ApolloSearchResponse {
   previews: ApolloPreview[]
   companyId: string
+  // True when the title-filtered search returned 0 and the server retried
+  // without the title filter. The UI uses this to hint that contacts may
+  // be more junior than the usual senior-only set.
+  usedFallback: boolean
 }
 
 export interface ApolloRevealResponse {

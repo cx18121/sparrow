@@ -154,7 +154,16 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
 
   await consumeApolloQuota(userId, "search");
   try {
-    const people = await searchContacts(company.domain, apiKey, { retry: false });
+    // Bug 08 fix: title-first search is restrictive (only CTO/Founder/CEO/etc).
+    // Most small or non-tech startups have no people with those titles in
+    // Apollo, so we silently retry without the title filter and flag the UI
+    // to hint that the results are broader than usual.
+    let people = await searchContacts(company.domain, apiKey, { retry: false });
+    let usedFallback = false;
+    if (people.length === 0) {
+      people = await searchContacts(company.domain, apiKey, { retry: false, titleFilter: false });
+      usedFallback = true;
+    }
 
     const previews = people.map((p) => ({
       id: p.id,
@@ -165,7 +174,7 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
       companyName: p.organization?.name ?? null,
     }));
 
-    res.status(200).json({ previews, companyId });
+    res.status(200).json({ previews, companyId, usedFallback });
   } catch (err) {
     if (axios.isAxiosError(err)) {
       const status = err.response?.status;
