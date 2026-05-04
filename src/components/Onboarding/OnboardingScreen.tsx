@@ -514,7 +514,14 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   )
 }
 
-function GmailStep({ hasGoogle, profileLoading, connectError, onRefreshProfile }) {
+function GmailStep({
+  hasGoogle,
+  profileLoading,
+  isConnecting,
+  connectError,
+  onConnectGoogle,
+  onRefreshProfile,
+}) {
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
@@ -537,15 +544,27 @@ function GmailStep({ hasGoogle, profileLoading, connectError, onRefreshProfile }
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onRefreshProfile}
-            disabled={profileLoading}
-            className="btn-ghost shrink-0 text-xs"
-            title="Refresh Gmail status"
-          >
-            <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!hasGoogle && (
+              <button
+                type="button"
+                onClick={onConnectGoogle}
+                disabled={isConnecting}
+                className="btn-primary text-xs"
+              >
+                {isConnecting ? 'Connecting...' : 'Connect Gmail'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRefreshProfile}
+              disabled={profileLoading}
+              className="btn-ghost text-xs"
+              title="Refresh Gmail status"
+            >
+              <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -697,42 +716,6 @@ export default function OnboardingScreen({
     })
   }
 
-  const steps = [
-    <AboutStep
-      key="about"
-      form={form}
-      updateField={updateField}
-      onUploadResume={handleUploadResume}
-      uploadState={resumeUpload}
-      showNameError={stepIndex === 0 && senderNameAttempted && !form.senderName.trim()}
-    />,
-    <StyleStep
-      key="style"
-      form={form}
-      updateStyleChoice={updateStyleChoice}
-      showMissing={styleAttempted}
-    />,
-    <TemplateStep
-      key="template"
-      form={form}
-      templates={templates}
-      selectedTemplate={selectedTemplate}
-      updateField={updateField}
-      updateCustomTemplate={updateCustomTemplate}
-      setTemplateMode={setTemplateMode}
-    />,
-    <GmailStep
-      key="gmail"
-      hasGoogle={!!profile?.hasGoogleRefreshToken}
-      profileLoading={profileLoading}
-      connectError={connectError}
-      onRefreshProfile={onRefreshProfile}
-    />,
-  ]
-
-  const isFirstStep = stepIndex === 0
-  const isLastStep = stepIndex === steps.length - 1
-  const contentWidthClass = stepIndex === 1 ? 'max-w-5xl' : 'max-w-2xl'
   const isSenderNameValid = Boolean(form.senderName.trim())
   const isStyleComplete = STYLE_TESTS.every(test => form.styleChoices?.[test.id])
 
@@ -812,6 +795,45 @@ export default function OnboardingScreen({
       setIsConnecting(false)
     }
   }
+
+  const steps = [
+    <AboutStep
+      key="about"
+      form={form}
+      updateField={updateField}
+      onUploadResume={handleUploadResume}
+      uploadState={resumeUpload}
+      showNameError={stepIndex === 0 && senderNameAttempted && !form.senderName.trim()}
+    />,
+    <StyleStep
+      key="style"
+      form={form}
+      updateStyleChoice={updateStyleChoice}
+      showMissing={styleAttempted}
+    />,
+    <TemplateStep
+      key="template"
+      form={form}
+      templates={templates}
+      selectedTemplate={selectedTemplate}
+      updateField={updateField}
+      updateCustomTemplate={updateCustomTemplate}
+      setTemplateMode={setTemplateMode}
+    />,
+    <GmailStep
+      key="gmail"
+      hasGoogle={!!profile?.hasGoogleRefreshToken}
+      profileLoading={profileLoading}
+      isConnecting={isConnecting}
+      connectError={connectError}
+      onConnectGoogle={finishAndConnectGoogle}
+      onRefreshProfile={onRefreshProfile}
+    />,
+  ]
+
+  const isFirstStep = stepIndex === 0
+  const isLastStep = stepIndex === steps.length - 1
+  const contentWidthClass = stepIndex === 1 ? 'max-w-5xl' : 'max-w-2xl'
 
   const handleLogout = async () => {
     if (!onLogout || isSigningOut) return

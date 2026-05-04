@@ -73,5 +73,7 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
   await page.getByRole('button', { name: /^Next$/i }).click()
   await page.getByRole('button', { name: /^Next$/i }).click()
   await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
+  const card = page.locator('.rounded-2xl').filter({ hasText: /Gmail not connected/ }).first()
+  await expect(card.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
+  await expect(card.getByRole('button', { name: /^Refresh$/i })).toBeVisible()
 })
