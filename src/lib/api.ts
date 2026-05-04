@@ -1,6 +1,24 @@
 import { isDemo, supabase } from './supabase'
+import type {
+  Campaign, CampaignBatchResponse, CampaignOptions, CompanyListResponse, CustomContact,
+  DashboardEmailsResponse, Email, GenerateEmailResponse, PageResponse, SendEmailResponse,
+  SentTodayCountResponse, Template, UserLead,
+  ApolloSearchResponse, ApolloRevealResponse,
+} from '../types/api'
+import type { UiCampaign } from '../contexts/AppDataContext'
 
 const BASE = '/api'
+
+// Wire format uses uppercase enum (DRAFT|ACTIVE|PAUSED|COMPLETED).
+// UI format uses lowercase. The conversion is sealed inside this file —
+// the rest of the app never sees the wire format.
+function wireToUi(c: Campaign): UiCampaign {
+  return { ...c, status: (c.status || 'DRAFT').toLowerCase() as UiCampaign['status'] }
+}
+function uiToWire<T extends { status?: string }>(data: T): T {
+  if (!data?.status) return data
+  return { ...data, status: data.status.toUpperCase() as Campaign['status'] }
+}
 
 let currentUserId = null
 let currentAccessToken = null
@@ -102,7 +120,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
 }
 
-async function request(path: string, opts: RequestInit = {}, retrying = false) {
+async function request<T = unknown>(path: string, opts: RequestInit = {}, retrying = false): Promise<T> {
   await ensureApiAuth()
   const res = await fetch(`${BASE}${path}`, {
     headers: {
@@ -139,87 +157,101 @@ function qs(params: Record<string, unknown>) {
   return s ? `?${s}` : ''
 }
 
-export const fetchHealth = () => request('/health')
+export const fetchHealth = () => request<{ ok: true }>('/health')
 
-export const fetchCompanies = (params = {}) => request(`/companies${qs(params)}`)
-export const resetDiscoverySeen = () => request('/companies?seen=discovery', { method: 'DELETE' })
-export const fetchIndustries = () => request('/industries')
+export const fetchCompanies = (params: Record<string, unknown> = {}) =>
+  request<CompanyListResponse>(`/companies${qs(params)}`)
+export const resetDiscoverySeen = () => request<void>('/companies?seen=discovery', { method: 'DELETE' })
+export const fetchIndustries = () => request<{ items: string[] }>('/industries')
 
-export const apolloSearch = (domain, companyId) =>
-  request('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
+export const apolloSearch = (domain: string, companyId: string) =>
+  request<ApolloSearchResponse>('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
 
-export const revealApolloContact = (personId, companyId, domain) =>
-  request('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })
+export const revealApolloContact = (personId: string, companyId: string, domain: string) =>
+  request<ApolloRevealResponse>('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })
 
-export const fetchContacts = (params = {}) => request(`/contacts${qs(params)}`)
+export const fetchContacts = (params: Record<string, unknown> = {}) =>
+  request<PageResponse<UserLead>>(`/contacts${qs(params)}`)
 
-export const fetchCustomContacts = () => request('/custom-contacts')
-export const createCustomContact = (data) =>
-  request('/custom-contacts', { method: 'POST', body: JSON.stringify(data) })
-export const updateCustomContact = (data) =>
-  request('/custom-contacts', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteCustomContact = (id) =>
-  request(`/custom-contacts${qs({ id })}`, { method: 'DELETE' })
+export const fetchCustomContacts = () => request<PageResponse<CustomContact>>('/custom-contacts')
+export const createCustomContact = (data: Partial<CustomContact>) =>
+  request<CustomContact>('/custom-contacts', { method: 'POST', body: JSON.stringify(data) })
+export const updateCustomContact = (data: Partial<CustomContact> & { id: string }) =>
+  request<CustomContact>('/custom-contacts', { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteCustomContact = (id: string) =>
+  request<void>(`/custom-contacts${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchLeads = (params = {}) => request(`/leads${qs(params)}`)
-export const saveLead = (data) =>
-  request('/leads', { method: 'POST', body: JSON.stringify(data) })
-export const updateLead = (data) =>
-  request('/leads', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteLead = (id) => request(`/leads${qs({ id })}`, { method: 'DELETE' })
+export const fetchLeads = (params: Record<string, unknown> = {}) =>
+  request<PageResponse<UserLead>>(`/leads${qs(params)}`)
+export const saveLead = (data: { companyId: string; contactId?: string | null; apolloPersonId?: string | null; notes?: string | null }) =>
+  request<UserLead>('/leads', { method: 'POST', body: JSON.stringify(data) })
+export const updateLead = (data: { id: string; status?: string; notes?: string | null }) =>
+  request<UserLead>('/leads', { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteLead = (id: string) => request<void>(`/leads${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchEmails = (params = {}) => request(`/emails${qs(params)}`)
-export const fetchSentTodayCount = (): Promise<{ count: number }> =>
-  request('/emails?countToday=true')
-export const createEmail = (data) =>
-  request('/emails', { method: 'POST', body: JSON.stringify(data) })
-export const updateEmail = (data) =>
-  request('/emails', { method: 'PATCH', body: JSON.stringify(data) })
-export const generateEmail = (data) =>
-  request('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
-export const generateStyleGuide = (examples: string[]): Promise<{ guide: string }> =>
-  request('/style-guide', { method: 'POST', body: JSON.stringify({ examples }) })
+export const fetchEmails = (params: Record<string, unknown> = {}) =>
+  request<PageResponse<Email> | DashboardEmailsResponse>(`/emails${qs(params)}`)
+export const fetchSentTodayCount = () => request<SentTodayCountResponse>('/emails?countToday=true')
+export const createEmail = (data: Partial<Email> & { userLeadId?: string; customContactId?: string }) =>
+  request<Email>('/emails', { method: 'POST', body: JSON.stringify(data) })
+export const updateEmail = (data: Partial<Email> & { id: string }) =>
+  request<Email>('/emails', { method: 'PATCH', body: JSON.stringify(data) })
+export const generateEmail = (data: {
+  userLeadId?: string; customContactId?: string;
+  templateId?: string | null; tone?: string;
+  interestHook?: string | null; extraContext?: string | null;
+  includeResumeBullet?: boolean; save?: boolean;
+}) => request<GenerateEmailResponse>('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
+export const generateStyleGuide = (examples: string[]) =>
+  request<{ guide: string }>('/style-guide', { method: 'POST', body: JSON.stringify({ examples }) })
 export const sendEmail = (emailId: string) =>
-  request('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
+  request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
 export const deleteEmails = (ids: string[]) =>
-  request(`/emails${qs({ ids: ids.join(',') })}`, { method: 'DELETE' })
+  request<{ deleted: string[] }>(`/emails${qs({ ids: ids.join(',') })}`, { method: 'DELETE' })
 export const updateEmailAttachments = (id: string, attachmentIds: string[]) =>
-  request('/emails', { method: 'PATCH', body: JSON.stringify({ id, attachmentIds }) })
+  request<Email>('/emails', { method: 'PATCH', body: JSON.stringify({ id, attachmentIds }) })
 
-export const fetchProfile = () => request('/profile')
-export const saveProfile = (data) =>
-  request('/profile', { method: 'POST', body: JSON.stringify(data) })
-export const connectGoogle = (returnTo) =>
-  request('/google/connect', { method: 'POST', body: JSON.stringify({ returnTo }) })
+export const fetchProfile = () => request<{ profile: any }>('/profile')
+export const saveProfile = (data: Record<string, unknown>) =>
+  request<{ profile: any }>('/profile', { method: 'POST', body: JSON.stringify(data) })
+export const connectGoogle = (returnTo: string) =>
+  request<{ url: string }>('/google/connect', { method: 'POST', body: JSON.stringify({ returnTo }) })
 
-export const fetchTemplates = () => request('/templates')
-export const createTemplate = (data) =>
-  request('/templates', { method: 'POST', body: JSON.stringify(data) })
-export const updateTemplate = (data) =>
-  request('/templates', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteTemplate = (id) =>
-  request(`/templates${qs({ id })}`, { method: 'DELETE' })
+export const fetchTemplates = () => request<PageResponse<Template>>('/templates')
+export const createTemplate = (data: Partial<Template>) =>
+  request<Template>('/templates', { method: 'POST', body: JSON.stringify(data) })
+export const updateTemplate = (data: Partial<Template> & { id: string }) =>
+  request<Template>('/templates', { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteTemplate = (id: string) =>
+  request<void>(`/templates${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchCampaigns = (params = {}) => request(`/campaigns${qs(params)}`)
-export const createCampaign = (data) =>
-  request('/campaigns', { method: 'POST', body: JSON.stringify(data) })
-export const updateCampaign = (data) =>
-  request('/campaigns', { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteCampaign = (id) =>
-  request(`/campaigns${qs({ id })}`, { method: 'DELETE' })
+export const fetchCampaigns = async (params: Record<string, unknown> = {}): Promise<PageResponse<UiCampaign>> => {
+  const res = await request<PageResponse<Campaign>>(`/campaigns${qs(params)}`)
+  return { ...res, items: (res.items || []).map(wireToUi) }
+}
+export const createCampaign = async (data: Partial<UiCampaign>): Promise<UiCampaign> => {
+  const wire = await request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(uiToWire(data)) })
+  return wireToUi(wire)
+}
+export const updateCampaign = async (data: Partial<UiCampaign> & { id: string }): Promise<UiCampaign> => {
+  const wire = await request<Campaign>('/campaigns', { method: 'PATCH', body: JSON.stringify(uiToWire(data)) })
+  return wireToUi(wire)
+}
+export const deleteCampaign = (id: string) =>
+  request<void>(`/campaigns${qs({ id })}`, { method: 'DELETE' })
 
-export const fetchCampaignBatch = (campaignId) =>
-  request(`/campaign-batch${qs({ campaignId })}`)
-export const generateCampaignBatch = (campaignId) =>
-  request('/campaign-batch', { method: 'POST', body: JSON.stringify({ campaignId }) })
-export const resetCampaignSeen = (campaignId) =>
-  request(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
-export const fetchCampaignOptions = () => request('/campaign-options')
-export const fetchCampaignLeads = (campaignId) =>
-  request(`/campaign-leads${qs({ campaignId })}`)
-export const addCampaignLead = (campaignId, userLeadId) =>
-  request('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
-export const deleteCampaignLead = (id) =>
-  request(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })
+export const fetchCampaignBatch = (campaignId: string) =>
+  request<CampaignBatchResponse>(`/campaign-batch${qs({ campaignId })}`)
+export const generateCampaignBatch = (campaignId: string) =>
+  request<CampaignBatchResponse>('/campaign-batch', { method: 'POST', body: JSON.stringify({ campaignId }) })
+export const resetCampaignSeen = (campaignId: string) =>
+  request<{ reset: true }>(`/campaign-batch${qs({ campaignId })}`, { method: 'DELETE' })
+export const fetchCampaignOptions = () => request<CampaignOptions>('/campaign-options')
+export const fetchCampaignLeads = (campaignId: string) =>
+  request<PageResponse<UserLead>>(`/campaign-leads${qs({ campaignId })}`)
+export const addCampaignLead = (campaignId: string, userLeadId: string) =>
+  request<UserLead>('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
+export const deleteCampaignLead = (id: string) =>
+  request<void>(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })
 
-export const deleteAccount = () => request('/account', { method: 'DELETE' })
+export const deleteAccount = () => request<void>('/account', { method: 'DELETE' })

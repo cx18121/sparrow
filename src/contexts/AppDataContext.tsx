@@ -1,27 +1,32 @@
 import React, { createContext, useContext } from 'react'
+import type { Campaign, CustomContact, Template, UserLead } from '../types/api'
+
+// Campaigns are stored UI-side with lowercase status; the wire format uses uppercase.
+// See campaignToUi / campaignToApi in App.tsx.
+export type UiCampaign = Omit<Campaign, 'status'> & { status: 'draft' | 'active' | 'paused' | 'completed' }
 
 export interface AppDataContextValue {
-  campaigns: any[]
-  leads: any[]
-  customContacts: any[]
-  templates: any[]
+  campaigns: UiCampaign[]
+  leads: UserLead[]
+  customContacts: CustomContact[]
+  templates: Template[]
   dataLoaded: boolean
   hasResourceCache: boolean
 
-  createCampaign: (data: any) => Promise<any>
-  updateCampaign: (data: any) => Promise<any>
+  createCampaign: (data: Partial<UiCampaign>) => Promise<UiCampaign>
+  updateCampaign: (data: Partial<UiCampaign> & { id: string }) => Promise<UiCampaign>
   deleteCampaign: (id: string) => Promise<void>
 
   refreshLeads: () => Promise<void>
-  updateLead: (data: any) => Promise<any>
+  updateLead: (data: { id: string; status?: string; notes?: string | null }) => Promise<UserLead>
   deleteLead: (id: string) => Promise<void>
 
-  createCustomContact: (data: any) => Promise<any>
-  updateCustomContact: (data: any) => Promise<any>
+  createCustomContact: (data: Partial<CustomContact>) => Promise<CustomContact>
+  updateCustomContact: (data: Partial<CustomContact> & { id: string }) => Promise<CustomContact>
   deleteCustomContact: (id: string) => Promise<void>
 
-  createTemplate: (data: any) => Promise<any>
-  updateTemplate: (data: any) => Promise<any>
+  createTemplate: (data: Partial<Template>) => Promise<Template>
+  updateTemplate: (data: Partial<Template> & { id: string }) => Promise<Template>
   deleteTemplate: (id: string) => Promise<void>
 }
 

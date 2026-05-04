@@ -14,7 +14,8 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { format } from 'date-fns'
-import { generateEmail, createEmail } from '../../lib/api'
+import { generateEmail } from '../../lib/api'
+import { useDraftFlow } from '../../hooks/useDraftFlow'
 
 const PAGE_SIZE = 10
 const STATUSES = ['SAVED', 'EMAILED', 'NO_RESPONSE', 'DECLINED']
@@ -77,17 +78,12 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
 
-  // Generate email modal
+  // Generate email modal — flow is owned by useDraftFlow.
   const [generateTarget, setGenerateTarget] = useState(null)
   const [generateTemplateId, setGenerateTemplateId] = useState(workspaceConfig?.templateId || '')
   const [generateTone, setGenerateTone] = useState('')
   const [includeResumeBullet, setIncludeResumeBullet] = useState(false)
-  const [generatedSubject, setGeneratedSubject] = useState('')
-  const [generatedBody, setGeneratedBody] = useState('')
-  const [generatedEmailId, setGeneratedEmailId] = useState(null)
-  const [generating, setGenerating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [generateError, setGenerateError] = useState(null)
+  const draftFlow = useDraftFlow()
   const { toast, setToast } = useToast()
 
   // Add custom contact modal
@@ -108,50 +104,37 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
     setGenerateTemplateId(templates.some(t => t.id === preferredId) ? preferredId : '')
     setGenerateTone('')
     setIncludeResumeBullet(false)
-    setGeneratedSubject('')
-    setGeneratedBody('')
-    setGeneratedEmailId(null)
-    setGenerateError(null)
+    draftFlow.reset()
   }
 
   const closeGenerate = () => {
     setGenerateTarget(null)
-    setGenerating(false)
-    setSaving(false)
+    draftFlow.reset()
   }
 
   const runGenerate = async () => {
     if (!generateTarget) return
-    setGenerating(true)
-    setGenerateError(null)
+    const target = generateTarget._custom
+      ? { kind: 'custom' as const, id: generateTarget.id }
+      : { kind: 'lead' as const, id: generateTarget.id }
     try {
-      const payload = generateTarget._custom
-        ? { customContactId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined, includeResumeBullet }
-        : { userLeadId: generateTarget.id, templateId: generateTemplateId || undefined, tone: generateTone || undefined, includeResumeBullet }
-      const res = await generateEmail(payload)
-      setGeneratedSubject(res.subject || '')
-      setGeneratedBody(res.body || '')
-      setGeneratedEmailId(res.emailId || null)
-    } catch (err) {
-      setGenerateError(err.message || 'Failed to generate email')
-    } finally {
-      setGenerating(false)
+      await draftFlow.generate(target, {
+        templateId: generateTemplateId || undefined,
+        tone: generateTone || undefined,
+        includeResumeBullet,
+      })
+    } catch {
+      // Error already captured in draftFlow.error
     }
   }
 
   const saveDraft = async () => {
-    if (!generateTarget || !generatedSubject || !generatedBody) return
-    setSaving(true)
-    setGenerateError(null)
+    if (!generateTarget || !draftFlow.subject || !draftFlow.body) return
+    const target = generateTarget._custom
+      ? { kind: 'custom' as const, id: generateTarget.id }
+      : { kind: 'lead' as const, id: generateTarget.id }
     try {
-      // generateEmail already saved the draft server-side and returned emailId —
-      // only call createEmail when it did not (e.g. generation without auto-save).
-      if (!generatedEmailId) {
-        const payload = generateTarget._custom
-          ? { customContactId: generateTarget.id, subject: generatedSubject, body: generatedBody, status: 'draft' }
-          : { userLeadId: generateTarget.id, subject: generatedSubject, body: generatedBody, status: 'draft' }
-        await createEmail(payload)
-      }
+      await draftFlow.save(target)
       closeGenerate()
       setToast({
         type: 'success',
@@ -159,9 +142,8 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         message: 'Review it in Drafts.',
         action: onNavigate ? { label: 'Open Drafts', onClick: () => onNavigate('drafts') } : null,
       })
-    } catch (err) {
-      setGenerateError(err.message || 'Failed to save draft')
-      setSaving(false)
+    } catch {
+      // Error already captured in draftFlow.error
     }
   }
 
@@ -290,9 +272,10 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
   const buildGeneratePayload = (row) => {
     const preferredId = workspaceConfig?.templateId || undefined
     const templateId = preferredId && templates.some(t => t.id === preferredId) ? preferredId : undefined
+    // Bulk-generate explicitly opts into save:true — server default is false (preview-only).
     return row._custom
-      ? { customContactId: row.id, templateId, includeResumeBullet: false }
-      : { userLeadId: row.id, templateId, includeResumeBullet: false }
+      ? { customContactId: row.id, templateId, includeResumeBullet: false, save: true }
+      : { userLeadId: row.id, templateId, includeResumeBullet: false, save: true }
   }
 
   const bulkGenerateDrafts = async () => {
@@ -737,35 +720,35 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
           )}
 
           {/* Output — rendered first so it's immediately visible after generation */}
-          {(generatedSubject || generatedBody || generating) && (
+          {(draftFlow.subject || draftFlow.body || draftFlow.generating) && (
             <div className="space-y-3">
               <div>
                 <label className="label">Subject</label>
                 <input
-                  value={generatedSubject}
-                  onChange={e => setGeneratedSubject(e.target.value)}
-                  placeholder={generating ? 'Generating…' : ''}
+                  value={draftFlow.subject}
+                  onChange={e => draftFlow.setSubject(e.target.value)}
+                  placeholder={draftFlow.generating ? 'Generating…' : ''}
                   className="input"
-                  disabled={generating}
+                  disabled={draftFlow.generating}
                 />
               </div>
               <div>
                 <label className="label">Body</label>
                 <textarea
-                  value={generatedBody}
-                  onChange={e => setGeneratedBody(e.target.value)}
-                  placeholder={generating ? 'Generating…' : ''}
+                  value={draftFlow.body}
+                  onChange={e => draftFlow.setBody(e.target.value)}
+                  placeholder={draftFlow.generating ? 'Generating…' : ''}
                   rows={9}
                   className="input text-sm leading-relaxed"
-                  disabled={generating}
+                  disabled={draftFlow.generating}
                 />
               </div>
             </div>
           )}
 
           {/* Options — always visible; visually demoted once output exists */}
-          <div className={`space-y-3${(generatedSubject || generatedBody || generating) ? ' border-t border-warm-200 pt-4' : ''}`}>
-            {(generatedSubject || generatedBody || generating) && (
+          <div className={`space-y-3${(draftFlow.subject || draftFlow.body || draftFlow.generating) ? ' border-t border-warm-200 pt-4' : ''}`}>
+            {(draftFlow.subject || draftFlow.body || draftFlow.generating) && (
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">Customize</p>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
@@ -775,7 +758,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                   value={generateTemplateId}
                   onChange={e => setGenerateTemplateId(e.target.value)}
                   className="select"
-                  disabled={generating}
+                  disabled={draftFlow.generating}
                 >
                   <option value="">Generate from scratch</option>
                   {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -788,7 +771,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                   onChange={e => setGenerateTone(e.target.value)}
                   placeholder="e.g. curious, low-key, technical"
                   className="input"
-                  disabled={generating}
+                  disabled={draftFlow.generating}
                 />
               </div>
             </div>
@@ -797,7 +780,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                 type="checkbox"
                 checked={includeResumeBullet}
                 onChange={e => setIncludeResumeBullet(e.target.checked)}
-                disabled={generating}
+                disabled={draftFlow.generating}
                 className="mt-1"
               />
               <span>
@@ -809,28 +792,28 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
             </label>
             <button
               onClick={runGenerate}
-              disabled={generating || !generateTarget}
+              disabled={draftFlow.generating || !generateTarget}
               className="btn-primary w-full justify-center"
             >
               <Sparkles size={14} />
-              {generating ? 'Generating…' : generatedSubject ? 'Regenerate' : 'Generate with Claude'}
+              {draftFlow.generating ? 'Generating…' : draftFlow.subject ? 'Regenerate' : 'Generate with Claude'}
             </button>
           </div>
 
-          {generateError && (
-            <Banner variant="danger" size="sm">{generateError}</Banner>
+          {draftFlow.error && (
+            <Banner variant="danger" size="sm">{draftFlow.error}</Banner>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={closeGenerate} className="btn-secondary" disabled={saving}>
+            <button onClick={closeGenerate} className="btn-secondary" disabled={draftFlow.saving}>
               Cancel
             </button>
             <button
               onClick={saveDraft}
-              disabled={saving || generating || !generatedSubject || !generatedBody}
+              disabled={draftFlow.saving || draftFlow.generating || !draftFlow.subject || !draftFlow.body}
               className="btn-primary"
             >
-              {saving ? 'Saving…' : 'Save as draft'}
+              {draftFlow.saving ? 'Saving…' : 'Save as draft'}
             </button>
           </div>
         </div>

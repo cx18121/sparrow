@@ -27,13 +27,8 @@ import {
   fetchCampaignOptions,
 } from './lib/api'
 
-// DB stores campaign status as UPPERCASE; the UI uses lowercase.
-const campaignToUi = (c) => c && { ...c, status: (c.status || 'DRAFT').toLowerCase() }
-const campaignToApi = (c) => {
-  if (!c) return c
-  const { status, ...rest } = c
-  return status ? { ...rest, status: status.toUpperCase() } : rest
-}
+// Campaign status case conversion is now sealed inside src/lib/api.ts.
+// The wire format never leaks past that seam.
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -306,7 +301,7 @@ function AppShell() {
 
     if (cachedData) {
       setTemplates(cachedData.templates || [])
-      setCampaigns((cachedData.campaigns || []).map(campaignToUi))
+      setCampaigns(cachedData.campaigns || [])
       setLeads(cachedData.leads || [])
       setCustomContacts(cachedData.customContacts || [])
       setDataLoaded(true)
@@ -332,7 +327,7 @@ function AppShell() {
     ]).then(([t, c, l, cc]) => {
       if (cancelled) return
       setTemplates(t.ok ? (t.res?.items || []) : (cachedData?.templates || []))
-      setCampaigns((c.ok ? (c.res?.items || []) : (cachedData?.campaigns || [])).map(campaignToUi))
+      setCampaigns(c.ok ? (c.res?.items || []) : (cachedData?.campaigns || []))
       setLeads(l.ok ? (l.res?.items || []) : (cachedData?.leads || []))
       setCustomContacts(cc.ok ? (cc.res?.items || []) : (cachedData?.customContacts || []))
       setDataLoaded(true)
@@ -423,10 +418,9 @@ function AppShell() {
     const optimistic = { ...data, id: tempId, status: data.status || 'draft' }
     setCampaigns(prev => [optimistic, ...prev])
     try {
-      const created = await createCampaign(campaignToApi(data))
-      const ui = campaignToUi(created)
-      setCampaigns(prev => prev.map(c => c.id === tempId ? ui : c))
-      return ui
+      const created = await createCampaign(data)
+      setCampaigns(prev => prev.map(c => c.id === tempId ? created : c))
+      return created
     } catch (err) {
       setCampaigns(prev => prev.filter(c => c.id !== tempId))
       throw err
@@ -436,7 +430,7 @@ function AppShell() {
     const prev = campaigns
     setCampaigns(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
     try {
-      const updated = campaignToUi(await updateCampaign(campaignToApi(data)))
+      const updated = await updateCampaign(data)
       setCampaigns(curr => curr.map(c => c.id === updated.id ? updated : c))
       return updated
     } catch (err) {

@@ -210,10 +210,13 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
     doSearch()
   }, [isHiring, regionFilter, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the active campaign changes, seed Discover with the campaign's audience filters.
-  // The user can still adjust filters freely after this; it's just a starting point.
+  // Seed Discover filters from the active campaign once filters are available.
+  // Runs when campaign ID changes or when filters arrive after campaign is already active.
+  const seededCampaignIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeCampaign?.id || !campaignFilters) return
+    if (seededCampaignIdRef.current === activeCampaign.id) return
+    seededCampaignIdRef.current = activeCampaign.id
     const regionMap: Record<string, 'us' | 'international' | 'remote'> = {
       __US__: 'us', __INTL__: 'international', __REMOTE__: 'remote',
     }
@@ -224,7 +227,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
     selectedTagsRef.current = tags
     setSelectedTags(tags)
     fetchCompanies(null, { regionFilter: rf, isHiring: Boolean(campaignFilters.filterIsHiring), selectedTags: tags })
-  }, [activeCampaign?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCampaign?.id, campaignFilters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initialMount.current = false
@@ -289,6 +292,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
   const handleCompanySelect = async (company) => {
     setSelectedCompany(company)
     setApolloError(null)
+    setSavedIds(new Set())
     const cached = cachedPreviews[company.id]
     if (cached) {
       setApolloResults(cached)
@@ -307,8 +311,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
         previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
         return next
       })
+      // Only reveal contacts not yet fetched — avoids re-spending Apollo credits on re-open
       previews.forEach(async (p) => {
         if (!p.hasEmail) { setRevealedEmails(prev => ({ ...prev, [p.id]: null })); return }
+        if (revealedEmails[p.id] !== undefined) return
         try {
           const result = await revealApolloContact(p.id, company.id, company.domain)
           setRevealedEmails(prev => ({ ...prev, [p.id]: result.contact?.email ?? null }))
@@ -333,6 +339,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
         apolloPersonId: preview.id,
         notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} — ${preview.title || 'unknown title'}`,
       })
+      // Always refresh leads and close modal — even if campaign add fails
+      setSavedIds(prev => new Set(prev).add(preview.id))
+      setSelectedCompany(null)
+      setApolloResults([])
+      setApolloError(null)
+      refreshLeads()
       if (activeCampaign?.id && savedLead?.id) {
         try {
           await addCampaignLead(activeCampaign.id, savedLead.id)
@@ -341,16 +353,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate, activeCa
           return
         }
       }
-      setSavedIds(prev => new Set(prev).add(preview.id))
-      setCompanies(prev => prev.map(c =>
-        c.id === selectedCompany.id
-          ? { ...c, _count: { ...c._count, contacts: (c._count?.contacts ?? 0) + 1 } }
-          : c
-      ))
-      setSelectedCompany(null)
-      setApolloResults([])
-      setApolloError(null)
-      refreshLeads()
       if (activeCampaign) {
         setToast({
           type: 'success',

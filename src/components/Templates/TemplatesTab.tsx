@@ -299,28 +299,47 @@ export default function TemplatesTab({ workspaceConfig }) {
     setEditModal(true)
   }
 
-  const saveModal = async () => {
-    if (editingId) {
-      await onUpdate({ id: editingId, name: form.name })
-    } else {
-      const created = await onCreate({
-        name: form.name,
-        subject: form.subject || '(no subject)',
-        body: '<p></p>',
-      })
-      if (created?.id) setSelectedId(created.id)
+  // Flush pending auto-save for the current template, then switch to another
+  const switchTemplate = async (id: string, view: string = 'edit') => {
+    if (flushTimerRef.current && draftDirtyRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+      await flushDraft()
     }
-    setEditModal(false)
+    setSelectedId(id)
+    setView(view)
+  }
+
+  const saveModal = async () => {
+    try {
+      if (editingId) {
+        await onUpdate({ id: editingId, name: form.name })
+      } else {
+        const created = await onCreate({
+          name: form.name,
+          subject: form.subject || '(no subject)',
+          body: '<p></p>',
+        })
+        if (created?.id) setSelectedId(created.id)
+      }
+      setEditModal(false)
+    } catch (err: any) {
+      setToast({ type: 'error', title: editingId ? 'Could not rename template' : 'Could not create template', message: err?.message || 'Please try again.' })
+    }
   }
 
   const duplicate = async (t) => {
-    const created = await onCreate({
-      name: `${t.name} (copy)`,
-      subject: t.subject,
-      body: t.body,
-      isShared: false,
-    })
-    if (created?.id) setSelectedId(created.id)
+    try {
+      const created = await onCreate({
+        name: `${t.name} (copy)`,
+        subject: t.subject,
+        body: t.body,
+        isShared: false,
+      })
+      if (created?.id) setSelectedId(created.id)
+    } catch (err: any) {
+      setToast({ type: 'error', title: 'Could not duplicate template', message: err?.message || 'Please try again.' })
+    }
   }
 
   return (
@@ -341,7 +360,7 @@ export default function TemplatesTab({ workspaceConfig }) {
               {filtered.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => { setSelectedId(t.id); setView('edit') }}
+                  onClick={() => switchTemplate(t.id, 'edit')}
                   className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
                     selectedId === t.id
                       ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(245,203,92,0.08)]'
@@ -369,7 +388,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                 {libraryFiltered.map(t => (
                   <button
                     key={t.id}
-                    onClick={() => { setSelectedId(t.id); setView('preview') }}
+                    onClick={() => switchTemplate(t.id, 'preview')}
                     className={`w-full rounded-[24px] border px-4 py-3 text-left transition-all duration-150 ${
                       selectedId === t.id
                         ? 'border-primary/15 bg-primary/5 shadow-[0_16px_32px_rgba(245,203,92,0.08)]'

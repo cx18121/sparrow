@@ -1,63 +1,39 @@
 import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
-  Zap, RotateCcw, ChevronRight, ChevronDown, Building2, MapPin, Users, Mail,
-  Filter, RefreshCw, X,
+  Zap, RotateCcw, Building2, MapPin, Users, Mail,
+  RefreshCw, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
-import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import {
-  fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions, generateEmail, createEmail,
+  fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions,
   fetchCampaignLeads, deleteCampaignLead,
 } from '../../lib/api'
-import { useAppData } from '../../contexts/AppDataContext'
-
-const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
-const NS_LABELS = {
-  stage: 'Stage',
-  vertical: 'Sector',
-  tech: 'Tech',
-  model: 'Model',
-  investor: 'Investor',
-  signal: 'Signal',
-}
-
-const INITIAL_FORM = {
-  name: '', subject: '', status: 'draft',
-  templateId: '',
-  filterTags: [] as string[], filterRegion: '', filterStage: '', filterBatch: '',
-  filterIsHiring: false, filterHeadcountMin: '', filterHeadcountMax: '',
-  batchSize: '10', tone: '',
-  attachmentIds: [] as string[],
-}
-
-function advancedSummary(form) {
-  const parts = []
-  if (form.filterBatch) parts.push(form.filterBatch)
-  if (form.filterHeadcountMin || form.filterHeadcountMax) {
-    parts.push(`${form.filterHeadcountMin || 0}–${form.filterHeadcountMax || '∞'} employees`)
-  }
-  if (form.tone) parts.push('tone set')
-  return parts.join(', ')
-}
+import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
+import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
+import { useDraftFlow } from '../../hooks/useDraftFlow'
+import DraftPreviewModal from './DraftPreviewModal'
+import CampaignFormModal, { INITIAL_FORM, fromCampaign, type CampaignFormValue } from './CampaignFormModal'
 
 export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign, activeCampaign = null, exitCampaign = null }) {
   const {
     campaigns,
     templates,
+    dataLoaded,
     createCampaign: onCreate,
     updateCampaign: onUpdate,
     deleteCampaign: onDelete,
   } = useAppData()
+  const isLoading = !dataLoaded
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState(INITIAL_FORM)
+  const [editing, setEditing] = useState<UiCampaign | null>(null)
+  const [formInitial, setFormInitial] = useState<CampaignFormValue>(INITIAL_FORM)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [saving, setSaving] = useState(false)
   const [pendingActions, setPendingActions] = useState(new Set())
@@ -65,7 +41,9 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   const [batchModal, setBatchModal] = useState({ open: false, campaign: null, leads: [], loading: false, usingFallback: false, seenTotal: 0, currentBatch: 0, generationAttempted: false })
   const [generatingEmail, setGeneratingEmail] = useState(null)
   const [resetTarget, setResetTarget] = useState(null)
-  const [emailPreview, setEmailPreview] = useState({ open: false, lead: null, subject: '', body: '', saving: false, error: null })
+  // Draft flow is owned by useDraftFlow; preview just tracks which lead is open.
+  const [previewLead, setPreviewLead] = useState(null)
+  const draftFlow = useDraftFlow()
   const [campaignLeads, setCampaignLeads] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
 
@@ -74,7 +52,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     ? campaigns.find(c => c.id === activeCampaign.id) || null
     : null
   const [toast, setToast] = useState(null)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const reportError = (title, err) => {
     console.error(title, err)
@@ -87,7 +64,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     fetchCampaignOptions().then(setOptions).catch(() => {})
   }, [])
 
-  const getInitialForm = () => ({
+  const getInitialForm = (): CampaignFormValue => ({
     ...INITIAL_FORM,
     templateId: workspaceTemplate?.id || '',
     subject: workspaceTemplate?.subject || '',
@@ -130,38 +107,17 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
 
   const openCreate = () => {
     setEditing(null)
-    setForm(getInitialForm())
-    setAdvancedOpen(false)
+    setFormInitial(getInitialForm())
     setModalOpen(true)
   }
 
-  const openEdit = (c) => {
-    setEditing(c.id)
-    setAdvancedOpen(Boolean(
-      c.filterBatch ||
-      c.filterHeadcountMin != null ||
-      c.filterHeadcountMax != null
-    ))
-    setForm({
-      name: c.name,
-      subject: c.subject || '',
-      status: c.status,
-      templateId: c.templateId || '',
-      filterTags: c.filterTags || [],
-      filterRegion: c.filterRegion || '',
-      filterStage: c.filterStage || '',
-      filterBatch: c.filterBatch || '',
-      filterIsHiring: c.filterIsHiring === true,
-      filterHeadcountMin: c.filterHeadcountMin != null ? String(c.filterHeadcountMin) : '',
-      filterHeadcountMax: c.filterHeadcountMax != null ? String(c.filterHeadcountMax) : '',
-      batchSize: String(c.batchSize ?? 10),
-      tone: c.tone || '',
-      attachmentIds: Array.isArray(c.attachmentIds) ? c.attachmentIds : [],
-    })
+  const openEdit = (c: UiCampaign) => {
+    setEditing(c)
+    setFormInitial(fromCampaign(c))
     setModalOpen(true)
   }
 
-  const save = async () => {
+  const handleFormSave = async (form: CampaignFormValue) => {
     if (saving) return
     setSaving(true)
     const payload = {
@@ -182,7 +138,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     }
     try {
       if (editing) {
-        await onUpdate({ id: editing, ...payload })
+        await onUpdate({ id: editing.id, ...payload })
         setModalOpen(false)
       } else {
         const created = await onCreate(payload)
@@ -285,10 +241,12 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     setGeneratingEmail(lead.id)
     try {
       const campaignContext = batchModal.campaign || detailCampaign
-      const templateId = campaignContext?.templateId || null
-      const tone = campaignContext?.tone || undefined
-      const result = await generateEmail({ userLeadId: lead.id, templateId, tone, includeResumeBullet: true, save: false })
-      setEmailPreview({ open: true, lead, subject: result.subject || '', body: result.body || '', saving: false, error: null })
+      await draftFlow.generate({ kind: 'lead', id: lead.id }, {
+        templateId: campaignContext?.templateId || null,
+        tone: campaignContext?.tone || undefined,
+        includeResumeBullet: true,
+      })
+      setPreviewLead(lead)
     } catch (err) {
       reportError('Could not generate email', err)
       if ((err as any)?.status === 404 && detailCampaign?.id) {
@@ -300,63 +258,31 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   }
 
   const saveEmailToDrafts = async () => {
-    if (!emailPreview.lead) return
-    setEmailPreview(prev => ({ ...prev, saving: true, error: null }))
+    if (!previewLead) return
     try {
       const campaignContext = batchModal.campaign || detailCampaign
-      const saved = await createEmail({
-        userLeadId: emailPreview.lead.id,
-        subject: emailPreview.subject,
-        body: emailPreview.body,
-        status: 'draft',
-        attachmentIds: Array.isArray(campaignContext?.attachmentIds) ? campaignContext.attachmentIds : [],
-      })
-      setEmailPreview(prev => ({ ...prev, open: false, saving: false }))
+      const attachmentIds = Array.isArray(campaignContext?.attachmentIds) ? campaignContext.attachmentIds : []
+      const saved = await draftFlow.save({ kind: 'lead', id: previewLead.id }, attachmentIds)
+      setPreviewLead(null)
+      draftFlow.reset()
+      const leadId = previewLead.id
       setBatchModal(prev => ({
         ...prev,
         leads: prev.leads.map(l =>
-          l.id === emailPreview.lead.id
-            ? { ...l, emails: [{ id: saved.id, subject: saved.subject, status: 'draft' }] }
-            : l
+          l.id === leadId ? { ...l, emails: [{ id: saved.id, subject: saved.subject, status: 'draft' }] } : l
         ),
       }))
       setCampaignLeads(prev => prev.map(l =>
-        l.id === emailPreview.lead.id
-          ? { ...l, emails: [{ id: saved.id, subject: saved.subject, status: 'draft' }] }
-          : l
+        l.id === leadId ? { ...l, emails: [{ id: saved.id, subject: saved.subject, status: 'draft' }] } : l
       ))
-    } catch (err) {
-      setEmailPreview(prev => ({ ...prev, saving: false, error: err.message || 'Failed to save' }))
+    } catch {
+      // draftFlow.error has the message
     }
   }
 
-  const field = (key, value) => setForm(f => {
-    const next = { ...f, [key]: value }
-    if (key === 'templateId' && value) {
-      const tpl = templates.find(t => t.id === value)
-      if (tpl?.subject) next.subject = tpl.subject
-    }
-    return next
-  })
-
-  const toggleFilterTag = (namespaced) => setForm(f => {
-    const current = f.filterTags || []
-    const has = current.includes(namespaced)
-    return { ...f, filterTags: has ? current.filter(t => t !== namespaced) : [...current, namespaced] }
-  })
-
-  const REGION_LABELS = { '__US__': 'US companies', '__INTL__': 'International', '__REMOTE__': 'Remote' }
-
-  const activeFilters = (c) => [
-    ...(c.filterTags?.length ? c.filterTags.map(t => t.split(':')[1]) : []),
-    c.filterRegion ? (REGION_LABELS[c.filterRegion] || c.filterRegion) : null,
-    c.filterStage,
-    c.filterBatch,
-    c.filterIsHiring != null ? (c.filterIsHiring ? 'Hiring' : 'Not hiring') : null,
-    c.filterHeadcountMin || c.filterHeadcountMax
-      ? `${c.filterHeadcountMin || 0}–${c.filterHeadcountMax || '∞'} employees`
-      : null,
-  ].filter(Boolean)
+  // Display pills delegate to the shared CampaignAudience module so the
+  // front-end and back-end stay in lockstep about what each filter means.
+  const activeFilters = (c) => audienceToDisplayPills(audienceFromCampaign(c))
 
   const detailFilters = detailCampaign ? activeFilters(detailCampaign) : []
   const sourceLabel = (lead) => lead.batchNumber > 0 ? `Batch ${lead.batchNumber}` : 'Added manually'
@@ -637,7 +563,9 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       )}
 
       <section className="table-shell">
-        {filtered.length === 0 ? (
+        {isLoading && campaigns.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted/60">Loading…</div>
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={search ? Search : undefined}
             title={search ? 'No campaigns match' : 'No campaigns yet'}
@@ -725,210 +653,18 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         </>
       )}
 
-      {/* Create / Edit modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit campaign' : 'New campaign'} size="lg">
-        <div className="px-6 py-5 space-y-6">
 
-          {/* Basic info */}
-          <div className="space-y-3">
-            <div>
-              <label className="label">Campaign name *</label>
-              <input value={form.name} onChange={e => field('name', e.target.value)} placeholder="e.g. Spring 2026 YC outreach" className="input" required />
-            </div>
-            <div className={editing ? 'grid grid-cols-2 gap-3' : ''}>
-              <div>
-                <label className="label">Template</label>
-                <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
-                  <option value="">Select template...</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              {editing && (
-                <div>
-                  <label className="label">Status</label>
-                  <select value={form.status} onChange={e => field('status', e.target.value)} className="select">
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="paused">Paused</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Audience filters */}
-          <div>
-            <label className="label mb-2">Audience filters</label>
-            <div className="rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3.5 space-y-3">
-              {/* Hiring + region */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => field('filterIsHiring', !form.filterIsHiring)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
-                    form.filterIsHiring
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
-                  }`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-white/70' : 'bg-emerald-400'}`} />
-                  Hiring only
-                </button>
-                {([
-                  { value: '__US__', label: 'US' },
-                  { value: '__INTL__', label: 'International' },
-                  { value: '__REMOTE__', label: 'Remote' },
-                ] as const).map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
-                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
-                      form.filterRegion === value
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tag groups */}
-              <div className="space-y-2.5 pt-0.5">
-                {CAMPAIGN_NS.map(ns => {
-                  const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
-                  if (tags.length < 2) return null
-                  return (
-                    <div key={ns} className="flex items-start gap-3">
-                      <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/50">
-                        {NS_LABELS[ns]}
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tags.map(({ name, namespaced }) => (
-                          <button
-                            key={namespaced}
-                            type="button"
-                            onClick={() => toggleFilterTag(namespaced)}
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
-                              (form.filterTags || []).includes(namespaced)
-                                ? 'border-primary bg-primary text-white'
-                                : 'border-warm-300 bg-white text-muted hover:border-primary/30 hover:text-dark'
-                            }`}
-                          >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-                {CAMPAIGN_NS.every(ns => !(options.tags?.[ns] || []).length) && (
-                  <p className="text-xs text-muted">Tags load once companies are ingested.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Default attachments */}
-          {(workspaceConfig?.files || []).length > 0 && (
-            <div>
-              <label className="label">Default attachments</label>
-              <p className="mb-2 text-xs text-muted">Files checked here will be attached to every email generated from this campaign.</p>
-              <div className="space-y-1.5">
-                {(workspaceConfig.files as Array<{ id: string; fileName: string; size: number }>).map(f => {
-                  const checked = (form.attachmentIds || []).includes(f.id)
-                  return (
-                    <label key={f.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => field('attachmentIds', checked
-                          ? (form.attachmentIds || []).filter(id => id !== f.id)
-                          : [...(form.attachmentIds || []), f.id]
-                        )}
-                        className="rounded border-warm-300"
-                      />
-                      <Filter size={11} className="shrink-0 text-muted" />
-                      <span className="text-sm text-dark">{f.fileName}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Batch size */}
-          <div className="flex items-center gap-4">
-            <div className="shrink-0">
-              <label className="label">Batch size</label>
-              <input
-                type="number" min="1" max="50"
-                value={form.batchSize}
-                onChange={e => field('batchSize', e.target.value)}
-                className="input w-24"
-              />
-            </div>
-            <p className="mt-4 text-xs text-muted">Prospects pulled each time you click "Find matches" (max 50).</p>
-          </div>
-
-          {/* Advanced */}
-          <div className="border-t border-warm-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen(o => !o)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted hover:text-dark transition-colors"
-              aria-expanded={advancedOpen}
-            >
-              <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
-              Advanced
-              {!advancedOpen && advancedSummary(form) && (
-                <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">— {advancedSummary(form)}</span>
-              )}
-            </button>
-
-            {advancedOpen && (
-              <div className="mt-3 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="label">YC Batch</label>
-                    <select value={form.filterBatch} onChange={e => field('filterBatch', e.target.value)} className="select">
-                      <option value="">Any batch</option>
-                      {options.batches.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Min employees</label>
-                    <input type="number" min="0" value={form.filterHeadcountMin} onChange={e => field('filterHeadcountMin', e.target.value)} placeholder="e.g. 10" className="input" />
-                  </div>
-                  <div>
-                    <label className="label">Max employees</label>
-                    <input type="number" min="0" value={form.filterHeadcountMax} onChange={e => field('filterHeadcountMax', e.target.value)} placeholder="e.g. 200" className="input" />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Tone hint</label>
-                  <input
-                    value={form.tone}
-                    onChange={e => field('tone', e.target.value)}
-                    placeholder="e.g. curious, low-key, technical"
-                    className="input"
-                  />
-                  <p className="mt-1 text-xs text-muted">Shapes how generated emails sound. Leave blank to use your style profile.</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
-            <button onClick={save} disabled={saving || !form.name} className="btn-primary">
-              {saving ? 'Saving...' : editing ? 'Save changes' : 'Create campaign'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      <CampaignFormModal
+        open={modalOpen}
+        editing={Boolean(editing)}
+        initialForm={formInitial}
+        templates={templates}
+        options={options}
+        workspaceConfig={workspaceConfig}
+        saving={saving}
+        onClose={() => setModalOpen(false)}
+        onSave={handleFormSave}
+      />
 
       {/* Batch results render inline inside the campaign detail view above. */}
 
@@ -949,82 +685,12 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
       />
 
       {/* Email preview & save modal */}
-      <Modal
-        open={emailPreview.open}
-        onClose={() => setEmailPreview(prev => ({ ...prev, open: false }))}
-        title={emailPreview.lead ? `Email for ${emailPreview.lead.company?.name || 'contact'}` : 'Generated email'}
-        size="md"
-      >
-        <div className="px-6 py-4 space-y-4">
-          {/* Company / contact context */}
-          {emailPreview.lead && (
-            <div className="rounded-[16px] border border-warm-200 bg-warm-50 px-4 py-3 text-xs text-muted space-y-1">
-              <div className="flex items-center gap-4">
-                {emailPreview.lead.company?.name && (
-                  <span className="flex items-center gap-1"><Building2 size={10} /> {emailPreview.lead.company.name}</span>
-                )}
-                {emailPreview.lead.company?.industry && (
-                  <span>{emailPreview.lead.company.industry}</span>
-                )}
-                {emailPreview.lead.company?.region && (
-                  <span className="flex items-center gap-1"><MapPin size={10} /> {emailPreview.lead.company.region}</span>
-                )}
-              </div>
-              {emailPreview.lead.contact && (
-                <div className="flex items-center gap-1 text-warm-600">
-                  <Users size={10} />
-                  {emailPreview.lead.contact.name || 'Contact'}
-                  {emailPreview.lead.contact.title && ` - ${emailPreview.lead.contact.title}`}
-                  {emailPreview.lead.contact.email && (
-                    <span className="ml-1 text-primary">{emailPreview.lead.contact.email}</span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div>
-            <label className="label">Subject</label>
-            <input
-              value={emailPreview.subject}
-              onChange={e => setEmailPreview(prev => ({ ...prev, subject: e.target.value }))}
-              className="input"
-              placeholder="Subject line"
-            />
-          </div>
-
-          <div>
-            <label className="label">Body</label>
-            <textarea
-              value={emailPreview.body}
-              onChange={e => setEmailPreview(prev => ({ ...prev, body: e.target.value }))}
-              rows={14}
-              className="input resize-y text-sm leading-relaxed"
-              placeholder="Email body..."
-            />
-          </div>
-
-          {emailPreview.error && (
-            <Banner variant="danger" size="sm">{emailPreview.error}</Banner>
-          )}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              onClick={() => setEmailPreview(prev => ({ ...prev, open: false }))}
-              className="btn-secondary"
-            >
-              Discard
-            </button>
-            <button
-              onClick={saveEmailToDrafts}
-              disabled={emailPreview.saving}
-              className="btn-primary"
-            >
-              {emailPreview.saving ? 'Saving...' : 'Save to drafts'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      <DraftPreviewModal
+        lead={previewLead}
+        draftFlow={draftFlow}
+        onClose={() => { setPreviewLead(null); draftFlow.reset() }}
+        onSave={saveEmailToDrafts}
+      />
     </div>
   )
 }
