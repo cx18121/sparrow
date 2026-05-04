@@ -1,34 +1,21 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isDemo } from '../lib/supabase'
-import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId, saveProfile } from '../lib/api'
+import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId } from '../lib/api'
 
 const AuthContext = createContext(null)
 
-// Google OAuth scopes — gmail.send is required to send mail on the
-// user's behalf; offline access is required for Google to issue a
-// refresh token (combined with access_type=offline + prompt=consent).
-const GOOGLE_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/gmail.send',
-].join(' ')
-
-const persistedRefreshTokens = new Set()
-
-async function persistGoogleRefreshToken(session): Promise<boolean> {
-  const token = session?.provider_refresh_token
-  if (!token || persistedRefreshTokens.has(token)) return false
-  persistedRefreshTokens.add(token)
-  try {
-    await saveProfile({ googleRefreshToken: token })
-    return true
-  } catch (err) {
-    persistedRefreshTokens.delete(token)
-    console.error('Failed to persist Google refresh token', err)
-    return false
-  }
-}
+// Sign-in-with-Google grants identity ONLY. Gmail send permission is its
+// own concern, captured exclusively through the server-side OAuth flow at
+// /api/google/connect → /api/google/callback. There used to be a second
+// path here that read session.provider_refresh_token and persisted it, plus
+// a cf_wants_gmail flag that triggered an automatic redirect through the
+// server flow when Supabase failed to emit a refresh token. Both have been
+// removed: Supabase's behavior on subsequent sign-ins is unreliable, the
+// fallback ran inconsistently, and the dual flow led to silent drift between
+// "I signed in with Google" and "I can actually send mail." The Settings
+// "Connect" button is now the single, explicit, observable place where
+// Gmail capture happens.
+const GOOGLE_IDENTITY_SCOPES = ['openid', 'email', 'profile'].join(' ')
 
 function applySessionToApiClient(session) {
   setApiUserId(session?.user?.id ?? null)
@@ -62,16 +49,12 @@ export function AuthProvider({ children }) {
       }
       if (session) {
         applySessionToApiClient(session)
-        await persistGoogleRefreshToken(session)
       }
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Provider refresh tokens are emitted only once after the OAuth redirect.
-      // Persist whenever Supabase gives us a session so link/sign-in callbacks
-      // cannot miss the one-time Google token.
       if (event === 'SIGNED_OUT') {
         setUser(null)
         applySessionToApiClient(null)
@@ -80,24 +63,6 @@ export function AuthProvider({ children }) {
 
       if (session) {
         applySessionToApiClient(session)
-        const persisted = await persistGoogleRefreshToken(session)
-
-        // If the user clicked "Continue with Google" but Supabase didn't include
-        // provider_refresh_token, immediately redirect through the server connect
-        // flow while the access token is hot — before the app renders anything.
-        const wantsGmail = sessionStorage.getItem('cf_wants_gmail') === 'true'
-        if (wantsGmail) {
-          sessionStorage.removeItem('cf_wants_gmail')
-          if (!persisted) {
-            try {
-              const res = await startGoogleConnect('/')
-              if (res?.url) { window.location.assign(res.url); return }
-            } catch {
-              // Network or server error — user can connect manually from Settings.
-            }
-          }
-        }
-
         // Use functional update to preserve referential stability on TOKEN_REFRESHED —
         // if the user ID hasn't changed, keep the existing object so downstream
         // useEffect([user]) deps don't fire on every token refresh.
@@ -156,19 +121,15 @@ export function AuthProvider({ children }) {
     // signInWithGoogle is only called from AuthScreen (user is always signed out).
     // Always use signInWithOAuth — never linkIdentity, which requires an active session
     // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
-    // Mark that the user wants Gmail connected so onAuthStateChange can
-    // auto-trigger the server connect flow if provider_refresh_token is missing.
-    sessionStorage.setItem('cf_wants_gmail', 'true')
-
+    //
+    // Identity scopes only. Gmail send permission is captured separately
+    // through Settings → Connect, not bundled into sign-in. See the comment
+    // on GOOGLE_IDENTITY_SCOPES at the top of the file.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
-        scopes: GOOGLE_SCOPES,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+        scopes: GOOGLE_IDENTITY_SCOPES,
       },
     })
     if (!error && data?.session) {
@@ -198,8 +159,6 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
     // Clear cross-user session caches so a new sign-in starts fresh.
     try { sessionStorage.removeItem('cf_discover_state') } catch {}
-    try { sessionStorage.removeItem('cf_wants_gmail') } catch {}
-    persistedRefreshTokens.clear()
 
     if (isDemo) {
       // Clear both demo identity keys so the next "sign up" doesn't inherit
