@@ -204,8 +204,6 @@ describe("generateEmailDraft — Template mode (AI-personalized skeleton)", () =
     senderName: baseAi.senderName,
     body: "Hi {{firstName}}, I wanted to reach out about {{company}}.",
     senderContext: baseAi.senderContext,
-    styleInstruction: null,
-    exampleBodies: null,
     apiKey: API_KEY,
   } satisfies TemplateDraftInput;
 

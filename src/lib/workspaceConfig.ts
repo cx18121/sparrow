@@ -11,8 +11,6 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     senderCompany: '',
     senderRole: '',
     templateMode: 'existing',
-    styleChoices: {},
-    styleProfile: null,
     templateId: defaultTemplateId,
     customTemplate: {
       id: '',
@@ -36,16 +34,11 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       ...baseConfig.customTemplate,
       ...(data?.customTemplate || {}),
     },
-    styleChoices: {
-      ...baseConfig.styleChoices,
-      ...(data?.styleChoices || {}),
-    },
     sendingLimits: {
       ...baseConfig.sendingLimits,
       ...(data?.sendingLimits || {}),
     },
     files: Array.isArray(data?.files) ? data.files : baseConfig.files,
-    styleProfile: data?.styleProfile || baseConfig.styleProfile,
   }
 
   const templateExists = templates.some(template => template.id === merged.templateId)

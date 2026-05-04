@@ -62,18 +62,11 @@ const isOnboardingSessionBypass = (value) => value === 'true' || value === 'comp
 const hasRecoverableCompletedSetup = (profile) => {
   const config = profile?.workspaceConfig || {}
   const hasSender = Boolean(config.senderName?.trim?.())
-  const hasStyle = Boolean(
-    config.styleProfile ||
-    Object.keys(config.styleChoices || {}).length > 0
-  )
   const hasTemplate = Boolean(
     config.templateId ||
     (config.customTemplate?.subject?.trim?.() && config.customTemplate?.body?.trim?.())
   )
-  return Boolean(
-    hasSender &&
-    (hasStyle || hasTemplate)
-  )
+  return Boolean(hasSender && hasTemplate)
 }
 
 const formatTemplateBody = (body) => {

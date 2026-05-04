@@ -3,13 +3,9 @@ import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, Us
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
-import {
-  STYLE_TESTS, STYLE_LABELS, STYLE_PROMPTS, DEFAULT_STYLE_PROFILE,
-  scoreStyleChoices,
-} from '../../lib/styleProfile'
 
-const TOTAL_STEPS = 4
-const STEP_LABELS = ['About', 'Style', 'Template', 'Gmail']
+const TOTAL_STEPS = 3
+const STEP_LABELS = ['About', 'Template', 'Gmail']
 
 function fillVariables(content, data) {
   if (!content) return ''
@@ -45,56 +41,6 @@ function stripHtml(content) {
     .replace(/&nbsp;/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-}
-
-function buildStyleTemplate(profile) {
-  const traits = profile?.traits || DEFAULT_STYLE_PROFILE.traits
-  const isDirect = traits.includes('direct')
-  const isWarm = traits.includes('warm')
-  const isSpecific = traits.includes('specific')
-  const isConcise = traits.includes('concise')
-  const sender = '{{sender_name}}'
-
-  const opening = isWarm
-    ? 'I came across {{company}} and your team stood out.'
-    : 'I noticed {{company}} and wanted to reach out.'
-  const context = isSpecific
-    ? 'My recent work has focused on turning research and outreach into clear, targeted first drafts.'
-    : 'I am working on practical outreach systems and thought there may be a useful fit.'
-  const ask = isDirect
-    ? 'Would you be open to a 15-minute conversation next week?'
-    : 'If useful, I would be glad to connect when timing is easy.'
-  const body = isConcise
-    ? `Hi {{first_name}},\n\n${opening} ${context}\n\n${ask}\n\nBest,\n${sender}`
-    : `Hi {{first_name}},\n\n${opening}\n\n${context}\n\n${ask}\n\nBest,\n${sender}`
-
-  return {
-    id: '',
-    name: 'Personal style template',
-    subject: isDirect ? 'Quick question about {{company}}' : 'Thought on {{company}}',
-    body,
-    isShared: false,
-  }
-}
-
-function withGeneratedStyleTemplate(data, { force = false } = {}) {
-  const styleProfile = data.styleProfile || scoreStyleChoices(data.styleChoices)
-  const shouldGenerate = force
-    || data.templateMode !== 'custom'
-    || !data.customTemplate?.subject
-    || !data.customTemplate?.body
-    || data.customTemplate?.name === 'Personal style template'
-
-  if (!shouldGenerate) {
-    return { ...data, styleProfile }
-  }
-
-  return {
-    ...data,
-    styleProfile,
-    templateMode: 'custom',
-    customTemplate: buildStyleTemplate(styleProfile),
-  }
 }
 
 function StepHeader({ step, total, title, description = undefined }) {
@@ -199,139 +145,6 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
   )
 }
 
-function StyleStep({ form, updateStyleChoice, showMissing }) {
-  const [activeIndex, setActiveIndex] = useState(() => {
-    const firstIncomplete = STYLE_TESTS.findIndex(test => !form.styleChoices?.[test.id])
-    return firstIncomplete >= 0 ? firstIncomplete : 0
-  })
-  const profile = form.styleProfile || DEFAULT_STYLE_PROFILE
-  const completed = STYLE_TESTS.filter(test => form.styleChoices?.[test.id]).length
-  const activeTest = STYLE_TESTS[activeIndex]
-  const selected = form.styleChoices?.[activeTest.id]
-  const sampleData = { first_name: 'Alex', last_name: 'Chen', company: 'Momentum AI', role: 'CEO', sender_name: form.senderName || 'Your Name' }
-  const nextIncompleteIndex = STYLE_TESTS.findIndex(test => !form.styleChoices?.[test.id])
-
-  const choose = (choice) => {
-    updateStyleChoice(activeTest.id, choice)
-    const followingIncomplete = STYLE_TESTS.findIndex((test, index) => index > activeIndex && !form.styleChoices?.[test.id])
-    if (followingIncomplete >= 0) {
-      setActiveIndex(followingIncomplete)
-    }
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-5xl">
-      <StepHeader
-        step={2}
-        total={TOTAL_STEPS}
-        title="Your email style"
-      />
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_200px]">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-200 pb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                {activeIndex + 1} of {STYLE_TESTS.length}
-              </p>
-              <h2 className="mt-1 text-xl font-semibold text-dark">{activeTest.label}</h2>
-              <p className="mt-1 text-sm text-muted">{activeTest.dimension}</p>
-            </div>
-            <div className="flex gap-1.5">
-              {STYLE_TESTS.map((test, index) => (
-                <button
-                  key={test.id}
-                  type="button"
-                  onClick={() => setActiveIndex(index)}
-                  aria-label={`Show comparison ${index + 1}`}
-                  className={`h-2.5 rounded-full transition-all ${
-                    index === activeIndex
-                      ? 'w-8 bg-primary'
-                      : form.styleChoices?.[test.id]
-                        ? 'w-2.5 bg-primary/45'
-                        : 'w-2.5 bg-stone-300'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {['a', 'b'].map(key => {
-              const option = activeTest[key]
-              const isSelected = selected === key
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => choose(key)}
-                  aria-pressed={isSelected}
-                  className={`flex min-h-[260px] flex-col rounded-2xl border px-5 py-4 text-left transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-[0_14px_32px_rgba(85,122,87,0.12)]'
-                      : 'border-accent/20 bg-surface hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card'
-                  }`}
-                >
-                  <p className="mb-3 text-base font-semibold text-dark">{option.label}</p>
-                  <p className="whitespace-pre-line text-sm leading-6 text-dark">
-                    {fillVariables(option.body, sampleData)}
-                  </p>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            {showMissing && completed < STYLE_TESTS.length ? (
-              <p className="text-xs font-medium text-red-500">Pick one option for each comparison to continue.</p>
-            ) : (
-              <span />
-            )}
-            <button
-              type="button"
-              onClick={() => setActiveIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : Math.min(activeIndex + 1, STYLE_TESTS.length - 1))}
-              className="btn-ghost px-3 py-2 text-xs"
-            >
-              {nextIncompleteIndex >= 0 ? 'Next unanswered' : 'Review picks'}
-            </button>
-          </div>
-        </div>
-
-        <aside className="rounded-2xl border border-warm-300 bg-warm-50 px-4 py-4">
-          {profile.traits.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
-              {profile.traits.map(trait => (
-                <span key={trait} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  {trait}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-1">
-            {STYLE_TESTS.map((test, index) => {
-              const pick = form.styleChoices?.[test.id]
-              return (
-                <button
-                  key={test.id}
-                  type="button"
-                  onClick={() => setActiveIndex(index)}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-warm-50"
-                >
-                  <span className="text-xs font-medium text-dark">{test.label}</span>
-                  <span className={`text-xs font-semibold ${pick ? 'text-primary' : 'text-muted'}`}>
-                    {pick ? test[pick].label : 'Choose'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </aside>
-      </div>
-    </div>
-  )
-}
-
 const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
   { tag: '{{first_name}}', label: 'first name' },
   { tag: '{{last_name}}',  label: 'last name' },
@@ -379,7 +192,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
-        step={3}
+        step={2}
         total={TOTAL_STEPS}
         title="Your template"
         description="Set the starting point for each draft."
@@ -525,7 +338,7 @@ function GmailStep({
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
-        step={4}
+        step={3}
         total={TOTAL_STEPS}
         title="Connect Gmail"
         description="Grant send permission so Sparrow can send approved drafts from your account."
@@ -590,7 +403,6 @@ export default function OnboardingScreen({
 }) {
   const [stepIndex, setStepIndex] = useState(0)
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
-  const [styleAttempted, setStyleAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -633,12 +445,6 @@ export default function OnboardingScreen({
     }
   }, [form.senderName])
 
-  useEffect(() => {
-    if (STYLE_TESTS.every(test => form.styleChoices?.[test.id])) {
-      setStyleAttempted(false)
-    }
-  }, [form.styleChoices])
-
   const selectedTemplate = useMemo(
     () => templates.find(template => template.id === form.templateId) || templates[0] || null,
     [form.templateId, templates]
@@ -657,15 +463,6 @@ export default function OnboardingScreen({
       ...current,
       customTemplate: { ...current.customTemplate, [key]: value },
     }))
-  }
-  const updateStyleChoice = (testId, choice) => {
-    markUserEdited()
-    setSaveError('')
-    setForm(current => {
-      const styleChoices = { ...(current.styleChoices || {}), [testId]: choice }
-      const styleProfile = scoreStyleChoices(styleChoices)
-      return withGeneratedStyleTemplate({ ...current, styleChoices, styleProfile })
-    })
   }
   const handleUploadResume = async (file) => {
     if (!file) return
@@ -717,20 +514,11 @@ export default function OnboardingScreen({
   }
 
   const isSenderNameValid = Boolean(form.senderName.trim())
-  const isStyleComplete = STYLE_TESTS.every(test => form.styleChoices?.[test.id])
 
   const nextStep = () => {
     if (stepIndex === 0 && !isSenderNameValid) {
       setSenderNameAttempted(true)
       return
-    }
-    if (stepIndex === 1) {
-      if (!isStyleComplete) {
-        setStyleAttempted(true)
-        return
-      }
-      const nextForm = withGeneratedStyleTemplate(form, { force: true })
-      setForm(nextForm)
     }
     setStepIndex(index => Math.min(index + 1, steps.length - 1))
   }
@@ -741,31 +529,18 @@ export default function OnboardingScreen({
       setStepIndex(0)
       return
     }
-    if (index > 1 && !isStyleComplete) {
-      setStyleAttempted(true)
-      setStepIndex(1)
-      return
-    }
-    if (index === 2) {
-      setForm(current => withGeneratedStyleTemplate(current, { force: true }))
-    }
     setStepIndex(index)
   }
 
   const finish = async (skipped = false) => {
     if (isSaving || resumeUpload.uploading) return false
-    const needsGeneratedTemplate = !skipped && (
-      (form.templateMode === 'custom' && (!form.customTemplate?.subject || !form.customTemplate?.body))
-      || (form.templateMode !== 'custom' && !selectedTemplate)
-    )
-    const finalForm = needsGeneratedTemplate ? withGeneratedStyleTemplate(form, { force: true }) : form
 
     setSaveError('')
     setIsSaving(true)
     try {
       const payload = {
-        ...finalForm,
-        templateId: finalForm.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
+        ...form,
+        templateId: form.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
         skipped,
       }
       if (skipped) {
@@ -805,12 +580,6 @@ export default function OnboardingScreen({
       uploadState={resumeUpload}
       showNameError={stepIndex === 0 && senderNameAttempted && !form.senderName.trim()}
     />,
-    <StyleStep
-      key="style"
-      form={form}
-      updateStyleChoice={updateStyleChoice}
-      showMissing={styleAttempted}
-    />,
     <TemplateStep
       key="template"
       form={form}
@@ -833,7 +602,7 @@ export default function OnboardingScreen({
 
   const isFirstStep = stepIndex === 0
   const isLastStep = stepIndex === steps.length - 1
-  const contentWidthClass = stepIndex === 1 ? 'max-w-5xl' : 'max-w-2xl'
+  const contentWidthClass = 'max-w-2xl'
 
   const handleLogout = async () => {
     if (!onLogout || isSigningOut) return

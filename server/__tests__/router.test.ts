@@ -14,7 +14,6 @@ vi.mock("../routes/emails.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/generate.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/send.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/send-test.js", () => ({ default: vi.fn() }));
-vi.mock("../routes/style-guide.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/google/callback.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/google/connect.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/health.js", () => ({ default: vi.fn() }));

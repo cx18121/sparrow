@@ -59,8 +59,6 @@ function buildTemplatePrompt(input: TemplateDraftInput): string {
     senderName: input.senderName,
     interestHook: null,
     senderContext: input.senderContext,
-    styleInstruction: input.styleInstruction,
-    exampleBodies: input.exampleBodies,
     apiKey: input.apiKey,
     featureLine: input.featureLine ?? null,
     fitAngle: input.fitAngle ?? null,
@@ -80,12 +78,7 @@ async function draftFromTemplate(input: TemplateDraftInput): Promise<EmailDraft>
   const rawBody = await callClaude({
     apiKey: input.apiKey,
     model: GENERATION_MODEL,
-    system: [
-      EMAIL_GENERATION_SYSTEM_PROMPT,
-      input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
-    ]
-      .filter(Boolean)
-      .join('\n\n'),
+    system: EMAIL_GENERATION_SYSTEM_PROMPT,
     userContent: buildTemplatePrompt(input),
     maxTokens: 1024,
   })
@@ -109,13 +102,7 @@ function stripPlaceholders(text: string): string {
 }
 
 function buildPrompt(input: AiDraftInput): string {
-  const exampleNote = input.exampleBodies?.length
-    ? `\n\nStyle example (match this voice and structure — do not copy content):\n${stripPlaceholders(input.exampleBodies[0])}`
-    : ''
-
-  const styleGuidance = input.styleInstruction
-    ? `Style (follow precisely):\n${input.styleInstruction}${exampleNote}`
-    : `Style: direct, concise, specific — 80–120 words.${exampleNote}`
+  const styleGuidance = `Style: direct, concise, specific — 80–120 words.`
 
   const hookNote = input.interestHook
     ? `Interest hook — weave in naturally mid-email: "${input.interestHook}"`
@@ -167,17 +154,10 @@ function buildPrompt(input: AiDraftInput): string {
 }
 
 async function draftFromAi(input: AiDraftInput): Promise<EmailDraft> {
-  const system = [
-    EMAIL_GENERATION_SYSTEM_PROMPT,
-    input.styleInstruction ? `User style preference:\n${input.styleInstruction}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
-
   const rawBody = await callClaude({
     apiKey: input.apiKey,
     model: GENERATION_MODEL,
-    system,
+    system: EMAIL_GENERATION_SYSTEM_PROMPT,
     userContent: buildPrompt(input),
     maxTokens: 1024,
   })

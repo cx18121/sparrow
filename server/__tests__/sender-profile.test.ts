@@ -48,7 +48,6 @@ describe("resolveProfileForGeneration", () => {
           senderName: "Jane Smith",
           senderRole: "ML engineer",
           senderCompany: "ColdFlow",
-          styleProfile: { traits: ["direct", "concise"] },
         },
       },
       error: null,
@@ -64,8 +63,6 @@ describe("resolveProfileForGeneration", () => {
     expect(profile.senderName).toBe("Jane Smith");
     expect(profile.senderRole).toBe("ML engineer");
     expect(profile.resumeText).toBe("Built an eval harness.");
-    expect(profile.styleInstruction).toContain("Use direct language");
-    expect(profile.styleInstruction).toContain("Keep the email short");
   });
 
   it("returns null sender fields and empty workspace config when the profile row is missing", async () => {
@@ -78,7 +75,6 @@ describe("resolveProfileForGeneration", () => {
       senderName: null,
       senderRole: null,
       resumeText: null,
-      styleInstruction: null,
       ws: {},
     });
   });
@@ -106,7 +102,6 @@ describe("buildSenderContextFromProfile", () => {
     senderName: "Jane Smith",
     senderRole: "ML engineer",
     resumeText: "Built a multi-agent evaluation harness.",
-    styleInstruction: null,
     ws: {
       senderName: "Jane Smith",
       senderRole: "ML engineer",

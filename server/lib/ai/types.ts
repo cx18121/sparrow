@@ -37,15 +37,13 @@ export interface TemplateDraftInput extends DraftBase {
   kind: 'template'
   body: string
   senderContext: string
-  styleInstruction?: string | null
-  exampleBodies?: string[] | null
   apiKey: string
   featureLine?: string | null
   fitAngle?: string | null
 }
 
 // AI mode — Anthropic generates the body from sender context, company info,
-// and an optional interest hook. styleInstruction tunes voice.
+// and an optional interest hook.
 //
 // featureLine: a specific company surface the sender wants to work on (output
 // of researchFitAngle). fitAngle: the resume project that opens the
@@ -54,8 +52,6 @@ export interface AiDraftInput extends DraftBase {
   kind: 'ai'
   interestHook: string | null
   senderContext: string
-  styleInstruction?: string | null
-  exampleBodies?: string[] | null
   apiKey: string
   featureLine?: string | null
   fitAngle?: string | null

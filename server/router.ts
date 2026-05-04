@@ -18,7 +18,6 @@ import leads from "./routes/leads.js";
 import account from "./routes/account.js";
 import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
-import styleGuide from "./routes/style-guide.js";
 
 export type ApiHandler = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
@@ -41,7 +40,6 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/campaign-options": campaignOptions,
   "/api/apollo-search": apolloSearch,
   "/api/audience-query": audienceQuery,
-  "/api/style-guide": styleGuide,
 };
 
 function pathFromCatchAll(req: VercelRequest): string | null {

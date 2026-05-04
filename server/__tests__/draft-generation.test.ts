@@ -96,8 +96,7 @@ const mockProfile = {
   senderName: "Alex",
   senderRole: "SWE Intern",
   resumeText: null,
-  styleInstruction: null,
-  ws: { styleProfile: null },
+  ws: {},
 };
 
 const mockDraft = { subject: "Quick intro — Alex", body: "Hi Sarah, …" };
@@ -329,7 +328,6 @@ describe("generateDraft — Template path", () => {
       "Hi {{firstName}}, I'm reaching out about {{company}}."
     );
     expect(draftInputArg.senderContext).toBe("sender context string");
-    expect(draftInputArg.styleInstruction).toBe(mockProfile.styleInstruction);
     expect(draftInputArg.apiKey).toBe(mockProfile.apiKey);
   });
 

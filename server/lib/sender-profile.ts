@@ -1,13 +1,12 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { buildSenderContext } from "./build-sender-context.js";
-import { parseWorkspaceConfig, resolveStyleInstruction, type WorkspaceConfig } from "./workspace-config.js";
+import { parseWorkspaceConfig, type WorkspaceConfig } from "./workspace-config.js";
 
 export interface ResolvedProfile {
   apiKey: string;
   senderName: string | null;
   senderRole: string | null;
   resumeText: string | null;
-  styleInstruction: string | null;
   ws: WorkspaceConfig;
 }
 
@@ -45,7 +44,6 @@ export async function resolveProfileForGeneration(userId: string): Promise<Resol
     senderName: ws.senderName ?? null,
     senderRole: ws.senderRole ?? null,
     resumeText: profile?.resume_text ?? null,
-    styleInstruction: resolveStyleInstruction(ws),
     ws,
   };
 }

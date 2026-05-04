@@ -208,8 +208,6 @@ export const generateEmail = (data: {
   interestHook?: string | null; extraContext?: string | null;
   includeResumeBullet?: boolean; save?: boolean;
 }) => request<GenerateEmailResponse>('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
-export const generateStyleGuide = (examples: string[]) =>
-  request<{ guide: string }>('/style-guide', { method: 'POST', body: JSON.stringify({ examples }) })
 export const sendEmail = (emailId: string) =>
   request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
 export const sendTestEmail = (emailId: string, recipient: string) =>
