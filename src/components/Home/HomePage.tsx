@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight, FileText, Plus, Send, Users,
 } from 'lucide-react'
@@ -191,6 +191,19 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
   const [saving, setSaving] = useState(false)
   const [options, setOptions] = useState<CampaignOptions>(EMPTY_OPTIONS)
   const [toast, setToast] = useState<{ type: string; title: string; message?: string } | null>(null)
+
+  // Sidebar's "+" next to Campaigns navigates to /dashboard?new=1 to open
+  // the wizard from anywhere. Honour that param once and strip it from the
+  // URL so a refresh doesn't re-fire.
+  const location = useLocation()
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('new') !== '1') return
+    setWizardOpen(true)
+    params.delete('new')
+    const next = `${location.pathname}${params.toString() ? `?${params}` : ''}`
+    window.history.replaceState(null, '', next)
+  }, [location.search, location.pathname])
 
   useEffect(() => {
     let cancelled = false

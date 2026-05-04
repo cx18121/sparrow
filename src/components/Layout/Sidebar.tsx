@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAppData } from '../../contexts/AppDataContext'
 import type { UiCampaign } from '../../contexts/AppDataContext'
-import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Send } from 'lucide-react'
+import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Plus, Send } from 'lucide-react'
 
 // Sidebar layout (per the latest mockup):
 //   Brand row    : forest green circle + Send icon + Sparrow wordmark, no
@@ -149,19 +149,30 @@ export default function Sidebar({
           {mainTabs.map(renderTabButton)}
         </div>
 
-        {/* Campaigns inline list. Hidden when collapsed (no useful affordance
-            without the names). Shows up to 8 active+paused before scrolling
-            inside the nav container. */}
-        {!collapsed && sidebarCampaigns.length > 0 && (
+        {/* Campaigns inline list. When collapsed, render as small status
+            dots (no labels) so the user still sees what's running and how
+            many — clicking a dot still navigates into the workspace. */}
+        {sidebarCampaigns.length > 0 && (
           <div className="mt-5">
-            <div className="mb-1.5 flex items-center justify-between px-2.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/70">
-                Campaigns
-              </span>
-            </div>
+            {!collapsed && (
+              <div className="mb-1.5 flex items-center justify-between px-2.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/70">
+                  Campaigns
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard?new=1')}
+                  title="New campaign"
+                  className="flex h-4 w-4 items-center justify-center rounded-full text-muted/70 transition-colors hover:bg-accent/15 hover:text-dark"
+                  aria-label="New campaign"
+                >
+                  <Plus size={11} />
+                </button>
+              </div>
+            )}
             <div className="space-y-0">
               {sidebarCampaigns.slice(0, 8).map(renderCampaignRow)}
-              {sidebarCampaigns.length > 8 && (
+              {!collapsed && sidebarCampaigns.length > 8 && (
                 <button
                   type="button"
                   onClick={() => onTabChange('dashboard')}
