@@ -10,6 +10,8 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     senderName: defaultName,
     senderCompany: '',
     senderRole: '',
+    signature: '',
+    timeZone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
     templateMode: 'existing',
     styleChoices: {},
     styleProfile: null,
