@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { ChevronRight, Filter, Trash2 } from 'lucide-react'
+import { Filter, Trash2 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
@@ -65,9 +65,6 @@ export default function SettingsTab() {
 
   const initial = useMemo(() => fromCampaign(campaign), [campaign])
   const [form, setForm] = useState<FormValue>(initial)
-  const [advancedOpen, setAdvancedOpen] = useState(
-    Boolean(initial.filterBatch || initial.filterHeadcountMin || initial.filterHeadcountMax)
-  )
   const [options, setOptions] = useState<CampaignOptions>({
     industries: [], regions: [], stages: [], batches: [], tags: {},
   })
@@ -147,15 +144,6 @@ export default function SettingsTab() {
     }
   }
 
-  const advancedSummary = (() => {
-    const parts: string[] = []
-    if (form.filterBatch) parts.push(form.filterBatch)
-    if (form.filterHeadcountMin || form.filterHeadcountMax) {
-      parts.push(`${form.filterHeadcountMin || 0}-${form.filterHeadcountMax || 'any'} employees`)
-    }
-    return parts.join(', ')
-  })()
-
   const files = (workspaceConfig?.files || []) as Array<{ id: string; fileName: string; size: number }>
 
   return (
@@ -166,7 +154,7 @@ export default function SettingsTab() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold text-dark">Campaign settings</h2>
-          <p className="mt-0.5 text-sm text-muted">Edit the campaign name, audience, template, and batch behavior.</p>
+          <p className="mt-0.5 text-sm text-muted">Campaign details, audience, and defaults.</p>
         </div>
         {dirty && (
           <div className="flex items-center gap-2">
@@ -182,7 +170,7 @@ export default function SettingsTab() {
 
       {/* Basic info */}
       <section className="surface-panel space-y-3 px-5 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Basic</p>
+        <h3 className="text-base font-semibold text-dark">Basics</h3>
         <div>
           <label className="label">Campaign name *</label>
           <input
@@ -217,7 +205,7 @@ export default function SettingsTab() {
 
       {/* Audience filters */}
       <section className="surface-panel px-5 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Audience</p>
+        <h3 className="text-base font-semibold text-dark">Audience</h3>
         <div className="mt-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3.5 space-y-3">
           <div className="flex flex-wrap gap-2">
             <button
@@ -289,7 +277,7 @@ export default function SettingsTab() {
 
       {/* Batch + dedup */}
       <section className="surface-panel space-y-4 px-5 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Batches</p>
+        <h3 className="text-base font-semibold text-dark">Batching</h3>
         <div className="flex items-center gap-4">
           <div className="shrink-0">
             <label className="label">Batch size</label>
@@ -301,7 +289,7 @@ export default function SettingsTab() {
             />
           </div>
           <p className="mt-4 text-xs text-muted">
-            Prospects pulled each time you click "Find prospects" (max 50).
+            Prospects per batch. Max 50.
           </p>
         </div>
         <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-warm-200 bg-warm-50 px-3 py-2.5 transition-colors hover:border-primary/20 hover:bg-primary/5">
@@ -313,7 +301,7 @@ export default function SettingsTab() {
           />
           <div>
             <p className="text-sm text-dark">Include leads saved in past campaigns</p>
-            <p className="mt-0.5 text-xs text-muted">By default Sparrow skips prospects you've already saved elsewhere.</p>
+            <p className="mt-0.5 text-xs text-muted">Off by default to avoid duplicates.</p>
           </div>
         </label>
       </section>
@@ -322,8 +310,8 @@ export default function SettingsTab() {
       {files.length > 0 && (
         <section className="surface-panel space-y-3 px-5 py-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Default attachments</p>
-            <p className="mt-1 text-xs text-muted">Files checked here will be attached to every email generated from this campaign.</p>
+            <h3 className="text-base font-semibold text-dark">Default attachments</h3>
+            <p className="mt-1 text-xs text-muted">Attached to new drafts in this campaign.</p>
           </div>
           <div className="space-y-1.5">
             {files.map(f => {
@@ -348,50 +336,14 @@ export default function SettingsTab() {
         </section>
       )}
 
-      {/* Advanced */}
-      <section className="surface-panel px-5 py-5">
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen(o => !o)}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted hover:text-dark transition-colors"
-          aria-expanded={advancedOpen}
-        >
-          <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
-          Advanced
-          {!advancedOpen && advancedSummary && (
-            <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">- {advancedSummary}</span>
-          )}
-        </button>
-
-        {advancedOpen && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className="label">YC Batch</label>
-              <select value={form.filterBatch} onChange={e => field('filterBatch', e.target.value)} className="select">
-                <option value="">Any batch</option>
-                {options.batches.map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Min employees</label>
-              <input type="number" min="0" value={form.filterHeadcountMin} onChange={e => field('filterHeadcountMin', e.target.value)} placeholder="e.g. 10" className="input" />
-            </div>
-            <div>
-              <label className="label">Max employees</label>
-              <input type="number" min="0" value={form.filterHeadcountMax} onChange={e => field('filterHeadcountMax', e.target.value)} placeholder="e.g. 200" className="input" />
-            </div>
-          </div>
-        )}
-      </section>
-
       {/* Danger zone */}
       <section className="rounded-2xl border border-red-200 bg-red-50/50 px-5 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-700/80">Danger zone</p>
+        <h3 className="text-base font-semibold text-red-900">Danger zone</h3>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-dark">Delete this campaign</p>
             <p className="mt-0.5 text-xs text-muted">
-              Deletes the campaign and its batch history. Saved prospects in your contacts list are not affected.
+              Saved prospects are not affected.
             </p>
           </div>
           <button

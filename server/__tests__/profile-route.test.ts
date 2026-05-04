@@ -80,7 +80,6 @@ describe("profile route — GET", () => {
         resume_text: "My resume",
         onboarding_completed: true,
         onboarding_completed_at: "2024-01-01T00:00:00Z",
-        claude_api_key_encrypted: "someEncryptedKey",
         google_refresh_token_encrypted: "someToken",
         updated_at: "2024-01-01T00:00:00Z",
       },
@@ -92,13 +91,13 @@ describe("profile route — GET", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     const jsonArg = res.json.mock.calls[0][0];
-    // hasClaudeKey now mirrors only the deployment env (BYO-key path retired).
+    // hasClaudeKey mirrors only deployment env capability.
     expect(jsonArg.profile.hasClaudeKey).toBe(!!process.env.ANTHROPIC_API_KEY);
     expect(jsonArg.profile.hasGoogleRefreshToken).toBe(true);
     expect(jsonArg.profile.workspaceConfig).toEqual({ theme: "dark" });
   });
 
-  it("returns { profile: null } when no DB row", async () => {
+  it("returns host capability profile when no DB row", async () => {
     mockGetUserId.mockResolvedValue(VALID_UUID);
     const chain = makeSupabaseChain({ data: null, error: null });
     mockGetSupabaseAdmin.mockReturnValue(chain);
@@ -106,7 +105,10 @@ describe("profile route — GET", () => {
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ profile: null });
+    const jsonArg = res.json.mock.calls[0][0];
+    expect(jsonArg.profile.workspaceConfig).toEqual({});
+    expect(jsonArg.profile.hasClaudeKey).toBe(!!process.env.ANTHROPIC_API_KEY?.trim());
+    expect(jsonArg.profile.hasGoogleRefreshToken).toBe(false);
   });
 
   it("returns 500 on Supabase error", async () => {
@@ -159,7 +161,7 @@ describe("profile route — POST", () => {
     expect(res.status).toHaveBeenCalledWith(204);
   });
 
-  it("ignores claudeApiKey writes (BYO-key path retired)", async () => {
+  it("ignores client-supplied claudeApiKey writes", async () => {
     mockGetUserId.mockResolvedValue(VALID_UUID);
     const chain = makeSupabaseChain({ data: null, error: null }, { error: null });
     mockGetSupabaseAdmin.mockReturnValue(chain);

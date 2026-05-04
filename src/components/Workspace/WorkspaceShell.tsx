@@ -108,7 +108,7 @@ function SubTabNav({ campaignId }: { campaignId: string }) {
     <nav
       role="tablist"
       aria-label="Campaign workspace sections"
-      className="mt-5 flex gap-1 overflow-x-auto border-b border-warm-200"
+      className="mt-5 flex flex-wrap gap-1 overflow-x-clip border-b border-warm-200"
     >
       {SUB_TABS.map(t => (
         <NavLink

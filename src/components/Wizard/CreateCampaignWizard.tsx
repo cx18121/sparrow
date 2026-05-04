@@ -340,7 +340,7 @@ function StepName({
       <StepHeader
         icon={Sparkles}
         title="Name your campaign"
-        helper="A campaign is one outreach project - its own audience, template, and lead pool."
+        helper="Name the outreach work you want to run."
       />
       <input
         ref={inputRef}
@@ -621,13 +621,13 @@ function StepTemplate({
       <StepHeader
         icon={FileText}
         title="Pick a template"
-        helper="Sparrow uses this as the starting point for every email it generates."
+        helper="Choose the starting point for generated drafts."
       />
       <div className="mt-2 grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-1.5">
           {templates.length === 0 && (
             <p className="rounded-2xl border border-dashed border-warm-300 bg-warm-50 px-4 py-6 text-xs text-muted">
-              No saved templates yet. Skip below to let Sparrow draft each email from scratch, or add a template from Templates first.
+              No saved templates yet. Skip this step or create one from Templates.
             </p>
           )}
           {templates.map(t => {
@@ -658,7 +658,7 @@ function StepTemplate({
             }`}
           >
             <span className="text-sm font-medium text-dark">No template</span>
-            <span className="text-xs text-muted">Sparrow drafts each email fresh from the lead's context.</span>
+            <span className="text-xs text-muted">Draft from lead context.</span>
           </button>
         </div>
 
@@ -675,7 +675,7 @@ function StepTemplate({
           ) : (
             <p className="text-sm text-muted">
               {selectedId === null
-                ? 'Without a template, Sparrow drafts each email from the lead\'s company context - no shared subject or skeleton to keep edits aligned to.'
+                ? 'Each draft will start from lead context.'
                 : 'Select a template on the left to preview it here.'}
             </p>
           )}
@@ -702,7 +702,7 @@ function StepReview({
       <StepHeader
         icon={Users}
         title="Review and launch"
-        helper="One last look before Sparrow starts working on it."
+        helper="Confirm the setup before launch."
       />
       <dl className="mt-2 divide-y divide-warm-200 rounded-2xl border border-warm-200 bg-panel">
         <ReviewRow label="Name" onEdit={() => onJumpTo(0)}>

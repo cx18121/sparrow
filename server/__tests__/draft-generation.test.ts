@@ -258,13 +258,13 @@ describe("generateDraft — ProfileError propagation", () => {
     const lead = makeUserLead();
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
     mockResolveProfile.mockRejectedValue(
-      new MockProfileError("Add a Claude API key in Settings before generating emails.", 400)
+      new MockProfileError("Email generation is not configured on this deployment.", 500)
     );
 
     const err = await generateDraft({ userId: USER_ID, userLeadId: "lead-1" }).catch(e => e);
     expect(err).toBeInstanceOf(MockProfileError);
-    expect(err.status).toBe(400);
-    expect(err.message).toMatch(/Claude API key/);
+    expect(err.status).toBe(500);
+    expect(err.message).toMatch(/not configured/);
   });
 });
 

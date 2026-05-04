@@ -132,7 +132,7 @@ function nextAction(counts: { leads: number; drafts: number; sent: number } | nu
   if (counts.drafts === 0 && counts.sent === 0) {
     return {
       headline: `${counts.leads} ${counts.leads === 1 ? 'lead' : 'leads'} saved. Generate drafts.`,
-      helper: 'Sparrow drafts personalized emails from your template and each lead\'s company context.',
+      helper: 'Generate drafts from your saved leads and selected template.',
       ctaLabel: 'Go to Drafts',
       ctaTab: 'drafts',
       icon: PenLine,
@@ -277,16 +277,13 @@ export function DraftsSubTab() {
   )
 }
 
-// Bug 09: generation requires a Claude key stored on the user's profile.
-// The legacy failure mode was a 400 toast surfaced after the user clicked
-// Generate; the redesign surfaces the missing-key state up front so the
-// user knows there's no point trying. Stays BYO - no env fallback.
+// Surface server-side generation availability before the user tries to draft.
 function ClaudeKeyMissingBanner({ profile, profileLoading }: { profile: any; profileLoading: boolean }) {
   if (profileLoading || profile?.hasClaudeKey) return null
   return (
     <Banner variant="warning" icon={KeyRound}>
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <span>Add your Claude API key to generate emails - without it, drafts can't be created from this campaign.</span>
+        <span>Draft generation is unavailable on this deployment.</span>
         <Link to="/settings" className="shrink-0 font-semibold underline-offset-2 hover:underline">
           Open Settings →
         </Link>

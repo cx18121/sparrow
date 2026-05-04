@@ -348,9 +348,9 @@ export default function TemplatesTab({ workspaceConfig }) {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="page-eyebrow">Templates</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Reusable email skeletons</h1>
+          <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Reusable templates</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Edit the copy Sparrow starts from. Variables stay visible so every generated draft remains inspectable.
+            Edit the starting point for generated drafts.
           </p>
         </div>
         <button onClick={openCreate} className="btn-primary self-start">
@@ -582,7 +582,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                 className="input"
               />
               <p className="mt-2 text-xs text-muted">
-                Use <span className="font-mono text-primary">{'{{company}}'}</span>, <span className="font-mono text-primary">{'{{first_name}}'}</span>, etc. to personalize. You can change this later.
+                Add variables like <span className="font-mono text-primary">{'{{company}}'}</span> or <span className="font-mono text-primary">{'{{first_name}}'}</span>.
               </p>
             </div>
           )}

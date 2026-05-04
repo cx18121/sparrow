@@ -382,7 +382,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
         step={3}
         total={TOTAL_STEPS}
         title="Your template"
-        description="The skeleton of your email. Sparrow rewrites the body per recipient using their company context - merge tags below are just the parts that always swap in."
+        description="Set the starting point for each draft."
       />
 
       {writingMode ? (

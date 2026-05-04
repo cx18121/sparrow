@@ -84,7 +84,7 @@ function SetupStrip({
 }) {
   const items = [
     { key: 'google',  done: hasGoogle, label: 'Connect Gmail',     onClick: onConnectGoogle ?? (() => onJumpToTab('integrations')) },
-    { key: 'claude',  done: hasClaude, label: 'Add Claude key',    onClick: () => onJumpToTab('integrations') },
+    { key: 'claude',  done: hasClaude, label: 'AI generation',     onClick: () => onJumpToTab('integrations') },
     { key: 'resume',  done: hasResume, label: 'Add background',    onClick: () => onJumpToTab('profile') },
     { key: 'sender',  done: hasSender, label: 'Set sender name',   onClick: () => onJumpToTab('profile') },
   ]
@@ -171,7 +171,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Sender identity" hint="Used in the from-line and inserted into every generated email.">
+      <FieldGroup title="Sender identity" hint="Used in generated drafts.">
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className="label">Sender name</label>
@@ -195,7 +195,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
       </FieldGroup>
 
-      <FieldGroup title="Background" hint="Pasted text and an uploaded resume both feed the generator. Use whichever is easier to maintain.">
+      <FieldGroup title="Background" hint="Add context the draft should know.">
         <div>
           <label className="label">Pitch / experience</label>
           <textarea
@@ -204,7 +204,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
             placeholder="Paste relevant experience, positioning, wins, and offer."
             className="input min-h-[140px] resize-y"
           />
-          <p className="mt-1 text-xs text-muted">Free-form. Bullet points or prose both work.</p>
+          <p className="mt-1 text-xs text-muted">Bullets or prose both work.</p>
         </div>
 
         <div>
@@ -339,7 +339,7 @@ function StyleTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave: (
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Writing style" hint="Sent to the AI on every draft. Edit the instructions directly, or retake the quiz to regenerate them from scratch.">
+      <FieldGroup title="Writing style" hint="How drafts should sound.">
         {!editing ? (
           <>
             <div>
@@ -448,7 +448,7 @@ function IntegrationsTab({
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Gmail" hint="Sparrow sends through your own Gmail account. The grant is send-only - Sparrow never reads your inbox. Sign-in handles identity; this connect step adds the send permission.">
+      <FieldGroup title="Gmail" hint="Connect Gmail to send drafts.">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
@@ -458,7 +458,7 @@ function IntegrationsTab({
               <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
               <p className="mt-0.5 text-xs text-muted">
                 {hasGoogle
-                  ? 'Drafts sent from this account land in your Gmail Sent folder.'
+                  ? 'Sent drafts will appear in Gmail.'
                   : 'Required before any draft can be sent.'}
               </p>
             </div>
@@ -471,17 +471,17 @@ function IntegrationsTab({
         </div>
       </FieldGroup>
 
-      <FieldGroup title="AI generation" hint="Draft generation runs on the host's Claude key. Nothing to configure on your side.">
+      <FieldGroup title="AI generation" hint="Managed by the server.">
         <div className="flex items-center gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
           <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasClaude ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-700'}`}>
             <Sparkles size={16} />
           </div>
           <div>
-            <p className="text-sm font-medium text-dark">{hasClaude ? 'Ready' : 'Not configured on host'}</p>
+            <p className="text-sm font-medium text-dark">{hasClaude ? 'Ready' : 'Unavailable'}</p>
             <p className="mt-0.5 text-xs text-muted">
               {hasClaude
-                ? 'Claude is available for every draft.'
-                : 'The host needs to set ANTHROPIC_API_KEY before generation will work.'}
+                ? 'Draft generation is enabled.'
+                : 'Ask the host to enable draft generation.'}
             </p>
           </div>
         </div>
@@ -515,7 +515,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Send rate" hint="Sparrow throttles outbound mail to keep Gmail's anti-spam heuristics calm.">
+      <FieldGroup title="Send rate" hint="Limits for outbound email.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Daily send limit</label>
@@ -524,7 +524,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
               onChange={e => setLimit('dailyMax', Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
               className="input"
             />
-            <p className="mt-1 text-xs text-muted">Max emails per day across all campaigns. Hard cap: 100.</p>
+            <p className="mt-1 text-xs text-muted">Hard cap: 100 per day.</p>
           </div>
           <div>
             <label className="label">Delay between sends</label>
@@ -541,7 +541,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Defaults for new campaigns" hint="Applied automatically when you create a new campaign - overridable per-campaign.">
+      <FieldGroup title="Defaults for new campaigns" hint="Pre-filled when you create a campaign.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Lead batch size</label>
@@ -554,7 +554,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
                 className="input pl-8"
               />
             </div>
-            <p className="mt-1 text-xs text-muted">Contacts fetched per batch run.</p>
+            <p className="mt-1 text-xs text-muted">Contacts per batch.</p>
           </div>
           <div>
             <label className="label">Default template</label>
@@ -566,13 +566,13 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
               <option value="">No default</option>
               {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <p className="mt-1 text-xs text-muted">Pre-selected in the new-campaign wizard.</p>
+            <p className="mt-1 text-xs text-muted">Used by default.</p>
           </div>
         </div>
 
       </FieldGroup>
 
-      <FieldGroup title="Attachment library" hint="Files saved here can be attached to drafts or set as defaults on a campaign.">
+      <FieldGroup title="Attachment library" hint="Reusable files for drafts.">
         <FileLibrary form={form} setForm={setForm} user={user} />
       </FieldGroup>
 
@@ -719,12 +719,12 @@ function AccountTab() {
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Danger zone" hint="These actions cannot be undone.">
+      <FieldGroup title="Danger zone">
         <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-dark">Delete account</p>
             <p className="mt-0.5 text-xs text-muted">
-              Permanently delete your account and all data - campaigns, leads, drafts, sent log. Cannot be undone.
+              Permanently delete your account and workspace data.
             </p>
             {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
           </div>
@@ -741,7 +741,7 @@ function AccountTab() {
       <ConfirmDialog
         open={confirm}
         title="Delete account"
-        message="This will permanently delete your account and all data including campaigns, leads, and emails. This cannot be undone."
+        message="This permanently deletes your account, campaigns, leads, and emails."
         confirmLabel={loading ? 'Deleting…' : 'Yes, delete my account'}
         onConfirm={handleDelete}
         onClose={() => setConfirm(false)}
@@ -825,7 +825,7 @@ export default function SettingsPage({
     }
   }
 
-  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profile?.hasClaudeKey
+  const hasClaude = !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()

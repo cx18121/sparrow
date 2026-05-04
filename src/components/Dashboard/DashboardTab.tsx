@@ -168,7 +168,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   // Consolidate into a shape the rest of the component reads
   const emailState = { drafts, sent, loading: draftsLoading && sentLoading, error }
 
-  const hasClaude = !!workspaceConfig?.apiKeys?.claude || !!profile?.hasClaudeKey
+  const hasClaude = !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
@@ -197,8 +197,8 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
       action: onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null,
     },
     {
-      label: 'Claude key added',
-      detail: hasClaude ? 'Ready.' : 'Add a Claude key to generate drafts.',
+      label: 'AI generation',
+      detail: hasClaude ? 'Ready.' : 'Unavailable.',
       done: hasClaude,
       action: onNavigate ? { label: 'Settings', onClick: () => onNavigate('settings') } : null,
     },

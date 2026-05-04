@@ -7,7 +7,6 @@ type ProfilePayload = {
   defaultFilters?: unknown;
   resumePath?: string | null;
   resumeText?: string | null;
-  claudeApiKey?: string | null;
   googleRefreshToken?: string | null;
   onboardingCompleted?: boolean;
 };
@@ -61,30 +60,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data, error } = await supabase
       .from("user_profiles")
       .select(
-        "user_id, workspace_config, default_filters, resume_path, resume_text, onboarding_completed, onboarding_completed_at, claude_api_key_encrypted, google_refresh_token_encrypted, updated_at",
+        "user_id, workspace_config, default_filters, resume_path, resume_text, onboarding_completed, onboarding_completed_at, google_refresh_token_encrypted, updated_at",
       )
       .eq("user_id", userId)
       .maybeSingle();
 
     if (error) return res.status(500).json({ error: "Could not load profile" });
 
+    // Host capabilities should not depend on whether this user already has a
+    // user_profiles row. Fresh or partially migrated accounts still need the
+    // UI to know that deployment-level generation is configured.
     return res.status(200).json({
-      profile: data
-        ? {
-            workspaceConfig: data.workspace_config ?? {},
-            defaultFilters: data.default_filters ?? {},
-            resumePath: data.resume_path,
-            resumeText: data.resume_text,
-            onboardingCompleted: data.onboarding_completed,
-            onboardingCompletedAt: data.onboarding_completed_at,
-            // hasClaudeKey reflects "can this user generate?" — the per-user
-            // BYO-key path is retired, so this just mirrors whether the
-            // deployment has ANTHROPIC_API_KEY configured.
-            hasClaudeKey: !!process.env.ANTHROPIC_API_KEY,
-            hasGoogleRefreshToken: !!data.google_refresh_token_encrypted,
-            updatedAt: data.updated_at,
-          }
-        : null,
+      profile: {
+        workspaceConfig: data?.workspace_config ?? {},
+        defaultFilters: data?.default_filters ?? {},
+        resumePath: data?.resume_path ?? null,
+        resumeText: data?.resume_text ?? null,
+        onboardingCompleted: data?.onboarding_completed ?? false,
+        onboardingCompletedAt: data?.onboarding_completed_at ?? null,
+        // hasClaudeKey reflects deployment-level generation availability.
+        hasClaudeKey: !!process.env.ANTHROPIC_API_KEY?.trim(),
+        hasGoogleRefreshToken: !!data?.google_refresh_token_encrypted,
+        updatedAt: data?.updated_at ?? null,
+      },
     });
   }
 
@@ -106,10 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (body.defaultFilters !== undefined) update.default_filters = sanitizeJsonObject(body.defaultFilters, "defaultFilters");
       if (body.resumePath !== undefined) update.resume_path = nullableLimitedString(body.resumePath, "resumePath", MAX_PATH_LENGTH);
       if (body.resumeText !== undefined) update.resume_text = nullableLimitedString(body.resumeText, "resumeText", MAX_RESUME_TEXT_LENGTH);
-      // claudeApiKey writes are intentionally ignored — the per-user BYO-key
-      // path was retired. The body field is still parsed (so old clients
-      // don't 400) but never persisted. The encrypted column stays in the
-      // schema for migration safety.
       if (body.googleRefreshToken !== undefined) {
         const googleRefreshToken = nullableLimitedString(body.googleRefreshToken, "googleRefreshToken", MAX_SECRET_LENGTH);
         update.google_refresh_token_encrypted = googleRefreshToken ? encrypt(googleRefreshToken) : null;

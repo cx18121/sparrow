@@ -278,7 +278,7 @@ test.describe('Campaign workspace shell', () => {
     })
     await page.goto('/campaigns/cmp_workspace_1/drafts')
     // Banner copy + Settings link must be visible alongside the empty drafts state.
-    await expect(page.locator('text=/Add your Claude API key/i').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('text=/Draft generation is unavailable/i').first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('link', { name: /Open Settings/i })).toBeVisible()
   })
 
@@ -291,7 +291,7 @@ test.describe('Campaign workspace shell', () => {
     })
     await page.goto('/campaigns/cmp_workspace_1/drafts')
     await expect(page.locator('text=/No drafts ready for review/i').first()).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('text=/Add your Claude API key/i')).toHaveCount(0)
+    await expect(page.locator('text=/Draft generation is unavailable/i')).toHaveCount(0)
   })
 
   test('Settings sub-tab Delete confirms and navigates back to Home (Phase 4d)', async ({ page }) => {

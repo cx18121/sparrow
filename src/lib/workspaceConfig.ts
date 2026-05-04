@@ -27,13 +27,6 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       dailyMax: 100,
       delaySeconds: 15,
     },
-    apiKeys: {
-      openai: '',
-      claude: '',
-      gemini: '',
-      apollo: '',
-      serper: '',
-    },
   }
 
   const merged = {
@@ -53,10 +46,6 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     },
     files: Array.isArray(data?.files) ? data.files : baseConfig.files,
     styleProfile: data?.styleProfile || baseConfig.styleProfile,
-    apiKeys: {
-      ...baseConfig.apiKeys,
-      ...(data?.apiKeys || {}),
-    },
   }
 
   const templateExists = templates.some(template => template.id === merged.templateId)

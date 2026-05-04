@@ -17,13 +17,8 @@ export class ProfileError extends Error {
   }
 }
 
-// The Claude key is host-managed via process.env.ANTHROPIC_API_KEY. The
-// per-user BYO-key path was retired: it added a setup step every fresh user
-// hit before they could generate, the Settings field carried real support
-// burden (decrypt failures, key rotation, "is my key valid"), and no student
-// actually wanted their own billing for a recruiting tool.
-// claude_api_key_encrypted stays in the schema for migration safety; nothing
-// reads it any more.
+// The Claude key is host-managed via process.env.ANTHROPIC_API_KEY.
+// User profiles never supply generation API keys.
 function resolveClaudeKey(): string {
   const envKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (envKey) return envKey;

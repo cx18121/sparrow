@@ -91,8 +91,8 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   }
 
   if (path === '/emails/generate') {
-    if (lower.includes('claude api key') || lower.includes('anthropic')) {
-      return 'Add a Claude API key in Settings before generating emails.'
+    if (lower.includes('claude api key') || lower.includes('anthropic') || lower.includes('email generation is not configured')) {
+      return 'Email generation is not configured on this deployment.'
     }
     if (status === 404 && lower.includes('template')) return 'The selected template no longer exists. Choose a different template and try again.'
     if (status === 404) return 'Lead not found — it may have been removed. Refresh the page and try again.'

@@ -511,13 +511,10 @@ function AppShell() {
       }
     }
 
-    // Mirror to /api/profile so changes survive across devices.
-    // The Claude key is stripped from local/server workspace config and sent
-    // separately so /api/profile can encrypt it before insertion.
-    const claudeKey = normalized.apiKeys?.claude || null
+    // Mirror to /api/profile so changes survive across devices. API keys are
+    // host-managed and never stored in localStorage or user profile rows.
     const sanitizedConfig = {
       ...normalized,
-      apiKeys: {}, // never persist any API keys in localStorage or workspace_config
     }
 
     const next = {
@@ -532,7 +529,6 @@ function AppShell() {
       defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
       resumePath: normalized.resumePath || null,
       resumeText: normalized.resumeText || null,
-      ...(claudeKey ? { claudeApiKey: claudeKey } : {}),
       onboardingCompleted: completed,
     })
 
@@ -560,7 +556,6 @@ function AppShell() {
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
     const sanitizedConfig = {
       ...normalized,
-      apiKeys: {},
     }
     const storageKey = getOnboardingStorageKey(user)
 
@@ -582,7 +577,6 @@ function AppShell() {
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
     const sanitizedConfig = {
       ...normalized,
-      apiKeys: {},
     }
     const storageKey = getOnboardingStorageKey(user)
     const forceKey = getOnboardingForceKey(user)

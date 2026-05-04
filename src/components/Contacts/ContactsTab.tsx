@@ -519,7 +519,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                     <button
                       onClick={() => openGenerate(row)}
                       disabled={!getEmail(row) && !row.apolloPersonId && !row._custom}
-                      title={getEmail(row) ? 'Generate email with Claude' : row._custom ? 'Generate email with Claude' : row.apolloPersonId ? 'Generating will reveal contact via Apollo' : 'Lead has no contact email'}
+                      title={getEmail(row) ? 'Generate email' : row._custom ? 'Generate email' : row.apolloPersonId ? 'Reveal email, then generate' : 'Lead has no contact email'}
                       className="btn-ghost flex items-center gap-1 px-2.5 py-1 text-xs hover:text-primary disabled:opacity-40"
                     >
                       <Sparkles size={12} /> Draft
@@ -615,7 +615,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         onClose={() => setBulkConfirmOpen(false)}
         onConfirm={() => { setBulkConfirmOpen(false); bulkGenerateDrafts() }}
         title="Generate drafts"
-        message={`Generate drafts for ${selectedEligibleRows.length} contact${selectedEligibleRows.length !== 1 ? 's' : ''}? Each will use a Claude API call.`}
+        message={`Generate drafts for ${selectedEligibleRows.length} contact${selectedEligibleRows.length !== 1 ? 's' : ''}?`}
         confirmLabel={`Generate ${selectedEligibleRows.length} draft${selectedEligibleRows.length !== 1 ? 's' : ''}`}
       />
 
@@ -805,7 +805,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
               className="btn-primary w-full justify-center"
             >
               <Sparkles size={14} />
-              {draftFlow.generating ? 'Generating…' : draftFlow.subject ? 'Regenerate' : 'Generate with Claude'}
+              {draftFlow.generating ? 'Generating…' : draftFlow.subject ? 'Regenerate' : 'Generate'}
             </button>
           </div>
 
