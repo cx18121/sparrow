@@ -11,8 +11,6 @@ import { resolveProfileForGeneration, buildSenderContextFromProfile, ProfileErro
 import { resolveDraftTarget } from "./draft-target.js";
 import { GenerationError } from "./generation-error.js";
 
-const DOSSIER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
 // In-process dedupe: when two drafts to the same company race a cache miss,
 // only one Tavily+Claude call fires; the second await piggybacks on the
 // first's Promise. Keyed by Company.id; entry is cleared as soon as the
@@ -38,9 +36,13 @@ interface PersonalizationInput {
   apiKey: string;
 }
 
+// A cached dossier is always considered fresh for now. The product
+// trade-off: search results go stale (a company ships a new feature, the
+// dossier stays put), but a cap at this stage produces noise — most
+// companies don't ship anything in 30 days, and the cap costs a Tavily
+// call every reactivation. Re-research will be a manual action when added.
 function dossierIsFresh(at: Date | null): boolean {
-  if (!at) return false;
-  return Date.now() - at.getTime() < DOSSIER_TTL_MS;
+  return at !== null;
 }
 
 async function researchAndCacheDossier(input: PersonalizationInput): Promise<CompanyDossier> {

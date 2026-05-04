@@ -474,22 +474,22 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     expect(mockPrisma.company.update).toHaveBeenCalledOnce();
   });
 
-  it("re-researches when dossier is older than 30 days", async () => {
-    const stale = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  it("does not re-research even when the dossier is months old (cache is indefinite)", async () => {
+    const ancient = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const cachedDossier = { summary: "old", surfaces: ["old surface"], recentLaunches: [], technicalAreas: [] };
     const lead = makeUserLead({
       company: {
         ...makeUserLead().company,
-        researchDossier: { summary: "old", surfaces: ["old surface"], recentLaunches: [], technicalAreas: [] },
-        researchedAt: stale,
+        researchDossier: cachedDossier,
+        researchedAt: ancient,
       },
     });
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
-    mockPrisma.company.update.mockResolvedValue({});
 
     await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
 
-    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
-    expect(mockPrisma.company.update).toHaveBeenCalledOnce();
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPrisma.company.update).not.toHaveBeenCalled();
   });
 
   it("forwards picked featureLine and fitAngle into generateEmailDraft input", async () => {
