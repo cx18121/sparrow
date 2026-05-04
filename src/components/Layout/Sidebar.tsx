@@ -15,7 +15,7 @@ import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Plus, Send } from '
 //                  Click a campaign → its workspace overview.
 //   Bottom rail  : Settings + user avatar menu.
 //
-// Mobile bottom-nav stays unchanged — it carries the global tabs only.
+// Mobile bottom-nav stays unchanged - it carries the global tabs only.
 
 const STATUS_DOT: Record<UiCampaign['status'], string> = {
   active: 'bg-primary',
@@ -55,7 +55,7 @@ export default function Sidebar({
   // are intentionally hidden from the sidebar to keep it about ongoing work
   // (Home's grid surfaces Completed for users who want to revisit them).
   // Optimistic temp-id rows (created via createCampaign before the server
-  // response arrives) are skipped — clicking them would 404 every workspace
+  // response arrives) are skipped - clicking them would 404 every workspace
   // fetch since the server doesn't know that id yet.
   const sidebarCampaigns = [
     ...campaigns.filter(c => c.status === 'active' && !c.id.startsWith('temp-')),
@@ -74,7 +74,7 @@ export default function Sidebar({
         aria-current={isActive ? 'page' : undefined}
         className={`group flex min-h-9 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-primary text-white shadow-[0_10px_24px_rgba(85,122,87,0.18)]'
+            ? 'bg-primary text-warm-50 shadow-[0_10px_24px_rgba(85,122,87,0.18)]'
             : 'text-muted hover:bg-accent/10 hover:text-dark'
         } ${collapsed ? 'justify-center' : ''}`}
       >
@@ -110,15 +110,15 @@ export default function Sidebar({
   return (
     <>
     <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-accent/20 bg-[#F8F4ED] transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
-      {/* Brand row — forest green badge + wordmark. No divider underneath
+      {/* Brand row - forest green badge + wordmark. No divider underneath
           (the previous border-t crowded the top). */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
         <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-[0_4px_12px_rgba(85,122,87,0.22)]">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-warm-50 shadow-[0_4px_12px_rgba(85,122,87,0.22)]">
             <Send size={14} className="-rotate-12" />
           </span>
           {!collapsed && (
-            <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
+            <span className="font-display text-[17px] font-semibold text-dark">Sparrow</span>
           )}
         </div>
         {!collapsed && (
@@ -151,7 +151,7 @@ export default function Sidebar({
 
         {/* Campaigns inline list. When collapsed, render as small status
             dots (no labels) so the user still sees what's running and how
-            many — clicking a dot still navigates into the workspace. */}
+            many - clicking a dot still navigates into the workspace. */}
         {sidebarCampaigns.length > 0 && (
           <div className="mt-5">
             {!collapsed && (
@@ -186,7 +186,7 @@ export default function Sidebar({
         )}
       </nav>
 
-      {/* Bottom — Settings + user menu */}
+      {/* Bottom - Settings + user menu */}
       <div className="shrink-0 border-t border-accent/15 px-2 py-2 space-y-0.5">
         {settingsTab && renderTabButton(settingsTab)}
         {user && (
@@ -200,7 +200,7 @@ export default function Sidebar({
               {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="h-6 w-6 shrink-0 rounded-full object-cover" />
               ) : (
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-white">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-warm-50">
                   {initials}
                 </div>
               )}
@@ -246,7 +246,7 @@ export default function Sidebar({
               onClick={() => onTabChange(tab.id)}
               aria-current={isActive ? 'page' : undefined}
               className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${
-                isActive ? 'bg-primary text-white shadow-[0_10px_24px_rgba(85,122,87,0.18)]' : 'text-muted hover:bg-warm-50 hover:text-dark'
+                isActive ? 'bg-primary text-warm-50 shadow-[0_10px_24px_rgba(85,122,87,0.18)]' : 'text-muted hover:bg-warm-50 hover:text-dark'
               }`}
             >
               <tab.icon size={16} />

@@ -36,7 +36,7 @@ const NS_LABELS = {
 
 function CompanyRow({ company, onSelect }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-warm-200 bg-warm-50 px-4 py-3.5 transition-all duration-150 hover:border-primary/30 hover:shadow-[0_2px_12px_rgba(44,31,16,0.06)]">
+    <div className="dense-list-row flex items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-dark text-sm">{company.name}</span>
@@ -76,12 +76,12 @@ function CompanyRow({ company, onSelect }) {
 
 function ContactRow({ preview, email, onSave, saving, saved }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-warm-200 bg-warm-50 px-4 py-3 transition-all duration-150 hover:border-warm-300 hover:shadow-[0_1px_6px_rgba(44,31,16,0.05)]">
+    <div className="dense-list-row flex items-center justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-dark">
           {preview.firstName} {preview.lastNameObfuscated}
         </div>
-        <div className="mt-0.5 text-xs text-muted">{preview.title || '—'}</div>
+        <div className="mt-0.5 text-xs text-muted">{preview.title || '-'}</div>
         <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${email ? 'text-primary' : 'text-muted'}`}>
           {email === undefined
             ? <><Loader2 size={10} className="animate-spin" />Resolving</>
@@ -96,8 +96,8 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
             saved
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
               : saving
-                ? 'border-transparent bg-primary/80 text-white'
-                : 'border-transparent bg-primary text-white hover:brightness-105'
+                ? 'border-transparent bg-primary/80 text-warm-50'
+                : 'border-transparent bg-primary text-warm-50 hover:brightness-105'
           }`}
         >
           {saving
@@ -111,7 +111,7 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-// Phase 4e folded the legacy /leads route away — this component is now
+// Phase 4e folded the legacy /leads route away - this component is now
 // only mounted from the workspace Leads sub-tab, which always passes
 // activeCampaign + campaignFilters. The standalone (no-campaign) toast
 // branches and the "Browsing for X" banner were removed because the
@@ -347,7 +347,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
         return next
       })
-      // Only reveal contacts not yet fetched — avoids re-spending Apollo
+      // Only reveal contacts not yet fetched - avoids re-spending Apollo
       // credits on re-open (a null result from a prior attempt counts as
       // "fetched" too). Read the gate from the ref so updates queued
       // earlier in this same tick (the "seed to undefined" set above)
@@ -370,7 +370,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       if (err?.status === 404) {
         clearDiscoverCache()
         setCompanies(prev => prev.filter(c => c.id !== company.id))
-        setApolloError('This company is no longer available. Closing — pick another from the refreshed list.')
+        setApolloError('This company is no longer available. Closing - pick another from the refreshed list.')
         setSelectedCompany(null)
       } else {
         setApolloError(err.message)
@@ -388,9 +388,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         companyId: selectedCompany.id,
         contactId: null,
         apolloPersonId: preview.id,
-        notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} — ${preview.title || 'unknown title'}`,
+        notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} - ${preview.title || 'unknown title'}`,
       })
-      // Always refresh leads and close modal — even if campaign add fails
+      // Always refresh leads and close modal - even if campaign add fails
       setSavedIds(prev => new Set(prev).add(preview.id))
       setSelectedCompany(null)
       setApolloResults([])
@@ -409,7 +409,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         title: activeCampaign
           ? `${preview.firstName} added to ${activeCampaign.name}`
           : `${preview.firstName} saved`,
-        message: 'Continue browsing — switch to Drafts when you have enough.',
+        message: 'Continue browsing - switch to Drafts when you have enough.',
       })
     } catch (err) {
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
@@ -421,14 +421,15 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const hasActiveFilters = search || selectedTags.size > 0 || isHiring || regionFilter
 
   return (
-    <div className="page-shell">
+    <div className="space-y-5">
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <div className="mb-5">
-        <p className="mt-1 text-sm leading-6 text-muted">Browse companies and find contacts to add to your pipeline.</p>
-      </div>
+      <header className="flex flex-col gap-1">
+        <p className="page-eyebrow">Leads</p>
+        <p className="text-sm leading-6 text-muted">Browse companies and save contacts into this campaign.</p>
+      </header>
 
       {/* Search & Filters */}
-      <div className="page-toolbar mb-4">
+      <div className="surface-panel px-4 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -470,14 +471,14 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
           </div>
         </div>
 
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 space-y-2 border-t border-warm-200 pt-3">
           {/* Hiring + region filters */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setIsHiring(h => !h)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                 isHiring
-                  ? 'border-primary bg-primary text-white'
+                  ? 'border-primary bg-primary text-warm-50'
                   : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
               }`}
             >
@@ -494,7 +495,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
                 onClick={() => setRegionFilter(prev => prev === rf ? null : rf)}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                   regionFilter === rf
-                    ? 'border-primary bg-primary text-white'
+                    ? 'border-primary bg-primary text-warm-50'
                     : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                 }`}
               >
@@ -505,7 +506,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
               onClick={() => setTagsOpen(o => !o)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                 tagsOpen || selectedTags.size > 0
-                  ? 'border-primary bg-primary text-white'
+                  ? 'border-primary bg-primary text-warm-50'
                   : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
               }`}
             >
@@ -514,7 +515,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
             </button>
           </div>
 
-          {/* Tag filters — collapsed by default */}
+          {/* Tag filters - collapsed by default */}
           {tagsOpen && DISCOVERY_NS.map(ns => {
             const tags = (tagOptions[ns] || []).filter(t => t.count >= 15).slice(0, 8)
             if (tags.length < 2) return null
@@ -529,7 +530,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
                     onClick={() => toggleTag(namespaced)}
                     className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
                       selectedTags.has(namespaced)
-                        ? 'border-primary bg-primary text-white'
+                        ? 'border-primary bg-primary text-warm-50'
                         : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                     }`}
                   >
@@ -555,7 +556,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
       {/* Initial loading */}
       {loading && companies.length === 0 && (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
+        <div className="surface-panel flex items-center justify-center gap-2 py-16 text-sm text-muted">
           <Loader2 size={16} className="animate-spin text-primary/50" />
           Loading companies…
         </div>
@@ -563,7 +564,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
       {/* Empty state */}
       {!loading && companies.length === 0 && (
-        <div className="mx-auto flex max-w-sm flex-col items-center py-14 text-center">
+        <div className="surface-panel mx-auto flex max-w-sm flex-col items-center py-14 text-center">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-warm-100 text-muted">
             <Search size={18} />
           </div>
@@ -657,7 +658,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
               )}
               {!apolloLoading && !apolloError && apolloResults.length === 0 && (
                 <EmptyState className="py-6">
-                  Apollo had no contacts on file for this company. Try another from the list — small startups often aren&apos;t indexed.
+                  Apollo had no contacts on file for this company. Try another from the list - small startups often aren&apos;t indexed.
                 </EmptyState>
               )}
               {!apolloLoading && !apolloError && apolloResults.length > 0 && (

@@ -1,10 +1,10 @@
 import React from 'react'
 
 const variants = {
-  active:       'text-emerald-600',
-  ready:        'text-emerald-600',
-  sent:         'text-emerald-600',
-  paused:       'text-amber-600',
+  active:       'text-primary',
+  ready:        'text-emerald-700',
+  sent:         'text-emerald-700',
+  paused:       'text-amber-700',
   failed:       'text-red-600',
   draft:        'text-muted',
   completed:    'text-primary',
@@ -18,7 +18,7 @@ const variants = {
 }
 
 const dots = {
-  active:       'bg-emerald-500',
+  active:       'bg-primary',
   ready:        'bg-emerald-500',
   sent:         'bg-emerald-500',
   paused:       'bg-amber-500',
@@ -38,7 +38,7 @@ export default function Badge({ children, variant = 'draft', className = '' }) {
   const textCls = variants[variant] || variants.draft
   const dotCls = dots[variant] || dots.draft
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${textCls} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium capitalize ${textCls} ${className}`}>
       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotCls}`} />
       {children}
     </span>

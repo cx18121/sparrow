@@ -46,6 +46,7 @@ export default {
         dark: '#2C1F10',
         muted: '#7A6651',
         surface: '#F5F0E8',
+        panel: '#F8F4ED',
       },
       fontFamily: {
         sans: ['DM Sans', 'system-ui', 'sans-serif'],

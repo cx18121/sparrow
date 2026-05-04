@@ -13,7 +13,7 @@ import type { WorkspaceOutletContext } from './WorkspaceShell'
 
 // Workspace sub-tabs. Overview reads campaign metadata directly. Phase 4
 // migrations: Leads now mounts the existing LeadDiscoveryTab scoped to this
-// campaign; Drafts / Sent / Settings remain placeholders until 4b–4d.
+// campaign; Drafts / Sent / Settings remain placeholders until 4b-4d.
 
 function useWorkspaceCampaign(): UiCampaign {
   return useOutletContext<WorkspaceOutletContext>().campaign
@@ -70,7 +70,7 @@ export function OverviewTab() {
         onJump={(tab) => navigate(`/campaigns/${campaign.id}/${tab}`)}
       />
 
-      <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
+      <div className="surface-panel px-5 py-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Audience</p>
         {audiencePills.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -166,7 +166,7 @@ function NextActionHero({
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-warm-200 bg-panel px-6 py-7">
+      <div className="surface-panel px-6 py-7">
         <div className="flex items-center gap-2 text-sm text-muted">
           <Loader2 size={14} className="animate-spin" /> Loading campaign activity…
         </div>
@@ -176,13 +176,13 @@ function NextActionHero({
   if (!next) return null
   const Icon = next.icon
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-warm-200 bg-panel px-6 py-7 sm:flex-row sm:items-center sm:justify-between">
+    <div className="surface-panel flex flex-col gap-4 px-6 py-7 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-4">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Icon size={18} />
         </div>
         <div className="min-w-0">
-          <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-dark sm:text-xl">
+          <h2 className="font-display text-lg font-semibold text-dark sm:text-xl">
             {next.headline}
           </h2>
           <p className="mt-1 max-w-prose text-sm leading-6 text-muted">{next.helper}</p>
@@ -212,7 +212,7 @@ function StatsStrip({
     { key: 'sent',   label: 'Sent',   value: counts?.sent ?? null },
   ]
   return (
-    <div className="flex divide-x divide-warm-200/80 overflow-hidden rounded-2xl border border-warm-200 bg-panel">
+    <div className="surface-panel flex divide-x divide-warm-200/80 overflow-hidden">
       {items.map(item => (
         <button
           key={item.key}
@@ -225,7 +225,7 @@ function StatsStrip({
             {item.label}
           </span>
           <span className="font-display text-2xl font-semibold tabular-nums text-dark">
-            {item.value === null ? '—' : item.value}
+            {item.value === null ? '-' : item.value}
           </span>
         </button>
       ))}
@@ -238,7 +238,7 @@ export function LeadsTab() {
   // Phase 4a: mount the existing Discover surface in-place. The campaign
   // doubles as activeCampaign (so saved leads land in this campaign) and
   // as campaignFilters (it carries all filter* fields directly). Navigation
-  // props are intentionally undefined — the workspace header owns navigation
+  // props are intentionally undefined - the workspace header owns navigation
   // now, so the toast actions and the "exit campaign" X are dropped.
   return (
     <LeadDiscoveryTab
@@ -254,7 +254,7 @@ export function DraftsSubTab() {
   const navigate = useNavigate()
   // Phase 4b: mount the existing Drafts queue scoped to this campaign.
   // `lockedTab='draft'` hides the Drafts/Sent segmented control inside the
-  // component — the workspace already has Drafts and Sent as separate URLs,
+  // component - the workspace already has Drafts and Sent as separate URLs,
   // so the inner toggle would be redundant. The Sent sub-tab gets its own
   // mount (still a placeholder until 4c).
   return (
@@ -280,13 +280,13 @@ export function DraftsSubTab() {
 // Bug 09: generation requires a Claude key stored on the user's profile.
 // The legacy failure mode was a 400 toast surfaced after the user clicked
 // Generate; the redesign surfaces the missing-key state up front so the
-// user knows there's no point trying. Stays BYO — no env fallback.
+// user knows there's no point trying. Stays BYO - no env fallback.
 function ClaudeKeyMissingBanner({ profile, profileLoading }: { profile: any; profileLoading: boolean }) {
   if (profileLoading || profile?.hasClaudeKey) return null
   return (
     <Banner variant="warning" icon={KeyRound}>
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <span>Add your Claude API key to generate emails — without it, drafts can't be created from this campaign.</span>
+        <span>Add your Claude API key to generate emails - without it, drafts can't be created from this campaign.</span>
         <Link to="/settings" className="shrink-0 font-semibold underline-offset-2 hover:underline">
           Open Settings →
         </Link>

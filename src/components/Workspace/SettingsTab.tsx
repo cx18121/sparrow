@@ -151,7 +151,7 @@ export default function SettingsTab() {
     const parts: string[] = []
     if (form.filterBatch) parts.push(form.filterBatch)
     if (form.filterHeadcountMin || form.filterHeadcountMax) {
-      parts.push(`${form.filterHeadcountMin || 0}–${form.filterHeadcountMax || '∞'} employees`)
+      parts.push(`${form.filterHeadcountMin || 0}-${form.filterHeadcountMax || 'any'} employees`)
     }
     return parts.join(', ')
   })()
@@ -162,11 +162,11 @@ export default function SettingsTab() {
     <div className="space-y-6">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Header row — title + Save bar */}
+      {/* Header row - title + Save bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold text-dark">Campaign settings</h2>
-          <p className="mt-0.5 text-sm text-muted">Edit the campaign name, audience, template, and batch behaviour.</p>
+          <p className="mt-0.5 text-sm text-muted">Edit the campaign name, audience, template, and batch behavior.</p>
         </div>
         {dirty && (
           <div className="flex items-center gap-2">
@@ -181,7 +181,7 @@ export default function SettingsTab() {
       </div>
 
       {/* Basic info */}
-      <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5 space-y-3">
+      <section className="surface-panel space-y-3 px-5 py-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Basic</p>
         <div>
           <label className="label">Campaign name *</label>
@@ -216,7 +216,7 @@ export default function SettingsTab() {
       </section>
 
       {/* Audience filters */}
-      <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5">
+      <section className="surface-panel px-5 py-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Audience</p>
         <div className="mt-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3.5 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -225,11 +225,11 @@ export default function SettingsTab() {
               onClick={() => field('filterIsHiring', !form.filterIsHiring)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
                 form.filterIsHiring
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                  ? 'border-primary bg-primary text-warm-50'
+                  : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-white/70' : 'bg-emerald-400'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${form.filterIsHiring ? 'bg-warm-50/70' : 'bg-emerald-400'}`} />
               Hiring only
             </button>
             {([
@@ -243,8 +243,8 @@ export default function SettingsTab() {
                 onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
                 className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
                   form.filterRegion === value
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
+                    ? 'border-primary bg-primary text-warm-50'
+                    : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
                 }`}
               >
                 {label}
@@ -269,8 +269,8 @@ export default function SettingsTab() {
                         onClick={() => toggleFilterTag(namespaced)}
                         className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
                           (form.filterTags || []).includes(namespaced)
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-warm-300 bg-white text-muted hover:border-primary/30 hover:text-dark'
+                            ? 'border-primary bg-primary text-warm-50'
+                            : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
                         }`}
                       >
                         {name}
@@ -288,7 +288,7 @@ export default function SettingsTab() {
       </section>
 
       {/* Batch + dedup */}
-      <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5 space-y-4">
+      <section className="surface-panel space-y-4 px-5 py-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Batches</p>
         <div className="flex items-center gap-4">
           <div className="shrink-0">
@@ -318,9 +318,9 @@ export default function SettingsTab() {
         </label>
       </section>
 
-      {/* Default attachments — only render when the user has uploaded files */}
+      {/* Default attachments - only render when the user has uploaded files */}
       {files.length > 0 && (
-        <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5 space-y-3">
+        <section className="surface-panel space-y-3 px-5 py-5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Default attachments</p>
             <p className="mt-1 text-xs text-muted">Files checked here will be attached to every email generated from this campaign.</p>
@@ -349,7 +349,7 @@ export default function SettingsTab() {
       )}
 
       {/* Advanced */}
-      <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5">
+      <section className="surface-panel px-5 py-5">
         <button
           type="button"
           onClick={() => setAdvancedOpen(o => !o)}
@@ -359,7 +359,7 @@ export default function SettingsTab() {
           <ChevronRight size={12} className={`transition-transform ${advancedOpen ? 'rotate-90' : ''}`} />
           Advanced
           {!advancedOpen && advancedSummary && (
-            <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">— {advancedSummary}</span>
+            <span className="normal-case tracking-normal text-[11px] font-normal text-muted/70">- {advancedSummary}</span>
           )}
         </button>
 

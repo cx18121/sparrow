@@ -14,9 +14,9 @@ import { useAuth } from '../../contexts/AuthContext'
 // Maps the `google_error` codes returned by /api/google/callback into copy a
 // student can act on. Anything not in the map gets a generic message.
 const GOOGLE_ERROR_COPY: Record<string, string> = {
-  callback_failed: 'Could not connect Gmail — Google rejected the sign-in. Try again, or remove access at myaccount.google.com first.',
-  missing_code: 'Gmail connection failed — sign-in did not complete. Try again.',
-  missing_refresh_token: 'Gmail connection failed — Google did not issue a refresh token. Remove access at myaccount.google.com and reconnect.',
+  callback_failed: 'Could not connect Gmail - Google rejected the sign-in. Try again, or remove access at myaccount.google.com first.',
+  missing_code: 'Gmail connection failed - sign-in did not complete. Try again.',
+  missing_refresh_token: 'Gmail connection failed - Google did not issue a refresh token. Remove access at myaccount.google.com and reconnect.',
   profile_save_failed: 'Could not save your Gmail token. Try again, or contact support if this keeps happening.',
   missing_google_config: 'Gmail integration is not configured on the server. Contact support.',
 }
@@ -58,9 +58,9 @@ function SaveBar({ dirty, saving, onSave, onDiscard, label = 'Save changes' }: {
 
 function FieldGroup({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-warm-200 bg-panel px-5 py-5 sm:px-6">
+    <section className="surface-panel px-5 py-5 sm:px-6">
       <header className="mb-4">
-        <h3 className="font-display text-base font-semibold tracking-[-0.01em] text-dark">{title}</h3>
+        <h3 className="font-display text-base font-semibold text-dark">{title}</h3>
         {hint && <p className="mt-1 text-xs leading-5 text-muted">{hint}</p>}
       </header>
       <div className="space-y-4">{children}</div>
@@ -93,7 +93,7 @@ function SetupStrip({
   if (done === total) return null
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800/80">
           Setup · {done} of {total}
@@ -104,7 +104,7 @@ function SetupStrip({
               key={item.key}
               type="button"
               onClick={item.onClick}
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-warm-50 px-3 py-1 text-xs font-medium text-dark transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40 active:translate-y-0"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-warm-50 px-3 py-1 text-xs font-medium text-dark transition-all duration-150 hover:border-primary/40 active:translate-y-px"
             >
               {item.label === 'Connect Gmail' ? 'Connect' : item.label}
             </button>
@@ -243,7 +243,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
               className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-3 py-2.5 text-sm text-muted transition-colors hover:border-primary/40 hover:text-dark disabled:opacity-50"
             >
               <UploadCloud size={14} />
-              {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .doc, .txt — max 10 MB)'}
+              {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .doc, .txt - max 10 MB)'}
             </button>
           )}
           {uploadState.error && <p className="mt-1 text-xs text-red-500">Could not upload: {uploadState.error}</p>}
@@ -448,7 +448,7 @@ function IntegrationsTab({
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Gmail" hint="Sparrow sends through your own Gmail account. The grant is send-only — Sparrow never reads your inbox. Sign-in handles identity; this connect step adds the send permission.">
+      <FieldGroup title="Gmail" hint="Sparrow sends through your own Gmail account. The grant is send-only - Sparrow never reads your inbox. Sign-in handles identity; this connect step adds the send permission.">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
@@ -541,7 +541,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Defaults for new campaigns" hint="Applied automatically when you create a new campaign — overridable per-campaign.">
+      <FieldGroup title="Defaults for new campaigns" hint="Applied automatically when you create a new campaign - overridable per-campaign.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Lead batch size</label>
@@ -563,7 +563,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
               onChange={e => setForm((c: any) => ({ ...c, templateId: e.target.value }))}
               className="select"
             >
-              <option value="">— No default —</option>
+              <option value="">No default</option>
               {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
             <p className="mt-1 text-xs text-muted">Pre-selected in the new-campaign wizard.</p>
@@ -653,7 +653,7 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
           className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-3 py-2.5 text-sm text-muted transition-colors hover:border-primary/40 hover:text-dark disabled:opacity-50"
         >
           <Paperclip size={14} />
-          {uploading ? 'Uploading…' : 'Upload files to attach to emails (PDF, DOCX, TXT — max 10 MB)'}
+          {uploading ? 'Uploading…' : 'Upload files to attach to emails (PDF, DOCX, TXT - max 10 MB)'}
         </button>
       ) : (
         <div className="space-y-1.5">
@@ -724,7 +724,7 @@ function AccountTab() {
           <div className="min-w-0">
             <p className="text-sm font-medium text-dark">Delete account</p>
             <p className="mt-0.5 text-xs text-muted">
-              Permanently delete your account and all data — campaigns, leads, drafts, sent log. Cannot be undone.
+              Permanently delete your account and all data - campaigns, leads, drafts, sent log. Cannot be undone.
             </p>
             {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
           </div>
@@ -758,7 +758,7 @@ function TabBar({ active, onChange, status }: {
   status: Record<TabKey, 'ok' | 'warn' | null>
 }) {
   return (
-    <nav role="tablist" aria-label="Settings sections" className="flex gap-1 overflow-x-auto border-b border-warm-200">
+    <nav role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-warm-200 bg-surface/95 pt-1 backdrop-blur">
       {TABS.map(t => {
         const isActive = active === t.key
         const Icon = t.icon
@@ -847,11 +847,12 @@ export default function SettingsPage({
   }
 
   return (
-    <div className="page-shell max-w-4xl">
+    <div className="page-shell max-w-5xl">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-dark">Settings</h1>
+        <p className="page-eyebrow">Settings</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Workspace setup</h1>
         <p className="text-sm text-muted">Identity, writing voice, integrations, and send behavior.</p>
       </header>
 

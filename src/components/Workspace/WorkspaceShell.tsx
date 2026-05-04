@@ -5,7 +5,7 @@ import Badge from '../ui/Badge'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 
 // Phase 3 of the campaigns-as-workspaces redesign. Provides the persistent
-// shell — header (campaign name, status, back-to-Home) + sub-tab nav — for
+// shell - header (campaign name, status, back-to-Home) + sub-tab nav - for
 // every per-campaign route. Phase 4a-d migrated Discover/Drafts/Sent/Settings
 // into the workspace sub-tabs; Phase 4e retired the legacy top-level surfaces
 // so this URL is now the only way to enter a campaign.
@@ -45,7 +45,7 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
 
   if (!id) return <Navigate to="/dashboard" replace />
 
-  // Wait for the campaigns list to settle before deciding the id is bad —
+  // Wait for the campaigns list to settle before deciding the id is bad -
   // refreshing into a workspace url shouldn't yank the user back to Home.
   if (!campaign) {
     if (!dataLoaded) {
@@ -72,14 +72,14 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
     <div className="page-shell">
       <WorkspaceHeader campaign={campaign} />
       <SubTabNav campaignId={campaign.id} />
-      <div className="mt-6">
+      <div className="mt-5">
         <Outlet context={{ campaign, workspaceConfig, profile, profileLoading } satisfies WorkspaceOutletContext} />
       </div>
     </div>
   )
 }
 
-// Persistent header — campaign name, status badge, back-to-Home link.
+// Persistent header - campaign name, status badge, back-to-Home link.
 // Edit affordance is intentionally omitted at this stage; the Settings
 // sub-tab owns campaign mutations in Phase 4.
 function WorkspaceHeader({ campaign }: { campaign: UiCampaign }) {
@@ -93,7 +93,7 @@ function WorkspaceHeader({ campaign }: { campaign: UiCampaign }) {
           <ArrowLeft size={12} /> Home
         </Link>
         <div className="mt-2 flex items-center gap-3">
-          <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-dark truncate">
+          <h1 className="font-display text-3xl font-semibold text-dark truncate">
             {campaign.name}
           </h1>
           <Badge variant={campaign.status}>{campaign.status}</Badge>

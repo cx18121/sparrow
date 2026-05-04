@@ -1,6 +1,6 @@
 import React from 'react'
 
-// Inline alert banner — a tinted, bordered block for contextual messages
+// Inline alert banner - a tinted, bordered block for contextual messages
 // (errors, warnings, success notes) that live in the page flow rather than
 // floating as a Toast.
 //

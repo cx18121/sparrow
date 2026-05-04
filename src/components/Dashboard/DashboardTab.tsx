@@ -48,7 +48,7 @@ function getEmailCompany(email) {
 }
 
 function Stat({ label, value, detail, loading, onClick }) {
-  const display = loading && (value === 0 || value === null || value === undefined) ? '—' : value
+  const display = loading && (value === 0 || value === null || value === undefined) ? '-' : value
   if (onClick) {
     return (
       <button
@@ -60,7 +60,7 @@ function Stat({ label, value, detail, loading, onClick }) {
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 transition-colors group-hover:text-primary/70">{label}</div>
           <ArrowRight size={10} className="text-transparent transition-colors group-hover:text-primary/60" />
         </div>
-        <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
+        <div className="mt-2 font-display text-2xl font-semibold text-dark tabular-nums">
           {display}
         </div>
         {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
@@ -70,7 +70,7 @@ function Stat({ label, value, detail, loading, onClick }) {
   return (
     <div className="min-w-0 px-4 py-3">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</div>
-      <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-dark tabular-nums">
+      <div className="mt-2 font-display text-2xl font-semibold text-dark tabular-nums">
         {display}
       </div>
       {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}
@@ -172,7 +172,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
-  // Setup item asks "have you picked a default template?" — the library
+  // Setup item asks "have you picked a default template?" - the library
   // having any rows is not the same as having a default chosen.
   const hasTemplate = !!workspaceConfig?.templateId
   const activeCampaigns = campaigns.filter(campaign => campaign.status === 'active').length
@@ -229,7 +229,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   ]
 
   const completedSetup = setupItems.filter(item => item.done).length
-  // Don't evaluate until profile has loaded — avoids the checklist flickering
+  // Don't evaluate until profile has loaded - avoids the checklist flickering
   // in as "incomplete" then immediately disappearing once hasGoogle/hasClaude resolve.
   const setupReady = !profileLoading
   const setupComplete = setupReady && completedSetup === setupItems.length
@@ -279,7 +279,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             {firstName && (
-              <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.04em] text-dark">
+              <h1 className="mt-2 font-display text-3xl font-semibold text-dark">
                 Hi, {firstName}
               </h1>
             )}
@@ -300,7 +300,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
 
       <div className={`grid gap-6 ${setupReady && !setupComplete ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
         <section className="space-y-6">
-          {/* Stat strip — ordered by workflow: Contacts → Drafts → Sent → Campaigns */}
+          {/* Stat strip - ordered by workflow: Contacts → Drafts → Sent → Campaigns */}
           <div className="grid grid-cols-2 divide-x divide-neutral-200 border-y border-neutral-200 md:grid-cols-4">
             <Stat
               label="Contacts"

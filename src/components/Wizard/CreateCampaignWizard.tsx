@@ -11,7 +11,7 @@ import {
 import type { CampaignOptions, Template } from '../../types/api'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 
-// CreateCampaignWizard — full-screen 4-step takeover replacing the modal-based
+// CreateCampaignWizard - full-screen 4-step takeover replacing the modal-based
 // CampaignFormModal on the Home surface. The other modal callsite
 // (CampaignsTab editing flow) stays untouched until Phase 4.
 //
@@ -178,10 +178,10 @@ export default function CreateCampaignWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-warm-50 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
       {/* Sticky stepper */}
-      <header className="sticky top-0 z-10 border-b border-warm-200 bg-warm-50/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
+      <header className="sticky top-0 z-10 border-b border-warm-200 bg-surface/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <button
             type="button"
             onClick={handleCancel}
@@ -190,7 +190,7 @@ export default function CreateCampaignWizard({
           >
             <X size={14} /> Cancel
           </button>
-          <ol className="flex items-center gap-2 text-xs">
+          <ol className="hidden items-center gap-2 text-xs sm:flex">
             {STEPS.map((s, i) => {
               const active = i === step
               const done = i < step
@@ -202,10 +202,10 @@ export default function CreateCampaignWizard({
                     disabled={!done}
                     className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors ${
                       active
-                        ? 'border-primary bg-primary text-white'
+                        ? 'border-primary bg-primary text-warm-50'
                         : done
                           ? 'border-primary/40 bg-primary/10 text-primary cursor-pointer hover:bg-primary/20'
-                          : 'border-warm-300 bg-white text-muted/60'
+                          : 'border-warm-300 bg-warm-50 text-muted/60'
                     }`}
                     aria-current={active ? 'step' : undefined}
                   >
@@ -221,13 +221,24 @@ export default function CreateCampaignWizard({
               )
             })}
           </ol>
-          <span className="w-[68px]" aria-hidden />
+          <div className="flex flex-1 items-center justify-end gap-1 sm:hidden">
+            {STEPS.map((s, i) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => i < step && setStep(i)}
+                disabled={i >= step}
+                className={`h-2 rounded-full transition-all ${i === step ? 'w-8 bg-primary' : i < step ? 'w-4 bg-primary/45' : 'w-4 bg-warm-300'}`}
+                aria-label={s.title}
+              />
+            ))}
+          </div>
         </div>
       </header>
 
       {/* Body */}
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-6 py-10">
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
           {step === 0 && (
             <StepName
               value={state.name}
@@ -262,8 +273,8 @@ export default function CreateCampaignWizard({
       </main>
 
       {/* Sticky footer */}
-      <footer className="sticky bottom-0 z-10 border-t border-warm-200 bg-warm-50/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-6 py-3.5">
+      <footer className="sticky bottom-0 z-10 border-t border-warm-200 bg-surface/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
           <button
             type="button"
             onClick={step === 0 ? handleCancel : goBack}
@@ -287,7 +298,7 @@ export default function CreateCampaignWizard({
               Continue <ArrowRight size={14} />
             </button>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={() => submit('paused')}
@@ -329,7 +340,7 @@ function StepName({
       <StepHeader
         icon={Sparkles}
         title="Name your campaign"
-        helper="A campaign is one outreach project — its own audience, template, and lead pool."
+        helper="A campaign is one outreach project - its own audience, template, and lead pool."
       />
       <input
         ref={inputRef}
@@ -347,7 +358,7 @@ function StepName({
             key={s}
             type="button"
             onClick={() => onChange(s)}
-            className="rounded-full border border-warm-300 bg-white px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-primary/40 hover:text-dark"
+            className="rounded-full border border-warm-300 bg-warm-50 px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-primary/40 hover:text-dark"
           >
             {s}
           </button>
@@ -405,7 +416,7 @@ function StepFilters({
   const toggleTag = (namespaced: string) => {
     const has = audience.tags.includes(namespaced)
     let nextTags = has ? audience.tags.filter(t => t !== namespaced) : [...audience.tags, namespaced]
-    // Clearing yc-backed must also clear the batch — otherwise a stale
+    // Clearing yc-backed must also clear the batch - otherwise a stale
     // batch keeps applying silently and the preview drops without a
     // visible reason.
     const next: Audience = { ...audience, tags: nextTags }
@@ -505,7 +516,7 @@ function StepFilters({
                   Include leads I've already saved in past campaigns
                 </span>
                 <span className="block text-xs text-muted">
-                  Off by default — Sparrow normally skips anyone you've already saved to avoid double-emailing.
+                  Off by default - Sparrow normally skips anyone you've already saved to avoid double-emailing.
                 </span>
               </span>
             </label>
@@ -533,7 +544,7 @@ function AudiencePreview({
   const [loading, setLoading] = useState(false)
   const [errored, setErrored] = useState(false)
 
-  // Debounced query — re-issue 350ms after the audience changes.
+  // Debounced query - re-issue 350ms after the audience changes.
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -560,7 +571,7 @@ function AudiencePreview({
   ])
 
   const display = errored
-    ? '—'
+    ? '-'
     : loading && count == null
       ? '…'
       : count == null
@@ -570,7 +581,7 @@ function AudiencePreview({
   return (
     <aside className="rounded-2xl border border-warm-200 bg-panel px-5 py-4 lg:sticky lg:top-24 self-start">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Audience preview</p>
-      <p className="mt-3 font-display text-[2rem] font-semibold leading-none tracking-[-0.03em] text-dark tabular-nums">
+      <p className="mt-3 font-display text-[2rem] font-semibold leading-none text-dark tabular-nums">
         {display}
       </p>
       <p className="mt-1 text-xs text-muted">
@@ -664,7 +675,7 @@ function StepTemplate({
           ) : (
             <p className="text-sm text-muted">
               {selectedId === null
-                ? 'Without a template, Sparrow drafts each email from the lead\'s company context — no shared subject or skeleton to keep edits aligned to.'
+                ? 'Without a template, Sparrow drafts each email from the lead\'s company context - no shared subject or skeleton to keep edits aligned to.'
                 : 'Select a template on the left to preview it here.'}
             </p>
           )}
@@ -707,7 +718,7 @@ function StepReview({
               ))}
             </div>
           ) : (
-            <em className="text-muted">No filters — Sparrow will sample broadly</em>
+            <em className="text-muted">No filters - Sparrow will sample broadly</em>
           )}
           <p className="mt-1.5 text-xs text-muted">
             {state.includePreviouslySaved
@@ -738,11 +749,11 @@ function StepHeader({
 }) {
   return (
     <div className="mb-6 flex items-start gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
         <Icon size={16} />
       </div>
       <div>
-        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-dark">{title}</h2>
+        <h2 className="font-display text-2xl font-semibold text-dark">{title}</h2>
         {helper && <p className="mt-1 text-sm text-muted">{helper}</p>}
       </div>
     </div>
@@ -779,11 +790,11 @@ function FilterChip({
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
         active
-          ? 'border-primary bg-primary text-white'
-          : 'border-warm-300 bg-white text-muted hover:border-primary/40 hover:text-dark'
+          ? 'border-primary bg-primary text-warm-50'
+          : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
       }`}
     >
-      {dot && <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-white/70' : 'bg-emerald-400'}`} />}
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-warm-50/70' : 'bg-emerald-400'}`} />}
       {children}
     </button>
   )
@@ -813,7 +824,7 @@ function ReviewRow({
   )
 }
 
-// Public helper — converts a wizard submission to the shape `createCampaign`
+// Public helper - converts a wizard submission to the shape `createCampaign`
 // already accepts. Lives here so the Home page doesn't need to know the
 // audience-field mapping.
 export function submissionToCampaignPayload(s: WizardSubmission): Partial<UiCampaign> {

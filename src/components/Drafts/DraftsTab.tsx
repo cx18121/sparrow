@@ -14,7 +14,7 @@ import EmptyState from '../ui/EmptyState'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 
-// For table row previews — collapse to one line
+// For table row previews - collapse to one line
 function stripHtml(html) {
   if (!html) return ''
   return html
@@ -52,7 +52,7 @@ function htmlToText(html) {
 }
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -157,7 +157,7 @@ export default function DraftsTab({
   const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelBatchRef = useRef(false)
 
-  // Refs that mirror state — read by async callbacks (the 5s setTimeout in
+  // Refs that mirror state - read by async callbacks (the 5s setTimeout in
   // scheduleSend, the per-send loop in markSent) so they always see the
   // latest values instead of the snapshot captured when the action started.
   // Fixes bug 04: a draft edited or deleted during the undo window would
@@ -395,7 +395,7 @@ export default function DraftsTab({
   const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
   const markSent = async (ids: string[]) => {
-    // Read drafts via ref — the caller may have queued this through a 5s
+    // Read drafts via ref - the caller may have queued this through a 5s
     // setTimeout, during which the user could have edited or deleted drafts.
     const currentDrafts = draftsRef.current
     const sendableIds = ids.filter(id => {
@@ -474,9 +474,9 @@ export default function DraftsTab({
       const overflow = failures.length > 2 ? ` and ${failures.length - 2} more` : ''
       setToast({ type: 'error', title: `${failures.length} email${failures.length !== 1 ? 's' : ''} failed to send`, message: `${names}${overflow}: ${failures[0].reason}` })
     } else if (wasCancelled) {
-      setToast({ type: 'info', title: succeeded.length > 0 ? `Sent ${succeeded.length} of ${sendableIds.length} — cancelled` : 'Cancelled — no emails sent', message: '' })
+      setToast({ type: 'info', title: succeeded.length > 0 ? `Sent ${succeeded.length} of ${sendableIds.length} - cancelled` : 'Cancelled - no emails sent', message: '' })
     } else if (hitDailyLimit) {
-      setToast({ type: 'error', title: `Daily limit reached — ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
+      setToast({ type: 'error', title: `Daily limit reached - ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
     } else if (succeeded.length > 0) {
       const previewWasSent = currentPreview?.id ? succeeded.includes(currentPreview.id) : false
       const nextReviewDraft = previewWasSent ? findNextReviewDraft(succeeded) : null
@@ -515,7 +515,7 @@ export default function DraftsTab({
     pendingSendTimerRef.current = setTimeout(() => {
       pendingSendTimerRef.current = null
       setToast(null)
-      // Re-derive against current drafts at fire time — markSent already uses
+      // Re-derive against current drafts at fire time - markSent already uses
       // the ref, but filtering ids here drops any that were deleted during
       // the undo window so we don't even attempt the network call.
       const liveIds = ids.filter(id => draftsRef.current.some(d => d.id === id))
@@ -579,10 +579,10 @@ export default function DraftsTab({
   ]
 
   return (
-    <div className="flex min-h-full flex-col lg:flex-row">
+    <div className="surface-panel flex min-h-[560px] flex-col overflow-hidden lg:flex-row">
       <Toast toast={toast} onClose={() => setToast(null)} />
       {/* Main list */}
-      <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-6 lg:p-8 ${preview ? 'lg:pr-4' : ''} ${focusMode ? 'hidden' : ''}`}>
+      <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-5 lg:p-6 ${preview ? 'lg:pr-4' : ''} ${focusMode ? 'hidden' : ''}`}>
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             {!lockedTab && (
@@ -690,17 +690,17 @@ export default function DraftsTab({
                 onClick={() => setReviewFilter(option.id)}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   reviewFilter === option.id
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-warm-50'
                     : 'bg-warm-50 text-muted border border-warm-200 hover:bg-warm-50 hover:text-dark'
                 }`}
               >
-                {option.label} <span className={reviewFilter === option.id ? 'text-white/75' : 'text-muted/70'}>{option.count}</span>
+                {option.label} <span className={reviewFilter === option.id ? 'text-warm-50/75' : 'text-muted/70'}>{option.count}</span>
               </button>
             ))}
           </div>
         )}
 
-        <div className="card overflow-x-auto p-0">
+        <div className="table-shell">
           <table className="min-w-[760px] w-full text-sm">
             <thead>
               <tr className="border-b border-warm-200">
@@ -710,6 +710,7 @@ export default function DraftsTab({
                     checked={allSelected}
                     onChange={toggleAll}
                     className="rounded border-warm-300"
+                    aria-label={tab === 'draft' ? 'Select all drafts' : 'Select all sent emails'}
                   />
                 </th>
                 {[
@@ -780,6 +781,7 @@ export default function DraftsTab({
                       checked={selected.has(draft.id)}
                       onChange={() => toggleOne(draft.id)}
                       className="rounded border-warm-300"
+                      aria-label={`Select ${tab === 'draft' ? 'draft' : 'sent email'} for ${getRecipientName(draft)}`}
                     />
                   </td>
                   <td className="px-4 py-3 font-medium text-dark">
@@ -791,7 +793,7 @@ export default function DraftsTab({
                       <div className="text-xs text-primary/80 font-normal">{getRecipient(draft)}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted">{getCompanyName(draft) || '—'}</td>
+                  <td className="px-4 py-3 text-muted">{getCompanyName(draft) || '-'}</td>
                   <td className="px-4 py-3 text-dark max-w-xs">
                     <div className="flex items-center gap-2">
                       <span className="truncate">{draft.subject || '(no subject)'}</span>
@@ -886,7 +888,7 @@ export default function DraftsTab({
                 </button>
               </div>
 
-              {/* Edit / Save / Cancel — sent emails are immutable, no edit affordance. */}
+              {/* Edit / Save / Cancel - sent emails are immutable, no edit affordance. */}
               {tab === 'draft' && (!editing ? (
                 <button
                   onClick={startEdit}
@@ -1133,7 +1135,7 @@ export default function DraftsTab({
           if (!batchDailyInfo) return `${base} Checking daily limit…`
           const remaining = batchDailyInfo.dailyMax - batchDailyInfo.sentToday
           if (remaining <= 0) return `You've reached your daily send limit (${batchDailyInfo.dailyMax}/day). No emails will be sent.`
-          if (remaining < (batchSendConfirm?.length ?? 0)) return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day) — only ${remaining} of ${batchSendConfirm?.length} will be sent.`
+          if (remaining < (batchSendConfirm?.length ?? 0)) return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day) - only ${remaining} of ${batchSendConfirm?.length} will be sent.`
           return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day).`
         })()}
       />

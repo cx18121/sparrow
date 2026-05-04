@@ -797,8 +797,8 @@ function LegalPage({ title, children }: { title: string; children: React.ReactNo
   return (
     <div className="min-h-screen bg-surface px-6 py-12">
       <div className="mx-auto max-w-2xl">
-        <a href="/" className="mb-8 inline-block font-display text-lg font-semibold tracking-[-0.04em] text-dark">Sparrow</a>
-        <h1 className="font-display text-3xl font-semibold tracking-[-0.03em] text-dark">{title}</h1>
+        <a href="/" className="mb-8 inline-block font-display text-lg font-semibold text-dark">Sparrow</a>
+        <h1 className="font-display text-3xl font-semibold text-dark">{title}</h1>
         <p className="mt-1 text-sm text-muted">Last updated: May 2, 2026</p>
         <div className="mt-8 space-y-6 text-sm leading-7 text-dark/80">{children}</div>
       </div>

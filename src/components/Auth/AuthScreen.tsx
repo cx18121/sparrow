@@ -50,12 +50,12 @@ export default function AuthScreen() {
 
       {/* ── Left panel ── */}
       <section
-        className="relative flex flex-col overflow-hidden px-8 py-10 text-white lg:min-h-screen lg:px-14 xl:px-20"
+        className="relative flex flex-col overflow-hidden px-8 py-10 text-warm-50 lg:min-h-screen lg:px-14 xl:px-20"
         style={{ background: '#1C1C1A' }}
       >
         {/* Logo */}
         <div className="relative shrink-0">
-          <span className="font-display text-[17px] font-semibold tracking-[-0.04em] text-white/90">Sparrow</span>
+          <span className="font-display text-[17px] font-semibold text-warm-50/90">Sparrow</span>
         </div>
 
         {/* Hero */}
@@ -64,12 +64,11 @@ export default function AuthScreen() {
             style={{ color: 'rgba(125,180,128,0.6)' }}>
             Cold email for startups
           </p>
-          <h1 className="font-display font-semibold tracking-[-0.04em] text-white"
-            style={{ fontSize: 'clamp(2.6rem,5.5vw,4.5rem)', lineHeight: 1.05 }}>
+          <h1 className="font-display text-5xl font-semibold leading-tight text-warm-50 xl:text-6xl">
             Email people<br />
             <span style={{ color: '#7DB480' }}>worth emailing.</span>
           </h1>
-          <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(253,250,245,0.48)' }}>
             Sparrow pulls startup leads and drafts emails in your voice, so you spend less time writing and more time talking.
           </p>
 
@@ -86,13 +85,13 @@ export default function AuthScreen() {
 
         {/* Footer */}
         <div className="relative shrink-0 flex items-center justify-between">
-          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          <p className="text-[11px]" style={{ color: 'rgba(253,250,245,0.24)' }}>
             © 2026 Sparrow
           </p>
-          <div className="flex items-center gap-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
-            <a href="/privacy" className="transition-colors hover:text-white/40">Privacy</a>
+          <div className="flex items-center gap-3 text-[11px]" style={{ color: 'rgba(253,250,245,0.24)' }}>
+            <a href="/privacy" className="transition-colors hover:text-warm-50/50">Privacy</a>
             <span className="opacity-40">·</span>
-            <a href="/terms" className="transition-colors hover:text-white/40">Terms</a>
+            <a href="/terms" className="transition-colors hover:text-warm-50/50">Terms</a>
           </div>
         </div>
       </section>
@@ -103,7 +102,7 @@ export default function AuthScreen() {
 
           <div className="mb-7">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">Account</p>
-            <h2 className="mt-2.5 font-display text-[2rem] font-semibold tracking-[-0.04em] text-dark">
+            <h2 className="mt-2.5 font-display text-[2rem] font-semibold text-dark">
               {mode === 'signin' ? 'Welcome back' : 'Create account'}
             </h2>
             <p className="mt-1 text-sm text-muted">
@@ -120,7 +119,7 @@ export default function AuthScreen() {
           {/* Google */}
           <button
             onClick={handleGoogle}
-            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-accent/20 bg-white px-4 text-sm font-medium text-dark transition-all hover:border-accent/30 hover:bg-warm-50 hover:shadow-sm"
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-accent/20 bg-warm-50 px-4 text-sm font-medium text-dark transition-all hover:border-accent/30 hover:bg-warm-50 hover:shadow-sm"
           >
             <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
@@ -163,7 +162,7 @@ export default function AuthScreen() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-1 flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-1 flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-warm-50 transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </button>

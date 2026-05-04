@@ -32,7 +32,7 @@ const STATUS_STYLE = {
   DECLINED:    VARIANT_STYLES.danger,
 }
 
-// Normalised row shape — works for both UserLead rows and CustomContact rows.
+// Normalised row shape - works for both UserLead rows and CustomContact rows.
 // CustomContact rows carry a `_custom: true` flag.
 const getName    = (row) => row._custom ? (row.name || '') : (row.contact?.name || '')
 const getEmail   = (row) => row._custom ? (row.email || '') : (row.contact?.email || '')
@@ -48,7 +48,7 @@ const getNotesName = (lead) => {
 }
 const getNotesTitle = (lead) => {
   if (lead._custom || lead.contact?.title) return getTitle(lead)
-  const m = lead.notes?.match(/— (.+?) \//)
+  const m = lead.notes?.match(/- (.+?) \//)
   return m ? m[1] : ''
 }
 
@@ -77,7 +77,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
 
-  // Generate email modal — flow is owned by useDraftFlow.
+  // Generate email modal - flow is owned by useDraftFlow.
   const [generateTarget, setGenerateTarget] = useState(null)
   const [generateTemplateId, setGenerateTemplateId] = useState(workspaceConfig?.templateId || '')
   const [generateTone, setGenerateTone] = useState('')
@@ -288,7 +288,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
     try {
       // Routes through useDraftFlow.bulkGenerate so the reentrancy guard +
       // generating flag are shared with single-draft generation. Bulk opts
-      // into save:true inside the hook — different from preview-then-save.
+      // into save:true inside the hook - different from preview-then-save.
       const { succeeded, failed, skipped } = await draftFlow.bulkGenerate(targets, { templateId, includeResumeBullet: false })
       if (skipped > 0) {
         setToast({ type: 'info', title: 'Generation already running', message: 'Wait for the current run to finish.' })
@@ -493,15 +493,15 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                 </td>
                 <td className="px-5 py-4 font-medium text-dark">
                   <span className="flex items-center gap-2">
-                    {getName(row) || getNotesName(row) || '—'}
+                    {getName(row) || getNotesName(row) || '-'}
                     {row._custom && (
                       <span className="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-medium text-warm-500">custom</span>
                     )}
                   </span>
                 </td>
-                <td className="px-5 py-4 text-muted">{getEmail(row) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getCompany(row) || '—'}</td>
-                <td className="px-5 py-4 text-muted">{getTitle(row) || getNotesTitle(row) || '—'}</td>
+                <td className="px-5 py-4 text-muted">{getEmail(row) || '-'}</td>
+                <td className="px-5 py-4 text-muted">{getCompany(row) || '-'}</td>
+                <td className="px-5 py-4 text-muted">{getTitle(row) || getNotesTitle(row) || '-'}</td>
                 <td className="px-5 py-4">
                   <select
                     value={row.status}
@@ -512,7 +512,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                   </select>
                 </td>
                 <td className="px-5 py-4 text-muted">
-                  {row.addedAt ? format(new Date(row.addedAt), 'MMM d, yyyy') : '—'}
+                  {row.addedAt ? format(new Date(row.addedAt), 'MMM d, yyyy') : '-'}
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center justify-end gap-1.5">
@@ -571,7 +571,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-warm-200 px-5 py-4">
             <p className="text-xs text-muted">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+              {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
             <div className="flex items-center gap-1">
               <button
@@ -589,7 +589,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
                     onClick={() => setPage(p)}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                       p === page
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-warm-50'
                         : 'text-muted hover:bg-warm-100/70 hover:text-dark'
                     }`}
                   >
@@ -721,14 +721,14 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
           {generateTarget && (
             <div className="rounded-xl border border-warm-200 bg-warm-50/60 px-4 py-3 text-xs text-muted">
               <div>
-                <span className="font-semibold text-dark">{getName(generateTarget) || '—'}</span>
+                <span className="font-semibold text-dark">{getName(generateTarget) || '-'}</span>
                 {getTitle(generateTarget) ? ` · ${getTitle(generateTarget)}` : ''}
               </div>
               <div className="text-muted/80">{getCompany(generateTarget) || 'No company'} · {getEmail(generateTarget) || 'no email'}</div>
             </div>
           )}
 
-          {/* Output — rendered first so it's immediately visible after generation */}
+          {/* Output - rendered first so it's immediately visible after generation */}
           {(draftFlow.subject || draftFlow.body || draftFlow.generating) && (
             <div className="space-y-3">
               <div>
@@ -755,7 +755,7 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
             </div>
           )}
 
-          {/* Options — always visible; visually demoted once output exists */}
+          {/* Options - always visible; visually demoted once output exists */}
           <div className={`space-y-3${(draftFlow.subject || draftFlow.body || draftFlow.generating) ? ' border-t border-warm-200 pt-4' : ''}`}>
             {(draftFlow.subject || draftFlow.body || draftFlow.generating) && (
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">Customize</p>

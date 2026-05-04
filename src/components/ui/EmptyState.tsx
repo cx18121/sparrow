@@ -1,6 +1,6 @@
 import React from 'react'
 
-// Empty-state block — what shows up when a list, table, or panel has nothing
+// Empty-state block - what shows up when a list, table, or panel has nothing
 // in it yet. Centered by default; pass `align="left"` for inline placements
 // where a centered block would feel orphaned (e.g. an aside in the dashboard).
 //

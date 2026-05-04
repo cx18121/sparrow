@@ -14,7 +14,7 @@ import type { CampaignOptions } from '../../types/api'
 
 // Phase 1 stood up the new campaigns-first surface; Phase 2 replaces the
 // modal-based campaign creator with the full-screen 4-step wizard. Phase 4e
-// retired the Discover / Contacts / Drafts / Campaigns top-level surfaces —
+// retired the Discover / Contacts / Drafts / Campaigns top-level surfaces -
 // per-campaign work now lives entirely inside the workspace at
 // /campaigns/:id/* and Home navigates straight there via useNavigate().
 
@@ -58,15 +58,15 @@ interface KpiCardProps {
 }
 
 function KpiCard({ label, value, helper, icon: Icon, loading }: KpiCardProps) {
-  const display = loading && (value === 0 || value === '') ? '—' : value
+  const display = loading && (value === 0 || value === '') ? '-' : value
   return (
-    <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
+    <div className="surface-panel px-5 py-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
         <Icon size={14} className="text-muted/60" />
       </div>
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="font-display text-[2rem] font-semibold leading-none tracking-[-0.03em] text-dark tabular-nums">
+        <span className="font-display text-[2rem] font-semibold leading-none text-dark tabular-nums">
           {display}
         </span>
         {helper && <span className="text-xs text-muted">{helper}</span>}
@@ -98,7 +98,7 @@ function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
       className={`group flex w-full flex-col gap-3 rounded-2xl border border-warm-200 bg-panel px-5 py-4 text-left transition-all duration-150 ${
         isOptimistic
           ? 'cursor-progress opacity-60'
-          : 'hover:-translate-y-0.5 hover:border-primary/30 hover:bg-warm-50 active:translate-y-0'
+          : 'hover:border-primary/30 hover:bg-warm-50 active:translate-y-px'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -106,7 +106,7 @@ function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
         <ArrowRight size={14} className="text-muted/40 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-primary/60" />
       </div>
       <div>
-        <h3 className="font-display text-base font-semibold tracking-[-0.01em] text-dark">{campaign.name}</h3>
+        <h3 className="font-display text-base font-semibold text-dark">{campaign.name}</h3>
         {audience && <p className="mt-1 line-clamp-1 text-xs text-muted">{audience}</p>}
       </div>
       <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-warm-200/70 pt-3">
@@ -128,7 +128,7 @@ function NewCampaignCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-5 py-6 text-muted transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-warm-50 hover:text-dark active:translate-y-0"
+      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/50 px-5 py-6 text-muted transition-all duration-150 hover:border-primary/40 hover:bg-warm-50 hover:text-dark active:translate-y-px"
     >
       <Plus size={18} />
       <span className="font-display text-base font-semibold text-dark">New campaign</span>
@@ -139,26 +139,20 @@ function NewCampaignCard({ onClick }: { onClick: () => void }) {
 
 function WelcomeCard({ name, onCreate }: { name: string; onCreate: () => void }) {
   return (
-    <div className="mx-auto mt-20 flex max-w-xl flex-col items-start text-left sm:mt-28">
-      {/* Quiet display-font anchor at low opacity so the eye has a focal
-          point without resorting to an icon chip in a rounded square. */}
-      <span
-        aria-hidden
-        className="font-display text-[7rem] font-semibold leading-none tracking-[-0.06em] text-primary/10 sm:text-[9rem]"
-      >
-        s
-      </span>
+    <div className="mx-auto mt-16 max-w-2xl sm:mt-24">
+      <div className="surface-panel px-6 py-7 sm:px-8 sm:py-8">
+        <p className="page-eyebrow">Home</p>
+        <h1 className="mt-3 font-display text-3xl font-semibold leading-tight text-dark sm:text-4xl">
+          {name ? `Welcome, ${name}.` : 'Welcome to Sparrow.'}
+        </h1>
+        <p className="mt-3 text-base leading-7 text-muted">
+          Create a campaign to find leads, draft emails, and track what gets sent.
+        </p>
 
-      <h1 className="-mt-3 font-display text-[clamp(2.25rem,4.5vw,3.5rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-dark">
-        {name ? `Welcome, ${name}.` : 'Welcome to Sparrow.'}
-      </h1>
-      <p className="mt-3 text-base leading-7 text-muted">
-        Each campaign carries its own audience, template, and lead pool.
-      </p>
-
-      <button onClick={onCreate} className="btn-primary mt-7">
-        <Plus size={14} /> Create your first campaign
-      </button>
+        <button onClick={onCreate} className="btn-primary mt-7">
+          <Plus size={14} /> Create your first campaign
+        </button>
+      </div>
     </div>
   )
 }
@@ -169,7 +163,7 @@ interface HomePageProps {
 
 export default function HomePage({ workspaceConfig }: HomePageProps) {
   const navigate = useNavigate()
-  // Optimistic temp-id rows aren't persisted server-side yet — clicking
+  // Optimistic temp-id rows aren't persisted server-side yet - clicking
   // through would 404 every workspace fetch. The card itself is rendered as
   // disabled in this case; this guard is defense in depth.
   const enterCampaign = useCallback((campaign: { id: string; name: string }) => {
@@ -222,7 +216,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
     return () => { cancelled = true }
   }, [])
 
-  // Lazy-load campaign options the first time the wizard opens — they're only
+  // Lazy-load campaign options the first time the wizard opens - they're only
   // needed for filter pill rendering in Step 2 and don't justify the cost on
   // every Home render.
   useEffect(() => {
@@ -287,7 +281,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
     }
   }
 
-  // Empty state: no campaigns, no stats — just one welcome card.
+  // Empty state: no campaigns, no stats - just one welcome card.
   if (dataLoaded && campaigns.length === 0) {
     return (
       <div className="page-shell">
@@ -313,7 +307,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="page-eyebrow">Home</p>
-          <h1 className="mt-2 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] font-semibold leading-[1.1] tracking-[-0.03em] text-dark">
+          <h1 className="mt-2 font-display text-3xl font-semibold leading-tight text-dark">
             {firstName ? `${greeting}, ${firstName}.` : 'Welcome back.'}
           </h1>
           {greetingStat && (
@@ -329,7 +323,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
         <Banner variant="warning">{emailsError}</Banner>
       )}
 
-      {/* KPI cards — Lead Pool / Drafts / Sent This Week */}
+      {/* KPI cards - Lead Pool / Drafts / Sent This Week */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           label="Lead Pool"

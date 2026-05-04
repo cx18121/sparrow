@@ -166,7 +166,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
           <button
             type="button"
             onMouseDown={e => { e.preventDefault(); applyLink() }}
-            className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white transition-all hover:brightness-110"
+            className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-warm-50 transition-all hover:brightness-110"
           >
             Apply
           </button>
@@ -345,11 +345,21 @@ export default function TemplatesTab({ workspaceConfig }) {
   return (
     <div className="page-shell space-y-6">
       <Toast toast={toast} onClose={() => setToast(null)} />
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="page-eyebrow">Templates</p>
+          <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Reusable email skeletons</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            Edit the copy Sparrow starts from. Variables stay visible so every generated draft remains inspectable.
+          </p>
+        </div>
+        <button onClick={openCreate} className="btn-primary self-start">
+          <Plus size={14} /> New template
+        </button>
+      </header>
+
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
-        <aside className="flex h-fit flex-col gap-4 xl:sticky xl:top-6">
-          <button onClick={openCreate} className="btn-primary w-full justify-center text-xs">
-            <Plus size={13} /> New template
-          </button>
+        <aside className="surface-panel flex h-fit flex-col gap-4 p-3 xl:sticky xl:top-6">
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
@@ -361,10 +371,10 @@ export default function TemplatesTab({ workspaceConfig }) {
                 <button
                   key={t.id}
                   onClick={() => switchTemplate(t.id, 'edit')}
-                  className={`w-full rounded-xl px-4 py-3 text-left transition-colors duration-150 ${
+                  className={`w-full rounded-xl border px-4 py-3 text-left transition-colors duration-150 ${
                     selectedId === t.id
-                      ? 'bg-primary/8'
-                      : 'hover:bg-warm-100'
+                      ? 'border-primary/30 bg-primary/8'
+                      : 'border-transparent hover:border-warm-200 hover:bg-warm-100'
                   }`}
                 >
                   <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark/90'}`}>{t.name}</p>
@@ -389,10 +399,10 @@ export default function TemplatesTab({ workspaceConfig }) {
                   <button
                     key={t.id}
                     onClick={() => switchTemplate(t.id, 'preview')}
-                    className={`w-full rounded-xl px-4 py-3 text-left transition-colors duration-150 ${
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition-colors duration-150 ${
                       selectedId === t.id
-                        ? 'bg-primary/8'
-                        : 'hover:bg-warm-100'
+                        ? 'border-primary/30 bg-primary/8'
+                        : 'border-transparent hover:border-warm-200 hover:bg-warm-100'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -411,12 +421,12 @@ export default function TemplatesTab({ workspaceConfig }) {
             <EmptyState>Select or create a template to start editing.</EmptyState>
           ) : (
             <>
-              <div>
+              <div className="surface-panel px-5 py-5">
                 {/* Name row + actions */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-display text-2xl font-semibold tracking-[-0.04em] text-dark">{selected.name}</h2>
+                      <h2 className="font-display text-2xl font-semibold text-dark">{selected.name}</h2>
                       {selectedIsLibrary && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-warm-100 px-2.5 py-1 text-[11px] font-medium text-muted">
                           <Library size={10} /> Library
@@ -479,7 +489,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                   </div>
                 </div>
 
-                {/* Underline tab nav — matches workspace sub-tab pattern */}
+                {/* Underline tab nav - matches workspace sub-tab pattern */}
                 {!selectedIsLibrary && (
                   <nav className="mt-4 flex gap-1 border-b border-warm-200">
                     <button
@@ -509,7 +519,7 @@ export default function TemplatesTab({ workspaceConfig }) {
               </div>
 
               {view === 'edit' && !selectedIsLibrary ? (
-                <div className="space-y-5 rounded-2xl border border-warm-200 bg-panel px-5 py-5">
+                <div className="space-y-5 surface-panel px-5 py-5">
                   <div>
                     <label className="label">Subject line</label>
                     <input
@@ -531,7 +541,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-2xl border border-warm-200">
+                <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">
                   <div className="border-b border-warm-200 bg-warm-50/60 px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
                     <p className="mt-2 text-sm font-medium text-dark">
@@ -557,7 +567,7 @@ export default function TemplatesTab({ workspaceConfig }) {
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && form.name && saveModal()}
-              placeholder="e.g. Cold Intro — Startup Founder"
+              placeholder="e.g. Cold Intro - Startup Founder"
               className="input"
               autoFocus
             />

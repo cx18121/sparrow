@@ -177,7 +177,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
           />
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-warm-300 bg-white/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-warm-300 bg-warm-50/70 px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5">
           <div className="min-w-0">
             <p className="text-sm font-medium text-dark">{statusLabel}</p>
             <p className="mt-1 text-xs text-muted">Optional: PDF, DOCX, or TXT.</p>
@@ -382,7 +382,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
         step={3}
         total={TOTAL_STEPS}
         title="Your template"
-        description="The skeleton of your email. Sparrow rewrites the body per recipient using their company context — merge tags below are just the parts that always swap in."
+        description="The skeleton of your email. Sparrow rewrites the body per recipient using their company context - merge tags below are just the parts that always swap in."
       />
 
       {writingMode ? (
@@ -789,7 +789,7 @@ export default function OnboardingScreen({
                 onClick={() => goToStep(index)}
                 aria-label={`Go to ${STEP_LABELS[index]}`}
                 className={`group flex h-8 items-center rounded-full px-1 transition-all ${
-                  index === stepIndex ? 'bg-primary/10' : 'hover:bg-white/76'
+                  index === stepIndex ? 'bg-primary/10' : 'hover:bg-warm-50/76'
                 }`}
               >
                 <span className={`h-2.5 rounded-full transition-all ${
@@ -813,7 +813,7 @@ export default function OnboardingScreen({
               type="button"
               onClick={prevStep}
               disabled={isFirstStep || isSaving}
-              className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-white/80 bg-white/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(44,31,16,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-white hover:bg-warm-50 hover:shadow-[0_16px_32px_rgba(44,31,16,0.1)] disabled:cursor-not-allowed disabled:border-white/50 disabled:bg-white/55 disabled:text-muted disabled:shadow-none"
+              className="inline-flex min-w-[112px] items-center justify-center gap-2 rounded-full border border-warm-50/80 bg-warm-50/85 px-4 py-3 text-sm font-medium text-dark shadow-[0_10px_24px_rgba(44,31,16,0.08)] transition-all duration-150 hover:-translate-y-0.5 hover:border-warm-50 hover:bg-warm-50 hover:shadow-[0_16px_32px_rgba(44,31,16,0.1)] disabled:cursor-not-allowed disabled:border-warm-50/50 disabled:bg-warm-50/55 disabled:text-muted disabled:shadow-none"
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface text-muted">
                 <ArrowLeft size={14} />
@@ -826,10 +826,10 @@ export default function OnboardingScreen({
                 type="button"
                 onClick={() => finish(false)}
                 disabled={isSaving || resumeUpload.uploading}
-                className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
+                className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-warm-50 transition-all duration-150 hover:brightness-110"
               >
                 {isSaving ? 'Saving...' : 'Open dashboard'}
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-50/18 text-warm-50">
                   <ArrowRight size={14} />
                 </span>
               </button>
@@ -838,10 +838,10 @@ export default function OnboardingScreen({
                 type="button"
                 onClick={nextStep}
                 disabled={isSaving || resumeUpload.uploading}
-                className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-white transition-all duration-150 hover:brightness-110"
+                className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-warm-50 transition-all duration-150 hover:brightness-110"
               >
                 Next
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/18 text-white">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-50/18 text-warm-50">
                   <ArrowRight size={14} />
                 </span>
               </button>

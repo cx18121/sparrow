@@ -1,6 +1,6 @@
 import React from 'react'
 
-// Tinted status chip — a small rounded label with a semantic background.
+// Tinted status chip - a small rounded label with a semantic background.
 // Use for short read-only state labels: "Hiring", "Ready", "Needs review".
 // For interactive status changers (like a select), use the variant tokens
 // directly from VARIANT_STYLES rather than wrapping the form control.
@@ -26,7 +26,7 @@ export default function Pill({
   const variantCls = VARIANT_STYLES[variant] || VARIANT_STYLES.neutral
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${variantCls} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-4 ${variantCls} ${className}`}
     >
       {dot && <span className={`h-1 w-1 rounded-full ${dotColor(variant)}`} />}
       {Icon && <Icon size={10} />}
