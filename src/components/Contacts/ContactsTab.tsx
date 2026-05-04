@@ -91,10 +91,18 @@ export default function ContactsTab({ workspaceConfig, onNavigate }) {
   const [addSaving, setAddSaving] = useState(false)
   const [addError, setAddError] = useState(null)
 
-  // Merge leads + custom contacts into a single list
+  // Merge leads + custom contacts into a single list. Both branches carry
+  // `_custom` and `apolloPersonId` so the row-level helpers + JSX can read
+  // them without union-narrowing churn (custom contacts have no Apollo id).
   const allRows = useMemo(() => [
-    ...leads,
-    ...customContacts.map(cc => ({ ...cc, _custom: true, status: cc.status || 'SAVED', addedAt: cc.createdAt })),
+    ...leads.map(l => ({ ...l, _custom: false as const })),
+    ...customContacts.map(cc => ({
+      ...cc,
+      _custom: true as const,
+      apolloPersonId: null,
+      status: cc.status || 'SAVED',
+      addedAt: cc.createdAt,
+    })),
   ], [leads, customContacts])
 
   const openGenerate = (row) => {

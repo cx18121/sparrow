@@ -190,7 +190,9 @@ export const updateLead = (data: { id: string; status?: string; notes?: string |
 export const deleteLead = (id: string) => request<void>(`/leads${qs({ id })}`, { method: 'DELETE' })
 
 export const fetchEmails = (params: Record<string, unknown> = {}) =>
-  request<PageResponse<Email> | DashboardEmailsResponse>(`/emails${qs(params)}`)
+  request<PageResponse<Email>>(`/emails${qs(params)}`)
+export const fetchEmailsCombined = () =>
+  request<DashboardEmailsResponse>(`/emails${qs({ combined: 'true' })}`)
 export const fetchSentTodayCount = () => request<SentTodayCountResponse>('/emails?countToday=true')
 export const createEmail = (data: Partial<Email> & { userLeadId?: string; customContactId?: string }) =>
   request<Email>('/emails', { method: 'POST', body: JSON.stringify(data) })

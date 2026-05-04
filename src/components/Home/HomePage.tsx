@@ -5,7 +5,7 @@ import {
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
-import { fetchCampaignOptions, fetchEmails } from '../../lib/api'
+import { fetchCampaignOptions, fetchEmailsCombined } from '../../lib/api'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import CreateCampaignWizard, { submissionToCampaignPayload, type WizardSubmission } from '../Wizard/CreateCampaignWizard'
@@ -179,8 +179,8 @@ export default function HomePage({ workspaceConfig, onEnterCampaign }: HomePageP
 
   useEffect(() => {
     let cancelled = false
-    fetchEmails({ combined: 'true' })
-      .then((res: any) => {
+    fetchEmailsCombined()
+      .then(res => {
         if (cancelled) return
         setDrafts(res?.drafts || [])
         setSent(res?.sent || [])

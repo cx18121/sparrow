@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
-import { fetchEmails } from '../../lib/api'
+import { fetchEmailsCombined } from '../../lib/api'
 import { useAppData } from '../../contexts/AppDataContext'
 
 const EMAIL_CACHE_KEY = 'cf_dash_emails'
@@ -145,7 +145,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   useEffect(() => {
     let cancelled = false
 
-    fetchEmails({ combined: 'true' })
+    fetchEmailsCombined()
       .then(res => {
         if (cancelled) return
         const draftsItems = res?.drafts || []
