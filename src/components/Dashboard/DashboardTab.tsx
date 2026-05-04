@@ -172,7 +172,9 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
-  const hasTemplate = !!workspaceConfig?.templateId || templates.length > 0
+  // Setup item asks "have you picked a default template?" — the library
+  // having any rows is not the same as having a default chosen.
+  const hasTemplate = !!workspaceConfig?.templateId
   const activeCampaigns = campaigns.filter(campaign => campaign.status === 'active').length
   const totalContacts = leads.length + customContacts.length
   const readyDrafts = emailState.drafts.filter(email => {

@@ -202,7 +202,10 @@ export function AuthProvider({ children }) {
     persistedRefreshTokens.clear()
 
     if (isDemo) {
+      // Clear both demo identity keys so the next "sign up" doesn't inherit
+      // the previous demo user's ID and bleed state across personas.
       localStorage.removeItem('cf_demo_user')
+      localStorage.removeItem('cf_demo_id')
       return
     }
     await supabase.auth.signOut()
