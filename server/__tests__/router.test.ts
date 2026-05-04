@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Mock all route modules to avoid their transitive dependencies (Prisma, Supabase, etc.)
 vi.mock("../routes/apollo-search.js", () => ({ default: vi.fn() }));
+vi.mock("../routes/account.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/audience-query.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/campaign-batch.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/campaign-leads.js", () => ({ default: vi.fn() }));
