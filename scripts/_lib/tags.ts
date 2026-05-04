@@ -8,9 +8,8 @@
 //
 // Categories:
 //   model      — how the company sells (saas, b2b, consumer, marketplace)
-//   vertical   — industry served (fintech, health, education, …)
-//   tech       — technology category (ai, crypto, devtools, …)
-//   function   — business function served (sales, marketing, hr, …)
+//   vertical   — industry served (fintech, health, education, hr, sales, …)
+//   tech       — technology category (ai, crypto, devtools, communication, …)
 //   media      — media type (video, audio, podcast, …)
 //   social     — social/community
 //   size       — team-size bucket (solo-founder, small-team, …, mega-team)
@@ -109,8 +108,41 @@ const VERTICAL_DEFINITIONS: Record<string, string[]> = {
   dating: ["dating", "relationships"],
   automotive: [
     "automotive", "cars", "transportation", "mobility",
-    "drones", "aerospace", "aerospace transportation", "defense",
-    "aerospace and defense", "maritime",
+  ],
+  defense: [
+    "defense", "aerospace", "drones", "maritime",
+    "aerospace and defense", "aerospace transportation",
+  ],
+  // Horizontal-SaaS verticals (the company sells *into* a business function).
+  // Migrated from the retired `function:*` namespace — the wizard filter only
+  // exposes `vertical` + `tech`, so function tags were unreachable.
+  marketing: [
+    "marketing", "sales and marketing", "seo", "content marketing",
+    "marketing automation", "email marketing", "growth marketing", "martech",
+  ],
+  sales: ["sales", "crm", "customer relationship management", "gtm", "go-to-market", "salestech"],
+  hr: [
+    "hr", "human resources", "recruiting", "hiring", "jobs",
+    "career", "careers", "talent", "hr tech", "hrtech",
+  ],
+  "customer-support": [
+    "customer service", "customer support", "help desk", "helpdesk",
+    "live chat", "customer communication",
+  ],
+  productivity: [
+    "productivity", "notes", "note-taking", "task management",
+    "project management", "time tracking", "calendar", "calendars",
+    "scheduling", "meetings", "video conferencing", "collaboration",
+    "wikis", "knowledge bases", "knowledge management",
+    "documents", "spreadsheets", "office management", "operations",
+  ],
+  design: [
+    "design", "design tools", "design-tools", "graphic design",
+    "ui design", "ux design",
+  ],
+  content: [
+    "content", "blogging", "newsletters", "writing", "writing tools",
+    "books", "reading",
   ],
 };
 
@@ -162,38 +194,9 @@ const TECH_DEFINITIONS: Record<string, string[]> = {
   xr: ["ar", "vr", "ar/vr", "augmented reality", "virtual reality", "xr"],
   hardware: ["hardware", "hardtech"],
   robotics: ["robotics"],
-};
-
-const FUNCTION_DEFINITIONS: Record<string, string[]> = {
-  marketing: [
-    "marketing", "sales and marketing", "seo", "content marketing",
-    "marketing automation", "email marketing", "growth marketing",
-  ],
+  // Migrated from retired `function:*` namespace — these are tech categories
+  // (infra/platforms) rather than horizontal verticals.
   adtech: ["advertising", "ads", "ad tech", "adtech"],
-  sales: ["sales", "crm", "customer relationship management", "gtm", "go-to-market"],
-  hr: [
-    "hr", "human resources", "recruiting", "hiring", "jobs",
-    "career", "careers", "talent", "hr tech",
-  ],
-  "customer-support": [
-    "customer service", "customer support", "help desk", "helpdesk",
-    "live chat", "customer communication",
-  ],
-  productivity: [
-    "productivity", "notes", "note-taking", "task management",
-    "project management", "time tracking", "calendar", "calendars",
-    "scheduling", "meetings", "video conferencing", "collaboration",
-    "wikis", "knowledge bases", "knowledge management",
-    "documents", "spreadsheets", "office management", "operations",
-  ],
-  design: [
-    "design", "design tools", "design-tools", "graphic design",
-    "ui design", "ux design",
-  ],
-  content: [
-    "content", "blogging", "newsletters", "writing", "writing tools",
-    "books", "reading",
-  ],
   communication: ["communication", "chat", "messaging", "email", "sms", "service", "services"],
   search: ["search", "search engines"],
 };
@@ -219,7 +222,6 @@ const TOPIC_TO_NS_TAG: Record<string, string> = (() => {
     ["model", MODEL_DEFINITIONS],
     ["vertical", VERTICAL_DEFINITIONS],
     ["tech", TECH_DEFINITIONS],
-    ["function", FUNCTION_DEFINITIONS],
     ["media", MEDIA_DEFINITIONS],
     ["social", SOCIAL_DEFINITIONS],
   ];
@@ -270,7 +272,6 @@ export const CANONICAL_TAG_GROUPS = {
   model: Object.keys(MODEL_DEFINITIONS),
   vertical: Object.keys(VERTICAL_DEFINITIONS),
   tech: Object.keys(TECH_DEFINITIONS),
-  function: Object.keys(FUNCTION_DEFINITIONS),
   media: Object.keys(MEDIA_DEFINITIONS),
   social: Object.keys(SOCIAL_DEFINITIONS),
   stage: [...STAGE_TAGS],
