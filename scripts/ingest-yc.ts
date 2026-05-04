@@ -10,6 +10,11 @@ interface YCCompany {
   name: string;
   website: string | null;
   all_locations: string;
+  // YC's API also exposes a structured `regions` array (e.g.
+  // ["United Kingdom","Europe","Remote","Partly Remote"]). For ~95% of
+  // companies that have empty `all_locations`, regions[] still has signal —
+  // we use it as a fallback to fill location/region.
+  regions?: string[];
   team_size: number;
   industry: string;
   subindustry: string;
@@ -20,6 +25,20 @@ interface YCCompany {
   one_liner: string;
   long_description: string;
   slug: string;
+}
+
+// Synthesize a location string from YC's `regions` array when `all_locations`
+// is empty. Prefer country/continent over remote markers — "Remote + UK" is
+// more useful as "United Kingdom" than as "Remote".
+function locationFromRegions(regions: string[] | undefined): string | null {
+  if (!regions || regions.length === 0) return null;
+  const real = regions.filter(r => r && r !== "Unspecified");
+  if (real.length === 0) return null;
+  const REMOTE = new Set(["Remote", "Partly Remote"]);
+  const nonRemote = real.find(r => !REMOTE.has(r));
+  if (nonRemote) return nonRemote;
+  if (real.some(r => REMOTE.has(r))) return "Remote";
+  return null;
 }
 
 function mapYCStage(ycStage: string): string {
@@ -61,6 +80,7 @@ const ycAdapter: IngestorAdapter = {
       if (parseBatchYear(c.batch) < MIN_BATCH_YEAR) continue;
 
       const stage = mapYCStage(c.stage);
+      const location = c.all_locations?.trim() || locationFromRegions(c.regions);
       out.push({
         website: c.website,
         name: c.name,
@@ -69,7 +89,7 @@ const ycAdapter: IngestorAdapter = {
         stage,
         industry: c.industry,
         subIndustry: c.subindustry,
-        location: c.all_locations,
+        location,
         headcount: c.team_size,
         isHiring: c.isHiring,
         batch: c.batch,

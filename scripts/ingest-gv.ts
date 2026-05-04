@@ -49,6 +49,10 @@ const gvAdapter: IngestorAdapter = {
     const out: CompanyRecord[] = [];
     for (const c of all) {
       if (!c.website || !c.name) continue;
+      // GV marks exited (IPO/acquired) companies with a trailing "*" in the
+      // CMS name. Skip them — exited companies are absorbed into BigCo and
+      // are poor outbound targets. Matches sequoia/greylock exit handling.
+      if (/\*\s*$/.test(c.name)) continue;
       const industry = c.sector?.title ?? null;
       out.push({
         name: c.name,

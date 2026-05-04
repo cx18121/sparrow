@@ -42,6 +42,9 @@ const firstRoundAdapter: IngestorAdapter = {
     const out: CompanyRecord[] = [];
     for (const c of companies) {
       if (!c.website) continue;
+      // FR uses a trailing "*" in title for exited companies — same convention
+      // as GV. Skip; exited targets aren't outbound prospects.
+      if (c.title && /\*\s*$/.test(c.title)) continue;
       const location = c.locations?.filter((l) => l && l !== "Other").join(", ") || null;
       out.push({
         name: c.title ?? "",
