@@ -51,7 +51,7 @@ function invalidateDashCache(userId: string) {
 }
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { userLeadId, status, limit = "50", cursor, countToday, combined } = req.query as Record<
+  const { userLeadId, campaignId, status, limit = "50", cursor, countToday, combined } = req.query as Record<
     string,
     string | undefined
   >;
@@ -113,6 +113,25 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   if (userLeadId) {
     const items = await prisma.email.findMany({
       where: { userLeadId, userLead: { userId }, ...(status && { status }) },
+      take: take + 1,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      orderBy: { createdAt: "desc" },
+      include,
+    });
+    const hasMore = items.length > take;
+    const trimmed = hasMore ? items.slice(0, take) : items;
+    return res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
+  }
+
+  // Workspace Drafts/Sent sub-tab: scope to drafts whose lead belongs to this campaign.
+  // Custom-contact drafts (no campaign relation in the schema) are naturally excluded —
+  // matches the Phase 4b decision to drop "orphan" drafts from the new UI.
+  if (campaignId) {
+    const items = await prisma.email.findMany({
+      where: {
+        userLead: { userId, campaignLeads: { some: { campaignId } } },
+        ...(status && { status }),
+      },
       take: take + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: "desc" },

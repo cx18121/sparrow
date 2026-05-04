@@ -103,6 +103,26 @@ describe("emails route — GET", () => {
     await invokeHandler(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
   });
+
+  it("scopes by campaignId via the userLead.campaignLeads relation", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.email.findMany.mockResolvedValueOnce([
+      { id: "email-camp-1", subject: "From this campaign", body: "x", createdAt: new Date() },
+    ]);
+    const req = makeReq({ method: "GET", query: { campaignId: "cmp-1", status: "draft" } });
+    const res = makeRes();
+    await invokeHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    // Single query (not the two-branch fan-out) with the campaignLeads filter applied.
+    expect(mockPrisma.email.findMany).toHaveBeenCalledTimes(1);
+    const callArg = mockPrisma.email.findMany.mock.calls[0][0];
+    expect(callArg.where).toMatchObject({
+      userLead: { userId: USER_ID, campaignLeads: { some: { campaignId: "cmp-1" } } },
+      status: "draft",
+    });
+    // Custom-contact drafts are not fetched at all when campaign-scoped.
+    expect(callArg.where).not.toHaveProperty("customContact");
+  });
 });
 
 describe("emails route — POST", () => {
