@@ -213,8 +213,9 @@ test.describe('Campaign workspace shell', () => {
     // The Discover surface renders the sample company plus its Find contacts CTA.
     await expect(page.locator(`text=${SAMPLE_COMPANY.name}`).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('button', { name: /Find contacts/i }).first()).toBeVisible()
-    // The "Browsing for X" banner confirms the workspace is scoping the discover.
-    await expect(page.locator('text=/Browsing for/i').first()).toBeVisible()
+    // Phase 4e dropped the in-page "Browsing for X" banner — the workspace
+    // header (campaign name + status badge) above already conveys the scope.
+    await expect(page.locator('text=/Browsing for/i')).toHaveCount(0)
   })
 
   test('Settings sub-tab renders inline editor with campaign data (Phase 4d)', async ({ page }) => {

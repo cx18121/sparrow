@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Search, Users, Globe, Filter,
-  CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle, Mail, X,
+  CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
@@ -111,7 +111,20 @@ function ContactRow({ preview, email, onSave, saving, saved }) {
   )
 }
 
-export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, activeCampaign = null, onExitCampaign = null, campaignFilters = null }) {
+// Phase 4e folded the legacy /leads route away — this component is now
+// only mounted from the workspace Leads sub-tab, which always passes
+// activeCampaign + campaignFilters. The standalone (no-campaign) toast
+// branches and the "Browsing for X" banner were removed because the
+// workspace header makes the campaign context obvious.
+type EmailRevealState = string | null | undefined
+
+interface LeadDiscoveryTabProps {
+  workspaceConfig: any
+  activeCampaign?: { id: string; name: string } | null
+  campaignFilters?: any
+}
+
+export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = null, campaignFilters = null }: LeadDiscoveryTabProps) {
   const { refreshLeads } = useAppData()
   const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')
@@ -142,7 +155,24 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, a
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
   const [cachedPreviews, setCachedPreviews] = useState({})
-  const [revealedEmails, setRevealedEmails] = useState({})
+  // Bug 05: the per-contact reveal loop inside handleCompanySelect used to
+  // skip already-revealed contacts by reading `revealedEmails[p.id]` from
+  // the closure, which is a snapshot from the render that produced the
+  // current handleCompanySelect binding. State updates queued earlier in
+  // the same handler (line 1's "seed previews to undefined" call) hadn't
+  // committed yet, so the gate read stale data. We now keep a ref that
+  // tracks the live value of the dictionary, write to it synchronously
+  // inside every functional setRevealedEmails, and read the gate from
+  // the ref so it reflects updates queued in the same tick.
+  const [revealedEmails, _setRevealedEmails] = useState<Record<string, EmailRevealState>>({})
+  const revealedEmailsRef = useRef<Record<string, EmailRevealState>>({})
+  const setRevealedEmails = useCallback((updater: (prev: Record<string, EmailRevealState>) => Record<string, EmailRevealState>) => {
+    _setRevealedEmails(prev => {
+      const next = updater(prev)
+      revealedEmailsRef.current = next
+      return next
+    })
+  }, [])
   const fetchGenRef = useRef(0)
 
   const fetchCompanies = useCallback(async (cursor = null, overrides: any = {}) => {
@@ -311,10 +341,14 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, a
         previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
         return next
       })
-      // Only reveal contacts not yet fetched — avoids re-spending Apollo credits on re-open
+      // Only reveal contacts not yet fetched — avoids re-spending Apollo
+      // credits on re-open (a null result from a prior attempt counts as
+      // "fetched" too). Read the gate from the ref so updates queued
+      // earlier in this same tick (the "seed to undefined" set above)
+      // are visible to the loop.
       previews.forEach(async (p) => {
         if (!p.hasEmail) { setRevealedEmails(prev => ({ ...prev, [p.id]: null })); return }
-        if (revealedEmails[p.id] !== undefined) return
+        if (revealedEmailsRef.current[p.id] !== undefined) return
         try {
           const result = await revealApolloContact(p.id, company.id, company.domain)
           setRevealedEmails(prev => ({ ...prev, [p.id]: result.contact?.email ?? null }))
@@ -353,27 +387,13 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, a
           return
         }
       }
-      if (activeCampaign) {
-        setToast({
-          type: 'success',
-          title: `${preview.firstName} added to ${activeCampaign.name}`,
-          message: 'Continue browsing or open Campaigns to see prospects.',
-          action: onNavigate ? {
-            label: 'Open Campaigns',
-            onClick: () => { onNavigate('campaigns'); setToast(null) },
-          } : null,
-        })
-      } else {
-        setToast({
-          type: 'success',
-          title: `${preview.firstName} saved`,
-          message: 'Generate an email from Contacts.',
-          action: onNavigate ? {
-            label: 'Go to Contacts',
-            onClick: () => { onNavigate('contacts'); setToast(null) },
-          } : null,
-        })
-      }
+      setToast({
+        type: 'success',
+        title: activeCampaign
+          ? `${preview.firstName} added to ${activeCampaign.name}`
+          : `${preview.firstName} saved`,
+        message: 'Continue browsing — switch to Drafts when you have enough.',
+      })
     } catch (err) {
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
@@ -386,20 +406,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, onNavigate = null, a
   return (
     <div className="page-shell">
       <Toast toast={toast} onClose={() => setToast(null)} />
-      {activeCampaign && (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-primary">
-            <Mail size={14} />
-            Browsing for <span className="font-semibold">{activeCampaign.name}</span>
-            <span className="text-primary/60 font-normal">— contacts you save go directly into this campaign.</span>
-          </div>
-          {onExitCampaign && (
-            <button type="button" onClick={onExitCampaign} className="shrink-0 rounded-full p-1 text-primary/50 transition-colors hover:bg-primary/10 hover:text-primary" title="Exit campaign mode">
-              <X size={13} />
-            </button>
-          )}
-        </div>
-      )}
       <div className="mb-5">
         <p className="mt-1 text-sm leading-6 text-muted">Browse companies and find contacts to add to your pipeline.</p>
       </div>
