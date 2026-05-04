@@ -92,7 +92,8 @@ describe("profile route — GET", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     const jsonArg = res.json.mock.calls[0][0];
-    expect(jsonArg.profile.hasClaudeKey).toBe(true);
+    // hasClaudeKey now mirrors only the deployment env (BYO-key path retired).
+    expect(jsonArg.profile.hasClaudeKey).toBe(!!process.env.ANTHROPIC_API_KEY);
     expect(jsonArg.profile.hasGoogleRefreshToken).toBe(true);
     expect(jsonArg.profile.workspaceConfig).toEqual({ theme: "dark" });
   });
@@ -158,27 +159,17 @@ describe("profile route — POST", () => {
     expect(res.status).toHaveBeenCalledWith(204);
   });
 
-  it("encrypts claudeApiKey and stores it", async () => {
+  it("ignores claudeApiKey writes (BYO-key path retired)", async () => {
     mockGetUserId.mockResolvedValue(VALID_UUID);
     const chain = makeSupabaseChain({ data: null, error: null }, { error: null });
     mockGetSupabaseAdmin.mockReturnValue(chain);
-    const req = makeReq({ method: "POST", body: { claudeApiKey: "sk-ant-my-key" } });
+    const req = makeReq({ method: "POST", body: { claudeApiKey: "sk-ant-my-key", workspaceConfig: {} } });
     const res = makeRes();
     await handler(req, res);
-    expect(mockEncrypt).toHaveBeenCalledWith("sk-ant-my-key");
+    expect(mockEncrypt).not.toHaveBeenCalledWith("sk-ant-my-key");
     const upsertArg = chain.upsert.mock.calls[0][0];
-    expect(upsertArg.claude_api_key_encrypted).toBe("encrypted:sk-ant-my-key");
-  });
-
-  it("setting claudeApiKey to empty string stores null", async () => {
-    mockGetUserId.mockResolvedValue(VALID_UUID);
-    const chain = makeSupabaseChain({ data: null, error: null }, { error: null });
-    mockGetSupabaseAdmin.mockReturnValue(chain);
-    const req = makeReq({ method: "POST", body: { claudeApiKey: "" } });
-    const res = makeRes();
-    await handler(req, res);
-    const upsertArg = chain.upsert.mock.calls[0][0];
-    expect(upsertArg.claude_api_key_encrypted).toBeNull();
+    expect(upsertArg.claude_api_key_encrypted).toBeUndefined();
+    expect(res.status).toHaveBeenCalledWith(204);
   });
 
   it("returns 500 on Supabase upsert error", async () => {

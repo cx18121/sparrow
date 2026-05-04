@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check, X, Building2, Briefcase, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
-  User, Sparkles, Plug, Send, ShieldAlert, LogOut, Globe2, Mail, Trash2,
+  User, Sparkles, Plug, Send, ShieldAlert, LogOut, Mail, Trash2,
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
 import { generateStyleGuide, deleteAccount } from '../../lib/api'
@@ -193,17 +193,6 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
           </div>
         </div>
 
-        <div>
-          <label className="label">Email signature</label>
-          <textarea
-            value={form.signature || ''}
-            onChange={e => field('signature', e.target.value)}
-            rows={3}
-            placeholder={'Best,\nJordan\nfounder@coldflow.app'}
-            className="input resize-y font-mono text-[13px] leading-relaxed"
-          />
-          <p className="mt-1 text-xs text-muted">Appended to every generated draft. Plain text — line breaks preserved.</p>
-        </div>
       </FieldGroup>
 
       <FieldGroup title="Background" hint="Pasted text and an uploaded resume both feed the generator. Use whichever is easier to maintain.">
@@ -277,7 +266,6 @@ function pickProfileFields(c: any) {
     senderName: c?.senderName || '',
     senderCompany: c?.senderCompany || '',
     senderRole: c?.senderRole || '',
-    signature: c?.signature || '',
     resumeText: c?.resumeText || '',
     resumeFileName: c?.resumeFileName || '',
     resumePath: c?.resumePath || '',
@@ -450,34 +438,17 @@ function StyleTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave: (
 }
 
 function IntegrationsTab({
-  workspaceConfig, profile, onRefreshProfile, onSave, onConnectGoogle,
+  profile, onConnectGoogle,
 }: {
-  workspaceConfig: any; profile: any; onRefreshProfile: () => void
-  onSave: (u: any) => Promise<boolean>
+  profile: any
   onConnectGoogle: (() => void) | null
 }) {
-  const [claudeInput, setClaudeInput] = useState('')
-  const [saving, setSaving] = useState(false)
-  const hasSavedClaude = !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
-  const dirty = claudeInput.trim().length > 0
-
-  const save = async () => {
-    setSaving(true)
-    const ok = await onSave((current: any) => ({
-      ...current,
-      apiKeys: { ...current.apiKeys, claude: claudeInput.trim() },
-    }))
-    setSaving(false)
-    if (ok) {
-      setClaudeInput('')
-      onRefreshProfile?.()
-    }
-  }
+  const hasClaude = !!profile?.hasClaudeKey
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Gmail" hint="Sparrow sends emails through your own Gmail account. The OAuth flow grants send-only access — Sparrow never reads your inbox.">
+      <FieldGroup title="Gmail" hint="Sparrow sends through your own Gmail account. The grant is send-only — Sparrow never reads your inbox. Sign-in handles identity; this connect step adds the send permission.">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
@@ -487,7 +458,7 @@ function IntegrationsTab({
               <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
               <p className="mt-0.5 text-xs text-muted">
                 {hasGoogle
-                  ? 'Drafts sent from this account will appear in Gmail Sent.'
+                  ? 'Drafts sent from this account land in your Gmail Sent folder.'
                   : 'Required before any draft can be sent.'}
               </p>
             </div>
@@ -500,26 +471,19 @@ function IntegrationsTab({
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Claude API key" hint="Drafts are generated using your own Anthropic key. Saved keys are encrypted and never returned to the browser.">
-        <div>
-          <label className="label">Anthropic API key</label>
-          <input
-            type="password"
-            value={claudeInput}
-            onChange={e => setClaudeInput(e.target.value)}
-            placeholder={hasSavedClaude ? '••••••••  (saved key on file)' : 'sk-ant-…'}
-            className="input"
-          />
-          <p className="mt-1 text-xs text-muted">
-            {hasSavedClaude
-              ? 'A key is saved. Enter a new value above to replace it, or leave blank to keep it.'
-              : 'No key saved yet. Add one to enable draft generation.'}
-          </p>
-        </div>
-        <div className="flex justify-end">
-          <button type="button" onClick={save} disabled={saving || !dirty} className="btn-primary text-xs">
-            {saving ? <><Loader2 size={13} className="animate-spin" /> Saving</> : 'Save key'}
-          </button>
+      <FieldGroup title="AI generation" hint="Draft generation runs on the host's Claude key. Nothing to configure on your side.">
+        <div className="flex items-center gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasClaude ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-700'}`}>
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-dark">{hasClaude ? 'Ready' : 'Not configured on host'}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              {hasClaude
+                ? 'Claude is available for every draft.'
+                : 'The host needs to set ANTHROPIC_API_KEY before generation will work.'}
+            </p>
+          </div>
         </div>
       </FieldGroup>
     </div>
@@ -548,19 +512,6 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
 
   const limits = form.sendingLimits || { dailyMax: 100, delaySeconds: 15 }
   const setLimit = (k: string, v: number) => setForm((c: any) => ({ ...c, sendingLimits: { ...(c.sendingLimits || {}), [k]: v } }))
-
-  // Build a small, sane time-zone list — common picks first, then everything
-  // the runtime knows about. Falls back to the user's resolved zone alone.
-  const tzList = useMemo(() => {
-    const common = ['America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'UTC', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo']
-    let all: string[] = []
-    try {
-      // @ts-ignore — supportedValuesOf is on Intl in modern browsers
-      all = (Intl as any).supportedValuesOf?.('timeZone') || []
-    } catch { /* fall through to common */ }
-    const set = new Set([...common, ...(all.length ? all : []), form.timeZone].filter(Boolean))
-    return Array.from(set)
-  }, [form.timeZone])
 
   return (
     <div className="space-y-5">
@@ -619,20 +570,6 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
           </div>
         </div>
 
-        <div>
-          <label className="label">Time zone</label>
-          <div className="relative">
-            <Globe2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <select
-              value={form.timeZone || 'UTC'}
-              onChange={e => setForm((c: any) => ({ ...c, timeZone: e.target.value }))}
-              className="select pl-8"
-            >
-              {tzList.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
-          </div>
-          <p className="mt-1 text-xs text-muted">Anchors "this week" stats and any future scheduled sends.</p>
-        </div>
       </FieldGroup>
 
       <FieldGroup title="Attachment library" hint="Files saved here can be attached to drafts or set as defaults on a campaign.">
@@ -654,7 +591,6 @@ function pickSendingFields(c: any) {
   return {
     leadsPerGeneration: c?.leadsPerGeneration ?? 25,
     templateId: c?.templateId ?? '',
-    timeZone: c?.timeZone || 'UTC',
     sendingLimits: c?.sendingLimits || { dailyMax: 100, delaySeconds: 15 },
     files: c?.files || [],
   }
@@ -951,10 +887,7 @@ export default function SettingsPage({
         )}
         {active === 'integrations' && (
           <IntegrationsTab
-            workspaceConfig={workspaceConfig}
             profile={profile}
-            onRefreshProfile={onRefreshProfile}
-            onSave={(updater) => saveWorkspace(updater, 'Integrations saved')}
             onConnectGoogle={handleConnect}
           />
         )}

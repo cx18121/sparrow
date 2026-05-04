@@ -24,9 +24,6 @@ export default function Sidebar({
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
-  const mainTabs = tabs.filter(t => t.id !== 'settings')
-  const settingsTab = tabs.find(t => t.id === 'settings')
-
   const renderTabButton = (tab) => {
     const isActive = activeTab === tab.id
     return (
@@ -83,14 +80,15 @@ export default function Sidebar({
 
       <div className="mx-3 border-t border-accent/15" />
 
-      {/* Nav */}
+      {/* Nav — Settings stays in the main rail so the three items have rhythm
+          rather than orphaning Settings to the bottom. The bottom rail now
+          carries only the user identity menu. */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {mainTabs.map(renderTabButton)}
+        {tabs.map(renderTabButton)}
       </nav>
 
-      {/* Bottom */}
-      <div className="shrink-0 border-t border-accent/15 px-2 py-2 space-y-0.5">
-        {settingsTab && renderTabButton(settingsTab)}
+      {/* Bottom — user menu only */}
+      <div className="shrink-0 border-t border-accent/15 px-2 py-2">
         {user && (
           <div className="relative" ref={dropRef}>
             <button

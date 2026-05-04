@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
-import { decrypt } from "./crypto.js";
 import { buildSenderContext } from "./build-sender-context.js";
 import { parseWorkspaceConfig, resolveStyleInstruction, type WorkspaceConfig } from "./workspace-config.js";
 
@@ -7,7 +6,6 @@ export interface ResolvedProfile {
   apiKey: string;
   senderName: string | null;
   senderRole: string | null;
-  signature: string | null;
   resumeText: string | null;
   styleInstruction: string | null;
   ws: WorkspaceConfig;
@@ -19,44 +17,38 @@ export class ProfileError extends Error {
   }
 }
 
-// Resolve the Claude key with this precedence: per-user encrypted key in the
-// profile (BYO-key, higher rate limits + their own billing) → server env
-// fallback (lets a fresh user generate without going to Settings first).
-// Throws ProfileError when neither path yields a usable key.
-function resolveClaudeKey(encrypted: string | null | undefined): string {
-  if (encrypted) {
-    try {
-      return decrypt(encrypted);
-    } catch {
-      throw new ProfileError("We could not read your saved Claude key. Re-enter it in Settings.", 500);
-    }
-  }
+// The Claude key is host-managed via process.env.ANTHROPIC_API_KEY. The
+// per-user BYO-key path was retired: it added a setup step every fresh user
+// hit before they could generate, the Settings field carried real support
+// burden (decrypt failures, key rotation, "is my key valid"), and no student
+// actually wanted their own billing for a recruiting tool.
+// claude_api_key_encrypted stays in the schema for migration safety; nothing
+// reads it any more.
+function resolveClaudeKey(): string {
   const envKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (envKey) return envKey;
-  throw new ProfileError("Add a Claude API key in Settings before generating emails.", 400);
+  throw new ProfileError("Email generation is not configured on this deployment. Contact the host.", 500);
 }
 
-// Fetches the user's Profile, resolves a Claude API key (per-user → env), and
-// assembles the sender context for email generation.
+// Fetches the user's Profile and assembles the sender context for email
+// generation. The Claude key comes from the deployment env, not the profile.
 export async function resolveProfileForGeneration(userId: string): Promise<ResolvedProfile> {
   const supabase = getSupabaseAdmin();
   const { data: profile, error } = await supabase
     .from("user_profiles")
-    .select("resume_text, claude_api_key_encrypted, workspace_config")
+    .select("resume_text, workspace_config")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw new ProfileError(error.message, 500);
 
-  const apiKey = resolveClaudeKey(profile?.claude_api_key_encrypted);
+  const apiKey = resolveClaudeKey();
 
   const ws = parseWorkspaceConfig(profile?.workspace_config);
-  const signature = typeof ws.signature === "string" ? ws.signature.trim() : "";
   return {
     apiKey,
     senderName: ws.senderName ?? null,
     senderRole: ws.senderRole ?? null,
-    signature: signature || null,
     resumeText: profile?.resume_text ?? null,
     styleInstruction: resolveStyleInstruction(ws),
     ws,

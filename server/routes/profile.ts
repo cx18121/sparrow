@@ -77,12 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             resumeText: data.resume_text,
             onboardingCompleted: data.onboarding_completed,
             onboardingCompletedAt: data.onboarding_completed_at,
-            // hasClaudeKey reflects "can this user generate?" — true if they
-            // either supplied their own encrypted key OR the deployment has a
-            // server-wide ANTHROPIC_API_KEY env fallback configured. The
-            // Settings provider-key form still manages the user's own key
-            // independently; this field only drives the missing-key warning.
-            hasClaudeKey: !!data.claude_api_key_encrypted || !!process.env.ANTHROPIC_API_KEY,
+            // hasClaudeKey reflects "can this user generate?" — the per-user
+            // BYO-key path is retired, so this just mirrors whether the
+            // deployment has ANTHROPIC_API_KEY configured.
+            hasClaudeKey: !!process.env.ANTHROPIC_API_KEY,
             hasGoogleRefreshToken: !!data.google_refresh_token_encrypted,
             updatedAt: data.updated_at,
           }
@@ -108,10 +106,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (body.defaultFilters !== undefined) update.default_filters = sanitizeJsonObject(body.defaultFilters, "defaultFilters");
       if (body.resumePath !== undefined) update.resume_path = nullableLimitedString(body.resumePath, "resumePath", MAX_PATH_LENGTH);
       if (body.resumeText !== undefined) update.resume_text = nullableLimitedString(body.resumeText, "resumeText", MAX_RESUME_TEXT_LENGTH);
-      if (body.claudeApiKey !== undefined) {
-        const claudeApiKey = nullableLimitedString(body.claudeApiKey, "claudeApiKey", MAX_SECRET_LENGTH);
-        update.claude_api_key_encrypted = claudeApiKey ? encrypt(claudeApiKey) : null;
-      }
+      // claudeApiKey writes are intentionally ignored — the per-user BYO-key
+      // path was retired. The body field is still parsed (so old clients
+      // don't 400) but never persisted. The encrypted column stays in the
+      // schema for migration safety.
       if (body.googleRefreshToken !== undefined) {
         const googleRefreshToken = nullableLimitedString(body.googleRefreshToken, "googleRefreshToken", MAX_SECRET_LENGTH);
         update.google_refresh_token_encrypted = googleRefreshToken ? encrypt(googleRefreshToken) : null;
