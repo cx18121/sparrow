@@ -32,22 +32,14 @@ export interface DraftGenerationResult {
   error?: string;
 }
 
-// Resolves the email recipient from either a UserLead or a CustomContact.
-// For UserLeads, attempts Apollo auto-reveal if the lead has no Contact yet.
-// Throws GenerationError when the lead is not found or has no usable contact.
-async function resolveRecipient(params: DraftGenerationParams) {
+// Pure DB lookup — no network calls, no side effects.
+async function lookupRecipient(params: DraftGenerationParams) {
   const { userId, userLeadId, customContactId } = params;
 
   if (customContactId) {
     const cc = await prisma.customContact.findUnique({ where: { id: customContactId } });
     if (!cc || cc.userId !== userId) throw new GenerationError("Custom contact not found", 404);
-    return {
-      contactInfo: { name: cc.name, title: cc.title },
-      companyInfo: { name: cc.companyName ?? "", description: null, oneLiner: null, stage: null, industry: null, isHiring: false },
-      savedLeadId: null as string | null,
-      savedContactId: null as string | null,
-      savedCustomContactId: cc.id,
-    };
+    return { kind: "customContact" as const, cc, lead: null as null, contact: null as null };
   }
 
   const lead = await prisma.userLead.findUnique({
@@ -56,49 +48,79 @@ async function resolveRecipient(params: DraftGenerationParams) {
   });
   if (!lead || lead.userId !== userId) throw new GenerationError("Lead not found", 404);
 
-  let contact = lead.contact;
-  if (!contact && lead.apolloPersonId) {
-    const apolloKey = process.env.APOLLO_API_KEY;
-    if (apolloKey) {
-      try {
-        const saved = await revealAndUpsertContact(lead.apolloPersonId, lead.companyId, apolloKey);
-        if (saved) {
-          await prisma.userLead.update({ where: { id: lead.id }, data: { contactId: saved.id } });
-          contact = await prisma.contact.findUnique({ where: { id: saved.id } });
-        }
-      } catch (err) {
-        console.warn("Apollo reveal failed, proceeding without contact:", err);
-      }
-    }
-  }
-  if (!contact) {
-    throw new GenerationError("Lead has no contact. Save a lead from Discover to get contact details.", 400);
-  }
+  return { kind: "lead" as const, cc: null as null, lead, contact: lead.contact };
+}
 
-  return {
-    contactInfo: { name: contact.name, title: contact.title },
-    companyInfo: {
-      name: lead.company.name, description: lead.company.description,
-      oneLiner: lead.company.oneLiner, stage: lead.company.stage,
-      industry: lead.company.industry, isHiring: lead.company.isHiring,
-    },
-    savedLeadId: lead.id,
-    savedContactId: contact.id,
-    savedCustomContactId: null as string | null,
-  };
+// Attempts Apollo reveal for a lead that has apolloPersonId but no Contact yet.
+// Consumes one Apollo credit on success. Returns the Contact if reveal produced
+// an email address; null when the key is absent, the person has no email, quota
+// is exhausted, or the API call fails.
+async function tryRevealContact(
+  lead: { id: string; apolloPersonId: string | null; companyId: string },
+  userId: string
+) {
+  const apolloKey = process.env.APOLLO_API_KEY;
+  if (!lead.apolloPersonId || !apolloKey) return null;
+  try {
+    const saved = await revealAndUpsertContact(lead.apolloPersonId, lead.companyId, apolloKey, userId);
+    if (saved) {
+      await prisma.userLead.update({ where: { id: lead.id }, data: { contactId: saved.id } });
+      return prisma.contact.findUnique({ where: { id: saved.id } });
+    }
+  } catch (err) {
+    console.warn("Apollo reveal failed during draft generation:", err);
+  }
+  return null;
 }
 
 // Generates a Draft for a Lead or CustomContact.
-// Handles: recipient resolution (with optional Apollo auto-reveal), template lookup,
-// profile fetch, AI generation with fallback, and optional draft persistence.
+// save defaults to FALSE — callers must opt in to persisting a draft to avoid
+// silent Email record creation during preview calls (ContactsTab regression Mar 2026).
 export async function generateDraft(params: DraftGenerationParams): Promise<DraftGenerationResult> {
-  // save defaults to FALSE — callers must opt in to persisting a draft.
-  // This avoids the trap where a "preview" call silently creates an Email record
-  // that the user never saw or approved (see ContactsTab regression Mar 2026).
   const { userId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = false } = params;
 
-  const { contactInfo, companyInfo, savedLeadId, savedContactId, savedCustomContactId } =
-    await resolveRecipient(params);
+  const lookup = await lookupRecipient(params);
+
+  let contactInfo: { name: string | null; title: string | null };
+  let companyInfo: { name: string; description: string | null; oneLiner: string | null; stage: string | null; industry: string | null; isHiring: boolean };
+  let savedLeadId: string | null;
+  let savedContactId: string | null;
+  let savedCustomContactId: string | null;
+
+  if (lookup.kind === "customContact") {
+    const { cc } = lookup;
+    contactInfo = { name: cc.name, title: cc.title };
+    companyInfo = { name: cc.companyName ?? "", description: null, oneLiner: null, stage: null, industry: null, isHiring: false };
+    savedLeadId = null;
+    savedContactId = null;
+    savedCustomContactId = cc.id;
+  } else {
+    const { lead } = lookup;
+    let contact = lookup.contact;
+
+    if (!contact) {
+      contact = await tryRevealContact(lead, userId);
+    }
+
+    if (!contact) {
+      throw new GenerationError(
+        lead.apolloPersonId
+          ? "Could not fetch contact details for this lead. Try enriching it again from Discover."
+          : "Lead has no contact. Save a lead from Discover to get contact details.",
+        400
+      );
+    }
+
+    contactInfo = { name: contact.name, title: contact.title };
+    companyInfo = {
+      name: lead.company.name, description: lead.company.description,
+      oneLiner: lead.company.oneLiner, stage: lead.company.stage,
+      industry: lead.company.industry, isHiring: lead.company.isHiring,
+    };
+    savedLeadId = lead.id;
+    savedContactId = contact.id;
+    savedCustomContactId = null;
+  }
 
   // Resolve template
   let userTemplate: { subject: string; body: string } | null = null;

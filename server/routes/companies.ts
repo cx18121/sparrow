@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
-import { groupTagsByNamespace } from "../../scripts/_lib/tags.js";
-import { US_REGIONS } from "../../scripts/_lib/region-map.js";
+import { audienceToPrismaWhere } from "../lib/audience-query.js";
+import { REGION_US, REGION_INTL, REGION_REMOTE } from "../../src/types/audience.js";
 import { shuffle } from "../lib/company-selection.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -14,6 +14,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   res.setHeader("Allow", "GET, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+function regionFromQuery(regionType: string | undefined, region: string | undefined): string | null {
+  if (regionType === "us") return REGION_US;
+  if (regionType === "international") return REGION_INTL;
+  if (regionType === "remote") return REGION_REMOTE;
+  return region ?? null;
 }
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -35,52 +42,33 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     random,
   } = req.query as Record<string, string | undefined>;
 
+  const tagsList = tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [];
+  const sourcesList = sources ? sources.split(",").map(s => s.trim()).filter(Boolean) : [];
+  const minScoreNum = minScore ? parseInt(minScore, 10) : null;
+
   const industryFilter = industries
     ? { industry: { in: industries.split(",") } }
     : industry
     ? { industry }
     : {};
 
-  const tagsList = tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : [];
-  // Group tags by namespace prefix → AND across categories, OR within.
-  // ?tags=vertical:fintech,vertical:health,tech:ai means (fintech OR health) AND ai.
-  const tagsByNs = groupTagsByNamespace(tagsList);
-  const tagFilters = Object.values(tagsByNs).map(group => ({
-    tags: { hasSome: group },
-  }));
-  const sourcesList = sources ? sources.split(",").map(s => s.trim()).filter(Boolean) : [];
-  const minScoreNum = minScore ? parseInt(minScore, 10) : null;
-
-  // regionType=us → known US metro regions; regionType=international → everything else
-  // (excluding Remote). A plain ?region= exact-match still works when regionType is absent.
-  const andConditions = [...tagFilters];
-  let regionWhere: Record<string, unknown> = {};
-  if (regionType === "us") {
-    regionWhere = { region: { in: [...US_REGIONS] } };
-  } else if (regionType === "international") {
-    andConditions.push({ region: { not: null } } as any);
-    andConditions.push({ region: { notIn: [...US_REGIONS, "Remote"] } } as any);
-  } else if (regionType === "remote") {
-    regionWhere = { region: "Remote" };
-  } else if (region) {
-    regionWhere = { region };
-  }
+  // Build the core audience-driven filter through the canonical adapter so
+  // Discover and Campaign batch selection always produce identical WHERE clauses.
+  const audienceWhere = audienceToPrismaWhere({
+    tags: tagsList,
+    region: regionFromQuery(regionType, region),
+    stage: null, // Discover does not expose a stage filter
+    batch: batch ?? null,
+    isHiring: isHiring === "true" ? true : isHiring === "false" ? false : null,
+  });
 
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
   const baseWhere = {
-    // Hide unverified companies (e.g. unresolved PH placeholders) — no opt-out
-    // exposed to clients. Add an admin/service-auth gate if debug access is needed.
-    isVerified: true,
-    ...regionWhere,
-    ...(batch && { batch }),
+    ...audienceWhere,
     ...industryFilter,
-    ...(isHiring && { isHiring: isHiring === "true" }),
-    ...(andConditions.length > 0 && { AND: andConditions }),
     ...(sourcesList.length > 0 && { source: { in: sourcesList } }),
     ...(minScoreNum != null && { qualityScore: { gte: minScoreNum } }),
-    ...(search && {
-      name: { startsWith: search, mode: "insensitive" as const },
-    }),
+    ...(search && { name: { startsWith: search, mode: "insensitive" as const } }),
   };
 
   try {
@@ -216,4 +204,3 @@ function companySelect(withContact: boolean) {
     }),
   };
 }
-

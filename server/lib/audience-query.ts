@@ -31,8 +31,8 @@ export function audienceFromCampaign(c: CampaignFilters): Audience {
 }
 
 // Group a flat tag list by namespace prefix for AND-across-namespaces /
-// OR-within-namespace selection logic. Exported so the existing
-// campaign-batch-service test surface stays addressable.
+// OR-within-namespace selection logic. Exported for use by company-selection.ts
+// and by tests that verify tag grouping independently.
 export function buildTagFilters(tags: string[]) {
   const byNs: Record<string, string[]> = {};
   for (const t of tags) {

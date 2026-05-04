@@ -21,7 +21,7 @@ vi.mock("../../scripts/_lib/region-map.js", () => ({
   US_REGIONS: ["CA", "NY", "TX"],
 }));
 
-import { buildTagFilters, selectCandidateIds } from "../lib/campaign-batch-service.js";
+import { buildTagFilters, selectCandidateIds } from "../lib/company-selection.js";
 
 // ---------------------------------------------------------------------------
 // buildTagFilters

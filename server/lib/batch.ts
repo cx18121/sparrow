@@ -13,7 +13,7 @@
 import { prisma, type Db } from "./prisma.js";
 import { enrichContactFromDomain } from "./apollo-enrichment.js";
 import { selectCandidateIds } from "./company-selection.js";
-import { consumeDurableDailyQuota, QuotaError } from "./rate-limit.js";
+import { QuotaError } from "./rate-limit.js";
 import { HttpError } from "./user.js";
 
 export interface BatchValue {
@@ -146,14 +146,13 @@ export const Batch = {
 
         if (!contact && apolloKey && company.domain) {
           try {
-            await consumeDurableDailyQuota("apollo", userId, "reveal", Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50), tx);
+            const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey, userId, tx);
+            contact = enriched.contact;
+            apolloPersonId = enriched.apolloPersonId;
           } catch (err) {
             if (err instanceof QuotaError) throw new HttpError(429, "Daily Apollo reveal limit reached. Try again tomorrow.");
             throw err;
           }
-          const enriched = await enrichContactFromDomain(company.domain, company.id, apolloKey, tx);
-          contact = enriched.contact;
-          apolloPersonId = enriched.apolloPersonId;
         }
 
         const contactId = contact?.id ?? null;

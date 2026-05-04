@@ -1,9 +1,5 @@
 import { prisma, type Db } from "./prisma.js";
 
-type DailyBucket = Record<string, number> & { day: string };
-
-const dailyBuckets = new Map<string, DailyBucket>();
-
 export class QuotaError extends Error {
   constructor(message: string) {
     super(message);
@@ -12,25 +8,6 @@ export class QuotaError extends Error {
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-export function consumeDailyQuota(
-  scope: string,
-  subjectId: string,
-  action: string,
-  limit: number,
-): void {
-  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
-  const key = `${scope}:${subjectId}`;
-  const day = todayKey();
-  const existing = dailyBuckets.get(key);
-  const bucket = existing?.day === day ? existing : ({ day } as DailyBucket);
-  const used = bucket[action] ?? 0;
-  if (used >= safeLimit) {
-    throw new QuotaError(`Daily ${action} limit reached (${safeLimit}). Try again tomorrow.`);
-  }
-  bucket[action] = used + 1;
-  dailyBuckets.set(key, bucket);
 }
 
 export async function consumeDurableDailyQuota(
@@ -51,5 +28,23 @@ export async function consumeDurableDailyQuota(
   });
   if (row.count > safeLimit) {
     throw new QuotaError(`Daily ${action} limit reached (${safeLimit}). Try again tomorrow.`);
+  }
+}
+
+// Counts successful sends today and throws if the user is at or over the limit.
+// Counts actual sent emails (not attempts) so transient Gmail failures don't
+// consume quota — users can retry failed drafts without burning their daily allowance.
+export async function checkEmailSendQuota(userId: string, limit: number, db: Db = prisma): Promise<void> {
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+  const sentToday = await db.email.count({
+    where: {
+      status: "sent",
+      sentAt: { gte: startOfToday },
+      OR: [{ userLead: { userId } }, { customContact: { userId } }],
+    },
+  });
+  if (sentToday >= limit) {
+    throw new QuotaError(`Daily send limit reached (${sentToday}/${limit}). Try again tomorrow.`);
   }
 }

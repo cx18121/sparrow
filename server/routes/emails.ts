@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
+import { ALLOWED_EMAIL_STATUSES, isAllowedStatus } from "../lib/email-status.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -22,8 +23,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-const ALLOWED_EMAIL_STATUSES = ["draft", "sent", "failed"] as const;
-type EmailStatus = (typeof ALLOWED_EMAIL_STATUSES)[number];
 
 // In-process cache for the combined dashboard query. Persists across warm invocations
 // within the same function container, so repeat loads skip the DB entirely.
@@ -66,7 +65,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     return res.status(200).json({ count: fromLeads + fromContacts })
   }
 
-  if (status && !ALLOWED_EMAIL_STATUSES.includes(status as any)) {
+  if (status && !isAllowedStatus(status)) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${ALLOWED_EMAIL_STATUSES.join(", ")}` });
   }
 
@@ -165,7 +164,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, customContactId, subject, body, status = "draft", attachmentIds } = req.body ?? {};
   const safeAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [];
-  if (!ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
+  if (!isAllowedStatus(status)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
   }
 
@@ -201,7 +200,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const { id, subject, body, status, sentAt, attachmentIds } = req.body ?? {};
   if (!id) throw new HttpError(400, "id is required");
-  if (status && !ALLOWED_EMAIL_STATUSES.includes(status as EmailStatus)) {
+  if (status && !isAllowedStatus(status)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
   }
 

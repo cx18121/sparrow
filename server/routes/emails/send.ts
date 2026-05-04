@@ -1,85 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { randomBytes } from "node:crypto";
 import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getSupabaseAdmin, getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
 import { decrypt } from "../../lib/crypto.js";
 import { parseWorkspaceConfig } from "../../lib/workspace-config.js";
+import {
+  encodeHeader, encodeAddressHeader, sanitizeHtml, buildMimeMessage, buildAttachment, mimeFromFileName,
+} from "../../lib/email-mime.js";
+import { SENDABLE_STATUSES, claimForSending, markSent, markFailed } from "../../lib/email-status.js";
+import { checkEmailSendQuota, QuotaError } from "../../lib/rate-limit.js";
 
 declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
 function invalidateDashCache(userId: string) { globalThis.__dashCache?.delete(userId) }
-
-function encodeHeader(value: string): string {
-  return value.replace(/[\r\n"]/g, "");
-}
-
-function encodeAddressHeader(name: string | null, email: string): string {
-  const cleanEmail = email.replace(/[\r\n<>]/g, "").trim();
-  const cleanName = name?.replace(/[\r\n"]/g, "").trim();
-  return cleanName ? `${cleanName} <${cleanEmail}>` : cleanEmail;
-}
-
-function chunkBase64(value: string): string {
-  return value.match(/.{1,76}/g)?.join("\r\n") ?? value;
-}
-
-function buildMimeMessage(
-  toHeader: string,
-  encodedSubject: string,
-  htmlBody: string,
-  attachments: Array<{ fileName: string; contentType: string; contentBase64: string }>
-): string {
-  if (attachments.length === 0) {
-    return [
-      `To: ${toHeader}`,
-      `Subject: ${encodedSubject}`,
-      "MIME-Version: 1.0",
-      "Content-Type: text/html; charset=utf-8",
-      "",
-      htmlBody,
-    ].join("\r\n");
-  }
-  const mixedBoundary = `mixed_${randomBytes(8).toString("hex")}`;
-  const altBoundary = `alt_${randomBytes(8).toString("hex")}`;
-  const lines = [
-    `To: ${toHeader}`,
-    `Subject: ${encodedSubject}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-    "",
-    `--${mixedBoundary}`,
-    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-    "",
-    `--${altBoundary}`,
-    "Content-Type: text/html; charset=utf-8",
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    htmlBody,
-    "",
-    `--${altBoundary}--`,
-  ];
-  for (const att of attachments) {
-    lines.push(
-      `--${mixedBoundary}`,
-      `Content-Type: ${att.contentType}; name="${encodeHeader(att.fileName)}"`,
-      "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${encodeHeader(att.fileName)}"`,
-      "",
-      att.contentBase64,
-    );
-  }
-  lines.push(`--${mixedBoundary}--`);
-  return lines.join("\r\n");
-}
-
-function mimeFromFileName(fileName: string | null | undefined): string {
-  const lower = (fileName ?? "").toLowerCase();
-  if (lower.endsWith(".pdf")) return "application/pdf";
-  if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  if (lower.endsWith(".doc")) return "application/msword";
-  if (lower.endsWith(".txt")) return "text/plain";
-  return "application/octet-stream";
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -107,9 +39,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const ownerUserId = email.userLead?.userId ?? email.customContact?.userId;
   if (ownerUserId !== userId) return res.status(404).json({ error: "Email not found" });
-  if (email.status === "sent") return res.status(409).json({ error: "Email has already been sent." });
-  if (email.status !== "draft" && email.status !== "failed") {
-    return res.status(409).json({ error: "Email is already being sent. Refresh Drafts and try again." });
+
+  if (!(SENDABLE_STATUSES as readonly string[]).includes(email.status)) {
+    return res.status(409).json({
+      error: email.status === "sent"
+        ? "Email has already been sent."
+        : "Email is already being sent. Refresh Drafts and try again.",
+    });
   }
 
   const toEmail = email.contact?.email ?? email.customContact?.email ?? null;
@@ -143,40 +79,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
-  const subject = email.subject ?? "(no subject)";
-  // Strip dangerous HTML before embedding in MIME to prevent stored XSS
-  // reaching the recipient's email client.
-  const rawBody = email.body ?? "";
-  const htmlBody = rawBody
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\bhref\s*=\s*["']?\s*javascript:/gi, 'href="about:blank"');
-  const toName = email.contact?.name ?? email.customContact?.name ?? null;
-  const toHeader = encodeAddressHeader(toName, toEmail);
   const workspaceConfig = parseWorkspaceConfig(profile.workspace_config);
   const rawDailyMax = Number(workspaceConfig.sendingLimits?.dailyMax ?? 100);
   const dailyMax = Number.isFinite(rawDailyMax) ? Math.min(500, Math.max(1, Math.round(rawDailyMax))) : 100;
 
-  const startOfToday = new Date();
-  startOfToday.setUTCHours(0, 0, 0, 0);
-  const sentToday = await prisma.email.count({
-    where: {
-      status: "sent",
-      sentAt: { gte: startOfToday },
-      OR: [{ userLead: { userId } }, { customContact: { userId } }],
-    },
-  });
-  if (sentToday >= dailyMax) {
-    return res.status(429).json({
-      error: `Daily send limit reached (${sentToday}/${dailyMax}). Try again tomorrow.`,
-    });
+  try {
+    await checkEmailSendQuota(userId, dailyMax);
+  } catch (err) {
+    if (err instanceof QuotaError) return res.status(429).json({ error: err.message });
+    throw err;
   }
 
-  const claimed = await prisma.email.updateMany({
-    where: { id: emailId as string, status: { in: ["draft", "failed"] } },
-    data: { status: "sending" },
-  });
-  if (claimed.count !== 1) {
+  const claimed = await claimForSending(emailId as string);
+  if (!claimed) {
     return res.status(409).json({ error: "Email is already being sent or was sent. Refresh Drafts and try again." });
   }
 
@@ -189,42 +104,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const fileId of emailAttachmentIds) {
     const meta = fileLibrary.find(f => f.id === fileId);
     if (!meta) {
-      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
+      await markFailed(emailId as string);
       return res.status(400).json({ error: `Attachment "${fileId}" not found in your file library. Remove it from this draft and try again.` });
     }
     if (!meta.path.startsWith(ownedPrefix)) {
-      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
+      await markFailed(emailId as string);
       return res.status(403).json({ error: "One or more attachment paths are invalid. Re-upload your files in Settings." });
     }
     const { data: file, error } = await supabase.storage.from("resumes").download(meta.path);
     if (error || !file) {
-      await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
+      await markFailed(emailId as string);
       return res.status(400).json({ error: `Could not read "${meta.fileName}". Re-upload it in Settings and try again.` });
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    attachments.push({
-      fileName: meta.fileName,
-      contentType: meta.mimeType || mimeFromFileName(meta.fileName),
-      contentBase64: chunkBase64(buffer.toString("base64")),
-    });
+    attachments.push(buildAttachment(meta.fileName, meta.mimeType || mimeFromFileName(meta.fileName), buffer));
   }
 
+  const subject = email.subject ?? "(no subject)";
+  const htmlBody = sanitizeHtml(email.body ?? "");
+  const toName = email.contact?.name ?? email.customContact?.name ?? null;
+  const toHeader = encodeAddressHeader(toName, toEmail);
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
-
   const raw = Buffer.from(message).toString("base64url");
 
   try {
     await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch (err: any) {
-    await prisma.email.update({ where: { id: emailId as string }, data: { status: "failed" } });
+    await markFailed(emailId as string);
     return res.status(502).json({ error: "Gmail send failed" });
   }
 
-  const updated = await prisma.email.update({
-    where: { id: emailId as string },
-    data: { status: "sent", sentAt: new Date() },
-  });
-
-  invalidateDashCache(userId)
+  const updated = await markSent(emailId as string);
+  invalidateDashCache(userId);
   return res.status(200).json({ success: true, email: updated });
 }

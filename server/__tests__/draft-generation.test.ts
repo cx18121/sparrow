@@ -217,7 +217,7 @@ describe("generateDraft — UserLead path (Apollo reveal)", () => {
 
     const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
 
-    expect(mockReveal).toHaveBeenCalledWith("apollo-person-1", "co-1", "apollo-key-test");
+    expect(mockReveal).toHaveBeenCalledWith("apollo-person-1", "co-1", "apollo-key-test", USER_ID);
     expect(mockPrisma.userLead.update).toHaveBeenCalledWith({
       where: { id: "lead-1" },
       data: { contactId: "contact-revealed" },

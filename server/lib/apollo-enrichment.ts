@@ -1,9 +1,14 @@
 import { prisma, type Db } from "./prisma.js";
 import { revealPerson, enrichDomain } from "./apollo.js";
+import { consumeDurableDailyQuota } from "./rate-limit.js";
 
 // Workflow helpers that combine Apollo HTTP primitives with DB writes.
 // Pure HTTP lives in ./apollo.ts; this file is the only place that turns an
 // Apollo reveal into a persisted Contact row.
+//
+// Quota enforcement is inside this module — callers of the credit-spending
+// functions cannot bypass it. apollo-search.ts calls revealPerson directly and
+// manages its own quota for the UI-preview (non-persisting) path.
 
 export interface SavedContact {
   id: string;
@@ -12,11 +17,30 @@ export interface SavedContact {
   title: string | null;
 }
 
+// The raw reveal data returned by Apollo before any DB write.
+// Returned by fetchEnrichedDomain so callers can run the DB write
+// separately — e.g. inside a transaction — from the HTTP phase.
+export interface EnrichedPerson {
+  name: string | null;
+  email: string | null;
+  title: string | null;
+  linkedinUrl: string | null;
+  personId: string | null;
+}
+
 interface RevealShape {
   name: string | null;
   email: string | null;
   title: string | null;
   linkedinUrl: string | null;
+}
+
+function revealDailyLimit(): number {
+  return Number(process.env.APOLLO_REVEAL_DAILY_LIMIT ?? 50);
+}
+
+async function enforceRevealQuota(userId: string, db: Db): Promise<void> {
+  await consumeDurableDailyQuota("apollo", userId, "reveal", revealDailyLimit(), db);
 }
 
 // Persists a revealed person as a Contact row. Returns null when the reveal
@@ -51,30 +75,43 @@ export async function upsertContactFromReveal(
   return { id: saved.id, name: saved.name, email: saved.email, title: saved.title };
 }
 
-// Searches a company domain for a decision-maker, reveals them, and persists
-// the Contact. Returns the saved contact (if email found) and the personId
-// (always, when a person was found) so callers can store it for later auto-reveal.
-// Consumes at most one Apollo credit.
+// Pure HTTP — no DB write, no quota charge. Returns the raw enrichment data so
+// callers can run the DB write separately (e.g. inside a transaction), decoupling
+// the Apollo HTTP latency from any held DB lock.
+export async function fetchEnrichedDomain(
+  domain: string,
+  apiKey: string
+): Promise<EnrichedPerson | null> {
+  return enrichDomain(domain, apiKey);
+}
+
+// Quota-enforced: searches a company domain for a decision-maker, reveals them,
+// and persists the Contact. Quota check, HTTP call, and DB write all happen here —
+// callers cannot bypass any step. Consumes at most one Apollo credit.
+// Pass a transaction client as `db` to run the quota + upsert atomically with the caller's txn.
 export async function enrichContactFromDomain(
   domain: string,
   companyId: string,
   apiKey: string,
+  userId: string,
   db: Db = prisma
 ): Promise<{ contact: SavedContact | null; apolloPersonId: string | null }> {
+  await enforceRevealQuota(userId, db);
   const enriched = await enrichDomain(domain, apiKey);
   if (!enriched) return { contact: null, apolloPersonId: null };
   const contact = await upsertContactFromReveal(enriched, companyId, db);
   return { contact, apolloPersonId: enriched.personId };
 }
 
-// Reveals an Apollo person ID and upserts the resulting Contact record.
-// Consumes one Apollo credit. Returns null when the reveal failed or the
-// revealed record had no email.
+// Quota-enforced: reveals an Apollo person ID and upserts the resulting Contact.
+// Consumes one Apollo credit. Returns null when reveal failed or produced no email.
 export async function revealAndUpsertContact(
   personId: string,
   companyId: string,
-  apiKey: string
+  apiKey: string,
+  userId: string
 ): Promise<SavedContact | null> {
+  await enforceRevealQuota(userId, prisma);
   const revealed = await revealPerson(personId, apiKey);
   if (!revealed) return null;
   return upsertContactFromReveal(
