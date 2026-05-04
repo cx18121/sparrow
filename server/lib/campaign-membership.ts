@@ -20,12 +20,31 @@ export const campaignLeadUserLeadInclude = {
   },
 };
 
+const customContactInclude = {
+  customContact: {
+    include: {
+      emails: {
+        orderBy: { createdAt: "desc" as const },
+        take: 1,
+        select: { id: true, subject: true, status: true },
+      },
+    },
+  },
+};
+
 export function serializeCampaignLead(row: {
   id: string;
   batchNumber: number;
   userLead: Record<string, unknown>;
 }) {
   return { ...row.userLead, campaignLeadId: row.id, batchNumber: row.batchNumber };
+}
+
+export function serializeCampaignCustomContact(row: {
+  id: string;
+  customContact: Record<string, unknown>;
+}) {
+  return { ...row.customContact, campaignCustomContactId: row.id };
 }
 
 async function requireCampaign(campaignId: string, userId: string) {
@@ -38,13 +57,56 @@ export async function listCampaignMembers(campaignId: string | undefined, userId
   if (!campaignId) throw new HttpError(400, "campaignId is required");
   await requireCampaign(campaignId, userId);
 
-  const rows = await prisma.campaignLead.findMany({
-    where: { campaignId },
-    orderBy: [{ batchNumber: "asc" }, { createdAt: "desc" }],
-    include: campaignLeadUserLeadInclude,
-  });
+  const [leadRows, customRows] = await Promise.all([
+    prisma.campaignLead.findMany({
+      where: { campaignId },
+      orderBy: [{ batchNumber: "asc" }, { createdAt: "desc" }],
+      include: campaignLeadUserLeadInclude,
+    }),
+    prisma.campaignCustomContact.findMany({
+      where: { campaignId },
+      orderBy: { createdAt: "desc" },
+      include: customContactInclude,
+    }),
+  ]);
 
-  return rows.map(serializeCampaignLead);
+  return {
+    items: leadRows.map(serializeCampaignLead),
+    customContacts: customRows.map(serializeCampaignCustomContact),
+  };
+}
+
+export async function attachCustomContactToCampaign(
+  campaignId: string,
+  customContactId: string,
+  userId: string,
+) {
+  await requireCampaign(campaignId, userId);
+  const contact = await prisma.customContact.findUnique({ where: { id: customContactId } });
+  if (!contact || contact.userId !== userId) throw new HttpError(404, "Contact not found");
+
+  const existing = await prisma.campaignCustomContact.findUnique({
+    where: { campaignId_customContactId: { campaignId, customContactId } },
+  });
+  if (existing) return existing;
+
+  return prisma.campaignCustomContact.create({
+    data: { campaignId, customContactId },
+  });
+}
+
+export async function removeCampaignCustomContact(id: string | undefined, userId: string) {
+  if (!id) throw new HttpError(400, "id query param is required");
+
+  const row = await prisma.campaignCustomContact.findUnique({
+    where: { id },
+    include: { campaign: { select: { userId: true } } },
+  });
+  if (!row || row.campaign.userId !== userId) {
+    throw new HttpError(404, "Campaign contact not found");
+  }
+
+  await prisma.campaignCustomContact.delete({ where: { id } });
 }
 
 export async function addCampaignMember(body: Record<string, unknown> | null, userId: string) {

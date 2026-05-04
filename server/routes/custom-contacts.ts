@@ -2,6 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
+import { parseBody } from "../lib/parse-params.js";
+import { sendRouteError } from "../lib/route-error.js";
+import { attachCustomContactToCampaign } from "../lib/campaign-membership.js";
 
 const VALID_STATUSES = new Set(["SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,15 +28,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userId = await getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    if (req.method === "GET") return list(req, res, userId);
-    if (req.method === "POST") return create(req, res, userId);
-    if (req.method === "PATCH") return update(req, res, userId);
-    if (req.method === "DELETE") return remove(req, res, userId);
+    if (req.method === "GET") return await list(req, res, userId);
+    if (req.method === "POST") return await create(req, res, userId);
+    if (req.method === "PATCH") return await update(req, res, userId);
+    if (req.method === "DELETE") return await remove(req, res, userId);
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
-    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
-    return res.status(500).json({ error: "Internal server error" });
+    return sendRouteError(res, err);
   }
 }
 
@@ -46,7 +48,8 @@ async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { name, email, title, companyName } = req.body ?? {};
+  const body = parseBody(req) ?? {};
+  const { name, email, title, companyName, campaignId } = body;
   const safeName = optionalString(name, "name", 200);
   const safeEmail = optionalEmail(email);
   const safeTitle = optionalString(title, "title", 200);
@@ -58,11 +61,24 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const contact = await prisma.customContact.create({
     data: { userId, name: safeName, email: safeEmail, title: safeTitle, companyName: safeCompanyName },
   });
+
+  if (typeof campaignId === "string" && campaignId.length > 0) {
+    try {
+      const link = await attachCustomContactToCampaign(campaignId, contact.id, userId);
+      return res.status(201).json({ ...contact, campaignCustomContactId: link.id });
+    } catch (err) {
+      // Roll the contact back if we couldn't attach it — otherwise the user
+      // sees a "saved" contact in the global pool that they didn't ask for.
+      await prisma.customContact.delete({ where: { id: contact.id } }).catch(() => {});
+      throw err;
+    }
+  }
+
   res.status(201).json(contact);
 }
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { id, status } = req.body ?? {};
+  const { id, status } = parseBody(req) ?? {};
   if (!id) return res.status(400).json({ error: "id is required" });
   if (status !== undefined && !VALID_STATUSES.has(status)) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}` });
