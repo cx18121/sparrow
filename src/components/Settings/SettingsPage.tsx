@@ -594,13 +594,11 @@ function AccountTab({
 
   const handleDelete = async () => {
     setLoading(true); setError('')
-    try {
-      await deleteAccount()
-      await signOut()
-    } catch {
-      setError('Failed to delete account. Please try again.')
-      setLoading(false)
-    }
+    const deletion = deleteAccount()
+    await signOut()
+    deletion.catch(err => {
+      console.error('Account deletion failed after sign-out', err)
+    })
   }
 
   return (

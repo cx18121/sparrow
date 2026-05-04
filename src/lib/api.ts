@@ -266,4 +266,35 @@ export const addCampaignLead = (campaignId: string, userLeadId: string) =>
 export const deleteCampaignLead = (id: string) =>
   request<void>(`/campaign-leads${qs({ id })}`, { method: 'DELETE' })
 
-export const deleteAccount = () => request<void>('/account', { method: 'DELETE' })
+export function deleteAccount() {
+  const tokenAtClick = currentAccessToken
+  return (async () => {
+    if (!tokenAtClick) await ensureApiAuth()
+    const authToken = tokenAtClick ?? currentAccessToken
+    const res = await fetch(`${BASE}/account`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      const serverError = extractServerError(text || res.statusText)
+      const message = friendlyApiMessage({
+        status: res.status,
+        path: '/account',
+        method: 'DELETE',
+        serverError,
+      })
+      throw Object.assign(new Error(message), {
+        status: res.status,
+        path: '/account',
+        method: 'DELETE',
+        serverError,
+        rawBody: text,
+      })
+    }
+    return res.status === 204 ? null : res.json()
+  })()
+}

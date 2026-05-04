@@ -126,7 +126,7 @@ test.describe('Settings tab structure', () => {
     await expect(page.getByRole('button', { name: /Delete account/i })).toBeVisible()
   })
 
-  test('delete account confirms and calls the account endpoint', async ({ page }) => {
+  test('delete account confirms, calls the account endpoint, and signs out', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     let deleteCalled = false
     await page.route('**/api/account', route => {
@@ -144,5 +144,6 @@ test.describe('Settings tab structure', () => {
     await page.getByRole('button', { name: /Yes, delete my account/i }).click()
 
     await expect.poll(() => deleteCalled).toBe(true)
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible()
   })
 })
