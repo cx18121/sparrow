@@ -12,19 +12,17 @@ import Pill from '../ui/Pill'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import {
-  fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen, fetchCampaignOptions,
+  fetchCampaignBatch, generateCampaignBatch, resetCampaignSeen,
   fetchCampaignLeads, deleteCampaignLead,
 } from '../../lib/api'
-import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
+import { useAppData } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import { useDraftFlow } from '../../hooks/useDraftFlow'
 import DraftPreviewModal from './DraftPreviewModal'
-import CampaignFormModal, { INITIAL_FORM, fromCampaign, type CampaignFormValue } from './CampaignFormModal'
 
 export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampaign, activeCampaign = null, exitCampaign = null }) {
   const {
     campaigns,
-    templates,
     dataLoaded,
     createCampaign: onCreate,
     updateCampaign: onUpdate,
@@ -32,13 +30,8 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
   } = useAppData()
   const isLoading = !dataLoaded
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<UiCampaign | null>(null)
-  const [formInitial, setFormInitial] = useState<CampaignFormValue>(INITIAL_FORM)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving, setSaving] = useState(false)
   const [pendingActions, setPendingActions] = useState(new Set())
-  const [options, setOptions] = useState({ industries: [], regions: [], stages: [], batches: [], tags: {} })
   const [batchModal, setBatchModal] = useState({ open: false, campaign: null, leads: [], loading: false, usingFallback: false, seenTotal: 0, currentBatch: 0, generationAttempted: false })
   const [generatingEmail, setGeneratingEmail] = useState(null)
   const [resetTarget, setResetTarget] = useState(null)
@@ -72,18 +65,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     console.error(title, err)
     setToast({ type: 'error', title, message: err?.message || 'Please try again.' })
   }
-
-  const workspaceTemplate = templates.find(t => t.id === workspaceConfig?.templateId)
-
-  useEffect(() => {
-    fetchCampaignOptions().then(setOptions).catch(() => {})
-  }, [])
-
-  const getInitialForm = (): CampaignFormValue => ({
-    ...INITIAL_FORM,
-    templateId: workspaceTemplate?.id || '',
-    subject: workspaceTemplate?.subject || '',
-  })
 
   const filtered = campaigns.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,52 +101,12 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     }
   }
 
-  const openCreate = () => {
-    setEditing(null)
-    setFormInitial(getInitialForm())
-    setModalOpen(true)
-  }
-
-  const openEdit = (c: UiCampaign) => {
-    setEditing(c)
-    setFormInitial(fromCampaign(c))
-    setModalOpen(true)
-  }
-
-  const handleFormSave = async (form: CampaignFormValue) => {
-    if (saving) return
-    setSaving(true)
-    const payload = {
-      name: form.name,
-      subject: form.subject || null,
-      status: form.status,
-      templateId: form.templateId || null,
-      filterTags: form.filterTags || [],
-      filterRegion: form.filterRegion || null,
-      filterStage: form.filterStage || null,
-      filterBatch: form.filterBatch || null,
-      filterIsHiring: form.filterIsHiring || null,
-      filterHeadcountMin: form.filterHeadcountMin ? Number(form.filterHeadcountMin) : null,
-      filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
-      batchSize: Number(form.batchSize) || 10,
-      tone: form.tone || null,
-      attachmentIds: form.attachmentIds || [],
-    }
-    try {
-      if (editing) {
-        await onUpdate({ id: editing.id, ...payload })
-        setModalOpen(false)
-      } else {
-        const created = await onCreate(payload)
-        setModalOpen(false)
-        if (created && onEnterCampaign) onEnterCampaign(created)
-      }
-    } catch (err) {
-      reportError('Could not save campaign', err)
-    } finally {
-      setSaving(false)
-    }
-  }
+  // Create + edit are owned elsewhere now: Home runs the full-screen
+  // CreateCampaignWizard, and the per-campaign Settings sub-tab handles edits
+  // inline. The legacy CampaignFormModal lived here in Phase 2; we route the
+  // affordances over to those surfaces instead of duplicating the form.
+  const goToCreate = () => navigate('/dashboard')
+  const goToEdit = (id: string) => navigate(`/campaigns/${id}/settings`)
 
   const withPending = (id, fn) => {
     if (pendingActions.has(id)) return
@@ -336,7 +277,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <button type="button" onClick={() => openEdit(detailCampaign)} className="btn-secondary text-xs">
+              <button type="button" onClick={() => goToEdit(detailCampaign.id)} className="btn-secondary text-xs">
                 <Edit2 size={13} /> Edit
               </button>
               {onNavigate && (
@@ -553,7 +494,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
           <h2 className="page-eyebrow">Campaigns</h2>
           <p className="page-subtitle mt-1">Pick a campaign to start working on it, or create a new one.</p>
         </div>
-        <button onClick={openCreate} className="btn-primary shrink-0 self-start sm:self-auto">
+        <button onClick={goToCreate} className="btn-primary shrink-0 self-start sm:self-auto">
           <Plus size={15} /> New campaign
         </button>
       </div>
@@ -591,7 +532,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
             }
             action={
               !search && (
-                <button type="button" onClick={openCreate} className="btn-primary px-6 py-2.5 text-sm">
+                <button type="button" onClick={goToCreate} className="btn-primary px-6 py-2.5 text-sm">
                   <Plus size={15} /> Create your first campaign
                 </button>
               )
@@ -642,7 +583,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
                     </td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => openEdit(c)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
+                        <button onClick={() => goToEdit(c.id)} disabled={pendingActions.has(c.id)} className="btn-ghost px-2 py-1 disabled:opacity-40">
                           <Edit2 size={13} />
                         </button>
                         {(c.status === 'active' || c.status === 'paused') && (
@@ -668,18 +609,6 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
         </>
       )}
 
-
-      <CampaignFormModal
-        open={modalOpen}
-        editing={Boolean(editing)}
-        initialForm={formInitial}
-        templates={templates}
-        options={options}
-        workspaceConfig={workspaceConfig}
-        saving={saving}
-        onClose={() => setModalOpen(false)}
-        onSave={handleFormSave}
-      />
 
       {/* Batch results render inline inside the campaign detail view above. */}
 
