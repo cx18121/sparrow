@@ -4,9 +4,14 @@ import { prisma } from "./_lib/prisma.js";
 import { normalizeRegion, US_REGIONS } from "./_lib/region-map.js";
 import { callClaude } from "../server/lib/ai/anthropic.js";
 
-// LLM-classify Company.region for rows whose location string the deterministic
-// region-map didn't recognize. Uses Claude Haiku via the host's
-// ANTHROPIC_API_KEY env var (the same one that powers email generation).
+// LLM-classify Company.region for rows whose region is null. Two passes:
+//   1. Free deterministic ccTLD inference (e.g., .de → "Germany"). Many
+//      international companies have a country-code TLD that pins region
+//      without spending a Claude call.
+//   2. Claude Haiku on whatever signal is available (location string,
+//      one-liner, description, website TLD) for the rest.
+//
+// Uses the host's ANTHROPIC_API_KEY env var.
 //
 // The classifier returns one of:
 //   - a US metro name from US_REGIONS (e.g., "Bay Area", "New York Metro")
@@ -70,14 +75,49 @@ Example output:
 interface CompanyRow {
   id: string;
   name: string;
-  location: string;
+  location: string | null;
   oneLiner: string | null;
+  description: string | null;
+  website: string | null;
+  domain: string;
+}
+
+// ccTLD → country lookup. Very high precision — if a company's domain ends
+// in .de, it's a German company. Generic TLDs (.com, .io, .app) skip this
+// pass and fall through to the LLM. Mapping the most common ccTLDs only;
+// the long tail goes through Claude.
+const CC_TLD_TO_COUNTRY: Record<string, string> = {
+  uk: "United Kingdom", gb: "United Kingdom",
+  de: "Germany", fr: "France", es: "Spain", it: "Italy", nl: "Netherlands",
+  se: "Sweden", no: "Norway", fi: "Finland", dk: "Denmark", pl: "Poland",
+  ie: "Ireland", be: "Belgium", at: "Austria", ch: "Switzerland",
+  ca: "Canada", mx: "Mexico", br: "Brazil", ar: "Argentina", cl: "Chile",
+  co: "Colombia", pe: "Peru",
+  jp: "Japan", cn: "China", in: "India", kr: "South Korea", hk: "Hong Kong",
+  tw: "Taiwan", sg: "Singapore", id: "Indonesia", th: "Thailand",
+  vn: "Vietnam", my: "Malaysia", ph: "Philippines", pk: "Pakistan",
+  au: "Australia", nz: "New Zealand",
+  ae: "United Arab Emirates", il: "Israel", sa: "Saudi Arabia",
+  za: "South Africa", ng: "Nigeria", ke: "Kenya", eg: "Egypt",
+  ru: "Russia", tr: "Turkey", ua: "Ukraine",
+};
+
+function inferRegionFromDomain(domain: string | null): string | null {
+  if (!domain) return null;
+  const last = domain.toLowerCase().split(".").pop();
+  if (!last) return null;
+  return CC_TLD_TO_COUNTRY[last] ?? null;
 }
 
 function buildPrompt(rows: CompanyRow[]): string {
-  const lines = rows.map(r =>
-    `${r.id} | name=${r.name} | location=${r.location}${r.oneLiner ? ` | one-liner=${r.oneLiner.slice(0, 120)}` : ""}`
-  );
+  const lines = rows.map(r => {
+    const parts = [`name=${r.name}`];
+    if (r.location) parts.push(`location=${r.location}`);
+    if (r.domain) parts.push(`domain=${r.domain}`);
+    if (r.oneLiner) parts.push(`one-liner=${r.oneLiner.slice(0, 120)}`);
+    else if (r.description) parts.push(`description=${r.description.slice(0, 200)}`);
+    return `${r.id} | ${parts.join(" | ")}`;
+  });
   return `Classify each of the following companies into a region. Return JSON only.\n\n${lines.join("\n")}`;
 }
 
@@ -111,18 +151,17 @@ export async function enrichLocations(): Promise<void> {
   const dryRun = hasFlag("--dry-run");
 
   let companies = await prisma.company.findMany({
-    where: {
-      isVerified: true,
-      region: null,
-      location: { not: null },
+    where: { isVerified: true, region: null },
+    select: {
+      id: true, name: true, location: true,
+      oneLiner: true, description: true, website: true, domain: true,
     },
-    select: { id: true, name: true, location: true, oneLiner: true },
     orderBy: { createdAt: "asc" },
   });
   if (limit !== null) companies = companies.slice(0, limit);
 
   console.log(
-    `Found ${companies.length} verified companies with a location string but no region.${dryRun ? " (dry-run)" : ""}`
+    `Found ${companies.length} verified companies missing region.${dryRun ? " (dry-run)" : ""}`
   );
   console.log(`Batch size: ${batchSize}, model: ${MODEL}`);
 
@@ -136,18 +175,28 @@ export async function enrichLocations(): Promise<void> {
     stats.scanned += batch.length;
 
     try {
-      // Cheap deterministic last chance: re-run normalizeRegion in case the
-      // map changed since a previous ingest. Strips trivial cases out of
-      // the LLM batch.
+      // Cheap deterministic passes first. Strips trivial cases out of the
+      // LLM batch — both for cost and to avoid the model second-guessing
+      // signals we can already read directly.
       const remaining: CompanyRow[] = [];
       for (const row of batch) {
-        const local = normalizeRegion(row.location);
+        // Pass 1: re-run normalizeRegion in case the static map gained
+        // entries since the original ingest.
+        const local = row.location ? normalizeRegion(row.location) : null;
         if (local) {
           if (!dryRun) await prisma.company.update({ where: { id: row.id }, data: { region: local } });
           stats.classified++;
           if (local === "Remote") stats.remote++;
           else if (US_REGIONS.has(local)) stats.us++;
           else stats.intl++;
+          continue;
+        }
+        // Pass 2: ccTLD inference. .uk → United Kingdom, .de → Germany, etc.
+        const tld = inferRegionFromDomain(row.domain);
+        if (tld) {
+          if (!dryRun) await prisma.company.update({ where: { id: row.id }, data: { region: tld } });
+          stats.classified++;
+          stats.intl++;
           continue;
         }
         remaining.push(row);
