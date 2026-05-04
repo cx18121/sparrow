@@ -453,6 +453,10 @@ function AppShell() {
         user={user}
         templates={templates}
         initialData={workspaceConfig}
+        profile={serverProfile}
+        profileLoading={profileLoading}
+        onRefreshProfile={refreshProfile}
+        onConnectGoogle={connectGoogle}
         onSaveDraft={saveOnboardingDraft}
         onFinishLater={finishOnboardingLater}
         onComplete={completeOnboarding}

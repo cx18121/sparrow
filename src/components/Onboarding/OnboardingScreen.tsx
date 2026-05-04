@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Building2, FileText, Upload, User } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, User } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { supabase, isDemo } from '../../lib/supabase'
@@ -8,8 +8,8 @@ import {
   scoreStyleChoices,
 } from '../../lib/styleProfile'
 
-const TOTAL_STEPS = 3
-const STEP_LABELS = ['About', 'Style', 'Template']
+const TOTAL_STEPS = 4
+const STEP_LABELS = ['About', 'Style', 'Template', 'Gmail']
 
 function fillVariables(content, data) {
   if (!content) return ''
@@ -514,10 +514,56 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   )
 }
 
+function GmailStep({ hasGoogle, profileLoading, connectError, onRefreshProfile }) {
+  return (
+    <div className="mx-auto w-full max-w-2xl">
+      <StepHeader
+        step={4}
+        total={TOTAL_STEPS}
+        title="Connect Gmail"
+        description="Grant send permission so Sparrow can send approved drafts from your account."
+      />
+
+      <div className="rounded-2xl border border-warm-200 bg-warm-50/70 px-5 py-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
+              <Mail size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-dark">{hasGoogle ? 'Gmail connected' : 'Gmail not connected'}</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted">
+                {hasGoogle ? 'You can send drafts after reviewing them.' : 'You will review drafts before anything is sent.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRefreshProfile}
+            disabled={profileLoading}
+            className="btn-ghost shrink-0 text-xs"
+            title="Refresh Gmail status"
+          >
+            <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {connectError && (
+        <Banner variant="danger" className="mt-4">{connectError}</Banner>
+      )}
+    </div>
+  )
+}
+
 export default function OnboardingScreen({
   user,
   templates,
   initialData,
+  profile,
+  profileLoading,
+  onRefreshProfile,
+  onConnectGoogle,
   onSaveDraft,
   onFinishLater,
   onComplete,
@@ -528,7 +574,9 @@ export default function OnboardingScreen({
   const [styleAttempted, setStyleAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [connectError, setConnectError] = useState('')
   const [resumeUpload, setResumeUpload] = useState({ uploading: false, error: null })
 
   const buildInitialForm = (data) => {
@@ -673,6 +721,13 @@ export default function OnboardingScreen({
       updateCustomTemplate={updateCustomTemplate}
       setTemplateMode={setTemplateMode}
     />,
+    <GmailStep
+      key="gmail"
+      hasGoogle={!!profile?.hasGoogleRefreshToken}
+      profileLoading={profileLoading}
+      connectError={connectError}
+      onRefreshProfile={onRefreshProfile}
+    />,
   ]
 
   const isFirstStep = stepIndex === 0
@@ -715,7 +770,7 @@ export default function OnboardingScreen({
   }
 
   const finish = async (skipped = false) => {
-    if (isSaving || resumeUpload.uploading) return
+    if (isSaving || resumeUpload.uploading) return false
     const needsGeneratedTemplate = !skipped && (
       (form.templateMode === 'custom' && (!form.customTemplate?.subject || !form.customTemplate?.body))
       || (form.templateMode !== 'custom' && !selectedTemplate)
@@ -735,10 +790,26 @@ export default function OnboardingScreen({
       } else {
         await onComplete?.(payload)
       }
+      return true
     } catch (err) {
       setSaveError(err.message || 'Setup could not be saved. Try again.')
+      return false
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const finishAndConnectGoogle = async () => {
+    if (isConnecting || isSaving || resumeUpload.uploading) return
+    setConnectError('')
+    setIsConnecting(true)
+    try {
+      const res = await onConnectGoogle?.()
+      if (res?.error?.message) setConnectError(res.error.message)
+    } catch (err) {
+      setConnectError(err.message || 'Gmail connection could not start.')
+    } finally {
+      setIsConnecting(false)
     }
   }
 
@@ -824,11 +895,11 @@ export default function OnboardingScreen({
             {isLastStep ? (
               <button
                 type="button"
-                onClick={() => finish(false)}
-                disabled={isSaving || resumeUpload.uploading}
+                onClick={profile?.hasGoogleRefreshToken ? () => finish(false) : finishAndConnectGoogle}
+                disabled={isSaving || isConnecting || resumeUpload.uploading}
                 className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-warm-50 transition-all duration-150 hover:brightness-110"
               >
-                {isSaving ? 'Saving...' : 'Open dashboard'}
+                {isSaving || isConnecting ? 'Saving...' : profile?.hasGoogleRefreshToken ? 'Open dashboard' : 'Connect Gmail'}
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-50/18 text-warm-50">
                   <ArrowRight size={14} />
                 </span>

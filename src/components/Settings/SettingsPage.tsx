@@ -745,21 +745,6 @@ export default function SettingsPage({
     window.history.replaceState(null, '', next)
   }, [onRefreshProfile])
 
-  // Listen for the auto-reconcile failure event AuthContext fires when its
-  // post-sign-in Gmail flow can't complete (e.g., /api/google/connect 404,
-  // saveProfile failure). Without this the user just sees "Not connected"
-  // with no explanation of why the auto-flow didn't work.
-  useEffect(() => {
-    const onFail = (e: Event) => {
-      const detail = (e as CustomEvent<{ message?: string }>).detail
-      const message = detail?.message || 'Gmail auto-connect failed. Click Connect to retry manually.'
-      setOauthResult({ kind: 'error', message })
-      setActive('account')
-    }
-    window.addEventListener('sparrow:gmail-reconcile-failed', onFail)
-    return () => window.removeEventListener('sparrow:gmail-reconcile-failed', onFail)
-  }, [])
-
   const saveWorkspace = async (updater: any, label = 'Settings saved') => {
     try {
       await onSaveWorkspaceConfig(updater)
