@@ -164,4 +164,34 @@ test.describe('Settings tab structure', () => {
     await expect.poll(() => deleteCalled).toBe(true)
     await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible()
   })
+
+  test('delete account waits for the server deletion before signing out', async ({ page }) => {
+    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
+    let finishDelete: (() => void) | null = null
+    await page.route('**/api/account', async route => {
+      if (route.request().method() === 'DELETE') {
+        await new Promise<void>(resolve => { finishDelete = resolve })
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        })
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      })
+    })
+
+    await page.goto('/settings')
+    await page.getByRole('tab', { name: /Account/ }).click()
+    await page.getByRole('button', { name: /^Delete account$/i }).click()
+    await page.getByRole('button', { name: /Yes, delete my account/i }).click()
+
+    await expect.poll(() => Boolean(finishDelete)).toBe(true)
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toHaveCount(0)
+    finishDelete?.()
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible()
+  })
 })
