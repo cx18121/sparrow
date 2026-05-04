@@ -24,8 +24,8 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-0 bg-dark/40" />
-      <div className={`relative max-h-[92vh] w-full ${sizeClass} overflow-hidden rounded-t-[24px] border border-warm-200 bg-warm-50 shadow-modal animate-fade-in sm:rounded-[30px]`}>
+      <div className="absolute inset-0 bg-dark/40 animate-backdrop-in" />
+      <div className={`relative max-h-[92vh] w-full ${sizeClass} overflow-hidden rounded-t-[24px] border border-warm-200 bg-warm-50 shadow-modal animate-modal-rise sm:rounded-[30px]`}>
         <div className="flex items-center justify-between border-b border-warm-200 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="text-base font-semibold text-dark">{title}</h2>
           <button onClick={onClose} className="btn-ghost p-2 text-muted">

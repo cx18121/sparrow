@@ -35,7 +35,7 @@ export default function Banner({
   return (
     <div
       role="status"
-      className={`flex items-start rounded-2xl border ${sizeCls} ${variantCls} ${className}`}
+      className={`flex items-start rounded-2xl border animate-fade-in ${sizeCls} ${variantCls} ${className}`}
       {...rest}
     >
       {Icon && <Icon size={iconSize} className="mt-0.5 shrink-0" />}

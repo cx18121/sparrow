@@ -39,7 +39,7 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
       aria-atomic="true"
       className="pointer-events-none fixed right-5 top-16 z-50 w-[min(380px,calc(100vw-2.5rem))]"
     >
-      <div className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-card ${tone.className}`}>
+      <div className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-card animate-toast-in ${tone.className}`}>
         <Icon size={17} className={`mt-0.5 shrink-0 ${tone.iconClassName}`} />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{toast.title}</p>

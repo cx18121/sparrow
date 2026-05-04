@@ -299,6 +299,33 @@
   animation: slideIn 0.25s ease-out;
 }
 
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-backdrop-in {
+  animation: backdropFadeIn 0.18s ease-out;
+}
+
+@keyframes modalRise {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-modal-rise {
+  animation: modalRise 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-toast-in {
+  animation: toastSlideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @keyframes welcomeRise {
   from {
     opacity: 0;
@@ -376,6 +403,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Phase 5b: opacity-preserving reduced-motion guard.
+   * Transforms, scale, and translate animations can trigger vestibular
+   * discomfort, so we strip them. We deliberately keep opacity transitions
+   * because state feedback (loading → loaded, hover → focus, save → saved)
+   * relies on subtle fades that don't move the layout.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    transition-duration: 150ms !important;
+    scroll-behavior: auto !important;
+  }
+
   .animate-welcome-rise,
   .animate-welcome-float,
   .animate-welcome-breathe,

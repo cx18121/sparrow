@@ -98,7 +98,7 @@ function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
       className={`group flex w-full flex-col gap-3 rounded-2xl border border-warm-200 bg-panel px-5 py-4 text-left transition-all duration-150 ${
         isOptimistic
           ? 'cursor-progress opacity-60'
-          : 'hover:border-primary/30 hover:bg-warm-50'
+          : 'hover:-translate-y-0.5 hover:border-primary/30 hover:bg-warm-50 active:translate-y-0'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -128,7 +128,7 @@ function NewCampaignCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-5 py-6 text-muted transition-all duration-150 hover:border-primary/40 hover:bg-warm-50 hover:text-dark"
+      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-5 py-6 text-muted transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-warm-50 hover:text-dark active:translate-y-0"
     >
       <Plus size={18} />
       <span className="font-display text-base font-semibold text-dark">New campaign</span>
