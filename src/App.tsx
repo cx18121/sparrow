@@ -4,7 +4,7 @@ import { AlertCircle, Home, FileText, Settings as SettingsIcon } from 'lucide-re
 import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
-import TopNav from './components/Layout/TopNav'
+import Sidebar from './components/Layout/Sidebar'
 import HomePage from './components/Home/HomePage'
 import TemplatesTab from './components/Templates/TemplatesTab'
 import SettingsPage from './components/Settings/SettingsPage'
@@ -690,9 +690,9 @@ function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface md:h-screen md:overflow-hidden">
+    <div className="flex min-h-screen bg-surface md:h-screen md:overflow-hidden">
       <div className="dashboard-backdrop fixed inset-0" />
-      <TopNav
+      <Sidebar
         activeTab={activeTab}
         tabs={TABS}
         onTabChange={handleTabChange}
