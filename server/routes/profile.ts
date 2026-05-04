@@ -77,7 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             resumeText: data.resume_text,
             onboardingCompleted: data.onboarding_completed,
             onboardingCompletedAt: data.onboarding_completed_at,
-            hasClaudeKey: !!data.claude_api_key_encrypted,
+            // hasClaudeKey reflects "can this user generate?" — true if they
+            // either supplied their own encrypted key OR the deployment has a
+            // server-wide ANTHROPIC_API_KEY env fallback configured. The
+            // Settings provider-key form still manages the user's own key
+            // independently; this field only drives the missing-key warning.
+            hasClaudeKey: !!data.claude_api_key_encrypted || !!process.env.ANTHROPIC_API_KEY,
             hasGoogleRefreshToken: !!data.google_refresh_token_encrypted,
             updatedAt: data.updated_at,
           }

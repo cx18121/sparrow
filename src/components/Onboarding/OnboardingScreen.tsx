@@ -332,8 +332,21 @@ function StyleStep({ form, updateStyleChoice, showMissing }) {
   )
 }
 
+const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
+  { tag: '{{first_name}}', label: 'first name' },
+  { tag: '{{last_name}}',  label: 'last name' },
+  { tag: '{{company}}',    label: 'company' },
+  { tag: '{{role}}',       label: 'role' },
+  { tag: '{{sender_name}}', label: 'your name' },
+]
+
 function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode }) {
   const hasTemplates = templates.length > 0
+  const writingMode = !hasTemplates || form.templateMode !== 'existing'
+  const subjectRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
+
   const previewData = {
     first_name: 'Alex',
     last_name: 'Chen',
@@ -342,75 +355,38 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
     sender_name: form.senderName || 'Your Name',
   }
 
+  // Insert a merge tag at the caret of whichever field was last focused.
+  // Falls back to appending if nothing has been focused yet.
+  const insertTag = (tag: string) => {
+    const el = activeField === 'subject' ? subjectRef.current : bodyRef.current
+    const current = activeField === 'subject' ? form.customTemplate.subject : form.customTemplate.body
+    const setter = (next: string) => updateCustomTemplate(activeField, next)
+    if (!el) {
+      setter((current || '') + tag)
+      return
+    }
+    const start = el.selectionStart ?? current.length
+    const end = el.selectionEnd ?? current.length
+    const next = current.slice(0, start) + tag + current.slice(end)
+    setter(next)
+    requestAnimationFrame(() => {
+      const pos = start + tag.length
+      el.focus()
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <StepHeader
         step={3}
         total={TOTAL_STEPS}
         title="Your template"
+        description="The skeleton of your email. Sparrow rewrites the body per recipient using their company context — merge tags below are just the parts that always swap in."
       />
 
-      {hasTemplates && (
-        <div className="mb-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTemplateMode('existing')}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              form.templateMode === 'existing'
-                ? 'bg-primary text-white'
-                : 'border border-warm-200 bg-warm-50 text-muted hover:text-dark'
-            }`}
-          >
-            Saved template
-          </button>
-          <button
-            type="button"
-            onClick={() => setTemplateMode('custom')}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              form.templateMode === 'custom'
-                ? 'bg-primary text-white'
-                : 'border border-warm-200 bg-warm-50 text-muted hover:text-dark'
-            }`}
-          >
-            Write template
-          </button>
-        </div>
-      )}
-
-      {hasTemplates && form.templateMode === 'existing' ? (
+      {writingMode ? (
         <div className="space-y-4">
-          <div>
-            <label className="label">Template</label>
-            <div className="relative">
-              <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <select
-                value={form.templateId}
-                onChange={e => updateField('templateId', e.target.value)}
-                className="select pl-8"
-              >
-                {templates.map(template => (
-                  <option key={template.id} value={template.id}>{template.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {selectedTemplate && (
-            <div className="rounded-xl border border-warm-300 bg-warm-50">
-              <div className="border-b border-warm-200 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
-                <p className="mt-1 text-sm font-medium text-dark">
-                  {fillVariables(selectedTemplate.subject, previewData)}
-                </p>
-              </div>
-              <div className="px-4 py-4 text-sm leading-7 text-dark">
-                {stripHtml(fillVariables(selectedTemplate.body, previewData))}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
           <div>
             <label className="label">Template name</label>
             <input
@@ -423,21 +399,115 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
           <div>
             <label className="label">Subject</label>
             <input
+              ref={subjectRef}
               value={form.customTemplate.subject}
               onChange={e => updateCustomTemplate('subject', e.target.value)}
+              onFocus={() => setActiveField('subject')}
               placeholder="Quick thought about {{company}}"
               className="input"
             />
           </div>
           <div>
-            <label className="label">Body</label>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <span className="label mb-0">Body</span>
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
+                  Insert
+                </span>
+                {MERGE_TAGS.map(({ tag, label }) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => insertTag(tag)}
+                    title={`Inserts ${tag}`}
+                    className="inline-flex items-center rounded-full border border-warm-300 bg-warm-50 px-2 py-0.5 text-[10px] font-medium text-muted transition-colors hover:border-primary/40 hover:text-dark"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea
+              ref={bodyRef}
               value={form.customTemplate.body}
               onChange={e => updateCustomTemplate('body', e.target.value)}
-              placeholder={"Hi {{first_name}},\n\nWanted to reach out because...\n\nBest,\n{{sender_name}}"}
-              className="input min-h-[220px] resize-none"
+              onFocus={() => setActiveField('body')}
+              placeholder={"Hi {{first_name}},\n\nI noticed {{company}} and wanted to reach out because...\n\nBest,\n{{sender_name}}"}
+              className="input min-h-[220px] resize-y font-mono text-[13px] leading-relaxed"
             />
           </div>
+
+          {(form.customTemplate.subject || form.customTemplate.body) && (
+            <details className="group rounded-xl border border-warm-200 bg-warm-50/60 open:bg-warm-50">
+              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted hover:text-dark">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Preview</span>
+                <span className="text-muted/70">filled with sample lead</span>
+              </summary>
+              <div className="border-t border-warm-200 px-4 py-3">
+                {form.customTemplate.subject && (
+                  <p className="text-sm font-medium text-dark">
+                    {fillVariables(form.customTemplate.subject, previewData)}
+                  </p>
+                )}
+                {form.customTemplate.body && (
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-dark/85">
+                    {fillVariables(form.customTemplate.body, previewData)}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+
+          {hasTemplates && (
+            <button
+              type="button"
+              onClick={() => setTemplateMode('existing')}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Use a saved template instead →
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <label className="label">Template</label>
+              <div className="relative">
+                <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <select
+                  value={form.templateId}
+                  onChange={e => updateField('templateId', e.target.value)}
+                  className="select pl-8"
+                >
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTemplateMode('custom')}
+              className="self-end pb-1 text-xs font-medium text-primary hover:underline"
+            >
+              Write a new one →
+            </button>
+          </div>
+
+          {selectedTemplate && (
+            <div className="rounded-xl border border-warm-200 bg-warm-50/60">
+              <div className="border-b border-warm-200 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
+                <p className="mt-1 text-sm font-medium text-dark">
+                  {fillVariables(selectedTemplate.subject, previewData)}
+                </p>
+              </div>
+              <div className="px-4 py-4 text-sm leading-7 text-dark">
+                {stripHtml(fillVariables(selectedTemplate.body, previewData))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -686,19 +756,14 @@ export default function OnboardingScreen({
     <div className="relative min-h-screen overflow-hidden bg-surface">
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 pt-8 pb-12 sm:px-10 sm:pb-14 lg:px-14">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isSigningOut}
-              className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
-            >
-              {isSigningOut ? 'Signing out...' : 'Sign out'}
-            </button>
-            <div className="flex items-center">
-              <span className="font-display text-sm font-semibold tracking-[-0.04em] text-dark">Sparrow</span>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isSigningOut}
+            className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
+          >
+            {isSigningOut ? 'Signing out...' : 'Sign out'}
+          </button>
           <button
             type="button"
             onClick={() => finish(true)}

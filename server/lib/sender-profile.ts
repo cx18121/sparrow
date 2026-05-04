@@ -7,6 +7,7 @@ export interface ResolvedProfile {
   apiKey: string;
   senderName: string | null;
   senderRole: string | null;
+  signature: string | null;
   resumeText: string | null;
   styleInstruction: string | null;
   ws: WorkspaceConfig;
@@ -18,8 +19,25 @@ export class ProfileError extends Error {
   }
 }
 
-// Fetches the user's Profile, decrypts their Claude API key, and assembles the
-// sender context for email generation. Throws ProfileError if setup is incomplete.
+// Resolve the Claude key with this precedence: per-user encrypted key in the
+// profile (BYO-key, higher rate limits + their own billing) → server env
+// fallback (lets a fresh user generate without going to Settings first).
+// Throws ProfileError when neither path yields a usable key.
+function resolveClaudeKey(encrypted: string | null | undefined): string {
+  if (encrypted) {
+    try {
+      return decrypt(encrypted);
+    } catch {
+      throw new ProfileError("We could not read your saved Claude key. Re-enter it in Settings.", 500);
+    }
+  }
+  const envKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (envKey) return envKey;
+  throw new ProfileError("Add a Claude API key in Settings before generating emails.", 400);
+}
+
+// Fetches the user's Profile, resolves a Claude API key (per-user → env), and
+// assembles the sender context for email generation.
 export async function resolveProfileForGeneration(userId: string): Promise<ResolvedProfile> {
   const supabase = getSupabaseAdmin();
   const { data: profile, error } = await supabase
@@ -29,23 +47,17 @@ export async function resolveProfileForGeneration(userId: string): Promise<Resol
     .maybeSingle();
 
   if (error) throw new ProfileError(error.message, 500);
-  if (!profile?.claude_api_key_encrypted) {
-    throw new ProfileError("Add a Claude API key in Settings before generating emails.", 400);
-  }
 
-  let apiKey: string;
-  try {
-    apiKey = decrypt(profile.claude_api_key_encrypted);
-  } catch {
-    throw new ProfileError("We could not read your saved Claude key. Re-enter it in Settings.", 500);
-  }
+  const apiKey = resolveClaudeKey(profile?.claude_api_key_encrypted);
 
-  const ws = parseWorkspaceConfig(profile.workspace_config);
+  const ws = parseWorkspaceConfig(profile?.workspace_config);
+  const signature = typeof ws.signature === "string" ? ws.signature.trim() : "";
   return {
     apiKey,
     senderName: ws.senderName ?? null,
     senderRole: ws.senderRole ?? null,
-    resumeText: profile.resume_text ?? null,
+    signature: signature || null,
+    resumeText: profile?.resume_text ?? null,
     styleInstruction: resolveStyleInstruction(ws),
     ws,
   };

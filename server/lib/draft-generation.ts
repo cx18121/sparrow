@@ -152,6 +152,18 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     });
   }
 
+  // Append the user's saved signature deterministically after generation.
+  // Done server-side (not via Claude prompt) so the signature can't be
+  // hallucinated, reworded, or partially dropped. Only appends if the body
+  // doesn't already contain it — a template body that ends with the same
+  // signature shouldn't get it twice.
+  if (profile.signature && !draft.body.includes(profile.signature)) {
+    draft = {
+      subject: draft.subject,
+      body: `${draft.body.replace(/\s+$/, "")}\n\n${profile.signature}`,
+    };
+  }
+
   let emailId: string | null = null;
   if (save) {
     const saved = await prisma.email.create({
