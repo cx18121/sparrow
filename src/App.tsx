@@ -20,14 +20,8 @@ import {
 
 import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
-import {
-  fetchProfile, saveProfile,
-  fetchTemplates, createTemplate, updateTemplate, deleteTemplate,
-  fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
-  fetchLeads, updateLead, deleteLead,
-  fetchCustomContacts, createCustomContact, updateCustomContact, deleteCustomContact,
-  apiGetAuth,
-} from './lib/api'
+import { fetchProfile, saveProfile } from './lib/api'
+import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
 
 // Campaign status case conversion is now sealed inside src/lib/api.ts.
 // The wire format never leaks past that seam.
@@ -81,29 +75,6 @@ const hasRecoverableCompletedSetup = (profile) => {
   )
 }
 
-const getResourceCacheKey = (user) => {
-  if (!user) return null
-  return `cf_resource_cache_${typeof user === 'string' ? user : user.id || user.email}`
-}
-
-const readJsonCache = (key) => {
-  if (!key) return null
-  try {
-    return JSON.parse(localStorage.getItem(key) || 'null')
-  } catch {
-    return null
-  }
-}
-
-const writeJsonCache = (key, data) => {
-  if (!key) return
-  try {
-    localStorage.setItem(key, JSON.stringify(data))
-  } catch {
-    // Cache writes should never block the app.
-  }
-}
-
 const formatTemplateBody = (body) => {
   if (!body) return ''
   if (body.includes('<')) return body
@@ -122,21 +93,32 @@ function AppShell() {
 
   const [onboardingState, setOnboardingState] = useState({ loaded: false, completed: false, data: null })
   const [workspaceConfig, setWorkspaceConfig] = useState(() => createWorkspaceConfig({ user: null, templates: [] }))
-
-  // Server-backed resource state. Hydrated from /api/* once the user is known.
-  const [campaigns, setCampaigns] = useState([])
-  const [leads, setLeads] = useState([])
-  const [customContacts, setCustomContacts] = useState([])
-  const [templates, setTemplates] = useState([])
+  const workspaceResources = useWorkspaceResources(user)
+  const {
+    campaigns,
+    leads,
+    customContacts,
+    templates,
+    dataLoaded,
+    hasResourceCache,
+    resourceFetchErrors,
+    retryResources,
+    createCampaign: createCampaignHandler,
+    updateCampaign: updateCampaignHandler,
+    deleteCampaign: deleteCampaignHandler,
+    refreshLeads,
+    updateLead: updateLeadHandler,
+    deleteLead: deleteLeadHandler,
+    createCustomContact: createCustomContactHandler,
+    updateCustomContact: updateCustomContactHandler,
+    deleteCustomContact: deleteCustomContactHandler,
+    createTemplate: createTemplateHandler,
+    updateTemplate: updateTemplateHandler,
+    deleteTemplate: deleteTemplateHandler,
+  } = workspaceResources
   const templatesRef = useRef(templates)
-  const [dataLoaded, setDataLoaded] = useState(false)
-  const [hasResourceCache, setHasResourceCache] = useState(false)
   const [serverProfile, setServerProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
-  // Names of any resource fetches that failed on the most recent refresh.
-  // Drives the "showing cached data" banner. Empty array = all healthy.
-  const [resourceFetchErrors, setResourceFetchErrors] = useState<string[]>([])
-  const [resourceLoadCount, setResourceLoadCount] = useState(0)
 
   useEffect(() => { templatesRef.current = templates }, [templates])
 
@@ -241,7 +223,7 @@ function AppShell() {
           setOnboardingState({ loaded: true, completed: localCompleted, data: localConfig })
           return
         }
-        const latestStored = storageKey ? readJsonCache(storageKey) : null
+        const latestStored = storageKey ? readLocalJsonCache(storageKey) : null
         const latestForceOnboarding = !googleConnectReturn && forceKey
           ? isExplicitOnboardingEdit(sessionStorage.getItem(forceKey))
           : false
@@ -287,213 +269,6 @@ function AppShell() {
 
     return () => { cancelled = true }
   }, [user, googleConnectedParam, googleErrorParam]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Hydrate templates / sequences / campaigns / leads from the API after auth.
-  // Check both React user state and module-level auth (set synchronously before state updates).
-  useEffect(() => {
-    const { userId } = apiGetAuth()
-    const effectiveUser = user || userId
-    if (!effectiveUser) {
-      setTemplates([])
-      setCampaigns([])
-      setLeads([])
-      setCustomContacts([])
-      setDataLoaded(false)
-      setHasResourceCache(false)
-      return
-    }
-
-    let cancelled = false
-    const cacheKey = getResourceCacheKey(effectiveUser)
-    const cached = readJsonCache(cacheKey)
-    const cachedData = cached?.data || null
-
-    if (cachedData) {
-      setTemplates(cachedData.templates || [])
-      setCampaigns(cachedData.campaigns || [])
-      setLeads(cachedData.leads || [])
-      setCustomContacts(cachedData.customContacts || [])
-      setDataLoaded(true)
-      setHasResourceCache(true)
-    } else {
-      setDataLoaded(false)
-      setHasResourceCache(false)
-    }
-
-    const keepCachedOnError = (label, request) =>
-      request
-        .then(res => ({ ok: true, res }))
-        .catch(e => {
-          console.error(`${label} failed:`, e.message)
-          return { ok: false, res: null }
-        })
-
-    Promise.all([
-      keepCachedOnError('templates', fetchTemplates()),
-      keepCachedOnError('campaigns', fetchCampaigns()),
-      keepCachedOnError('leads', fetchLeads()),
-      keepCachedOnError('contacts', fetchCustomContacts()),
-    ]).then(([t, c, l, cc]) => {
-      if (cancelled) return
-      setTemplates(t.ok ? (t.res?.items || []) : (cachedData?.templates || []))
-      setCampaigns(c.ok ? (c.res?.items || []) : (cachedData?.campaigns || []))
-      setLeads(l.ok ? (l.res?.items || []) : (cachedData?.leads || []))
-      setCustomContacts(cc.ok ? (cc.res?.items || []) : (cachedData?.customContacts || []))
-      setDataLoaded(true)
-      setHasResourceCache(true)
-      // Track which fetches failed so the user can see they are looking at
-      // cached data. Cleared on the next successful run.
-      const failed: string[] = []
-      if (!t.ok) failed.push('templates')
-      if (!c.ok) failed.push('campaigns')
-      if (!l.ok) failed.push('leads')
-      if (!cc.ok) failed.push('contacts')
-      setResourceFetchErrors(failed)
-    })
-
-    return () => { cancelled = true }
-  }, [user, resourceLoadCount])
-
-  useEffect(() => {
-    const { userId } = apiGetAuth()
-    const effectiveUser = user || userId
-    if (!effectiveUser || !dataLoaded) return
-    writeJsonCache(getResourceCacheKey(effectiveUser), {
-      cachedAt: new Date().toISOString(),
-      data: { templates, campaigns, leads, customContacts },
-    })
-  }, [campaigns, customContacts, dataLoaded, leads, templates, user])
-
-  // ── Templates ──
-  const createTemplateHandler = async (data) => {
-    const tempId = `temp-${Date.now()}`
-    const optimistic = { ...data, id: tempId }
-    setTemplates(prev => [optimistic, ...prev])
-    try {
-      const created = await createTemplate(data)
-      setTemplates(prev => prev.map(t => t.id === tempId ? created : t))
-      return created
-    } catch (err) {
-      setTemplates(prev => prev.filter(t => t.id !== tempId))
-      throw err
-    }
-  }
-  const updateTemplateHandler = async (data) => {
-    const prev = templates
-    setTemplates(curr => curr.map(t => t.id === data.id ? { ...t, ...data } : t))
-    try {
-      const updated = await updateTemplate(data)
-      setTemplates(curr => curr.map(t => t.id === updated.id ? updated : t))
-      return updated
-    } catch (err) {
-      setTemplates(() => prev)
-      throw err
-    }
-  }
-  const deleteTemplateHandler = async (id) => {
-    const prev = templates
-    setTemplates(curr => curr.filter(t => t.id !== id))
-    try {
-      await deleteTemplate(id)
-    } catch (err) {
-      setTemplates(() => prev)
-      throw err
-    }
-  }
-
-  // ── Campaigns ──
-  const createCampaignHandler = async (data) => {
-    const tempId = `temp-${Date.now()}`
-    const optimistic = { ...data, id: tempId, status: data.status || 'active' }
-    setCampaigns(prev => [optimistic, ...prev])
-    try {
-      const created = await createCampaign(data)
-      setCampaigns(prev => prev.map(c => c.id === tempId ? created : c))
-      return created
-    } catch (err) {
-      setCampaigns(prev => prev.filter(c => c.id !== tempId))
-      throw err
-    }
-  }
-  const updateCampaignHandler = async (data) => {
-    const prev = campaigns
-    setCampaigns(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
-    try {
-      const updated = await updateCampaign(data)
-      setCampaigns(curr => curr.map(c => c.id === updated.id ? updated : c))
-      return updated
-    } catch (err) {
-      setCampaigns(() => prev)
-      throw err
-    }
-  }
-  const deleteCampaignHandler = async (id) => {
-    const prev = campaigns
-    setCampaigns(curr => curr.filter(c => c.id !== id))
-    try {
-      await deleteCampaign(id)
-    } catch (err) {
-      setCampaigns(() => prev)
-      throw err
-    }
-  }
-
-  // ── Leads (Contacts tab) ──
-  const refreshLeads = async () => {
-    const res = await fetchLeads()
-    setLeads(res?.items || [])
-  }
-  const updateLeadHandler = async (data) => {
-    const prev = leads
-    setLeads(curr => curr.map(l => l.id === data.id ? { ...l, ...data } : l))
-    try {
-      const updated = await updateLead(data)
-      setLeads(curr => curr.map(l => l.id === updated.id ? { ...l, ...updated } : l))
-      return updated
-    } catch (err) {
-      setLeads(() => prev)
-      throw err
-    }
-  }
-  const deleteLeadHandler = async (id) => {
-    const prev = leads
-    setLeads(curr => curr.filter(l => l.id !== id))
-    try {
-      await deleteLead(id)
-    } catch (err) {
-      setLeads(() => prev)
-      throw err
-    }
-  }
-
-  // ── Custom Contacts ──
-  const createCustomContactHandler = async (data) => {
-    const created = await createCustomContact(data)
-    setCustomContacts(prev => [created, ...prev])
-    return created
-  }
-  const updateCustomContactHandler = async (data) => {
-    const prev = customContacts
-    setCustomContacts(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
-    try {
-      const updated = await updateCustomContact(data)
-      setCustomContacts(curr => curr.map(c => c.id === updated.id ? { ...c, ...updated } : c))
-      return updated
-    } catch (err) {
-      setCustomContacts(() => prev)
-      throw err
-    }
-  }
-  const deleteCustomContactHandler = async (id) => {
-    const prev = customContacts
-    setCustomContacts(curr => curr.filter(c => c.id !== id))
-    try {
-      await deleteCustomContact(id)
-    } catch (err) {
-      setCustomContacts(() => prev)
-      throw err
-    }
-  }
 
   const persistWorkspaceConfig = async (data, {
     completed = onboardingState.completed,
@@ -723,7 +498,7 @@ function AppShell() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setResourceLoadCount(n => n + 1)}
+                    onClick={retryResources}
                     className="shrink-0 text-xs font-semibold underline-offset-2 hover:underline"
                   >
                     Retry
