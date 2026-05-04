@@ -361,6 +361,13 @@ function StepName({
 
 const SIGNAL_YC = 'signal:yc-backed'
 
+// Signal tags hidden from the wizard's Signal row. multi-source is an
+// internal data-quality signal (set by reconcile-company when a second
+// ingest source touches the row); hn-hiring is too narrow a slice to
+// surface as a primary filter. They stay in Company.tags but the user
+// no longer sees them as filter chips.
+const HIDDEN_SIGNAL_TAGS = new Set(['signal:multi-source', 'signal:hn-hiring'])
+
 // Sorts YC batch strings newest-first. Handles both compact ("W26", "S25",
 // "F24") and long ("Winter 2026", "Summer 2025") forms by extracting the
 // year and a season ordinal. "Unspecified" sinks to the bottom.
@@ -439,7 +446,9 @@ function StepFilters({
           </FilterRow>
 
           {SECTOR_NAMESPACES.map(ns => {
-            const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
+            const tags = (options.tags?.[ns] || [])
+              .filter(t => t.count >= 15 && !HIDDEN_SIGNAL_TAGS.has(t.namespaced))
+              .slice(0, 8)
             if (tags.length < 2) return null
             const showBatchPicker = ns === 'signal' && ycSelected && sortedBatches.length > 0
             return (
