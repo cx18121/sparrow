@@ -101,8 +101,11 @@ test.describe('Campaign workspace shell', () => {
     })
     await page.goto('/campaigns/cmp_workspace_1/sent')
     await expect(page).toHaveURL(/\/campaigns\/cmp_workspace_1\/sent/, { timeout: 10_000 })
-    // Sent is still a placeholder until 4c — its coming-soon copy is what we expect.
-    await expect(page.locator('text=/per-campaign send log/i').first()).toBeVisible()
+    // The workspace header should resolve, not Home — and the placeholder
+    // coming-soon copy from before 4c must be gone.
+    const header = page.locator('header').filter({ hasText: 'Series A AI infra hiring' }).first()
+    await expect(header).toBeVisible()
+    await expect(page.locator('text=/per-campaign send log/i')).toHaveCount(0)
   })
 
   test('unknown campaign id renders a not-found card instead of crashing', async ({ page }) => {
@@ -151,6 +154,54 @@ test.describe('Campaign workspace shell', () => {
     // The seeded draft renders — recipient + subject visible in the row.
     await expect(page.locator('text=Avery Kim').first()).toBeVisible({ timeout: 10_000 })
     await expect(page.locator('text=Quick question about Acme').first()).toBeVisible()
+  })
+
+  test('Sent sub-tab shows the campaign-scoped empty state when nothing sent (Phase 4c)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      sent: [],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/sent')
+    // Workspace-mode copy: scoped to "this campaign" rather than the global one.
+    await expect(page.locator('text=/Nothing sent from this campaign yet/i').first()).toBeVisible({ timeout: 10_000 })
+    // Inner Drafts/Sent segmented control is hidden because lockedTab is set —
+    // the workspace URL is the source of truth for which list to show.
+    await expect(page.locator('.segmented-control')).toHaveCount(0)
+  })
+
+  test('Sent sub-tab renders campaign-scoped sent emails when seeded (Phase 4c)', async ({ page }) => {
+    const sentAt = new Date().toISOString()
+    const sentEmail = {
+      id: 'email_sent_1',
+      userLeadId: 'lead_1',
+      contactId: 'contact_1',
+      subject: 'Quick question about Acme',
+      body: 'Hi Avery, your robots fold laundry.',
+      status: 'sent',
+      attachmentIds: [],
+      createdAt: sentAt,
+      updatedAt: sentAt,
+      sentAt,
+      contact: { id: 'contact_1', name: 'Avery Kim', email: 'avery@acme.test', title: 'Founder' },
+      customContact: null,
+      userLead: { id: 'lead_1', status: 'CONTACTED', company: { id: 'co_1', name: 'Acme Robotics', domain: 'acme.test' } },
+    }
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      sent: [sentEmail],
+    })
+    await page.goto('/campaigns/cmp_workspace_1/sent')
+    // The seeded sent email renders.
+    await expect(page.locator('text=Avery Kim').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('text=Quick question about Acme').first()).toBeVisible()
+    // And the per-row Send/Delete actions are gone — sent rows show a "Sent" badge.
+    await expect(page.locator('text=/^Sent$/').first()).toBeVisible()
+    // No bulk Send button should appear even after the row is checked.
+    const checkbox = page.locator('input[type="checkbox"]').nth(1)
+    await checkbox.check()
+    await expect(page.getByRole('button', { name: /^Send 1$/ })).toHaveCount(0)
   })
 
   test('Leads sub-tab mounts Discover and shows companies (Phase 4a)', async ({ page }) => {

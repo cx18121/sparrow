@@ -347,6 +347,7 @@ export default function DraftsTab({
           movePreview(-1)
           break
         case 'e':
+          if (tab !== 'draft') return
           e.preventDefault()
           startEdit()
           break
@@ -584,10 +585,12 @@ export default function DraftsTab({
       <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-6 lg:p-8 ${preview ? 'lg:pr-4' : ''} ${focusMode ? 'hidden' : ''}`}>
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-            <div className="segmented-control">
-              <button onClick={() => setTab('draft')} className={`segmented-chip ${tab === 'draft' ? 'segmented-chip-active' : ''}`}>Drafts</button>
-              <button onClick={() => setTab('sent')} className={`segmented-chip ${tab === 'sent' ? 'segmented-chip-active' : ''}`}>Sent</button>
-            </div>
+            {!lockedTab && (
+              <div className="segmented-control">
+                <button onClick={() => setTab('draft')} className={`segmented-chip ${tab === 'draft' ? 'segmented-chip-active' : ''}`}>Drafts</button>
+                <button onClick={() => setTab('sent')} className={`segmented-chip ${tab === 'sent' ? 'segmented-chip-active' : ''}`}>Sent</button>
+              </div>
+            )}
             <p className="text-sm text-muted">
               {loading
                 ? drafts.length > 0 ? 'Refreshing...' : 'Loading...'
@@ -741,14 +744,16 @@ export default function DraftsTab({
                       icon={FileText}
                       title={
                         tab === 'sent'
-                          ? 'No sent emails yet'
+                          ? campaignId ? 'Nothing sent from this campaign yet' : 'No sent emails yet'
                           : reviewFilter === 'all'
                             ? 'No drafts ready for review'
                             : 'No drafts in this queue'
                       }
                       description={
                         tab === 'sent'
-                          ? 'Sent emails will appear here after Gmail accepts them.'
+                          ? campaignId
+                            ? 'Sent emails from this campaign will appear here once Gmail accepts them.'
+                            : 'Sent emails will appear here after Gmail accepts them.'
                           : reviewFilter === 'all'
                             ? 'Generate an email from a saved contact, then review and send it here.'
                             : 'Switch or clear filters to see more.'
@@ -881,8 +886,8 @@ export default function DraftsTab({
                 </button>
               </div>
 
-              {/* Edit / Save / Cancel */}
-              {!editing ? (
+              {/* Edit / Save / Cancel — sent emails are immutable, no edit affordance. */}
+              {tab === 'draft' && (!editing ? (
                 <button
                   onClick={startEdit}
                   className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-2.5 text-muted hover:text-dark"
@@ -906,7 +911,7 @@ export default function DraftsTab({
                     <Check size={11} /> {saving ? 'Saving…' : 'Save'}
                   </button>
                 </>
-              )}
+              ))}
 
               {/* Send */}
               {tab === 'draft' && !editing && (
@@ -1104,7 +1109,7 @@ export default function DraftsTab({
               )}
             </div>
           </div>
-          <ShortcutHint editing={editing} canSend={tab === 'draft' && canSendDraft(preview)} />
+          <ShortcutHint editing={editing} canEdit={tab === 'draft'} canSend={tab === 'draft' && canSendDraft(preview)} />
         </div>
       )}
       <ConfirmDialog
@@ -1147,7 +1152,7 @@ export default function DraftsTab({
   )
 }
 
-function ShortcutHint({ editing, canSend }) {
+function ShortcutHint({ editing, canEdit, canSend }) {
   if (editing) {
     return (
       <div className="hidden border-t border-warm-200 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:items-center sm:gap-3">
@@ -1161,7 +1166,7 @@ function ShortcutHint({ editing, canSend }) {
     <div className="hidden border-t border-warm-200 px-5 py-2 text-[11px] text-muted/80 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
       <Keyboard size={11} />
       <span><Kbd>←</Kbd> <Kbd>→</Kbd> prev/next</span>
-      <span><Kbd>e</Kbd> edit</span>
+      {canEdit && <span><Kbd>e</Kbd> edit</span>}
       {canSend && <span><Kbd>⌘</Kbd>+<Kbd>↵</Kbd> send</span>}
       <span><Kbd>x</Kbd> select</span>
       <span><Kbd>f</Kbd> focus</span>

@@ -113,11 +113,23 @@ export function DraftsSubTab() {
 }
 
 export function SentTab() {
+  const { campaign, workspaceConfig, profile, profileLoading } = useWorkspaceContext()
+  const navigate = useNavigate()
+  // Phase 4c: same DraftsTab component, locked to the sent list. The component
+  // gates Send/Edit/Delete/attachment controls on `tab === 'draft'` already, so
+  // the sent rows are read-only by construction.
   return (
-    <ComingSoonCard
-      icon={Send}
-      title="Sent — what's already gone out"
-      body="A per-campaign send log with subject + recipient + time, filtered to this campaign only."
+    <DraftsTab
+      campaignId={campaign.id}
+      lockedTab="sent"
+      workspaceConfig={workspaceConfig}
+      profile={profile}
+      profileLoading={profileLoading}
+      onNavigate={(target) => {
+        if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
+        else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
+        else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
+      }}
     />
   )
 }
