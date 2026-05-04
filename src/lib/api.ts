@@ -112,6 +112,11 @@ function friendlyApiMessage({ status, path, method, serverError }) {
     return 'Settings could not be saved. Check that all required environment variables are set, then try again.'
   }
 
+  if (path === '/google/connect') {
+    if (status === 404) return 'Gmail connection endpoint is not reachable. Make sure the API server is running (npm run dev:api or vercel dev) or redeploy.'
+    if (status === 500) return serverError || 'Gmail connection could not start. Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set on the server.'
+  }
+
   if (status === 404) return 'We could not find what you asked for. Refresh the page and try again.'
   if (status === 429) return 'Too many requests at once. Wait a minute, then try again.'
   if (status >= 500) return 'The server could not finish that request. Try again in a moment.'

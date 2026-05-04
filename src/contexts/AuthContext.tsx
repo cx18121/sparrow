@@ -27,6 +27,18 @@ const GOOGLE_AUTH_SCOPES = [
 // reconciliation runs once.
 const GMAIL_RECONCILE_KEY = 'cf_gmail_reconcile_pending'
 const PROFILE_UPDATED_EVENT = 'sparrow:profile-updated'
+// Fired when the auto-reconcile path fails. Settings listens for it so the
+// user sees the real error (e.g., "/api/google/connect not reachable") instead
+// of a silent "Not connected" + amber dot with no explanation.
+const RECONCILE_FAILED_EVENT = 'sparrow:gmail-reconcile-failed'
+
+function dispatchReconcileFailure(err: unknown): void {
+  if (typeof window === 'undefined') return
+  const message = err instanceof Error ? err.message : String(err ?? 'Gmail auto-connect failed.')
+  try {
+    window.dispatchEvent(new CustomEvent(RECONCILE_FAILED_EVENT, { detail: { message } }))
+  } catch {}
+}
 
 function applySessionToApiClient(session) {
   setApiUserId(session?.user?.id ?? null)
@@ -58,7 +70,11 @@ async function reconcileGmailGrant(session: any): Promise<void> {
       try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
       return
-    } catch { /* fall through to redirect path on next tick */ }
+    } catch (err) {
+      // Don't clear marker — we'll fall through to the redirect path below
+      // and a retry can also happen on the next session event.
+      dispatchReconcileFailure(err)
+    }
   }
 
   // Without the marker we don't reconcile — saves a /api/profile round trip
@@ -91,12 +107,21 @@ async function reconcileGmailGrant(session: any): Promise<void> {
       // prompt=consent + access_type=offline to force Google to mint one.
       const returnTo = `${window.location.pathname}${window.location.search}`
       const res = await startGoogleConnect(returnTo)
-      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
-      if (res?.url) window.location.assign(res.url)
-    } catch {
-      // Reconciliation is best-effort after this point. The primary path is
-      // saving Supabase's provider_refresh_token above.
-      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+      // Only clear the marker once we actually have a URL to navigate to.
+      // If startGoogleConnect returned no URL, leave the marker so the next
+      // session event can retry rather than silently dropping the user into
+      // a "Not connected" state.
+      if (res?.url) {
+        try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+        window.location.assign(res.url)
+      } else {
+        dispatchReconcileFailure(new Error('Gmail connection started but the server did not return a URL.'))
+      }
+    } catch (err) {
+      // Surface the failure to the UI. Keep the marker so subsequent session
+      // events (token refresh, manual refresh) can retry — this is safer
+      // than silently leaving the user with "Not connected" + no explanation.
+      dispatchReconcileFailure(err)
     } finally {
       gmailReconcileInFlight = null
     }
