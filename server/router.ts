@@ -2,20 +2,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import apolloSearch from "./routes/apollo-search.js";
 import audienceQuery from "./routes/audience-query.js";
-import campaignBatch from "./routes/campaign-batch.js";
 import campaignLeads from "./routes/campaign-leads.js";
 import campaignOptions from "./routes/campaign-options.js";
 import campaigns from "./routes/campaigns.js";
 import companies from "./routes/companies.js";
-import contacts from "./routes/contacts.js";
 import customContacts from "./routes/custom-contacts.js";
 import emails from "./routes/emails.js";
 import generateEmail from "./routes/emails/generate.js";
 import sendEmail from "./routes/emails/send.js";
+import sendTestEmail from "./routes/emails/send-test.js";
 import googleCallback from "./routes/google/callback.js";
 import googleConnect from "./routes/google/connect.js";
 import health from "./routes/health.js";
-import industries from "./routes/industries.js";
 import leads from "./routes/leads.js";
 import account from "./routes/account.js";
 import profile from "./routes/profile.js";
@@ -29,22 +27,20 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/account": account,
   "/api/profile": profile,
   "/api/companies": companies,
-  "/api/contacts": contacts,
   "/api/custom-contacts": customContacts,
   "/api/leads": leads,
   "/api/emails": emails,
   "/api/emails/generate": generateEmail,
   "/api/emails/send": sendEmail,
+  "/api/emails/send-test": sendTestEmail,
   "/api/google/connect": googleConnect,
   "/api/google/callback": googleCallback,
   "/api/templates": templates,
   "/api/campaigns": campaigns,
-  "/api/campaign-batch": campaignBatch,
   "/api/campaign-leads": campaignLeads,
   "/api/campaign-options": campaignOptions,
   "/api/apollo-search": apolloSearch,
   "/api/audience-query": audienceQuery,
-  "/api/industries": industries,
   "/api/style-guide": styleGuide,
 };
 

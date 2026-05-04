@@ -50,6 +50,22 @@ async function readOwnedDraft(emailId: string, userId: string) {
   return { email, toEmail };
 }
 
+async function readOwnedDraftForTest(emailId: string, userId: string) {
+  const email = await prisma.email.findUnique({
+    where: { id: emailId },
+    include: {
+      customContact: { select: { userId: true } },
+      userLead: { select: { userId: true } },
+    },
+  });
+
+  if (!email) throw new HttpError(404, "Email not found");
+  const ownerUserId = email.userLead?.userId ?? email.customContact?.userId;
+  if (ownerUserId !== userId) throw new HttpError(404, "Email not found");
+
+  return email;
+}
+
 async function readSenderProfile(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: profile } = await supabase
@@ -74,6 +90,20 @@ async function readSenderProfile(userId: string) {
     refreshToken,
     workspaceConfig: parseWorkspaceConfig(profile.workspace_config),
   };
+}
+
+async function markRecipientEmailed(email: { userLeadId?: string | null; customContactId?: string | null }) {
+  try {
+    if (email.userLeadId) {
+      await prisma.userLead.update({ where: { id: email.userLeadId }, data: { status: "EMAILED" } });
+      return;
+    }
+    if (email.customContactId) {
+      await prisma.customContact.update({ where: { id: email.customContactId }, data: { status: "EMAILED" } });
+    }
+  } catch (err) {
+    console.warn("Could not mark recipient EMAILED after Gmail send:", err);
+  }
 }
 
 async function buildDraftAttachments(params: {
@@ -161,6 +191,63 @@ export async function sendDraft(emailId: string, userId: string) {
   }
 
   const updated = await markSent(emailId);
+  await markRecipientEmailed(email);
   invalidateDashCache(userId);
   return updated;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function sendTestDraft(emailId: string, userId: string, recipient: string) {
+  const trimmed = recipient.trim();
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new HttpError(400, "Provide a valid recipient email address.");
+  }
+
+  const email = await readOwnedDraftForTest(emailId, userId);
+  const { supabase, refreshToken, workspaceConfig } = await readSenderProfile(userId);
+
+  const rawDailyMax = Number(workspaceConfig.sendingLimits?.dailyMax ?? 100);
+  const dailyMax = Number.isFinite(rawDailyMax)
+    ? Math.min(500, Math.max(1, Math.round(rawDailyMax)))
+    : 100;
+
+  // Test sends still consume daily quota — Gmail is sending real mail through
+  // the user's account, so the cap protects against an OAuth-revoke storm just
+  // as much as it would for real sends.
+  try {
+    await checkEmailSendQuota(userId, dailyMax);
+  } catch (err) {
+    if (err instanceof QuotaError) throw new HttpError(429, err.message);
+    throw err;
+  }
+
+  const attachments = await buildDraftAttachments({
+    userId,
+    emailId,
+    attachmentIds: email.attachmentIds,
+    fileLibrary: workspaceConfig.files ?? [],
+    supabase,
+  });
+
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  const gmail = google.gmail({ version: "v1", auth: oauth2 });
+
+  const subject = `[TEST] ${email.subject ?? "(no subject)"}`;
+  const htmlBody = sanitizeHtml(email.body ?? "");
+  const toHeader = encodeAddressHeader(null, trimmed.toLowerCase());
+  const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
+  const raw = Buffer.from(message).toString("base64url");
+
+  try {
+    await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  } catch {
+    throw new HttpError(502, "Gmail send failed");
+  }
+
+  return { recipient: trimmed.toLowerCase() };
 }

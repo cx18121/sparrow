@@ -1,0 +1,196 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const {
+  mockPrisma,
+  mockGetSupabaseAdmin,
+  mockDecrypt,
+  mockCheckEmailSendQuota,
+  mockClaimForSending,
+  mockMarkSent,
+  mockMarkFailed,
+  mockGmailSend,
+} = vi.hoisted(() => {
+  const mockPrisma = {
+    email: { findUnique: vi.fn() },
+    userLead: { update: vi.fn() },
+    customContact: { update: vi.fn() },
+  };
+  return {
+    mockPrisma,
+    mockGetSupabaseAdmin: vi.fn(),
+    mockDecrypt: vi.fn(),
+    mockCheckEmailSendQuota: vi.fn(),
+    mockClaimForSending: vi.fn(),
+    mockMarkSent: vi.fn(),
+    mockMarkFailed: vi.fn(),
+    mockGmailSend: vi.fn(),
+  };
+});
+
+vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
+
+vi.mock("../lib/supabaseAdmin.js", () => ({
+  getSupabaseAdmin: mockGetSupabaseAdmin,
+}));
+
+vi.mock("../lib/crypto.js", () => ({
+  decrypt: mockDecrypt,
+}));
+
+vi.mock("../lib/rate-limit.js", () => ({
+  checkEmailSendQuota: mockCheckEmailSendQuota,
+  QuotaError: class QuotaError extends Error {
+    status = 429;
+  },
+}));
+
+vi.mock("../lib/email-status.js", () => ({
+  SENDABLE_STATUSES: ["draft", "failed"],
+  claimForSending: mockClaimForSending,
+  markSent: mockMarkSent,
+  markFailed: mockMarkFailed,
+}));
+
+vi.mock("googleapis", () => ({
+  google: {
+    auth: { OAuth2: vi.fn().mockImplementation(function OAuth2() { return { setCredentials: vi.fn() } }) },
+    gmail: vi.fn(() => ({
+      users: { messages: { send: mockGmailSend } },
+    })),
+  },
+}));
+
+import { sendDraft, sendTestDraft } from "../lib/send-draft.js";
+
+const USER_ID = "user-1";
+
+function mockProfile() {
+  const chain = {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: {
+        google_refresh_token_encrypted: "encrypted-refresh",
+        workspace_config: { sendingLimits: { dailyMax: 100 }, files: [] },
+      },
+      error: null,
+    }),
+  };
+  mockGetSupabaseAdmin.mockReturnValue(chain);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockProfile();
+  mockDecrypt.mockReturnValue("refresh-token");
+  mockCheckEmailSendQuota.mockResolvedValue(undefined);
+  mockClaimForSending.mockResolvedValue(true);
+  mockGmailSend.mockResolvedValue({ data: { id: "gmail-message" } });
+  mockMarkSent.mockResolvedValue({ id: "email-1", status: "sent" });
+});
+
+describe("sendDraft", () => {
+  it("marks the owning Lead EMAILED after Gmail send succeeds", async () => {
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: "lead-1",
+      customContactId: null,
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: [],
+      contact: { email: "sarah@example.com", name: "Sarah Chen" },
+      customContact: null,
+      userLead: { userId: USER_ID },
+    });
+
+    await sendDraft("email-1", USER_ID);
+
+    expect(mockMarkSent).toHaveBeenCalledWith("email-1");
+    expect(mockPrisma.userLead.update).toHaveBeenCalledWith({
+      where: { id: "lead-1" },
+      data: { status: "EMAILED" },
+    });
+    expect(mockPrisma.customContact.update).not.toHaveBeenCalled();
+  });
+
+  it("marks the owning Custom Contact EMAILED after Gmail send succeeds", async () => {
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: null,
+      customContactId: "cc-1",
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: [],
+      contact: null,
+      customContact: { email: "jordan@example.com", name: "Jordan Lee", userId: USER_ID },
+      userLead: null,
+    });
+
+    await sendDraft("email-1", USER_ID);
+
+    expect(mockMarkSent).toHaveBeenCalledWith("email-1");
+    expect(mockPrisma.customContact.update).toHaveBeenCalledWith({
+      where: { id: "cc-1" },
+      data: { status: "EMAILED" },
+    });
+    expect(mockPrisma.userLead.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendTestDraft", () => {
+  it("rejects an obviously invalid recipient address", async () => {
+    await expect(sendTestDraft("email-1", USER_ID, "not-an-email")).rejects.toThrow(
+      /valid recipient/i
+    );
+    expect(mockGmailSend).not.toHaveBeenCalled();
+  });
+
+  it("sends to the override recipient and leaves the draft as draft", async () => {
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: "lead-1",
+      customContactId: null,
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: [],
+      userLead: { userId: USER_ID },
+      customContact: null,
+    });
+
+    const result = await sendTestDraft("email-1", USER_ID, "Me@Example.com");
+
+    expect(result).toEqual({ recipient: "me@example.com" });
+    expect(mockGmailSend).toHaveBeenCalledTimes(1);
+    const raw = (mockGmailSend.mock.calls[0]?.[0] as { requestBody: { raw: string } }).requestBody.raw;
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    expect(decoded).toContain("me@example.com");
+    expect(decoded).toContain("[TEST]");
+
+    // Test sends MUST NOT mark the draft as sent or the recipient as EMAILED.
+    expect(mockMarkSent).not.toHaveBeenCalled();
+    expect(mockPrisma.userLead.update).not.toHaveBeenCalled();
+    expect(mockPrisma.customContact.update).not.toHaveBeenCalled();
+    expect(mockClaimForSending).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the draft is owned by a different user", async () => {
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: "lead-1",
+      customContactId: null,
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: [],
+      userLead: { userId: "other-user" },
+      customContact: null,
+    });
+
+    await expect(sendTestDraft("email-1", USER_ID, "me@example.com")).rejects.toThrow(/not found/i);
+    expect(mockGmailSend).not.toHaveBeenCalled();
+  });
+});
