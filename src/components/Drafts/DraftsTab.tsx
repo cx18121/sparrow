@@ -3,14 +3,16 @@ import DOMPurify from 'dompurify'
 import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
-  Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip,
+  Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip, MailCheck,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
+import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
+import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import EmptyState from '../ui/EmptyState'
+import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 
@@ -154,6 +156,10 @@ export default function DraftsTab({
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
+  const [testSendOpen, setTestSendOpen] = useState<string | null>(null)
+  const [testSendRecipient, setTestSendRecipient] = useState('')
+  const [testSendBusy, setTestSendBusy] = useState(false)
   const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelBatchRef = useRef(false)
 
@@ -534,6 +540,33 @@ export default function DraftsTab({
         .catch(() => {})
     } else {
       scheduleSend(ids)
+    }
+  }
+
+  const openTestSend = (emailId: string) => {
+    setTestSendRecipient(user?.email || '')
+    setTestSendOpen(emailId)
+  }
+
+  const submitTestSend = async () => {
+    if (!testSendOpen) return
+    setTestSendBusy(true)
+    try {
+      await sendTestEmail(testSendOpen, testSendRecipient)
+      setToast({
+        type: 'success',
+        title: 'Test email sent',
+        message: `Delivered to ${testSendRecipient.trim().toLowerCase()}`,
+      })
+      setTestSendOpen(null)
+    } catch (err) {
+      setToast({
+        type: 'error',
+        title: 'Test send failed',
+        message: (err as Error)?.message || 'Try again.',
+      })
+    } finally {
+      setTestSendBusy(false)
     }
   }
 
@@ -941,7 +974,7 @@ export default function DraftsTab({
                   <MoreHorizontal size={14} />
                 </button>
                 {moreMenuOpen && (
-                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden rounded-xl border border-warm-200 bg-warm-50 py-1 shadow-card">
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] overflow-hidden rounded-xl border border-warm-200 bg-warm-50 py-1 shadow-card">
                     <button
                       type="button"
                       onClick={() => { setFocusMode(m => !m); setMoreMenuOpen(false) }}
@@ -950,6 +983,16 @@ export default function DraftsTab({
                       {focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                       {focusMode ? 'Exit focus mode' : 'Focus mode'}
                     </button>
+                    {tab === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => { openTestSend(preview.id); setMoreMenuOpen(false) }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-warm-50 hover:text-dark"
+                      >
+                        <MailCheck size={13} />
+                        Send test to me
+                      </button>
+                    )}
                     {tab === 'draft' && (
                       <button
                         type="button"
@@ -1150,6 +1193,51 @@ export default function DraftsTab({
             : `These ${deleteConfirm?.length} drafts will be permanently deleted.`
         }
       />
+      <Modal
+        open={!!testSendOpen}
+        onClose={() => { if (!testSendBusy) setTestSendOpen(null) }}
+        title="Send test email"
+        size="sm"
+      >
+        <form
+          className="px-5 py-5"
+          onSubmit={e => { e.preventDefault(); submitTestSend() }}
+        >
+          <p className="text-sm text-muted">
+            Sends this draft to the address below with <span className="font-medium text-dark">[TEST]</span> on the subject. The original draft stays a draft.
+          </p>
+          <label className="mt-4 block text-xs font-medium text-muted" htmlFor="test-send-recipient">
+            Recipient
+          </label>
+          <input
+            id="test-send-recipient"
+            type="email"
+            autoFocus
+            required
+            value={testSendRecipient}
+            onChange={e => setTestSendRecipient(e.target.value)}
+            disabled={testSendBusy}
+            className="mt-1 w-full rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          />
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setTestSendOpen(null)}
+              disabled={testSendBusy}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={testSendBusy || !testSendRecipient.trim()}
+              className="btn-primary disabled:opacity-50"
+            >
+              {testSendBusy ? 'Sending…' : 'Send test'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

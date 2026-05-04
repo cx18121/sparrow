@@ -201,6 +201,11 @@ export const generateStyleGuide = (examples: string[]) =>
   request<{ guide: string }>('/style-guide', { method: 'POST', body: JSON.stringify({ examples }) })
 export const sendEmail = (emailId: string) =>
   request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
+export const sendTestEmail = (emailId: string, recipient: string) =>
+  request<{ success: true; recipient: string }>('/emails/send-test', {
+    method: 'POST',
+    body: JSON.stringify({ emailId, recipient }),
+  })
 export const deleteEmails = (ids: string[]) =>
   request<{ deleted: string[] }>(`/emails${qs({ ids: ids.join(',') })}`, { method: 'DELETE' })
 export const updateEmailAttachments = (id: string, attachmentIds: string[]) =>
