@@ -119,14 +119,15 @@ test.describe('Settings tab structure', () => {
     await signInDemo(page)
   })
 
-  test('renders all 4 tabs and switching tabs swaps the panel content', async ({ page }) => {
+  test('renders all 3 tabs and switching tabs swaps the panel content', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     await page.goto('/settings')
 
     // All settings tabs are visible by name.
-    for (const label of ['Profile', 'Style', 'Sending', 'Account']) {
+    for (const label of ['Profile', 'Sending', 'Account']) {
       await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({ timeout: 5000 })
     }
+    await expect(page.getByRole('tab', { name: /Style/ })).toHaveCount(0)
     await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
     // Profile tab is the default landing — Sender identity panel is visible.

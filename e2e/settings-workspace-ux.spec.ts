@@ -45,8 +45,6 @@ const CAMPAIGN = {
   filterIsHiring: null,
   filterHeadcountMin: null,
   filterHeadcountMax: null,
-  batchSize: 10,
-  currentBatch: 0,
   tone: null,
   attachmentIds: [],
   scheduledAt: null,
@@ -183,34 +181,4 @@ test.describe('Settings and workspace UX', () => {
     await expect(page.getByRole('button', { name: /Save changes/i })).toBeDisabled()
   })
 
-  test('saves edited writing style instructions', async ({ page }) => {
-    let profilePost: any = null
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/profile')
-    await page.route('**/api/profile', route => {
-      if (route.request().method() === 'POST') {
-        profilePost = route.request().postDataJSON()
-        return json(route, { profile: { onboardingCompleted: true, workspaceConfig: profilePost.workspaceConfig, hasClaudeKey: true, hasGoogleRefreshToken: true } })
-      }
-      return json(route, {
-        profile: {
-          onboardingCompleted: true,
-          workspaceConfig: {
-            senderName: 'Alex Tester',
-            resumeText: 'Built outreach tools.',
-            styleProfile: { prompt: 'Be concise.' },
-          },
-          hasClaudeKey: true,
-          hasGoogleRefreshToken: true,
-        },
-      })
-    })
-
-    await page.goto('/settings')
-    await page.getByRole('tab', { name: /Style/i }).click()
-    await page.getByPlaceholder(/Be direct and concise/i).fill('Open directly, use one concrete proof point, and end with a short ask.')
-    await page.getByRole('button', { name: /Save instructions/i }).click()
-
-    await expect.poll(() => profilePost?.workspaceConfig?.styleProfile?.prompt).toBe('Open directly, use one concrete proof point, and end with a short ask.')
-  })
 })
