@@ -21,32 +21,59 @@ const GENERATION_MODEL = 'claude-haiku-4-5-20251001'
 export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
 
 // Substitutes all supported {{variable}} placeholders in a template string.
+// Both snake_case (as advertised in the Templates tab) and camelCase
+// (legacy) tags are honored so we don't break templates already saved
+// in either form. featureLine and fitAngle are filled when web research
+// produced them — substituted as empty strings otherwise so verbatim
+// templates don't render literal '{{feature_line}}' to the recipient.
 export function substituteVariables(
   text: string,
-  contact: { name: string | null },
+  contact: { name: string | null; title?: string | null },
   senderName: string | null,
-  company?: { name: string }
+  company?: { name: string },
+  ai?: { featureLine?: string | null; fitAngle?: string | null }
 ): string {
   const firstName = contact.name?.split(' ')[0] ?? ''
+  const lastName = contact.name?.split(' ').slice(1).join(' ') ?? ''
+  const role = contact.title ?? ''
+  const companyName = company?.name ?? ''
+  const featureLine = ai?.featureLine ?? ''
+  const fitAngle = ai?.fitAngle ?? ''
   return text
+    .replace(/\{\{first_name\}\}/g, firstName)
     .replace(/\{\{firstName\}\}/g, firstName)
+    .replace(/\{\{last_name\}\}/g, lastName)
+    .replace(/\{\{lastName\}\}/g, lastName)
+    .replace(/\{\{sender_name\}\}/g, senderName ?? '')
     .replace(/\{\{senderName\}\}/g, senderName ?? '')
-    .replace(/\{\{company\}\}/g, company?.name ?? '')
-    .replace(/\{\{company_name\}\}/g, company?.name ?? '')
-    .replace(/\{\{companyName\}\}/g, company?.name ?? '')
+    .replace(/\{\{role\}\}/g, role)
+    .replace(/\{\{company\}\}/g, companyName)
+    .replace(/\{\{company_name\}\}/g, companyName)
+    .replace(/\{\{companyName\}\}/g, companyName)
+    .replace(/\{\{feature_line\}\}/g, featureLine)
+    .replace(/\{\{featureLine\}\}/g, featureLine)
+    .replace(/\{\{fit_angle\}\}/g, fitAngle)
+    .replace(/\{\{fitAngle\}\}/g, fitAngle)
 }
 
 export function buildSubjectLine(
   template: string | null,
-  contact: { name: string | null },
+  contact: { name: string | null; title?: string | null },
   senderName: string | null,
-  company?: { name: string }
+  company?: { name: string },
+  ai?: { featureLine?: string | null; fitAngle?: string | null }
 ): string {
-  return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company)
+  return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company, ai)
 }
 
 function buildTemplateSkeleton(input: TemplateDraftInput): string {
-  return stripPlaceholders(substituteVariables(input.body, input.contact, input.senderName, input.company))
+  return stripPlaceholders(substituteVariables(
+    input.body,
+    input.contact,
+    input.senderName,
+    input.company,
+    { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null },
+  ))
 }
 
 function buildTemplatePrompt(input: TemplateDraftInput): string {

@@ -16,9 +16,17 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 
-const sampleContactData = { first_name: 'Alex', last_name: 'Chen', company: 'Momentum AI', role: 'Co-founder & CEO', sender_name: 'Your Name' }
+const sampleContactData = {
+  first_name: 'Alex',
+  last_name: 'Chen',
+  company: 'Momentum AI',
+  role: 'Co-founder & CEO',
+  sender_name: 'Your Name',
+  feature_line: 'the new agent eval harness you launched last week',
+  fit_angle: 'my multi-agent eval project at the GenAI club',
+}
 
-const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}']
+const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}', '{{feature_line}}', '{{fit_angle}}']
 
 function fillVariables(html, data) {
   if (!html) return ''
@@ -32,6 +40,10 @@ function fillVariables(html, data) {
     .replace(/\{\{role\}\}/g, data.role || 'CEO')
     .replace(/\{\{sender_name\}\}/g, data.sender_name || 'Your Name')
     .replace(/\{\{senderName\}\}/g, data.sender_name || 'Your Name')
+    .replace(/\{\{feature_line\}\}/g, data.feature_line || '<span class="italic text-muted">[the company surface AI picks at send time]</span>')
+    .replace(/\{\{featureLine\}\}/g, data.feature_line || '<span class="italic text-muted">[the company surface AI picks at send time]</span>')
+    .replace(/\{\{fit_angle\}\}/g, data.fit_angle || '<span class="italic text-muted">[your matching resume project]</span>')
+    .replace(/\{\{fitAngle\}\}/g, data.fit_angle || '<span class="italic text-muted">[your matching resume project]</span>')
 }
 
 function normalizeSafeLinkUrl(value) {

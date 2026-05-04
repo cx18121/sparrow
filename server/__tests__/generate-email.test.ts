@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { generateEmailDraft } from "../lib/ai/generate-email.js";
+import { generateEmailDraft, substituteVariables } from "../lib/ai/generate-email.js";
 import type { AiDraftInput, TemplateDraftInput, FallbackDraftInput } from "../lib/ai/types.js";
 
 const API_KEY = "test-key";
@@ -264,6 +264,45 @@ describe("generateEmailDraft — Template mode (AI-personalized skeleton)", () =
     const body = JSON.parse(options.body as string);
     expect(body.messages[0].content).toContain("Hi Sarah, re: [Company]");
     expect(draft.body).not.toContain("{{unknownVar}}");
+  });
+});
+
+describe("substituteVariables — merge tags", () => {
+  const contact = { name: "Sarah Chen", title: "Head of Engineering" };
+  const company = { name: "Momentum AI" };
+
+  it("fills snake_case and camelCase contact/sender/company tags", () => {
+    const out = substituteVariables(
+      "Hi {{first_name}} {{last_name}}, role: {{role}}, co: {{company}} / {{companyName}}, from {{sender_name}} ({{senderName}})",
+      contact,
+      "Alex",
+      company,
+    );
+    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Momentum AI / Momentum AI, from Alex (Alex)");
+  });
+
+  it("fills feature_line and fit_angle when AI metadata is provided", () => {
+    const out = substituteVariables(
+      "I noticed {{company}} just shipped {{feature_line}}. {{fit_angle}} feels like a fit.",
+      contact,
+      "Alex",
+      company,
+      { featureLine: "the agent eval harness", fitAngle: "My multi-agent eval project" },
+    );
+    expect(out).toBe(
+      "I noticed Momentum AI just shipped the agent eval harness. My multi-agent eval project feels like a fit.",
+    );
+  });
+
+  it("substitutes empty strings for feature_line/fit_angle when web research did not produce them", () => {
+    const out = substituteVariables(
+      "Saw {{feature_line}} — wanted to reach out.",
+      contact,
+      "Alex",
+      company,
+      { featureLine: null, fitAngle: null },
+    );
+    expect(out).toBe("Saw  — wanted to reach out.");
   });
 });
 

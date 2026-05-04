@@ -146,11 +146,13 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
 }
 
 const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
-  { tag: '{{first_name}}', label: 'first name' },
-  { tag: '{{last_name}}',  label: 'last name' },
-  { tag: '{{company}}',    label: 'company' },
-  { tag: '{{role}}',       label: 'role' },
+  { tag: '{{first_name}}',  label: 'first name' },
+  { tag: '{{last_name}}',   label: 'last name' },
+  { tag: '{{company}}',     label: 'company' },
+  { tag: '{{role}}',        label: 'role' },
   { tag: '{{sender_name}}', label: 'your name' },
+  { tag: '{{feature_line}}', label: 'feature line' },
+  { tag: '{{fit_angle}}',   label: 'fit angle' },
 ]
 
 function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode }) {
