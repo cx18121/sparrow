@@ -243,6 +243,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   // Seed Discover filters from the active campaign once filters are available.
   // Runs when campaign ID changes or when filters arrive after campaign is already active.
+  // We intentionally do NOT auto-fetch here: the user's "Find companies" button
+  // is the only thing that should trigger a network search. On tab re-mount the
+  // sessionStorage cache (effect below) restores the last result set, and the
+  // user controls when to re-search.
   const seededCampaignIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeCampaign?.id || !campaignFilters) return
@@ -257,7 +261,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     setIsHiring(Boolean(campaignFilters.filterIsHiring))
     selectedTagsRef.current = tags
     setSelectedTags(tags)
-    fetchCompanies(null, { regionFilter: rf, isHiring: Boolean(campaignFilters.filterIsHiring), selectedTags: tags })
   }, [activeCampaign?.id, campaignFilters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -409,7 +412,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         title: activeCampaign
           ? `${preview.firstName} added to ${activeCampaign.name}`
           : `${preview.firstName} saved`,
-        message: 'Continue browsing - switch to Drafts when you have enough.',
+        message: 'Open Contacts to generate a draft, or keep browsing.',
       })
     } catch (err) {
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
