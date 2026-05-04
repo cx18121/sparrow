@@ -4,21 +4,23 @@ import { connectGoogle as startGoogleConnect, fetchProfile, saveProfile, setApiA
 
 const AuthContext = createContext(null)
 
-// Sign-in-with-Google requests both identity AND gmail.send so the consent
-// screen explicitly covers sending permission. Two paths feed into the
-// encrypted google_refresh_token:
-//   1. Supabase emits provider_refresh_token when Google returns one. We
-//      request prompt=consent so recreated accounts get a fresh grant.
-//   2. If Supabase still has none, we automatically redirect through the
-//      server-side flow at /api/google/connect, which also uses
-//      prompt=consent + access_type=offline to reliably obtain one.
-// The Settings Connect button stays as the manual reconnect path for
-// password-signed-up users and for revoked / expired tokens.
+// Sign-in-with-Google: identity scopes only. Gmail sending requires
+// access_type=offline + prompt=consent to reliably obtain a refresh token,
+// and Supabase's session.provider_refresh_token is not exposed in every
+// project configuration / OAuth flow combination — we've observed cases
+// where it is undefined even when Google returned a refresh token.
+//
+// To remove that dependency, gmail.send is requested via the server-side
+// flow at /api/google/connect immediately after Supabase sign-in, which
+// exchanges Google's code with our own OAuth client and stores the
+// refresh token deterministically. Google's incremental authorization
+// (include_granted_scopes=true) means the user sees a *second*, scope-
+// specific consent screen ("Send emails on your behalf") rather than two
+// identical "everything" screens.
 const GOOGLE_AUTH_SCOPES = [
   'openid',
   'email',
   'profile',
-  'https://www.googleapis.com/auth/gmail.send',
 ].join(' ')
 
 // Marker stored just before initiating sign-in so the post-callback handler
@@ -49,34 +51,26 @@ function applySessionToApiClient(session) {
 // the reconciliation path concurrently after a single Google round-trip.
 let gmailReconcileInFlight: Promise<void> | null = null
 
-// Run after Supabase emits a session for a Google sign-in. Persists the
-// refresh token Supabase exposed (first-grant case) or — when Supabase
-// has none — auto-redirects through the server-side /api/google/connect
-// flow which forces consent and reliably issues one. Skipped silently
-// when the user already has a stored token or didn't sign in via Google
-// (password sign-in clears the marker before calling).
+// Run after Supabase emits a session for a Google sign-in. ALWAYS routes
+// through the server-side /api/google/connect flow, which exchanges
+// Google's code with our own OAuth client (using prompt=consent +
+// access_type=offline + include_granted_scopes=true) and stores the
+// resulting refresh_token in user_profiles.google_refresh_token_encrypted.
+//
+// Why not use session.provider_refresh_token? It's unreliable. In some
+// Supabase project configurations / OAuth flow combinations (PKCE vs
+// implicit, project secret config), provider_refresh_token is undefined
+// even when Google did return a refresh_token to Supabase's GoTrue
+// server. Rather than guessing, the server-side flow is deterministic.
+//
+// UX cost: Google shows two consent screens on first sign-in (identity,
+// then gmail.send). With include_granted_scopes the second is scope-
+// specific ("Send emails on your behalf") rather than a duplicate of the
+// first. After the first sign-in, fast-skip below avoids the second hop.
 async function reconcileGmailGrant(session: any): Promise<void> {
   if (typeof window === 'undefined') return
   let pending = false
   try { pending = sessionStorage.getItem(GMAIL_RECONCILE_KEY) === '1' } catch { /* sessionStorage may be blocked */ }
-
-  // First-grant case: Supabase surfaces provider_refresh_token in the
-  // session. Persist it directly, no redirect needed. Only consider this
-  // when the marker is set so we don't paw at unrelated sessions.
-  const refreshToken: string | null = session?.provider_refresh_token ?? null
-  if (refreshToken && pending) {
-    try {
-      await saveProfile({ googleRefreshToken: refreshToken })
-      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
-      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
-      return
-    } catch (err) {
-      // Don't clear marker — we'll fall through to the redirect path below
-      // and a retry can also happen on the next session event.
-      dispatchReconcileFailure(err)
-    }
-  }
-
   // Without the marker we don't reconcile — saves a /api/profile round trip
   // for token refreshes and password sign-ins.
   if (!pending) return
@@ -95,23 +89,20 @@ async function reconcileGmailGrant(session: any): Promise<void> {
   if (gmailReconcileInFlight) return gmailReconcileInFlight
   gmailReconcileInFlight = (async () => {
     try {
-      // Supabase didn't emit a refresh token (returning user — Google only
-      // issues one on first grant unless we force consent). Check the
-      // profile: if the user already has one stored, we're done.
+      // Fast-skip: if the user already has a stored token (returning user
+      // who connected previously, or a parallel onAuthStateChange event
+      // already completed the flow), nothing to do.
       const { profile } = await fetchProfile()
       if (profile?.hasGoogleRefreshToken) {
         try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
         return
       }
-      // No stored token. Bounce through the server flow which uses
-      // prompt=consent + access_type=offline to force Google to mint one.
       const returnTo = `${window.location.pathname}${window.location.search}`
       const res = await startGoogleConnect(returnTo)
-      // Only clear the marker once we actually have a URL to navigate to.
-      // If startGoogleConnect returned no URL, leave the marker so the next
-      // session event can retry rather than silently dropping the user into
-      // a "Not connected" state.
       if (res?.url) {
+        // Clear the marker only once navigation is committed. If the
+        // server returned no URL we keep the marker so the next session
+        // event can retry rather than dropping the user silently.
         try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
         window.location.assign(res.url)
       } else {
@@ -119,8 +110,8 @@ async function reconcileGmailGrant(session: any): Promise<void> {
       }
     } catch (err) {
       // Surface the failure to the UI. Keep the marker so subsequent session
-      // events (token refresh, manual refresh) can retry — this is safer
-      // than silently leaving the user with "Not connected" + no explanation.
+      // events (token refresh, page focus) can retry — safer than silently
+      // leaving the user "Not connected" with no explanation.
       dispatchReconcileFailure(err)
     } finally {
       gmailReconcileInFlight = null
@@ -231,22 +222,16 @@ export function AuthProvider({ children }) {
     // Always use signInWithOAuth — never linkIdentity, which requires an active session
     // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
     //
-    // Scopes include gmail.send so the consent screen captures Gmail
-    // authorization in the same step as identity. prompt=consent is deliberate:
-    // deleting a Sparrow account should not let a recreated account silently
-    // inherit a previous Google grant.
+    // Identity scopes only — gmail.send is requested separately by
+    // reconcileGmailGrant via /api/google/connect after sign-in completes.
+    // The marker tells reconcileGmailGrant that this session originated from
+    // a Google sign-in and should trigger the gmail.send consent flow.
     try { sessionStorage.setItem(GMAIL_RECONCILE_KEY, '1') } catch {}
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
         scopes: GOOGLE_AUTH_SCOPES,
-        queryParams: {
-          // access_type=offline asks Google to issue a refresh token.
-          access_type: 'offline',
-          include_granted_scopes: 'true',
-          prompt: 'consent',
-        },
       },
     })
     if (!error && data?.session) {
