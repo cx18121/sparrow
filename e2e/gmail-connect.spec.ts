@@ -58,6 +58,7 @@ test.describe('Gmail connect button', () => {
   test('shows Connect button (not Reconnect) when Gmail is not yet connected', async ({ page }) => {
     await mockApiWithoutGoogle(page)
     await page.goto('/settings')
+    await page.getByRole('tab', { name: /Account/ }).click()
     // The button should say Connect, not Reconnect — this user has never connected.
     const reconnect = page.getByRole('button', { name: /^reconnect$/i })
     await expect(reconnect, 'Reconnect label is wrong when user has never connected').toHaveCount(0)
@@ -71,6 +72,7 @@ test.describe('Gmail connect button', () => {
     // visually. Now the SettingsPage must render the message as a banner.
     await mockApiWithoutGoogle(page)
     await page.goto('/settings')
+    await page.getByRole('tab', { name: /Account/ }).click()
     const button = page.getByRole('button', { name: /^connect$/i })
     await expect(button).toBeVisible()
     await button.click()
@@ -99,14 +101,15 @@ test.describe('Settings tab structure', () => {
     await signInDemo(page)
   })
 
-  test('renders all 5 tabs and switching tabs swaps the panel content', async ({ page }) => {
+  test('renders all 4 tabs and switching tabs swaps the panel content', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     await page.goto('/settings')
 
-    // All 5 tabs are visible by name.
-    for (const label of ['Profile', 'Style', 'Integrations', 'Sending', 'Account']) {
+    // All settings tabs are visible by name.
+    for (const label of ['Profile', 'Style', 'Sending', 'Account']) {
       await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({ timeout: 5000 })
     }
+    await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
     // Profile tab is the default landing — Sender identity panel is visible.
     await expect(page.locator('text=/Sender identity/i').first()).toBeVisible()
@@ -118,6 +121,7 @@ test.describe('Settings tab structure', () => {
 
     // Account tab exposes Sign out + Delete account.
     await page.getByRole('tab', { name: /Account/ }).click()
+    await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
     await expect(page.getByRole('button', { name: /Sign out/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /Delete account/i })).toBeVisible()
   })

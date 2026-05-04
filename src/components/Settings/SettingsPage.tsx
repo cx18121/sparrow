@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check, X, Building2, Briefcase, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
-  User, Sparkles, Plug, Send, ShieldAlert, LogOut, Mail, Trash2,
+  User, Sparkles, Send, ShieldAlert, LogOut, Mail, Trash2,
 } from 'lucide-react'
 import { STYLE_TESTS, scoreStyleChoices } from '../../lib/styleProfile'
 import { generateStyleGuide, deleteAccount } from '../../lib/api'
@@ -29,7 +29,6 @@ function googleErrorMessage(code: string | null): string {
 const TABS = [
   { key: 'profile',      label: 'Profile',      icon: User },
   { key: 'style',        label: 'Style',        icon: Sparkles },
-  { key: 'integrations', label: 'Integrations', icon: Plug },
   { key: 'sending',      label: 'Sending',      icon: Send },
   { key: 'account',      label: 'Account',      icon: ShieldAlert },
 ] as const
@@ -65,62 +64,6 @@ function FieldGroup({ title, hint, children }: { title: string; hint?: string; c
       </header>
       <div className="space-y-4">{children}</div>
     </section>
-  )
-}
-
-// Compact replacement for the legacy SetupReadinessPanel. Renders inline
-// action chips ONLY for incomplete steps so a fully-set-up account sees a
-// clean header. The Connect Gmail chip MUST stay reachable from any tab,
-// because gmail-connect.spec.ts asserts the button is visible on /settings.
-function SetupStrip({
-  hasGoogle, hasClaude, hasResume, hasSender,
-  profileLoading, onRefreshProfile, onConnectGoogle, onJumpToTab,
-}: {
-  hasGoogle: boolean; hasClaude: boolean; hasResume: boolean; hasSender: boolean
-  profileLoading: boolean
-  onRefreshProfile: () => void
-  onConnectGoogle: (() => void) | null
-  onJumpToTab: (tab: TabKey) => void
-}) {
-  const items = [
-    { key: 'google',  done: hasGoogle, label: 'Connect Gmail',     onClick: onConnectGoogle ?? (() => onJumpToTab('integrations')) },
-    { key: 'claude',  done: hasClaude, label: 'AI generation',     onClick: () => onJumpToTab('integrations') },
-    { key: 'resume',  done: hasResume, label: 'Add background',    onClick: () => onJumpToTab('profile') },
-    { key: 'sender',  done: hasSender, label: 'Set sender name',   onClick: () => onJumpToTab('profile') },
-  ]
-  const total = items.length
-  const done = items.filter(i => i.done).length
-  if (done === total) return null
-
-  return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800/80">
-          Setup · {done} of {total}
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {items.filter(i => !i.done).map(item => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={item.onClick}
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-warm-50 px-3 py-1 text-xs font-medium text-dark transition-all duration-150 hover:border-primary/40 active:translate-y-px"
-            >
-              {item.label === 'Connect Gmail' ? 'Connect' : item.label}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={onRefreshProfile}
-          disabled={profileLoading}
-          className="ml-auto inline-flex items-center gap-1 text-xs text-amber-800/70 hover:text-amber-900"
-          title="Refresh setup status"
-        >
-          <RefreshCw size={11} className={profileLoading ? 'animate-spin' : ''} /> Refresh
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -437,59 +380,6 @@ function StyleTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave: (
   )
 }
 
-function IntegrationsTab({
-  profile, onConnectGoogle,
-}: {
-  profile: any
-  onConnectGoogle: (() => void) | null
-}) {
-  const hasGoogle = !!profile?.hasGoogleRefreshToken
-  const hasClaude = !!profile?.hasClaudeKey
-
-  return (
-    <div className="space-y-5">
-      <FieldGroup title="Gmail" hint="Connect Gmail to send drafts.">
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
-              <Mail size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
-              <p className="mt-0.5 text-xs text-muted">
-                {hasGoogle
-                  ? 'Sent drafts will appear in Gmail.'
-                  : 'Required before any draft can be sent.'}
-              </p>
-            </div>
-          </div>
-          {!hasGoogle && onConnectGoogle && (
-            <button type="button" onClick={onConnectGoogle} className="btn-primary text-xs">
-              Connect
-            </button>
-          )}
-        </div>
-      </FieldGroup>
-
-      <FieldGroup title="AI generation" hint="Managed by the server.">
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${hasClaude ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-700'}`}>
-            <Sparkles size={16} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-dark">{hasClaude ? 'Ready' : 'Unavailable'}</p>
-            <p className="mt-0.5 text-xs text-muted">
-              {hasClaude
-                ? 'Draft generation is enabled.'
-                : 'Ask the host to enable draft generation.'}
-            </p>
-          </div>
-        </div>
-      </FieldGroup>
-    </div>
-  )
-}
-
 function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: any; templates: any[]; onSave: (u: any) => Promise<boolean> }) {
   const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
@@ -688,11 +578,19 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
   )
 }
 
-function AccountTab() {
+function AccountTab({
+  profile, profileLoading, onRefreshProfile, onConnectGoogle,
+}: {
+  profile: any
+  profileLoading: boolean
+  onRefreshProfile: () => void
+  onConnectGoogle: (() => void) | null
+}) {
   const { user, signOut } = useAuth()
   const [confirm, setConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const hasGoogle = !!profile?.hasGoogleRefreshToken
 
   const handleDelete = async () => {
     setLoading(true); setError('')
@@ -707,7 +605,7 @@ function AccountTab() {
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Signed in as">
+      <FieldGroup title="Account">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-dark">{user?.email || 'Demo user'}</p>
@@ -716,6 +614,38 @@ function AccountTab() {
           <button type="button" onClick={signOut} className="btn-secondary text-xs">
             <LogOut size={12} /> Sign out
           </button>
+        </div>
+      </FieldGroup>
+
+      <FieldGroup title="Gmail">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
+              <Mail size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {hasGoogle ? 'Ready to send drafts.' : 'Connect before sending.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefreshProfile}
+              disabled={profileLoading}
+              className="btn-ghost text-xs"
+              title="Refresh Gmail status"
+            >
+              <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+            {!hasGoogle && onConnectGoogle && (
+              <button type="button" onClick={onConnectGoogle} className="btn-primary text-xs">
+                Connect
+              </button>
+            )}
+          </div>
         </div>
       </FieldGroup>
 
@@ -758,7 +688,7 @@ function TabBar({ active, onChange, status }: {
   status: Record<TabKey, 'ok' | 'warn' | null>
 }) {
   return (
-    <nav role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-warm-200 bg-surface/95 pt-1 backdrop-blur">
+    <nav role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 flex flex-wrap gap-1 overflow-x-clip border-b border-warm-200 bg-surface/95 pt-1 backdrop-blur">
       {TABS.map(t => {
         const isActive = active === t.key
         const Icon = t.icon
@@ -807,7 +737,7 @@ export default function SettingsPage({
     const success = params.get('google_connected')
     if (!error && !success) return
     setOauthResult(error ? { kind: 'error', message: googleErrorMessage(error) } : { kind: 'success' })
-    if (error || success) setActive('integrations')
+    if (error || success) setActive('account')
     params.delete('google_error')
     params.delete('google_connected')
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
@@ -825,7 +755,6 @@ export default function SettingsPage({
     }
   }
 
-  const hasClaude = !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
@@ -841,9 +770,8 @@ export default function SettingsPage({
   const tabStatus: Record<TabKey, 'ok' | 'warn' | null> = {
     profile:      hasSender && hasResume ? 'ok' : 'warn',
     style:        null,
-    integrations: hasGoogle && hasClaude ? 'ok' : 'warn',
     sending:      null,
-    account:      null,
+    account:      hasGoogle ? 'ok' : 'warn',
   }
 
   return (
@@ -852,8 +780,8 @@ export default function SettingsPage({
 
       <header className="flex flex-col gap-1">
         <p className="page-eyebrow">Settings</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Workspace setup</h1>
-        <p className="text-sm text-muted">Identity, writing voice, integrations, and send behavior.</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Workspace settings</h1>
+        <p className="text-sm text-muted">Profile, writing style, sending, and account.</p>
       </header>
 
       {oauthResult?.kind === 'success' && (
@@ -862,14 +790,6 @@ export default function SettingsPage({
       {oauthResult?.kind === 'error' && (
         <Banner variant="danger" icon={AlertCircle}>{oauthResult.message}</Banner>
       )}
-
-      <SetupStrip
-        hasGoogle={hasGoogle} hasClaude={hasClaude} hasResume={hasResume} hasSender={hasSender}
-        profileLoading={profileLoading}
-        onRefreshProfile={onRefreshProfile}
-        onConnectGoogle={handleConnect}
-        onJumpToTab={setActive}
-      />
 
       <TabBar active={active} onChange={setActive} status={tabStatus} />
 
@@ -886,12 +806,6 @@ export default function SettingsPage({
             onSave={(updater) => saveWorkspace(updater, 'Style saved')}
           />
         )}
-        {active === 'integrations' && (
-          <IntegrationsTab
-            profile={profile}
-            onConnectGoogle={handleConnect}
-          />
-        )}
         {active === 'sending' && (
           <SendingTab
             workspaceConfig={workspaceConfig}
@@ -899,7 +813,14 @@ export default function SettingsPage({
             onSave={(updater) => saveWorkspace(updater, 'Sending settings saved')}
           />
         )}
-        {active === 'account' && <AccountTab />}
+        {active === 'account' && (
+          <AccountTab
+            profile={profile}
+            profileLoading={profileLoading}
+            onRefreshProfile={onRefreshProfile}
+            onConnectGoogle={handleConnect}
+          />
+        )}
       </div>
     </div>
   )
