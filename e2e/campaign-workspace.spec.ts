@@ -241,6 +241,31 @@ test.describe('Campaign workspace shell', () => {
     await expect(page.getByRole('button', { name: /Save changes/i })).toHaveCount(0)
   })
 
+  test('Drafts sub-tab surfaces a Claude-key warning when the profile has no key (Bug 09)', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      drafts: [],
+      profile: { hasClaudeKey: false },
+    })
+    await page.goto('/campaigns/cmp_workspace_1/drafts')
+    // Banner copy + Settings link must be visible alongside the empty drafts state.
+    await expect(page.locator('text=/Add your Claude API key/i').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('link', { name: /Open Settings/i })).toBeVisible()
+  })
+
+  test('Drafts sub-tab hides the Claude-key warning when a key is configured', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [SAMPLE_CAMPAIGN],
+      templates: [SAMPLE_TEMPLATE],
+      drafts: [],
+      // hasClaudeKey defaults to true in the fixture — no override needed.
+    })
+    await page.goto('/campaigns/cmp_workspace_1/drafts')
+    await expect(page.locator('text=/No drafts ready for review/i').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('text=/Add your Claude API key/i')).toHaveCount(0)
+  })
+
   test('Settings sub-tab Delete confirms and navigates back to Home (Phase 4d)', async ({ page }) => {
     await mockApi(page, {
       campaigns: [SAMPLE_CAMPAIGN],

@@ -1,6 +1,7 @@
 import React from 'react'
-import { useNavigate, useOutletContext } from 'react-router-dom'
-import { CalendarClock, FileText, Send } from 'lucide-react'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { CalendarClock, FileText, KeyRound, Send } from 'lucide-react'
+import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
 import DraftsTab from '../Drafts/DraftsTab'
@@ -97,19 +98,40 @@ export function DraftsSubTab() {
   // so the inner toggle would be redundant. The Sent sub-tab gets its own
   // mount (still a placeholder until 4c).
   return (
-    <DraftsTab
-      campaignId={campaign.id}
-      lockedTab="draft"
-      workspaceConfig={workspaceConfig}
-      profile={profile}
-      profileLoading={profileLoading}
-      onNavigate={(target) => {
-        // Empty-state CTAs jump to the matching workspace sub-tab.
-        if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
-        else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
-        else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
-      }}
-    />
+    <div className="space-y-4">
+      <ClaudeKeyMissingBanner profile={profile} profileLoading={profileLoading} />
+      <DraftsTab
+        campaignId={campaign.id}
+        lockedTab="draft"
+        workspaceConfig={workspaceConfig}
+        profile={profile}
+        profileLoading={profileLoading}
+        onNavigate={(target) => {
+          // Empty-state CTAs jump to the matching workspace sub-tab.
+          if (target === 'settings') navigate(`/campaigns/${campaign.id}/settings`)
+          else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
+          else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
+        }}
+      />
+    </div>
+  )
+}
+
+// Bug 09: generation requires a Claude key stored on the user's profile.
+// The legacy failure mode was a 400 toast surfaced after the user clicked
+// Generate; the redesign surfaces the missing-key state up front so the
+// user knows there's no point trying. Stays BYO — no env fallback.
+function ClaudeKeyMissingBanner({ profile, profileLoading }: { profile: any; profileLoading: boolean }) {
+  if (profileLoading || profile?.hasClaudeKey) return null
+  return (
+    <Banner variant="warning" icon={KeyRound}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <span>Add your Claude API key to generate emails — without it, drafts can't be created from this campaign.</span>
+        <Link to="/settings" className="shrink-0 font-semibold underline-offset-2 hover:underline">
+          Open Settings →
+        </Link>
+      </div>
+    </Banner>
   )
 }
 

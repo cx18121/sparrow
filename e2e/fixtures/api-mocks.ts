@@ -54,12 +54,17 @@ interface MockOptions {
   companies?: any[]
   drafts?: any[]
   sent?: any[]
+  profile?: Partial<{
+    hasClaudeKey: boolean
+    hasGoogleRefreshToken: boolean
+  }>
 }
 
 export async function mockApi(page: Page, opts: MockOptions = {}) {
   const {
     campaigns = [], leads = [], customContacts = [], templates = [],
     companies = [], drafts = [], sent = [],
+    profile: profileOverrides = {},
   } = opts
 
   // Profile is needed for App.tsx onboarding gate
@@ -70,6 +75,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
         workspaceConfig: { senderName: 'Demo User', templateId: null },
         hasClaudeKey: true,
         hasGoogleRefreshToken: true,
+        ...profileOverrides,
       },
     })
   )
