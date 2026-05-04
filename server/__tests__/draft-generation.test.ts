@@ -10,6 +10,9 @@ const {
   mockResolveProfile,
   mockBuildContext,
   mockGenerateEmailDraft,
+  mockResearchCompanyDossier,
+  mockPickFitAngle,
+  mockResearchFitAngle,
   MockProfileError,
 } = vi.hoisted(() => {
   const mockPrisma = {
@@ -18,11 +21,15 @@ const {
     contact: { findUnique: vi.fn() },
     template: { findUnique: vi.fn() },
     email: { create: vi.fn() },
+    company: { update: vi.fn() },
   };
   const mockReveal = vi.fn();
   const mockResolveProfile = vi.fn();
   const mockBuildContext = vi.fn();
   const mockGenerateEmailDraft = vi.fn();
+  const mockResearchCompanyDossier = vi.fn();
+  const mockPickFitAngle = vi.fn();
+  const mockResearchFitAngle = vi.fn();
 
   // ProfileError must be defined inside vi.hoisted() so the vi.mock() factory
   // (which is hoisted to the top of the file) can reference it safely.
@@ -40,6 +47,9 @@ const {
     mockResolveProfile,
     mockBuildContext,
     mockGenerateEmailDraft,
+    mockResearchCompanyDossier,
+    mockPickFitAngle,
+    mockResearchFitAngle,
     MockProfileError,
   };
 });
@@ -59,6 +69,19 @@ vi.mock("../lib/sender-profile.js", () => ({
 vi.mock("../lib/ai/generate-email.js", () => ({
   generateEmailDraft: mockGenerateEmailDraft,
 }));
+
+vi.mock("../lib/ai/research-fit-angle.js", async () => {
+  // Mock the LLM-calling functions, but use the real parseCachedDossier so
+  // its validation behavior is exercised by orchestrator tests.
+  const actual = await vi.importActual<typeof import("../lib/ai/research-fit-angle.js")>(
+    "../lib/ai/research-fit-angle.js"
+  );
+  return {
+    ...actual,
+    researchCompanyDossier: mockResearchCompanyDossier,
+    pickFitAngle: mockPickFitAngle,
+  };
+});
 
 import { generateDraft, GenerationError } from "../lib/draft-generation.js";
 
@@ -110,6 +133,8 @@ describe("generateDraft — CustomContact path", () => {
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
   });
 
   it("resolves the custom contact and generates a draft without touching userLead", async () => {
@@ -161,6 +186,8 @@ describe("generateDraft — UserLead path (lead with existing contact)", () => {
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
   });
 
   it("generates a draft using the lead's existing contact", async () => {
@@ -202,6 +229,8 @@ describe("generateDraft — UserLead path (Apollo reveal)", () => {
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
     // Provide an Apollo key so reveal is attempted
     vi.stubEnv("APOLLO_API_KEY", "apollo-key-test");
   });
@@ -252,6 +281,8 @@ describe("generateDraft — ProfileError propagation", () => {
     vi.clearAllMocks();
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
   });
 
   it("propagates ProfileError thrown by resolveProfileForGeneration", async () => {
@@ -274,9 +305,11 @@ describe("generateDraft — Template path", () => {
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
   });
 
-  it("fetches template and passes kind:template to generateEmailDraft", async () => {
+  it("fetches template and passes an AI-personalized skeleton to generateEmailDraft", async () => {
     const lead = makeUserLead();
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
     mockPrisma.template.findUnique.mockResolvedValue({
@@ -295,6 +328,9 @@ describe("generateDraft — Template path", () => {
     expect(draftInputArg.body).toBe(
       "Hi {{firstName}}, I'm reaching out about {{company}}."
     );
+    expect(draftInputArg.senderContext).toBe("sender context string");
+    expect(draftInputArg.styleInstruction).toBe(mockProfile.styleInstruction);
+    expect(draftInputArg.apiKey).toBe(mockProfile.apiKey);
   });
 
   it("throws GenerationError(404) when templateId is provided but template not found", async () => {
@@ -306,6 +342,26 @@ describe("generateDraft — Template path", () => {
       userId: USER_ID,
       userLeadId: "lead-1",
       templateId: "tmpl-missing",
+    }).catch(e => e);
+    expect(err).toBeInstanceOf(GenerationError);
+    expect(err.status).toBe(404);
+  });
+
+  it("throws GenerationError(404) when templateId belongs to another user even if isShared is true", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.template.findUnique.mockResolvedValue({
+      id: "tmpl-shared",
+      userId: "other-user",
+      isShared: true,
+      subject: "Hello",
+      body: "Hi",
+    });
+
+    const err = await generateDraft({
+      userId: USER_ID,
+      userLeadId: "lead-1",
+      templateId: "tmpl-shared",
     }).catch(e => e);
     expect(err).toBeInstanceOf(GenerationError);
     expect(err.status).toBe(404);
@@ -342,12 +398,199 @@ describe("generateDraft — AI fallback on generateEmailDraft failure", () => {
   });
 });
 
+describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
+  const dossier = {
+    summary: "AI ops platform.",
+    surfaces: ["the agent eval harness"],
+    recentLaunches: [],
+    technicalAreas: ["multi-agent orchestration"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveProfile.mockResolvedValue({
+      ...mockProfile,
+      resumeText: "Cornell CS. Built a multi-agent eval harness.",
+    });
+    mockBuildContext.mockReturnValue("sender context string");
+    mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue(dossier);
+    mockPickFitAngle.mockResolvedValue({
+      featureLine: "the agent eval harness",
+      fitAngle: "my multi-agent eval project",
+    });
+  });
+
+  it("uses cached dossier from Company.researchDossier when fresh (< 30 days old)", async () => {
+    const recent = new Date();
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: dossier,
+        researchedAt: recent,
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPrisma.company.update).not.toHaveBeenCalled();
+    expect(mockPickFitAngle).toHaveBeenCalledOnce();
+    expect(mockPickFitAngle.mock.calls[0][0].dossier).toEqual(dossier);
+  });
+
+  it("researches and persists a fresh dossier when none exists", async () => {
+    const lead = makeUserLead({
+      company: { ...makeUserLead().company, researchDossier: null, researchedAt: null },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
+    expect(mockPrisma.company.update).toHaveBeenCalledOnce();
+    const updateArg = mockPrisma.company.update.mock.calls[0][0];
+    expect(updateArg.where.id).toBe("co-1");
+    expect(updateArg.data.researchDossier).toEqual(dossier);
+    expect(updateArg.data.researchedAt).toBeInstanceOf(Date);
+  });
+
+  it("re-researches when cached dossier has malformed shape", async () => {
+    // Old/corrupted cache shape: required field is wrong type. Should be
+    // treated as cache miss and re-researched, not silently flowed through.
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: { summary: "stale", surfaces: "not-an-array" },
+        researchedAt: new Date(),
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
+    expect(mockPrisma.company.update).toHaveBeenCalledOnce();
+  });
+
+  it("re-researches when dossier is older than 30 days", async () => {
+    const stale = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: { summary: "old", surfaces: ["old surface"], recentLaunches: [], technicalAreas: [] },
+        researchedAt: stale,
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
+    expect(mockPrisma.company.update).toHaveBeenCalledOnce();
+  });
+
+  it("forwards picked featureLine and fitAngle into generateEmailDraft input", async () => {
+    const lead = makeUserLead({
+      company: { ...makeUserLead().company, researchDossier: dossier, researchedAt: new Date() },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    const draftInput = mockGenerateEmailDraft.mock.calls[0][0];
+    expect(draftInput.featureLine).toBe("the agent eval harness");
+    expect(draftInput.fitAngle).toBe("my multi-agent eval project");
+  });
+
+  it("skips dossier + pick when caller supplies an interestHook", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    await generateDraft({
+      userId: USER_ID,
+      userLeadId: "lead-1",
+      interestHook: "your post on agent eval",
+    });
+
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPickFitAngle).not.toHaveBeenCalled();
+    const draftInput = mockGenerateEmailDraft.mock.calls[0][0];
+    expect(draftInput.interestHook).toBe("your post on agent eval");
+  });
+
+  it("still drafts the email when researchCompanyDossier throws", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockResearchCompanyDossier.mockRejectedValue(new Error("research API failed"));
+
+    const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(result.subject).toBe(mockDraft.subject);
+    const draftInput = mockGenerateEmailDraft.mock.calls[0][0];
+    expect(draftInput.featureLine).toBeNull();
+    expect(draftInput.fitAngle).toBeNull();
+  });
+
+  it("dedupes concurrent research for the same companyId — only one Tavily/Claude call", async () => {
+    const lead = makeUserLead({
+      company: { ...makeUserLead().company, researchDossier: null, researchedAt: null },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    // Slow research call so the second caller arrives while the first is in flight.
+    let resolveResearch!: (d: typeof dossier) => void;
+    mockResearchCompanyDossier.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveResearch = resolve;
+        })
+    );
+
+    const p1 = generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+    const p2 = generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    // Yield long enough for both generateDraft chains to reach their
+    // researchCompanyDossier call (multiple awaits beforehand).
+    await new Promise(r => setTimeout(r, 10));
+    resolveResearch(dossier);
+
+    await Promise.all([p1, p2]);
+
+    // Both drafts succeeded but Tavily/Claude was called only once.
+    expect(mockResearchCompanyDossier).toHaveBeenCalledTimes(1);
+    expect(mockPickFitAngle).toHaveBeenCalledTimes(2);
+  });
+
+  it("custom contact path skips dossier + pick entirely", async () => {
+    mockPrisma.customContact.findUnique.mockResolvedValue({
+      id: "cc-1",
+      userId: USER_ID,
+      name: "Jordan",
+      title: null,
+      companyName: "Startup Co",
+    });
+
+    await generateDraft({ userId: USER_ID, customContactId: "cc-1" });
+
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPickFitAngle).not.toHaveBeenCalled();
+  });
+});
+
 describe("generateDraft — save flag", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
+    mockResearchCompanyDossier.mockResolvedValue({ summary: "", surfaces: [], recentLaunches: [], technicalAreas: [] });
+    mockPickFitAngle.mockResolvedValue({ featureLine: null, fitAngle: null });
   });
 
   it("does NOT create an email record when save=false", async () => {
