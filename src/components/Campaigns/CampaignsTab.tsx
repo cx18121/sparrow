@@ -169,7 +169,7 @@ export default function CampaignsTab({ workspaceConfig, onNavigate, onEnterCampa
     withPending(c.id, () => onCreate({
       name: `${c.name} (copy)`,
       subject: c.subject || null,
-      status: 'draft',
+      status: 'active',
       templateId: c.templateId || null,
       filterTags: c.filterTags || [],
       filterRegion: c.filterRegion || null,

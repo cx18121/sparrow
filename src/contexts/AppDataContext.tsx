@@ -2,8 +2,11 @@ import React, { createContext, useContext } from 'react'
 import type { Campaign, CustomContact, Template, UserLead } from '../types/api'
 
 // Campaigns are stored UI-side with lowercase status; the wire format uses uppercase.
-// See campaignToUi / campaignToApi in App.tsx.
-export type UiCampaign = Omit<Campaign, 'status'> & { status: 'draft' | 'active' | 'paused' | 'completed' }
+// See wireToUi / uiToWire in src/lib/api.ts.
+//
+// Per PRD: only Active / Paused / Completed are valid. DRAFT was a legacy state
+// that the server now coerces to PAUSED on read, so the UI never sees it.
+export type UiCampaign = Omit<Campaign, 'status'> & { status: 'active' | 'paused' | 'completed' }
 
 export interface AppDataContextValue {
   campaigns: UiCampaign[]

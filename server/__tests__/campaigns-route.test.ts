@@ -106,11 +106,31 @@ describe("campaigns route — POST", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it("creates campaign and returns 201", async () => {
+  // PRD: campaigns are created Active by default. There is no Draft state.
+  it("rejects DRAFT status — Draft is no longer a valid create status", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
-    const newCampaign = { id: "c-new", userId: USER_ID, name: "My Campaign", status: "DRAFT" };
-    mockPrisma.campaign.create.mockResolvedValue(newCampaign);
+    const req = makeReq({ method: "POST", body: { name: "My Campaign", status: "DRAFT" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("defaults new campaigns to ACTIVE when no status is provided", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.campaign.create.mockResolvedValue({ id: "c-new", userId: USER_ID, name: "My Campaign", status: "ACTIVE" });
     const req = makeReq({ method: "POST", body: { name: "My Campaign" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    const createCall = mockPrisma.campaign.create.mock.calls[0][0];
+    expect(createCall.data.status).toBe("ACTIVE");
+  });
+
+  it("creates campaign with explicit ACTIVE status and returns 201", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    const newCampaign = { id: "c-new", userId: USER_ID, name: "My Campaign", status: "ACTIVE" };
+    mockPrisma.campaign.create.mockResolvedValue(newCampaign);
+    const req = makeReq({ method: "POST", body: { name: "My Campaign", status: "ACTIVE" } });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
@@ -171,6 +191,37 @@ describe("campaigns route — PATCH", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(updated);
+  });
+
+  it("rejects PATCH that tries to set status to DRAFT", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    const req = makeReq({ method: "PATCH", body: { id: "c-1", status: "DRAFT" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+// Per PRD, legacy DRAFT rows must surface to the client as PAUSED so the UI
+// never has to handle a status it doesn't know about.
+describe("campaigns route — DRAFT legacy coercion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("coerces DRAFT to PAUSED in GET list responses", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.campaign.findMany.mockResolvedValue([
+      { id: "c-legacy", userId: USER_ID, name: "Legacy", status: "DRAFT" },
+      { id: "c-active", userId: USER_ID, name: "Active", status: "ACTIVE" },
+    ]);
+    const req = makeReq({ method: "GET" });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const items = res.json.mock.calls[0][0].items;
+    expect(items.find((c: { id: string }) => c.id === "c-legacy").status).toBe("PAUSED");
+    expect(items.find((c: { id: string }) => c.id === "c-active").status).toBe("ACTIVE");
   });
 });
 

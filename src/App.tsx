@@ -415,7 +415,7 @@ function AppShell() {
   // ── Campaigns ──
   const createCampaignHandler = async (data) => {
     const tempId = `temp-${Date.now()}`
-    const optimistic = { ...data, id: tempId, status: data.status || 'draft' }
+    const optimistic = { ...data, id: tempId, status: data.status || 'active' }
     setCampaigns(prev => [optimistic, ...prev])
     try {
       const created = await createCampaign(data)

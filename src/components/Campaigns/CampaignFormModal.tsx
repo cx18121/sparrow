@@ -14,7 +14,7 @@ const NS_LABELS: Record<string, string> = {
 export interface CampaignFormValue {
   name: string
   subject: string
-  status: 'draft' | 'active' | 'paused' | 'completed'
+  status: 'active' | 'paused' | 'completed'
   templateId: string
   filterTags: string[]
   filterRegion: string
@@ -29,7 +29,7 @@ export interface CampaignFormValue {
 }
 
 export const INITIAL_FORM: CampaignFormValue = {
-  name: '', subject: '', status: 'draft', templateId: '',
+  name: '', subject: '', status: 'active', templateId: '',
   filterTags: [], filterRegion: '', filterStage: '', filterBatch: '',
   filterIsHiring: false, filterHeadcountMin: '', filterHeadcountMax: '',
   batchSize: '10', tone: '', attachmentIds: [],
@@ -130,7 +130,6 @@ export default function CampaignFormModal({
               <div>
                 <label className="label">Status</label>
                 <select value={form.status} onChange={e => field('status', e.target.value as CampaignFormValue['status'])} className="select">
-                  <option value="draft">Draft</option>
                   <option value="active">Active</option>
                   <option value="paused">Paused</option>
                   <option value="completed">Completed</option>

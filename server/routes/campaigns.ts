@@ -4,8 +4,19 @@ import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { parseNullableNumber, parseBatchSize, parseNullableBoolean, parseBody } from "../lib/parse-params.js";
 
-const ALLOWED_STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"] as const;
+// Per PRD: campaigns have three states — Active (default), Paused, Completed.
+// DRAFT is a legacy schema value retained only so existing rows still load;
+// it is never accepted on write and is coerced to PAUSED on read.
+const ALLOWED_STATUSES = ["ACTIVE", "PAUSED", "COMPLETED"] as const;
 type CampaignStatus = (typeof ALLOWED_STATUSES)[number];
+
+const LEGACY_STATUS_COERCE: Record<string, CampaignStatus> = { DRAFT: "PAUSED" };
+
+function coerceLegacyStatus<T extends { status: string }>(row: T): T {
+  return LEGACY_STATUS_COERCE[row.status]
+    ? ({ ...row, status: LEGACY_STATUS_COERCE[row.status] } as T)
+    : row;
+}
 
 async function validateTemplateAccess(templateId: unknown, userId: string) {
   if (!templateId) return null;
@@ -53,7 +64,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
       template: { select: { id: true, name: true } },
     },
   });
-  res.status(200).json({ items });
+  res.status(200).json({ items: items.map(coerceLegacyStatus) });
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -82,7 +93,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       userId,
       name: name as string,
       subject: (subject as string | null) ?? null,
-      status: ((status as CampaignStatus) ?? "DRAFT"),
+      status: ((status as CampaignStatus) ?? "ACTIVE"),
       templateId: ownedTemplateId,
       scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       filterTags: Array.isArray(filterTags) ? (filterTags as string[]) : [],
