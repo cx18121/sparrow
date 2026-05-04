@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Edit2, Pause, Play, Copy, Trash2, Search,
   Zap, RotateCcw, Building2, MapPin, Users, Mail,
-  RefreshCw, X,
+  Filter, RefreshCw, X,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
