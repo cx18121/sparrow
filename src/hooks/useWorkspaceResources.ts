@@ -15,9 +15,6 @@ import {
   updateLead,
   deleteLead,
   fetchCustomContacts,
-  createCustomContact,
-  updateCustomContact,
-  deleteCustomContact,
 } from '../lib/api'
 
 const getResourceCacheKey = (user: unknown) => {
@@ -240,36 +237,6 @@ export function useWorkspaceResources(user: unknown) {
     }
   }, [leads])
 
-  const createCustomContactHandler = useCallback(async (data: Partial<CustomContact>) => {
-    const created = await createCustomContact(data)
-    setCustomContacts(prev => [created, ...prev])
-    return created
-  }, [])
-
-  const updateCustomContactHandler = useCallback(async (data: Partial<CustomContact> & { id: string }) => {
-    const prev = customContacts
-    setCustomContacts(curr => curr.map(c => c.id === data.id ? { ...c, ...data } : c))
-    try {
-      const updated = await updateCustomContact(data)
-      setCustomContacts(curr => curr.map(c => c.id === updated.id ? { ...c, ...updated } : c))
-      return updated
-    } catch (err) {
-      setCustomContacts(() => prev)
-      throw err
-    }
-  }, [customContacts])
-
-  const deleteCustomContactHandler = useCallback(async (id: string) => {
-    const prev = customContacts
-    setCustomContacts(curr => curr.filter(c => c.id !== id))
-    try {
-      await deleteCustomContact(id)
-    } catch (err) {
-      setCustomContacts(() => prev)
-      throw err
-    }
-  }, [customContacts])
-
   return {
     campaigns,
     leads,
@@ -285,9 +252,6 @@ export function useWorkspaceResources(user: unknown) {
     refreshLeads,
     updateLead: updateLeadHandler,
     deleteLead: deleteLeadHandler,
-    createCustomContact: createCustomContactHandler,
-    updateCustomContact: updateCustomContactHandler,
-    deleteCustomContact: deleteCustomContactHandler,
     createTemplate: createTemplateHandler,
     updateTemplate: updateTemplateHandler,
     deleteTemplate: deleteTemplateHandler,
