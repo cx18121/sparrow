@@ -173,6 +173,17 @@ export const revealApolloContact = (personId: string, companyId: string, domain:
   request<ApolloRevealResponse>('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })
 
 export const fetchCustomContacts = () => request<PageResponse<CustomContact>>('/custom-contacts')
+export const createCustomContact = (data: {
+  name?: string | null
+  email?: string | null
+  title?: string | null
+  companyName?: string | null
+  campaignId?: string
+}) =>
+  request<CustomContact & { campaignCustomContactId?: string }>('/custom-contacts', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 
 export const fetchLeads = (params: Record<string, unknown> = {}) =>
   request<PageResponse<UserLead>>(`/leads${qs(params)}`)
@@ -251,12 +262,18 @@ export const queryAudience = (
     body: JSON.stringify({ audience, excludePreviouslySaved }),
   })
 
+export interface CampaignMembers {
+  items: UserLead[]
+  customContacts: Array<CustomContact & { campaignCustomContactId: string; emails?: Array<{ id: string; subject: string | null; status: string }> }>
+}
 export const fetchCampaignLeads = (campaignId: string) =>
-  request<PageResponse<UserLead>>(`/campaign-leads${qs({ campaignId })}`)
+  request<CampaignMembers>(`/campaign-leads${qs({ campaignId })}`)
 export const addCampaignLead = (campaignId: string, userLeadId: string) =>
   request<UserLead>('/campaign-leads', { method: 'POST', body: JSON.stringify({ campaignId, userLeadId }) })
 export const removeCampaignLead = (campaignLeadId: string) =>
   request<void>(`/campaign-leads${qs({ id: campaignLeadId })}`, { method: 'DELETE' })
+export const removeCampaignCustomContact = (campaignCustomContactId: string) =>
+  request<void>(`/campaign-leads${qs({ id: campaignCustomContactId, kind: 'custom-contact' })}`, { method: 'DELETE' })
 
 export function deleteAccount() {
   const tokenAtClick = currentAccessToken

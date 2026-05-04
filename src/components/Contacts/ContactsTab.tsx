@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Loader2, Mail, PenLine, Send, Users, Trash2 } from 'lucide-react'
+import { Loader2, Mail, PenLine, Plus, Send, Users, Trash2, X } from 'lucide-react'
 import Banner from '../ui/Banner'
-import { fetchCampaignLeads, generateEmail, removeCampaignLead } from '../../lib/api'
-import type { UserLead } from '../../types/api'
+import {
+  createCustomContact,
+  fetchCampaignLeads,
+  generateEmail,
+  removeCampaignCustomContact,
+  removeCampaignLead,
+  type CampaignMembers,
+} from '../../lib/api'
+import type { EmailStatus, UserLead } from '../../types/api'
 
 interface ContactsTabProps {
   campaignId: string
@@ -10,16 +17,57 @@ interface ContactsTabProps {
   onJumpToLeads?: () => void
 }
 
-type LeadStatus = 'no-draft' | 'draft' | 'sent'
+type DraftPillStatus = 'no-draft' | 'draft' | 'sent'
+type CustomMember = CampaignMembers['customContacts'][number]
 
-function leadStatus(lead: UserLead): LeadStatus {
-  const emails = lead.emails ?? []
+interface Row {
+  selectionId: string                  // 'lead:<id>' or 'cc:<id>'
+  rowKind: 'lead' | 'custom-contact'
+  rowId: string                        // campaignLeadId or campaignCustomContactId
+  name: string
+  title: string | null
+  companyName: string | null
+  hasEmail: boolean
+  draftStatus: DraftPillStatus
+  generateArgs: { userLeadId?: string; customContactId?: string }
+}
+
+function emailsToStatus(emails: ReadonlyArray<{ status: EmailStatus | string }> | undefined): DraftPillStatus {
+  if (!emails) return 'no-draft'
   if (emails.some(e => e.status === 'sent')) return 'sent'
   if (emails.some(e => e.status === 'draft')) return 'draft'
   return 'no-draft'
 }
 
-function StatusPill({ status }: { status: LeadStatus }) {
+function leadToRow(lead: UserLead): Row {
+  return {
+    selectionId: `lead:${lead.id}`,
+    rowKind: 'lead',
+    rowId: lead.campaignLeadId ?? lead.id,
+    name: lead.contact?.name ?? 'Unknown',
+    title: lead.contact?.title ?? null,
+    companyName: lead.company?.name ?? null,
+    hasEmail: Boolean(lead.contact?.email),
+    draftStatus: emailsToStatus(lead.emails),
+    generateArgs: { userLeadId: lead.id },
+  }
+}
+
+function customToRow(cc: CustomMember): Row {
+  return {
+    selectionId: `cc:${cc.id}`,
+    rowKind: 'custom-contact',
+    rowId: cc.campaignCustomContactId,
+    name: cc.name || cc.email || 'Unnamed contact',
+    title: cc.title ?? null,
+    companyName: cc.companyName ?? null,
+    hasEmail: Boolean(cc.email),
+    draftStatus: emailsToStatus(cc.emails),
+    generateArgs: { customContactId: cc.id },
+  }
+}
+
+function StatusPill({ status }: { status: DraftPillStatus }) {
   if (status === 'sent') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
@@ -41,17 +89,109 @@ function StatusPill({ status }: { status: LeadStatus }) {
   )
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+interface AddFormProps {
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (data: { name: string; email: string; title: string; companyName: string }) => void
+}
+
+function AddContactForm({ busy, onCancel, onSubmit }: AddFormProps) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [title, setTitle] = useState('')
+  const [company, setCompany] = useState('')
+
+  const canSubmit =
+    !busy &&
+    (name.trim().length > 0 || email.trim().length > 0) &&
+    (email.trim().length === 0 || EMAIL_RE.test(email.trim()))
+
+  return (
+    <form
+      className="surface-panel p-4 grid gap-3 sm:grid-cols-2"
+      onSubmit={e => {
+        e.preventDefault()
+        if (!canSubmit) return
+        onSubmit({ name: name.trim(), email: email.trim(), title: title.trim(), companyName: company.trim() })
+      }}
+    >
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="font-medium text-muted">Name</span>
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          disabled={busy}
+          className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="font-medium text-muted">Email</span>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          disabled={busy}
+          className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="font-medium text-muted">Title</span>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          disabled={busy}
+          className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="font-medium text-muted">Company</span>
+        <input
+          value={company}
+          onChange={e => setCompany(e.target.value)}
+          disabled={busy}
+          className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+        />
+      </label>
+      <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="text-xs font-medium text-muted hover:text-dark disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="btn-primary inline-flex items-center gap-1.5 text-xs py-1 px-2.5 disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+          {busy ? 'Adding…' : 'Add to campaign'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads }: ContactsTabProps) {
   const [leads, setLeads] = useState<UserLead[] | null>(null)
+  const [customContacts, setCustomContacts] = useState<CustomMember[]>([])
   const [error, setError] = useState<string | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<{ kind: 'generate' | 'remove'; done: number; total: number } | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const res = await fetchCampaignLeads(campaignId)
       setLeads(res?.items ?? [])
+      setCustomContacts(res?.customContacts ?? [])
       setError(null)
     } catch (err) {
       setError((err as Error)?.message || 'Could not load saved contacts.')
@@ -60,16 +200,23 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
 
   useEffect(() => { load() }, [load])
 
-  // Drop selections that no longer exist (e.g. after a bulk remove).
+  const rows = useMemo<Row[]>(() => {
+    const leadRows = (leads ?? []).map(leadToRow)
+    const customRows = customContacts.map(customToRow)
+    // Manually-added contacts float to the top so the user sees what they
+    // just added without scrolling past dozens of Apollo leads.
+    return [...customRows, ...leadRows]
+  }, [leads, customContacts])
+
   useEffect(() => {
-    if (!leads) return
+    if (leads === null) return
     setSelectedIds(prev => {
-      const stillThere = new Set(leads.map(l => l.id))
+      const stillThere = new Set(rows.map(r => r.selectionId))
       const next = new Set<string>()
       for (const id of prev) if (stillThere.has(id)) next.add(id)
       return next.size === prev.size ? prev : next
     })
-  }, [leads])
+  }, [leads, rows])
 
   const toggleOne = (id: string) => {
     setSelectedIds(prev => {
@@ -80,28 +227,46 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     })
   }
 
-  const allSelected = leads && leads.length > 0 && leads.every(l => selectedIds.has(l.id))
+  const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.selectionId))
   const someSelected = !allSelected && selectedIds.size > 0
 
   const toggleAll = () => {
-    if (!leads) return
     if (allSelected) setSelectedIds(new Set())
-    else setSelectedIds(new Set(leads.map(l => l.id)))
+    else setSelectedIds(new Set(rows.map(r => r.selectionId)))
   }
 
-  const selectedLeads = useMemo(
-    () => (leads ?? []).filter(l => selectedIds.has(l.id)),
-    [leads, selectedIds]
+  const selectedRows = useMemo(
+    () => rows.filter(r => selectedIds.has(r.selectionId)),
+    [rows, selectedIds]
   )
-  const selectedNoDraftLeads = useMemo(
-    () => selectedLeads.filter(l => leadStatus(l) === 'no-draft' && l.contact),
-    [selectedLeads]
+  const selectedNoDraftRows = useMemo(
+    () => selectedRows.filter(r => r.draftStatus === 'no-draft' && r.hasEmail),
+    [selectedRows]
   )
 
-  const handleGenerate = async (lead: UserLead) => {
-    setGeneratingId(lead.id)
+  const handleAddSubmit = async (data: { name: string; email: string; title: string; companyName: string }) => {
+    setAdding(true)
     try {
-      await generateEmail({ userLeadId: lead.id, save: true })
+      await createCustomContact({
+        name: data.name || null,
+        email: data.email || null,
+        title: data.title || null,
+        companyName: data.companyName || null,
+        campaignId,
+      })
+      setAddOpen(false)
+      await load()
+    } catch (err) {
+      setError((err as Error)?.message || 'Could not add contact.')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleGenerate = async (row: Row) => {
+    setGeneratingId(row.selectionId)
+    try {
+      await generateEmail({ ...row.generateArgs, save: true })
       await load()
     } catch (err) {
       setError((err as Error)?.message || 'Draft generation failed.')
@@ -111,13 +276,13 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
   }
 
   const handleBulkGenerate = async () => {
-    const targets = selectedNoDraftLeads
+    const targets = selectedNoDraftRows
     if (targets.length === 0) return
     setBulkAction({ kind: 'generate', done: 0, total: targets.length })
     let succeeded = 0
-    for (const lead of targets) {
+    for (const row of targets) {
       try {
-        await generateEmail({ userLeadId: lead.id, save: true })
+        await generateEmail({ ...row.generateArgs, save: true })
         succeeded++
       } catch {
         // Continue on failure; the partial-success count surfaces in the toast.
@@ -133,13 +298,17 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
   }
 
   const handleBulkRemove = async () => {
-    const targets = selectedLeads.filter(l => l.campaignLeadId)
+    const targets = selectedRows
     if (targets.length === 0) return
     if (!window.confirm(`Remove ${targets.length} contact${targets.length === 1 ? '' : 's'} from this campaign?`)) return
     setBulkAction({ kind: 'remove', done: 0, total: targets.length })
-    for (const lead of targets) {
+    for (const row of targets) {
       try {
-        await removeCampaignLead(lead.campaignLeadId!)
+        if (row.rowKind === 'lead') {
+          await removeCampaignLead(row.rowId)
+        } else {
+          await removeCampaignCustomContact(row.rowId)
+        }
       } catch {
         // Ignore individual failures — they'll just stay in the list.
       }
@@ -158,34 +327,62 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     )
   }
 
-  if (error && (!leads || leads.length === 0)) {
+  if (error && rows.length === 0 && !addOpen) {
     return <Banner variant="warning" size="sm">{error}</Banner>
   }
 
-  if (!leads || leads.length === 0) {
-    return (
-      <div className="surface-panel px-6 py-12 text-center">
-        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Users size={18} />
-        </div>
-        <h2 className="mt-3 font-display text-lg font-semibold text-dark">No saved contacts yet</h2>
-        <p className="mt-1.5 text-sm text-muted">
-          Save contacts from the Leads tab. They'll show up here so you can generate drafts from each.
-        </p>
-        {onJumpToLeads && (
-          <button onClick={onJumpToLeads} className="btn-primary mt-4 text-xs">
-            Find leads
-          </button>
-        )}
-      </div>
-    )
-  }
-
   const bulkBusy = bulkAction !== null
+  const isEmpty = rows.length === 0
 
   return (
     <div className="space-y-3">
       {error && <Banner variant="warning" size="sm">{error}</Banner>}
+
+      <div className="flex items-center justify-end">
+        {!addOpen && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="btn-secondary inline-flex items-center gap-1.5 text-xs py-1 px-2.5"
+          >
+            <Plus size={11} /> Add contact
+          </button>
+        )}
+        {addOpen && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(false)}
+            className="text-xs font-medium text-muted hover:text-dark inline-flex items-center gap-1"
+          >
+            <X size={11} /> Close
+          </button>
+        )}
+      </div>
+
+      {addOpen && (
+        <AddContactForm
+          busy={adding}
+          onCancel={() => setAddOpen(false)}
+          onSubmit={handleAddSubmit}
+        />
+      )}
+
+      {isEmpty && !addOpen && (
+        <div className="surface-panel px-6 py-12 text-center">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Users size={18} />
+          </div>
+          <h2 className="mt-3 font-display text-lg font-semibold text-dark">No saved contacts yet</h2>
+          <p className="mt-1.5 text-sm text-muted">
+            Save contacts from the Leads tab, or add one manually with the button above.
+          </p>
+          {onJumpToLeads && (
+            <button onClick={onJumpToLeads} className="btn-primary mt-4 text-xs">
+              Find leads
+            </button>
+          )}
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="surface-panel flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
@@ -198,12 +395,12 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
             <button
               type="button"
               onClick={handleBulkGenerate}
-              disabled={bulkBusy || selectedNoDraftLeads.length === 0}
+              disabled={bulkBusy || selectedNoDraftRows.length === 0}
               className="btn-primary inline-flex items-center gap-1.5 text-xs py-1 px-2.5 disabled:opacity-50"
-              title={selectedNoDraftLeads.length === 0 ? 'No selected contacts need a draft' : `Generate ${selectedNoDraftLeads.length} draft${selectedNoDraftLeads.length === 1 ? '' : 's'}`}
+              title={selectedNoDraftRows.length === 0 ? 'No selected contacts need a draft' : `Generate ${selectedNoDraftRows.length} draft${selectedNoDraftRows.length === 1 ? '' : 's'}`}
             >
               {bulkAction?.kind === 'generate' ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
-              Generate {selectedNoDraftLeads.length > 0 ? `(${selectedNoDraftLeads.length})` : ''}
+              Generate {selectedNoDraftRows.length > 0 ? `(${selectedNoDraftRows.length})` : ''}
             </button>
             <button
               type="button"
@@ -226,78 +423,86 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
         </div>
       )}
 
-      <div className="surface-panel overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="border-b border-warm-200 bg-warm-50/60 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted/80">
-            <tr>
-              <th className="w-10 px-3 py-3">
-                <input
-                  type="checkbox"
-                  aria-label="Select all"
-                  checked={Boolean(allSelected)}
-                  ref={el => { if (el) el.indeterminate = Boolean(someSelected) }}
-                  onChange={toggleAll}
-                  className="cursor-pointer"
-                />
-              </th>
-              <th className="px-4 py-3 text-left">Contact</th>
-              <th className="px-4 py-3 text-left">Company</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-warm-200/80">
-            {leads.map(lead => {
-              const status = leadStatus(lead)
-              const generating = generatingId === lead.id
-              const checked = selectedIds.has(lead.id)
-              return (
-                <tr key={lead.id} className={`transition-colors hover:bg-warm-50/60 ${checked ? 'bg-warm-50/40' : ''}`}>
-                  <td className="px-3 py-3">
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${lead.contact?.name ?? 'lead'}`}
-                      checked={checked}
-                      onChange={() => toggleOne(lead.id)}
-                      className="cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-dark">{lead.contact?.name ?? 'Unknown'}</div>
-                    <div className="text-xs text-muted">{lead.contact?.title ?? '—'}</div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-dark">{lead.company?.name ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={status} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {status === 'no-draft' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleGenerate(lead)}
-                        disabled={generating || bulkBusy || !lead.contact}
-                        className="btn-primary inline-flex items-center gap-1.5 text-xs py-1 px-2.5 disabled:opacity-50"
-                        title={!lead.contact ? 'Save the contact first from the Leads tab' : undefined}
-                      >
-                        {generating ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
-                        {generating ? 'Generating…' : 'Generate draft'}
-                      </button>
-                    ) : onJumpToDrafts ? (
-                      <button
-                        type="button"
-                        onClick={onJumpToDrafts}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-                      >
-                        <Mail size={11} /> Open in Drafts
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {!isEmpty && (
+        <div className="surface-panel overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="border-b border-warm-200 bg-warm-50/60 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted/80">
+              <tr>
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    checked={Boolean(allSelected)}
+                    ref={el => { if (el) el.indeterminate = Boolean(someSelected) }}
+                    onChange={toggleAll}
+                    className="cursor-pointer"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left">Contact</th>
+                <th className="px-4 py-3 text-left">Company</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-warm-200/80">
+              {rows.map(row => {
+                const generating = generatingId === row.selectionId
+                const checked = selectedIds.has(row.selectionId)
+                return (
+                  <tr key={row.selectionId} className={`transition-colors hover:bg-warm-50/60 ${checked ? 'bg-warm-50/40' : ''}`}>
+                    <td className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${row.name}`}
+                        checked={checked}
+                        onChange={() => toggleOne(row.selectionId)}
+                        className="cursor-pointer"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-dark">{row.name}</span>
+                        {row.rowKind === 'custom-contact' && (
+                          <span className="rounded-full bg-warm-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
+                            Manual
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted">{row.title ?? '—'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-dark">{row.companyName ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={row.draftStatus} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {row.draftStatus === 'no-draft' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleGenerate(row)}
+                          disabled={generating || bulkBusy || !row.hasEmail}
+                          className="btn-primary inline-flex items-center gap-1.5 text-xs py-1 px-2.5 disabled:opacity-50"
+                          title={!row.hasEmail ? 'Add an email address to this contact first' : undefined}
+                        >
+                          {generating ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
+                          {generating ? 'Generating…' : 'Generate draft'}
+                        </button>
+                      ) : onJumpToDrafts ? (
+                        <button
+                          type="button"
+                          onClick={onJumpToDrafts}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                        >
+                          <Mail size={11} /> Open in Drafts
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
