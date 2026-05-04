@@ -1,25 +1,107 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isDemo } from '../lib/supabase'
-import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId } from '../lib/api'
+import { connectGoogle as startGoogleConnect, fetchProfile, saveProfile, setApiAccessToken, setApiUserId } from '../lib/api'
 
 const AuthContext = createContext(null)
 
-// Sign-in-with-Google grants identity ONLY. Gmail send permission is its
-// own concern, captured exclusively through the server-side OAuth flow at
-// /api/google/connect → /api/google/callback. There used to be a second
-// path here that read session.provider_refresh_token and persisted it, plus
-// a cf_wants_gmail flag that triggered an automatic redirect through the
-// server flow when Supabase failed to emit a refresh token. Both have been
-// removed: Supabase's behavior on subsequent sign-ins is unreliable, the
-// fallback ran inconsistently, and the dual flow led to silent drift between
-// "I signed in with Google" and "I can actually send mail." The Settings
-// "Connect" button is now the single, explicit, observable place where
-// Gmail capture happens.
-const GOOGLE_IDENTITY_SCOPES = ['openid', 'email', 'profile'].join(' ')
+// Sign-in-with-Google requests both identity AND gmail.send so a fresh user
+// is fully wired in one consent screen. Two paths feed into the encrypted
+// google_refresh_token:
+//   1. Supabase emits provider_refresh_token on the *first* OAuth grant
+//      (the only time Google issues one without prompt=consent). When
+//      present we persist it directly via saveProfile.
+//   2. For users Supabase has seen before — every subsequent sign-in —
+//      provider_refresh_token is absent. If the profile doesn't already
+//      have a stored token, we automatically redirect through the
+//      server-side flow at /api/google/connect, which uses the googleapis
+//      OAuth library with prompt=consent + access_type=offline to reliably
+//      obtain one. This runs once per user, silently after sign-in.
+// The Settings Connect button stays as the manual reconnect path for
+// password-signed-up users and for revoked / expired tokens.
+const GOOGLE_AUTH_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/gmail.send',
+].join(' ')
+
+// Marker stored just before initiating sign-in so the post-callback handler
+// knows the previous redirect was a Google sign-in (not, say, a password
+// sign-in via the same AuthScreen). Cleared after the post-sign-in Gmail
+// reconciliation runs once.
+const GMAIL_RECONCILE_KEY = 'cf_gmail_reconcile_pending'
 
 function applySessionToApiClient(session) {
   setApiUserId(session?.user?.id ?? null)
   setApiAccessToken(session?.access_token ?? null)
+}
+
+// Per-tab guard so SIGNED_IN + INITIAL_SESSION + getSession don't all fire
+// the reconciliation path concurrently after a single Google round-trip.
+let gmailReconcileInFlight: Promise<void> | null = null
+
+// Run after Supabase emits a session for a Google sign-in. Persists the
+// refresh token Supabase exposed (first-grant case) or — when Supabase
+// has none — auto-redirects through the server-side /api/google/connect
+// flow which forces consent and reliably issues one. Skipped silently
+// when the user already has a stored token or didn't sign in via Google
+// (password sign-in clears the marker before calling).
+async function reconcileGmailGrant(session: any): Promise<void> {
+  if (typeof window === 'undefined') return
+  let pending = false
+  try { pending = sessionStorage.getItem(GMAIL_RECONCILE_KEY) === '1' } catch { /* sessionStorage may be blocked */ }
+
+  // First-grant case: Supabase surfaces provider_refresh_token in the
+  // session. Persist it directly, no redirect needed. Only consider this
+  // when the marker is set so we don't paw at unrelated sessions.
+  const refreshToken: string | null = session?.provider_refresh_token ?? null
+  if (refreshToken && pending) {
+    try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+    try { await saveProfile({ googleRefreshToken: refreshToken }) } catch { /* fall through to redirect path on next tick */ }
+    return
+  }
+
+  // Without the marker we don't reconcile — saves a /api/profile round trip
+  // for token refreshes and password sign-ins.
+  if (!pending) return
+
+  // Defensive: only proceed if the session is actually a Google identity.
+  // A stale marker from a previous flow shouldn't redirect a password user
+  // to the Google consent screen.
+  const provider = session?.user?.app_metadata?.provider
+  const identities: any[] = session?.user?.identities ?? []
+  const isGoogle = provider === 'google' || identities.some(i => i?.provider === 'google')
+  if (!isGoogle) {
+    try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+    return
+  }
+
+  if (gmailReconcileInFlight) return gmailReconcileInFlight
+  gmailReconcileInFlight = (async () => {
+    try {
+      // Supabase didn't emit a refresh token (returning user — Google only
+      // issues one on first grant unless we force consent). Check the
+      // profile: if the user already has one stored, we're done.
+      const { profile } = await fetchProfile()
+      if (profile?.hasGoogleRefreshToken) {
+        try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+        return
+      }
+      // No stored token. Bounce through the server flow which uses
+      // prompt=consent + access_type=offline to force Google to mint one.
+      const returnTo = `${window.location.pathname}${window.location.search}`
+      const res = await startGoogleConnect(returnTo)
+      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+      if (res?.url) window.location.assign(res.url)
+    } catch {
+      // Reconciliation is best-effort. The Settings Connect button remains
+      // available as a manual reconnect path if this silently fails.
+      try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
+    } finally {
+      gmailReconcileInFlight = null
+    }
+  })()
+  return gmailReconcileInFlight
 }
 
 export function AuthProvider({ children }) {
@@ -49,6 +131,7 @@ export function AuthProvider({ children }) {
       }
       if (session) {
         applySessionToApiClient(session)
+        reconcileGmailGrant(session).catch(() => {})
       }
       setUser(session?.user ?? null)
       setLoading(false)
@@ -63,6 +146,9 @@ export function AuthProvider({ children }) {
 
       if (session) {
         applySessionToApiClient(session)
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          reconcileGmailGrant(session).catch(() => {})
+        }
         // Use functional update to preserve referential stability on TOKEN_REFRESHED —
         // if the user ID hasn't changed, keep the existing object so downstream
         // useEffect([user]) deps don't fire on every token refresh.
@@ -122,14 +208,22 @@ export function AuthProvider({ children }) {
     // Always use signInWithOAuth — never linkIdentity, which requires an active session
     // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
     //
-    // Identity scopes only. Gmail send permission is captured separately
-    // through Settings → Connect, not bundled into sign-in. See the comment
-    // on GOOGLE_IDENTITY_SCOPES at the top of the file.
+    // Scopes include gmail.send so the consent screen captures Gmail authorization
+    // in the same step as identity. See GOOGLE_AUTH_SCOPES.
+    try { sessionStorage.setItem(GMAIL_RECONCILE_KEY, '1') } catch {}
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
-        scopes: GOOGLE_IDENTITY_SCOPES,
+        scopes: GOOGLE_AUTH_SCOPES,
+        queryParams: {
+          // access_type=offline asks Google to issue a refresh token. Combined
+          // with prompt=consent (only for first-time grants — see reconcile
+          // below for the returning-user path), this keeps the refresh token
+          // pipeline reliable.
+          access_type: 'offline',
+          include_granted_scopes: 'true',
+        },
       },
     })
     if (!error && data?.session) {
@@ -159,6 +253,7 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
     // Clear cross-user session caches so a new sign-in starts fresh.
     try { sessionStorage.removeItem('cf_discover_state') } catch {}
+    try { sessionStorage.removeItem(GMAIL_RECONCILE_KEY) } catch {}
 
     if (isDemo) {
       // Clear both demo identity keys so the next "sign up" doesn't inherit
