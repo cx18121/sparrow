@@ -34,7 +34,7 @@ export function sanitizeHtml(raw: string): string {
   return raw
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\bhref\s*=\s*["']?\s*javascript:/gi, 'href="about:blank"');
+    .replace(/\bhref\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]*)/gi, 'href="about:blank"');
 }
 
 export function buildAttachment(fileName: string, mimeType: string, buffer: Buffer): Attachment {

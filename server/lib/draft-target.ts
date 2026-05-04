@@ -17,7 +17,13 @@ export interface DraftTarget {
     stage: string | null;
     industry: string | null;
     isHiring: boolean;
+    domain: string | null;
   };
+  // Lead-only — null for customContact path. The orchestrator uses these to
+  // decide whether to skip research or reuse a cached dossier.
+  companyId: string | null;
+  cachedDossier: unknown | null;
+  cachedDossierAt: Date | null;
   savedLeadId: string | null;
   savedContactId: string | null;
   savedCustomContactId: string | null;
@@ -73,7 +79,11 @@ export async function resolveDraftTarget(params: DraftTargetParams): Promise<Dra
         stage: null,
         industry: null,
         isHiring: false,
+        domain: null,
       },
+      companyId: null,
+      cachedDossier: null,
+      cachedDossierAt: null,
       savedLeadId: null,
       savedContactId: null,
       savedCustomContactId: cc.id,
@@ -101,7 +111,11 @@ export async function resolveDraftTarget(params: DraftTargetParams): Promise<Dra
       stage: lead.company.stage,
       industry: lead.company.industry,
       isHiring: lead.company.isHiring,
+      domain: lead.company.domain,
     },
+    companyId: lead.companyId,
+    cachedDossier: lead.company.researchDossier ?? null,
+    cachedDossierAt: lead.company.researchedAt ?? null,
     savedLeadId: lead.id,
     savedContactId: contact.id,
     savedCustomContactId: null,

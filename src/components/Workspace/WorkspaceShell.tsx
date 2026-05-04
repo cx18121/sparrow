@@ -13,6 +13,7 @@ import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 const SUB_TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'leads', label: 'Leads' },
+  { key: 'contacts', label: 'Contacts' },
   { key: 'drafts', label: 'Drafts' },
   { key: 'sent', label: 'Sent' },
   { key: 'settings', label: 'Settings' },

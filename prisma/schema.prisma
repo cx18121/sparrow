@@ -28,6 +28,11 @@ model Company {
   isVerified    Boolean   @default(true)
   qualityScore  Int?
   lastScrapedAt DateTime?
+  // Cached research output from researchCompanyDossier (web search). Reused
+  // across all users emailing this company until researchedAt > 30d old.
+  // Per-user fit-angle picking happens on top via pickFitAngle (token-only).
+  researchDossier Json?
+  researchedAt  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

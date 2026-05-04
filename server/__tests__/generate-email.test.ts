@@ -80,6 +80,48 @@ describe("generateEmailDraft — AI mode", () => {
     expect(body.messages[0].content).toContain("do not invent one");
   });
 
+  it("omits personalization block when featureLine and fitAngle are both null", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah.");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({ ...baseAi, featureLine: null, fitAngle: null });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).not.toContain("Personalization");
+    expect(prompt).not.toContain("Feature to work on");
+    expect(prompt).not.toContain("Resume angle");
+  });
+
+  it("includes only fitAngle line when featureLine is null", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah.");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({
+      ...baseAi,
+      featureLine: null,
+      fitAngle: "my distributed cache project",
+    });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toContain("my distributed cache project");
+    expect(prompt).not.toContain("Feature to work on");
+  });
+
+  it("includes featureLine and fitAngle in the prompt when both provided", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah, …");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({
+      ...baseAi,
+      featureLine: "the inference cost optimizer",
+      fitAngle: "my RAG eval pipeline at Cornell",
+    });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toContain("the inference cost optimizer");
+    expect(prompt).toContain("my RAG eval pipeline at Cornell");
+  });
+
   it("throws when Anthropic returns non-ok status", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
@@ -153,44 +195,77 @@ describe("generateEmailDraft — AI mode", () => {
   });
 });
 
-describe("generateEmailDraft — Template mode (verbatim)", () => {
-  const baseTemplate: TemplateDraftInput = {
+describe("generateEmailDraft — Template mode (AI-personalized skeleton)", () => {
+  const baseTemplate = {
     kind: "template",
     contact: baseAi.contact,
     company: baseAi.company,
     subjectTemplate: null,
     senderName: baseAi.senderName,
     body: "Hi {{firstName}}, I wanted to reach out about {{company}}.",
-  };
+    senderContext: baseAi.senderContext,
+    styleInstruction: null,
+    exampleBodies: null,
+    apiKey: API_KEY,
+  } satisfies TemplateDraftInput;
 
-  it("returns template body verbatim without calling Anthropic", async () => {
-    const fetchMock = vi.fn();
+  it("uses the substituted template body as an AI skeleton", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah, Acme AI's Series A caught my attention.");
     vi.stubGlobal("fetch", fetchMock);
     const draft = await generateEmailDraft({
       ...baseTemplate,
       subjectTemplate: "Hello from {{senderName}}",
     });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(draft.body).toBe("Hi Sarah, I wanted to reach out about Acme AI.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toContain("Template skeleton");
+    expect(prompt).toContain("Hi Sarah, I wanted to reach out about Acme AI.");
+    expect(prompt).toContain("Series A");
+    expect(draft.body).toBe("Hi Sarah, Acme AI's Series A caught my attention.");
     expect(draft.subject).toBe("Hello from Alex");
   });
 
-  it("substitutes all supported variables in template body", async () => {
-    vi.stubGlobal("fetch", vi.fn());
+  it("substitutes all supported variables before passing the skeleton to AI", async () => {
+    const fetchMock = makeAnthropicMock("Personalized body");
+    vi.stubGlobal("fetch", fetchMock);
     const draft = await generateEmailDraft({
       ...baseTemplate,
       body: "{{firstName}} {{senderName}} {{company}} {{company_name}} {{companyName}}",
     });
-    expect(draft.body).toBe("Sarah Alex Acme AI Acme AI Acme AI");
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    expect(body.messages[0].content).toContain("Sarah Alex Acme AI Acme AI Acme AI");
+    expect(draft.body).toBe("Personalized body");
   });
 
-  it("leaves unrecognised placeholders unchanged", async () => {
-    vi.stubGlobal("fetch", vi.fn());
+  it("forwards featureLine and fitAngle into the template personalization prompt", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah, …");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({
+      ...baseTemplate,
+      featureLine: "the agent eval harness",
+      fitAngle: "my multi-agent eval project",
+    });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toContain("the agent eval harness");
+    expect(prompt).toContain("my multi-agent eval project");
+  });
+
+  it("keeps unrecognised placeholders out of the personalized draft", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah, re: Acme AI.");
+    vi.stubGlobal("fetch", fetchMock);
     const draft = await generateEmailDraft({
       ...baseTemplate,
       body: "Hi {{firstName}}, re: {{unknownVar}}",
     });
-    expect(draft.body).toBe("Hi Sarah, re: {{unknownVar}}");
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    expect(body.messages[0].content).toContain("Hi Sarah, re: [Company]");
+    expect(draft.body).not.toContain("{{unknownVar}}");
   });
 });
 
