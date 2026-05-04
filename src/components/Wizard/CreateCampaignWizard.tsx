@@ -368,7 +368,6 @@ const SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; min: number | nu
   { key: 'tiny',  label: 'Tiny · <10',     min: null, max: 9 },
   { key: 'small', label: 'Small · 10–50',  min: 10,   max: 50 },
   { key: 'mid',   label: 'Mid · 50–250',   min: 50,   max: 250 },
-  { key: 'large', label: 'Large · 250+',   min: 250,  max: null },
 ]
 
 function activeSizeBucket(audience: Audience): string | null {
