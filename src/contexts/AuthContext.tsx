@@ -4,18 +4,14 @@ import { connectGoogle as startGoogleConnect, fetchProfile, saveProfile, setApiA
 
 const AuthContext = createContext(null)
 
-// Sign-in-with-Google requests both identity AND gmail.send so a fresh user
-// is fully wired in one consent screen. Two paths feed into the encrypted
-// google_refresh_token:
-//   1. Supabase emits provider_refresh_token on the *first* OAuth grant
-//      (the only time Google issues one without prompt=consent). When
-//      present we persist it directly via saveProfile.
-//   2. For users Supabase has seen before — every subsequent sign-in —
-//      provider_refresh_token is absent. If the profile doesn't already
-//      have a stored token, we automatically redirect through the
-//      server-side flow at /api/google/connect, which uses the googleapis
-//      OAuth library with prompt=consent + access_type=offline to reliably
-//      obtain one. This runs once per user, silently after sign-in.
+// Sign-in-with-Google requests both identity AND gmail.send so the consent
+// screen explicitly covers sending permission. Two paths feed into the
+// encrypted google_refresh_token:
+//   1. Supabase emits provider_refresh_token when Google returns one. We
+//      request prompt=consent so recreated accounts get a fresh grant.
+//   2. If Supabase still has none, we automatically redirect through the
+//      server-side flow at /api/google/connect, which also uses
+//      prompt=consent + access_type=offline to reliably obtain one.
 // The Settings Connect button stays as the manual reconnect path for
 // password-signed-up users and for revoked / expired tokens.
 const GOOGLE_AUTH_SCOPES = [
@@ -208,8 +204,10 @@ export function AuthProvider({ children }) {
     // Always use signInWithOAuth — never linkIdentity, which requires an active session
     // and would fail (or silently mislink accounts) if a stale session lingers after sign-out.
     //
-    // Scopes include gmail.send so the consent screen captures Gmail authorization
-    // in the same step as identity. See GOOGLE_AUTH_SCOPES.
+    // Scopes include gmail.send so the consent screen captures Gmail
+    // authorization in the same step as identity. prompt=consent is deliberate:
+    // deleting a Sparrow account should not let a recreated account silently
+    // inherit a previous Google grant.
     try { sessionStorage.setItem(GMAIL_RECONCILE_KEY, '1') } catch {}
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -217,12 +215,10 @@ export function AuthProvider({ children }) {
         redirectTo: window.location.origin,
         scopes: GOOGLE_AUTH_SCOPES,
         queryParams: {
-          // access_type=offline asks Google to issue a refresh token. Combined
-          // with prompt=consent (only for first-time grants — see reconcile
-          // below for the returning-user path), this keeps the refresh token
-          // pipeline reliable.
+          // access_type=offline asks Google to issue a refresh token.
           access_type: 'offline',
           include_granted_scopes: 'true',
+          prompt: 'consent',
         },
       },
     })
