@@ -30,13 +30,17 @@ const DASHBOARD_CACHE_TTL = 30_000 // 30 seconds
 declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
 globalThis.__dashCache ??= new Map()
 
-function getDashCache(userId: string) {
-  const entry = globalThis.__dashCache!.get(userId)
+function dashboardCacheKey(userId: string, campaignId?: string | null) {
+  return campaignId ? `${userId}:campaign:${campaignId}` : `${userId}:global`
+}
+
+function getDashCache(key: string) {
+  const entry = globalThis.__dashCache!.get(key)
   if (!entry || Date.now() - entry.ts > DASHBOARD_CACHE_TTL) return null
   return entry.data
 }
-function setDashCache(userId: string, data: unknown) {
-  globalThis.__dashCache!.set(userId, { data, ts: Date.now() })
+function setDashCache(key: string, data: unknown) {
+  globalThis.__dashCache!.set(key, { data, ts: Date.now() })
   // Evict oldest entries if the map grows too large (many users on one instance)
   if (globalThis.__dashCache!.size > 500) {
     const oldest = [...globalThis.__dashCache!.entries()]
@@ -46,7 +50,10 @@ function setDashCache(userId: string, data: unknown) {
   }
 }
 function invalidateDashCache(userId: string) {
-  globalThis.__dashCache!.delete(userId)
+  const prefix = `${userId}:`
+  for (const key of globalThis.__dashCache!.keys()) {
+    if (key.startsWith(prefix)) globalThis.__dashCache!.delete(key)
+  }
 }
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -93,20 +100,29 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     // would show the user's global drafts while the Drafts sub-tab list
     // showed only campaign drafts → a visible mismatch.
     if (campaignId) {
+      const cacheKey = dashboardCacheKey(userId, campaignId)
+      const cached = getDashCache(cacheKey)
+      if (cached) {
+        res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
+        return res.status(200).json(cached)
+      }
       const where = { userLead: { userId, campaignLeads: { some: { campaignId } } } } as const;
       const [draftItems, sentItems] = await Promise.all([
         prisma.email.findMany({ where: { ...where, status: "draft" }, take: 9, orderBy: { createdAt: "desc" }, include }),
         prisma.email.findMany({ where: { ...where, status: "sent" }, take: 21, orderBy: { createdAt: "desc" }, include }),
       ]);
-      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
-      return res.status(200).json({
+      const result = {
         drafts: draftItems.slice(0, 8),
         sent: sentItems.slice(0, 20),
-      })
+      }
+      setDashCache(cacheKey, result)
+      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
+      return res.status(200).json(result)
     }
 
     // Serve from in-process cache on warm invocations; browser gets stale-while-revalidate.
-    const cached = getDashCache(userId)
+    const cacheKey = dashboardCacheKey(userId)
+    const cached = getDashCache(cacheKey)
     if (cached) {
       res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
       return res.status(200).json(cached)
@@ -123,7 +139,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     const drafts = [...draftLeads, ...draftContacts].sort(sort).slice(0, 8);
     const sent = [...sentLeads, ...sentContacts].sort(sort).slice(0, 20);
     const result = { drafts, sent }
-    setDashCache(userId, result)
+    setDashCache(cacheKey, result)
     res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
     return res.status(200).json(result)
   }

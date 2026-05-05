@@ -48,7 +48,10 @@ export function serializeCampaignCustomContact(row: {
 }
 
 async function requireCampaign(campaignId: string, userId: string) {
-  const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: { id: true, userId: true },
+  });
   if (!campaign || campaign.userId !== userId) throw new HttpError(404, "Campaign not found");
   return campaign;
 }

@@ -4,11 +4,14 @@ import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip, MailCheck,
+  Loader2,
 } from 'lucide-react'
-import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
+import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
+import { DRAFT_QUEUE_LIMIT, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
+import { writeDraftQueueCache } from '../../lib/workspaceCache'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -81,31 +84,6 @@ function canSendDraft(draft) {
   return getDraftReadiness(draft).label === 'Ready'
 }
 
-function getDraftCacheKey(tab) {
-  const { userId } = apiGetAuth()
-  return userId ? `cf_email_cache_${userId}_${tab}` : null
-}
-
-function readDraftCache(tab) {
-  const key = getDraftCacheKey(tab)
-  if (!key) return null
-  try {
-    return JSON.parse(localStorage.getItem(key) || 'null')
-  } catch {
-    return null
-  }
-}
-
-function writeDraftCache(tab, items) {
-  const key = getDraftCacheKey(tab)
-  if (!key) return
-  try {
-    localStorage.setItem(key, JSON.stringify({ cachedAt: new Date().toISOString(), items }))
-  } catch {
-    // Cache writes should never block draft actions.
-  }
-}
-
 export default function DraftsTab({
   onNavigate,
   onRefreshProfile,
@@ -152,7 +130,8 @@ export default function DraftsTab({
   const [saveError, setSaveError] = useState(null)
   const [focusMode, setFocusMode] = useState(false)
 
-  const [loadCount, setLoadCount] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [batchSendConfirm, setBatchSendConfirm] = useState<string[] | null>(null)
@@ -161,6 +140,7 @@ export default function DraftsTab({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
+  const draftQueue = useDraftQueue(user?.id, campaignId, tab)
   const [testSendOpen, setTestSendOpen] = useState<string | null>(null)
   const [testSendRecipient, setTestSendRecipient] = useState('')
   const [testSendBusy, setTestSendBusy] = useState(false)
@@ -184,49 +164,57 @@ export default function DraftsTab({
 
   useEffect(() => {
     if (!onRefreshProfile) return
-    onRefreshProfile()
-    const refreshOnFocus = () => onRefreshProfile()
+    let lastRefresh = 0
+    const refreshIfStale = () => {
+      if (Date.now() - lastRefresh < 60_000) return
+      lastRefresh = Date.now()
+      onRefreshProfile()
+    }
+    refreshIfStale()
+    const refreshOnFocus = () => refreshIfStale()
     window.addEventListener('focus', refreshOnFocus)
     return () => window.removeEventListener('focus', refreshOnFocus)
   }, [onRefreshProfile])
 
   useEffect(() => {
-    let cancelled = false
-    const cached = readDraftCache(tab)
-    setError(null)
     setSelected(new Set())
-    if (cached?.items) {
-      setDrafts(cached.items)
-      setLoading(false)
-      setPreview(current => current && cached.items.some(draft => draft.id === current.id) ? current : null)
-    } else {
-      setDrafts([])
-      setPreview(null)
-      setLoading(true)
-    }
-    const params: Record<string, unknown> = { status: tab, limit: '200' }
-    if (campaignId) params.campaignId = campaignId
-    fetchEmails(params)
-      .then(res => {
-        if (cancelled) return
-        const items = res?.items || []
-        setDrafts(items)
-        writeDraftCache(tab, items)
-      })
-      .catch(err => {
-        if (!cancelled) setError(err.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [loadCount, tab, campaignId])
+  }, [tab, campaignId])
 
   useEffect(() => {
-    if (!loading) writeDraftCache(tab, drafts)
-  }, [drafts, loading, tab])
+    const items = draftQueue.data?.items ?? []
+    setError(draftQueue.error?.message || null)
+    setNextCursor(draftQueue.data?.nextCursor ?? null)
+    setLoading(draftQueue.isLoading || (draftQueue.isValidating && items.length === 0))
+    setDrafts(items)
+    setPreview(current => current && items.some(draft => draft.id === current.id) ? current : null)
+  }, [draftQueue.data, draftQueue.error, draftQueue.isLoading, draftQueue.isValidating])
 
-  const load = () => setLoadCount(c => c + 1)
+  useEffect(() => {
+    if (!loading) writeDraftQueueCache(user?.id, tab, drafts, campaignId)
+  }, [drafts, loading, tab, campaignId, user?.id])
+
+  const load = () => draftQueue.mutate()
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const params: Record<string, unknown> = { status: tab, limit: String(DRAFT_QUEUE_LIMIT), cursor: nextCursor }
+      if (campaignId) params.campaignId = campaignId
+      const res = await fetchEmails(params)
+      const incoming = res?.items || []
+      const seen = new Set(drafts.map(d => d.id))
+      const merged = [...drafts, ...incoming.filter(d => !seen.has(d.id))]
+      setDrafts(merged)
+      setNextCursor(res?.nextCursor ?? null)
+      writeDraftQueueCache(user?.id, tab, merged, campaignId)
+      draftQueue.mutate({ items: merged, nextCursor: res?.nextCursor ?? null }, { revalidate: false })
+    } catch (err: any) {
+      setError(err?.message || 'Could not load more emails.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     if (!preview) {
@@ -901,6 +889,19 @@ export default function DraftsTab({
             </tbody>
           </table>
         </div>
+        {nextCursor && (
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs py-1.5 px-3 disabled:opacity-50"
+            >
+              {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
+              {loadingMore ? 'Loading...' : 'Load more'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Preview / edit panel */}

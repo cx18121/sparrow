@@ -3,12 +3,12 @@ import { Loader2, Mail, PenLine, Plus, Send, Users, Trash2, X } from 'lucide-rea
 import Banner from '../ui/Banner'
 import {
   createCustomContact,
-  fetchCampaignLeads,
   generateEmail,
   removeCampaignCustomContact,
   removeCampaignLead,
   type CampaignMembers,
 } from '../../lib/api'
+import { useCampaignMembers } from '../../hooks/useCampaignWorkspaceData'
 import type { EmailStatus, UserLead } from '../../types/api'
 
 interface ContactsTabProps {
@@ -186,19 +186,29 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
   const [bulkAction, setBulkAction] = useState<{ kind: 'generate' | 'remove'; done: number; total: number } | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const members = useCampaignMembers(campaignId)
 
   const load = useCallback(async () => {
     try {
-      const res = await fetchCampaignLeads(campaignId)
+      const res = await members.mutate()
       setLeads(res?.items ?? [])
       setCustomContacts(res?.customContacts ?? [])
       setError(null)
     } catch (err) {
       setError((err as Error)?.message || 'Could not load saved contacts.')
     }
-  }, [campaignId])
+  }, [members])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (members.data) {
+      setLeads(members.data.items ?? [])
+      setCustomContacts(members.data.customContacts ?? [])
+      setError(members.error?.message || null)
+    } else if (members.isLoading) {
+      setLeads(null)
+      setCustomContacts([])
+    }
+  }, [members.data, members.error, members.isLoading])
 
   const rows = useMemo<Row[]>(() => {
     const leadRows = (leads ?? []).map(leadToRow)

@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link, NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import Badge from '../ui/Badge'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
+import { prefetchCampaignWorkspace } from '../../hooks/useCampaignWorkspaceData'
 
 // Phase 3 of the campaigns-as-workspaces redesign. Provides the persistent
 // shell - header (campaign name, status, back-to-Home) + sub-tab nav - for
@@ -45,6 +46,10 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
   const { campaigns, dataLoaded } = useAppData()
 
   const campaign = id ? campaigns.find(c => c.id === id) : null
+
+  useEffect(() => {
+    if (campaign) prefetchCampaignWorkspace(campaign.id)
+  }, [campaign?.id])
 
   if (!id) return <Navigate to="/dashboard" replace />
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { ArrowRight, KeyRound, Loader2, Mail, PenLine, Send, Users } from 'lucide-react'
 import Banner from '../ui/Banner'
@@ -8,7 +8,7 @@ import DraftsTab from '../Drafts/DraftsTab'
 import ContactsTab from '../Contacts/ContactsTab'
 import SettingsTabImpl from './SettingsTab'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
-import { fetchCampaignLeads, fetchEmailsCombined } from '../../lib/api'
+import { useCampaignEmails, useCampaignMembers } from '../../hooks/useCampaignWorkspaceData'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
 
@@ -28,31 +28,17 @@ export function OverviewTab() {
   const campaign = useWorkspaceCampaign()
   const navigate = useNavigate()
   const audiencePills = audienceToDisplayPills(audienceFromCampaign(campaign))
-  const [counts, setCounts] = useState<{ leads: number; drafts: number; sent: number } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setCounts(null)
-    setError(null)
-    Promise.all([
-      fetchCampaignLeads(campaign.id),
-      fetchEmailsCombined({ campaignId: campaign.id }),
-    ])
-      .then(([leadsRes, emailsRes]) => {
-        if (cancelled) return
-        setCounts({
-          leads: leadsRes?.items?.length ?? 0,
-          drafts: emailsRes?.drafts?.length ?? 0,
-          sent: emailsRes?.sent?.length ?? 0,
-        })
-      })
-      .catch(err => {
-        if (cancelled) return
-        setError(err?.message || 'Could not load campaign activity.')
-      })
-    return () => { cancelled = true }
-  }, [campaign.id])
+  const members = useCampaignMembers(campaign.id)
+  const emails = useCampaignEmails(campaign.id)
+  const hasCounts = Boolean(members.data || emails.data)
+  const counts = hasCounts
+    ? {
+        leads: members.data?.items?.length ?? 0,
+        drafts: emails.data?.drafts?.length ?? 0,
+        sent: emails.data?.sent?.length ?? 0,
+      }
+    : null
+  const error = members.error || emails.error
 
   const next = nextAction(counts, campaign.status)
 
@@ -95,7 +81,7 @@ export function OverviewTab() {
 
       {error && (
         <Banner variant="warning" size="sm">
-          {error}
+          {error?.message || 'Could not load campaign activity.'}
         </Banner>
       )}
     </div>
@@ -207,30 +193,60 @@ function StatsStrip({
   counts: { leads: number; drafts: number; sent: number } | null
   onJump: (tab: 'leads' | 'drafts' | 'sent') => void
 }) {
-  const items: { key: 'leads' | 'drafts' | 'sent'; label: string; value: number | null }[] = [
-    { key: 'leads',  label: 'Leads',  value: counts?.leads ?? null },
-    { key: 'drafts', label: 'Drafts', value: counts?.drafts ?? null },
-    { key: 'sent',   label: 'Sent',   value: counts?.sent ?? null },
+  const items: { key: 'leads' | 'drafts' | 'sent'; label: string; value: number | null; helper: string }[] = [
+    { key: 'leads', label: 'Leads', value: counts?.leads ?? null, helper: 'Saved contacts' },
+    { key: 'drafts', label: 'Drafts', value: counts?.drafts ?? null, helper: 'Ready to review' },
+    { key: 'sent', label: 'Sent', value: counts?.sent ?? null, helper: 'Delivered emails' },
   ]
   return (
-    <div className="surface-panel flex divide-x divide-warm-200/80 overflow-hidden">
-      {items.map(item => (
-        <button
-          key={item.key}
-          type="button"
-          onClick={() => onJump(item.key)}
-          disabled={loading}
-          className="group flex flex-1 items-baseline justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-warm-50 disabled:opacity-50"
-        >
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">
-            {item.label}
-          </span>
-          <span className="font-display text-2xl font-semibold tabular-nums text-dark">
-            {item.value === null ? '-' : item.value}
-          </span>
-        </button>
-      ))}
+    <div className="surface-panel overflow-hidden">
+      <div className="grid divide-y divide-warm-200/80 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {items.map(item => (
+          <MetricButton
+            key={item.key}
+            item={item}
+            loading={loading}
+            onJump={onJump}
+          />
+        ))}
+      </div>
     </div>
+  )
+}
+
+function MetricButton({
+  item,
+  loading,
+  onJump,
+}: {
+  item: {
+    key: 'leads' | 'drafts' | 'sent'
+    label: string
+    value: number | null
+    helper: string
+  }
+  loading: boolean
+  onJump: (tab: 'leads' | 'drafts' | 'sent') => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onJump(item.key)}
+      disabled={loading}
+      className="group flex min-h-[86px] items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-warm-50 disabled:cursor-wait disabled:opacity-60"
+    >
+      <span className="min-w-0">
+        <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">
+          {item.label}
+        </span>
+        <span className="mt-1 block text-xs text-muted">
+          {item.helper}
+        </span>
+      </span>
+      <span className="font-display text-3xl font-semibold leading-none tabular-nums text-dark">
+        {item.value === null ? '-' : item.value}
+      </span>
+    </button>
   )
 }
 

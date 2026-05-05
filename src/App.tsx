@@ -1,29 +1,28 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AlertCircle, Home, FileText, Settings as SettingsIcon } from 'lucide-react'
 import Banner from './components/ui/Banner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
-import HomePage from './components/Home/HomePage'
-import TemplatesTab from './components/Templates/TemplatesTab'
-import SettingsPage from './components/Settings/SettingsPage'
-import OnboardingScreen from './components/Onboarding/OnboardingScreen'
-import WorkspaceShell from './components/Workspace/WorkspaceShell'
-import {
-  OverviewTab as WorkspaceOverview,
-  LeadsTab as WorkspaceLeads,
-  ContactsSubTab as WorkspaceContacts,
-  DraftsSubTab as WorkspaceDrafts,
-  SentTab as WorkspaceSent,
-  SettingsTab as WorkspaceSettings,
-} from './components/Workspace/sub-tabs'
 
 import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
 import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
+
+const HomePage = lazy(() => import('./components/Home/HomePage'))
+const TemplatesTab = lazy(() => import('./components/Templates/TemplatesTab'))
+const SettingsPage = lazy(() => import('./components/Settings/SettingsPage'))
+const OnboardingScreen = lazy(() => import('./components/Onboarding/OnboardingScreen'))
+const WorkspaceShell = lazy(() => import('./components/Workspace/WorkspaceShell'))
+const WorkspaceOverview = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.OverviewTab })))
+const WorkspaceLeads = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.LeadsTab })))
+const WorkspaceContacts = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.ContactsSubTab })))
+const WorkspaceDrafts = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.DraftsSubTab })))
+const WorkspaceSent = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.SentTab })))
+const WorkspaceSettings = lazy(() => import('./components/Workspace/sub-tabs').then(mod => ({ default: mod.SettingsTab })))
 
 // Campaign status case conversion is now sealed inside src/lib/api.ts.
 // The wire format never leaks past that seam.
@@ -80,6 +79,23 @@ const formatTemplateBody = (body) => {
     .join('')
 }
 
+function AppSpinner() {
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface">
+      <div className="dashboard-backdrop absolute inset-0" />
+      <div className="relative h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  )
+}
+
+function RouteFallback() {
+  return (
+    <div className="page-shell">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  )
+}
+
 function AppShell() {
   const { user, loading, signOut, connectGoogle } = useAuth()
   const navigate = useNavigate()
@@ -111,19 +127,38 @@ function AppShell() {
   const templatesRef = useRef(templates)
   const [serverProfile, setServerProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  const profileRefreshPromiseRef = useRef<Promise<any> | null>(null)
+  const lastProfileRefreshRef = useRef(0)
 
   useEffect(() => { templatesRef.current = templates }, [templates])
 
-  const refreshProfile = useCallback(() => {
+  const refreshProfile = useCallback((force = false) => {
+    if (!force && serverProfile && Date.now() - lastProfileRefreshRef.current < 60_000) {
+      return Promise.resolve(serverProfile)
+    }
+    if (profileRefreshPromiseRef.current) return profileRefreshPromiseRef.current
     setProfileLoading(true)
-    return fetchProfile()
-      .then(res => { setServerProfile(res?.profile ?? null); setProfileLoading(false) })
-      .catch(() => { setProfileLoading(false) })
-  }, [])
+    profileRefreshPromiseRef.current = fetchProfile()
+      .then(res => {
+        lastProfileRefreshRef.current = Date.now()
+        setServerProfile(res?.profile ?? null)
+        setProfileLoading(false)
+        return res?.profile ?? null
+      })
+      .catch(() => {
+        setProfileLoading(false)
+        return null
+      })
+      .finally(() => {
+        profileRefreshPromiseRef.current = null
+      })
+    return profileRefreshPromiseRef.current
+  }, [serverProfile])
 
   useEffect(() => {
-    window.addEventListener('sparrow:profile-updated', refreshProfile)
-    return () => window.removeEventListener('sparrow:profile-updated', refreshProfile)
+    const refreshFromEvent = () => refreshProfile(true)
+    window.addEventListener('sparrow:profile-updated', refreshFromEvent)
+    return () => window.removeEventListener('sparrow:profile-updated', refreshFromEvent)
   }, [refreshProfile])
 
   // Workspace routes (`/campaigns/:id/<sub>`) live outside the global TABS
@@ -435,12 +470,7 @@ function AppShell() {
   }
 
   if (loading) {
-    return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface">
-        <div className="dashboard-backdrop absolute inset-0" />
-        <div className="relative h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    )
+    return <AppSpinner />
   }
 
   if (!user) {
@@ -448,32 +478,29 @@ function AppShell() {
   }
 
   if (user && !onboardingState.loaded) {
-    return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface">
-        <div className="dashboard-backdrop absolute inset-0" />
-        <div className="relative h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    )
+    return <AppSpinner />
   }
 
   if (user && !onboardingState.completed) {
     return (
-      <OnboardingScreen
-        user={user}
-        templates={templates}
-        initialData={workspaceConfig}
-        profile={serverProfile}
-        profileLoading={profileLoading}
-        onRefreshProfile={refreshProfile}
-        onConnectGoogle={connectGoogle}
-        initialStepIndex={googleConnectReturn ? 2 : 0}
-        onSaveDraft={saveOnboardingDraft}
-        onSaveProgress={saveOnboardingProgress}
-        onFinishLater={finishOnboardingLater}
-        onSaveForConnect={saveOnboardingForConnect}
-        onComplete={completeOnboarding}
-        onLogout={signOut}
-      />
+      <Suspense fallback={<AppSpinner />}>
+        <OnboardingScreen
+          user={user}
+          templates={templates}
+          initialData={workspaceConfig}
+          profile={serverProfile}
+          profileLoading={profileLoading}
+          onRefreshProfile={refreshProfile}
+          onConnectGoogle={connectGoogle}
+          initialStepIndex={googleConnectReturn ? 2 : 0}
+          onSaveDraft={saveOnboardingDraft}
+          onSaveProgress={saveOnboardingProgress}
+          onFinishLater={finishOnboardingLater}
+          onSaveForConnect={saveOnboardingForConnect}
+          onComplete={completeOnboarding}
+          onLogout={signOut}
+        />
+      </Suspense>
     )
   }
 
@@ -524,39 +551,41 @@ function AppShell() {
               active and the page content carries its own title, so the bar
               was visual noise. Removed. */}
           <div className="flex min-h-screen flex-col">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={
-                <HomePage workspaceConfig={workspaceConfig} />
-              } />
-              <Route path="/campaigns/:id" element={<WorkspaceShell workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} onRefreshProfile={refreshProfile} />}>
-                <Route index element={<Navigate to="overview" replace />} />
-                <Route path="overview" element={<WorkspaceOverview />} />
-                <Route path="leads" element={<WorkspaceLeads />} />
-                <Route path="contacts" element={<WorkspaceContacts />} />
-                <Route path="drafts" element={<WorkspaceDrafts />} />
-                <Route path="sent" element={<WorkspaceSent />} />
-                <Route path="settings" element={<WorkspaceSettings />} />
-                <Route path="*" element={<Navigate to="overview" replace />} />
-              </Route>
-              <Route path="/templates" element={
-                <TemplatesTab workspaceConfig={workspaceConfig} />
-              } />
-              <Route path="/settings" element={
-                <SettingsPage
-                  workspaceConfig={workspaceConfig}
-                  onSaveWorkspaceConfig={updateWorkspaceConfig}
-                  templates={templates}
-                  profile={serverProfile}
-                  profileLoading={profileLoading}
-                  onRefreshProfile={refreshProfile}
-                  onGoToOnboarding={enterOnboarding}
-                  onConnectGoogle={connectGoogle}
-                  onNavigate={handleTabChange}
-                />
-              } />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={
+                  <HomePage workspaceConfig={workspaceConfig} />
+                } />
+                <Route path="/campaigns/:id" element={<WorkspaceShell workspaceConfig={workspaceConfig} profile={serverProfile} profileLoading={profileLoading} onRefreshProfile={refreshProfile} />}>
+                  <Route index element={<Navigate to="overview" replace />} />
+                  <Route path="overview" element={<WorkspaceOverview />} />
+                  <Route path="leads" element={<WorkspaceLeads />} />
+                  <Route path="contacts" element={<WorkspaceContacts />} />
+                  <Route path="drafts" element={<WorkspaceDrafts />} />
+                  <Route path="sent" element={<WorkspaceSent />} />
+                  <Route path="settings" element={<WorkspaceSettings />} />
+                  <Route path="*" element={<Navigate to="overview" replace />} />
+                </Route>
+                <Route path="/templates" element={
+                  <TemplatesTab workspaceConfig={workspaceConfig} />
+                } />
+                <Route path="/settings" element={
+                  <SettingsPage
+                    workspaceConfig={workspaceConfig}
+                    onSaveWorkspaceConfig={updateWorkspaceConfig}
+                    templates={templates}
+                    profile={serverProfile}
+                    profileLoading={profileLoading}
+                    onRefreshProfile={refreshProfile}
+                    onGoToOnboarding={enterOnboarding}
+                    onConnectGoogle={connectGoogle}
+                    onNavigate={handleTabChange}
+                  />
+                } />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
             <footer className="mt-auto py-6 text-center text-xs text-muted">
               Made by{' '}
               <a

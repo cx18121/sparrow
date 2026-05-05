@@ -144,6 +144,9 @@ model Email {
   @@index([userLeadId])
   @@index([contactId])
   @@index([customContactId])
+  @@index([status, createdAt])
+  @@index([userLeadId, status, createdAt])
+  @@index([customContactId, status, createdAt])
   @@schema("public")
 }
 
@@ -247,6 +250,8 @@ model CampaignLead {
   @@unique([campaignId, batchNumber, userLeadId])
   @@index([campaignId])
   @@index([campaignId, batchNumber])
+  @@index([userLeadId])
+  @@index([campaignId, userLeadId])
   @@schema("public")
 }
 
