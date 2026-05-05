@@ -135,8 +135,10 @@ test.describe('Contacts sub-tab', () => {
     })
 
     let generateCalled = false
+    let generatePayload: any = null
     await page.route('**/api/emails/generate', route => {
       generateCalled = true
+      generatePayload = route.request().postDataJSON()
       draftGenerated = true
       route.fulfill({
         status: 200,
@@ -154,6 +156,12 @@ test.describe('Contacts sub-tab', () => {
     await expect(page.locator('a, button', { hasText: /Open in Drafts/i }).first()).toBeVisible()
 
     expect(generateCalled).toBe(true)
+    // Contract: campaign-scoped Generate must carry the campaign's templateId.
+    // Without it the server falls into kind:'ai' and the humanizer rewrites
+    // even verbatim-flagged templates.
+    expect(generatePayload?.templateId).toBe(SAMPLE_TEMPLATE.id)
+    expect(generatePayload?.userLeadId).toBe(SAVED_LEAD.id)
+    expect(generatePayload?.save).toBe(true)
   })
 
   test('select-all + bulk Generate triggers /api/emails/generate per selected no-draft lead', async ({ page }) => {
@@ -173,8 +181,10 @@ test.describe('Contacts sub-tab', () => {
     )
 
     let generateCalls = 0
+    const bulkPayloads: any[] = []
     await page.route('**/api/emails/generate', route => {
       generateCalls++
+      bulkPayloads.push(route.request().postDataJSON())
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -191,6 +201,11 @@ test.describe('Contacts sub-tab', () => {
     await page.getByRole('button', { name: /^Generate \(2\)$/ }).click()
 
     await expect.poll(() => generateCalls, { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+    // Each bulk Generate call must carry the campaign's templateId (same
+    // contract as the single-row path).
+    for (const payload of bulkPayloads) {
+      expect(payload?.templateId).toBe(SAMPLE_TEMPLATE.id)
+    }
   })
 
   test('bulk Remove deletes selected campaign-lead links via DELETE /api/campaign-leads', async ({ page }) => {
