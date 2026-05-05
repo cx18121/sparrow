@@ -273,6 +273,9 @@ export function ContactsSubTab() {
   return (
     <ContactsTab
       campaignId={campaign.id}
+      templateId={campaign.templateId}
+      attachmentIds={campaign.attachmentIds}
+      tone={campaign.tone}
       onJumpToDrafts={() => navigate(`/campaigns/${campaign.id}/drafts`)}
       onJumpToLeads={() => navigate(`/campaigns/${campaign.id}/leads`)}
     />

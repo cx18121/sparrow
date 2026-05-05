@@ -15,6 +15,9 @@ import type { EmailStatus, UserLead } from '../../types/api'
 
 interface ContactsTabProps {
   campaignId: string
+  templateId?: string | null
+  attachmentIds?: string[]
+  tone?: string | null
   onJumpToDrafts?: () => void
   onJumpToLeads?: () => void
 }
@@ -179,7 +182,17 @@ function AddContactForm({ busy, onCancel, onSubmit }: AddFormProps) {
   )
 }
 
-export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads }: ContactsTabProps) {
+export default function ContactsTab({ campaignId, templateId, attachmentIds, tone, onJumpToDrafts, onJumpToLeads }: ContactsTabProps) {
+  // Campaign-scoped generation must carry the campaign's template (so verbatim
+  // mode and the user's authored body actually drive the draft) plus its
+  // attachment list and tone — without these, the server falls into kind:'ai'
+  // and the humanizer rewrites everything regardless of the template's
+  // verbatim flag.
+  const generateOverrides = {
+    ...(templateId ? { templateId } : {}),
+    ...(attachmentIds && attachmentIds.length ? { attachmentIds } : {}),
+    ...(tone ? { tone } : {}),
+  }
   const [leads, setLeads] = useState<UserLead[] | null>(null)
   const [customContacts, setCustomContacts] = useState<CustomMember[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -304,7 +317,7 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     setGeneratingIds(prev => new Set(prev).add(row.selectionId))
     try {
       const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
-      const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, save: true }, createIdempotencyKey(key)))
+      const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, ...generateOverrides, save: true }, createIdempotencyKey(key)))
       const email = { id: result.emailId ?? `draft-${row.selectionId}`, subject: result.subject ?? null, status: 'draft' as const }
       if (row.rowKind === 'lead' && row.generateArgs.userLeadId) {
         setLeads(prev => (prev ?? []).map(lead => lead.id === row.generateArgs.userLeadId
@@ -338,7 +351,7 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     for (const row of targets) {
       try {
         const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
-        const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, save: true }, createIdempotencyKey(key)))
+        const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, ...generateOverrides, save: true }, createIdempotencyKey(key)))
         const email = { id: result.emailId ?? `draft-${row.selectionId}`, subject: result.subject ?? null, status: 'draft' as const }
         if (row.rowKind === 'lead' && row.generateArgs.userLeadId) {
           setLeads(prev => (prev ?? []).map(lead => lead.id === row.generateArgs.userLeadId
