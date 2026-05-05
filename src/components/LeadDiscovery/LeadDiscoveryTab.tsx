@@ -273,6 +273,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     setIsHiring(Boolean(campaignFilters.filterIsHiring))
     selectedTagsRef.current = tags
     setSelectedTags(tags)
+    // Open the tag-filters panel when the campaign has seeded tags. Otherwise
+    // those selected pills live behind the collapsed "More filters" affordance
+    // and the user can't see that the campaign settings actually applied.
+    if (tags.size > 0) setTagsOpen(true)
   }, [activeCampaign?.id, campaignFilters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
