@@ -159,3 +159,6 @@ docs/agents/
 docs/adr/
 .scratch/
 sparrow_oauth_logo.png
+
+# Planning docs
+.planning/
