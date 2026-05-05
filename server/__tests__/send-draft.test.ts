@@ -85,6 +85,9 @@ function mockProfile() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  (globalThis as typeof globalThis & {
+    __dashCache?: Map<string, { data: unknown; ts: number }>;
+  }).__dashCache = new Map();
   mockProfile();
   mockDecrypt.mockReturnValue("refresh-token");
   mockCheckEmailSendQuota.mockResolvedValue(undefined);
@@ -175,6 +178,34 @@ describe("sendDraft", () => {
     const raw = (mockGmailSend.mock.calls[0]?.[0] as { requestBody: { raw: string } }).requestBody.raw;
     const decoded = Buffer.from(raw, "base64url").toString("utf8");
     expect(decoded).toContain('filename="resume.pdf"');
+  });
+
+  it("invalidates every warm Draft/Sent dashboard cache entry for the sender", async () => {
+    const cache = (globalThis as typeof globalThis & {
+      __dashCache?: Map<string, { data: unknown; ts: number }>;
+    }).__dashCache!;
+    cache.set(`${USER_ID}:global`, { data: { drafts: [{ id: "email-1" }], sent: [] }, ts: Date.now() });
+    cache.set(`${USER_ID}:campaign:campaign-1`, { data: { drafts: [{ id: "email-1" }], sent: [] }, ts: Date.now() });
+    cache.set("other-user:global", { data: { drafts: [{ id: "other-email" }], sent: [] }, ts: Date.now() });
+
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: "lead-1",
+      customContactId: null,
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: [],
+      contact: { email: "sarah@example.com", name: "Sarah Chen" },
+      customContact: null,
+      userLead: { userId: USER_ID },
+    });
+
+    await sendDraft("email-1", USER_ID);
+
+    expect(cache.has(`${USER_ID}:global`)).toBe(false);
+    expect(cache.has(`${USER_ID}:campaign:campaign-1`)).toBe(false);
+    expect(cache.has("other-user:global")).toBe(true);
   });
 });
 

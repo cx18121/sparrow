@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check, X, Building2, Briefcase, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
-  User, Send, ShieldAlert, LogOut, Mail, Trash2,
+  LogOut, Mail, Trash2,
 } from 'lucide-react'
 import { deleteAccount } from '../../lib/api'
 import Banner from '../ui/Banner'
@@ -10,29 +10,10 @@ import Toast from '../ui/Toast'
 import { supabase, isDemo } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
+import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
 
-// Maps the `google_error` codes returned by /api/google/callback into copy a
-// student can act on. Anything not in the map gets a generic message.
-const GOOGLE_ERROR_COPY: Record<string, string> = {
-  callback_failed: 'Could not connect Gmail - Google rejected the sign-in. Try again, or remove access at myaccount.google.com first.',
-  missing_code: 'Gmail connection failed - sign-in did not complete. Try again.',
-  missing_refresh_token: 'Gmail connection failed - Google did not issue a refresh token. Remove access at myaccount.google.com and reconnect.',
-  profile_save_failed: 'Could not save your Gmail token. Try again, or contact support if this keeps happening.',
-  missing_google_config: 'Gmail integration is not configured on the server. Contact support.',
-}
-
-function googleErrorMessage(code: string | null): string {
-  if (!code) return ''
-  return GOOGLE_ERROR_COPY[code] ?? `Could not connect Gmail (${code}). Try again.`
-}
-
-const TABS = [
-  { key: 'profile',      label: 'Profile',      icon: User },
-  { key: 'sending',      label: 'Sending',      icon: Send },
-  { key: 'account',      label: 'Account',      icon: ShieldAlert },
-] as const
-
-type TabKey = typeof TABS[number]['key']
+const TABS = SETTINGS_TABS
+type TabKey = SettingsTabKey
 
 // Small generic helpers --------------------------------------------------------
 
@@ -136,21 +117,21 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       <FieldGroup title="Sender identity" hint="Used in generated drafts.">
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="label">Sender name</label>
-            <input value={form.senderName || ''} onChange={e => field('senderName', e.target.value)} placeholder="Jordan Lee" className="input" />
+            <label htmlFor="settings-sender-name" className="label">Sender name</label>
+            <input id="settings-sender-name" value={form.senderName || ''} onChange={e => field('senderName', e.target.value)} placeholder="Jordan Lee" className="input" />
           </div>
           <div>
-            <label className="label">Organization</label>
+            <label htmlFor="settings-sender-company" className="label">Organization</label>
             <div className="relative">
               <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input value={form.senderCompany || ''} onChange={e => field('senderCompany', e.target.value)} placeholder="Cornell Generative AI" className="input pl-8" />
+              <input id="settings-sender-company" value={form.senderCompany || ''} onChange={e => field('senderCompany', e.target.value)} placeholder="Cornell Generative AI" className="input pl-8" />
             </div>
           </div>
           <div>
-            <label className="label">Role</label>
+            <label htmlFor="settings-sender-role" className="label">Role</label>
             <div className="relative">
               <Briefcase size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input value={form.senderRole || ''} onChange={e => field('senderRole', e.target.value)} placeholder="Founder" className="input pl-8" />
+              <input id="settings-sender-role" value={form.senderRole || ''} onChange={e => field('senderRole', e.target.value)} placeholder="Founder" className="input pl-8" />
             </div>
           </div>
         </div>
@@ -159,8 +140,9 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
       <FieldGroup title="Background" hint="Add context the draft should know.">
         <div>
-          <label className="label">Pitch / experience</label>
+          <label htmlFor="settings-resume-text" className="label">Pitch / experience</label>
           <textarea
+            id="settings-resume-text"
             value={form.resumeText || ''}
             onChange={e => field('resumeText', e.target.value)}
             placeholder="Paste relevant experience, positioning, wins, and offer."
@@ -170,8 +152,9 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
         </div>
 
         <div>
-          <label className="label">Uploaded resume or bio</label>
+          <label htmlFor="settings-resume-file" className="label">Uploaded resume or bio</label>
           <input
+            id="settings-resume-file"
             ref={fileInputRef}
             type="file"
             accept=".pdf,.docx,.txt"
@@ -263,8 +246,9 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
       <FieldGroup title="Send rate" hint="Limits for outbound email.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Daily send limit</label>
+            <label htmlFor="settings-daily-send-limit" className="label">Daily send limit</label>
             <input
+              id="settings-daily-send-limit"
               type="number" min={1} max={100} value={limits.dailyMax}
               onChange={e => setLimit('dailyMax', Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
               className="input"
@@ -272,9 +256,10 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
             <p className="mt-1 text-xs text-muted">Hard cap: 100 per day.</p>
           </div>
           <div>
-            <label className="label">Delay between sends</label>
+            <label htmlFor="settings-send-delay" className="label">Delay between sends</label>
             <div className="relative">
               <input
+                id="settings-send-delay"
                 type="number" min={15} max={3600} value={limits.delaySeconds}
                 onChange={e => setLimit('delaySeconds', Math.max(15, parseInt(e.target.value) || 15))}
                 className="input pr-16"
@@ -289,10 +274,11 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
       <FieldGroup title="Defaults for new campaigns" hint="Pre-filled when you create a campaign.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Lead batch size</label>
+            <label htmlFor="settings-lead-batch-size" className="label">Lead batch size</label>
             <div className="relative">
               <Target size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <input
+                id="settings-lead-batch-size"
                 type="number" min={1} max={50}
                 value={form.leadsPerGeneration || 25}
                 onChange={e => setForm((c: any) => ({ ...c, leadsPerGeneration: Math.min(50, Math.max(1, Number(e.target.value) || 1)) }))}
@@ -302,8 +288,9 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
             <p className="mt-1 text-xs text-muted">Contacts per batch.</p>
           </div>
           <div>
-            <label className="label">Default template</label>
+            <label htmlFor="settings-default-template" className="label">Default template</label>
             <select
+              id="settings-default-template"
               value={form.templateId || ''}
               onChange={e => setForm((c: any) => ({ ...c, templateId: e.target.value }))}
               className="select"
@@ -383,6 +370,8 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
   return (
     <div>
       <input
+        id="settings-attachment-upload"
+        aria-label="Upload attachment"
         ref={fileInputRef}
         type="file"
         className="hidden"
@@ -434,12 +423,13 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
 }
 
 function AccountTab({
-  profile, profileLoading, onRefreshProfile, onConnectGoogle,
+  profile, profileLoading, onRefreshProfile, onConnectGoogle, gmailOnly = false,
 }: {
   profile: any
   profileLoading: boolean
   onRefreshProfile: () => void
   onConnectGoogle: (() => void) | null
+  gmailOnly?: boolean
 }) {
   const { user, signOut } = useAuth()
   const [confirm, setConfirm] = useState(false)
@@ -455,17 +445,19 @@ function AccountTab({
 
   return (
     <div className="space-y-5">
-      <FieldGroup title="Account">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-dark">{user?.email || 'Demo user'}</p>
-            <p className="mt-0.5 text-xs text-muted">{user?.user_metadata?.full_name || 'No display name set'}</p>
+      {!gmailOnly && (
+        <FieldGroup title="Account">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-dark">{user?.email || 'Demo user'}</p>
+              <p className="mt-0.5 text-xs text-muted">{user?.user_metadata?.full_name || 'No display name set'}</p>
+            </div>
+            <button type="button" onClick={signOut} className="btn-secondary text-xs">
+              <LogOut size={12} /> Sign out
+            </button>
           </div>
-          <button type="button" onClick={signOut} className="btn-secondary text-xs">
-            <LogOut size={12} /> Sign out
-          </button>
-        </div>
-      </FieldGroup>
+        </FieldGroup>
+      )}
 
       <FieldGroup title="Gmail">
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
@@ -499,24 +491,26 @@ function AccountTab({
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Danger zone">
-        <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-dark">Delete account</p>
-            <p className="mt-0.5 text-xs text-muted">
-              Permanently delete your account and workspace data.
-            </p>
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {!gmailOnly && (
+        <FieldGroup title="Danger zone">
+          <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-dark">Delete account</p>
+              <p className="mt-0.5 text-xs text-muted">
+                Permanently delete your account and workspace data.
+              </p>
+              {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirm(true)}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-warm-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              <Trash2 size={12} /> Delete account
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setConfirm(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-warm-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-          >
-            <Trash2 size={12} /> Delete account
-          </button>
-        </div>
-      </FieldGroup>
+        </FieldGroup>
+      )}
 
       <ConfirmDialog
         open={confirm}
@@ -586,7 +580,7 @@ export default function SettingsPage({
     const error = params.get('google_error')
     const success = params.get('google_connected')
     if (!error && !success) return
-    setOauthResult(error ? { kind: 'error', message: googleErrorMessage(error) } : { kind: 'success' })
+    setOauthResult(error ? { kind: 'error', message: getGoogleErrorMessage(error) } : { kind: 'success' })
     if (error || success) {
       setActive('account')
       if (success) onRefreshProfile?.()
@@ -608,10 +602,6 @@ export default function SettingsPage({
     }
   }
 
-  const hasGoogle = !!profile?.hasGoogleRefreshToken
-  const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
-  const hasSender = !!workspaceConfig?.senderName?.trim()
-
   // Wrap onConnectGoogle so any synchronous error returned by the auth
   // context (demo-mode rejection, network failure before redirect) is
   // surfaced as a banner instead of disappearing silently.
@@ -620,11 +610,7 @@ export default function SettingsPage({
     if (res?.error?.message) setOauthResult({ kind: 'error', message: res.error.message })
   } : null
 
-  const tabStatus: Record<TabKey, 'ok' | 'warn' | null> = {
-    profile:      hasSender && hasResume ? 'ok' : 'warn',
-    sending:      null,
-    account:      hasGoogle ? 'ok' : 'warn',
-  }
+  const tabStatus = getSettingsTabStatus({ workspaceConfig, profile })
 
   return (
     <div className="page-shell max-w-5xl">
@@ -650,6 +636,20 @@ export default function SettingsPage({
           <ProfileTab
             workspaceConfig={workspaceConfig}
             onSave={(updater) => saveWorkspace(updater, 'Profile saved')}
+          />
+        )}
+        {active === 'style' && (
+          <FieldGroup title="Style" hint="Writing preferences for future draft controls.">
+            <p className="text-sm text-muted">Style controls will appear here when campaign-level writing preferences move out of individual campaigns.</p>
+          </FieldGroup>
+        )}
+        {active === 'integrations' && (
+          <AccountTab
+            profile={profile}
+            profileLoading={profileLoading}
+            onRefreshProfile={onRefreshProfile}
+            onConnectGoogle={handleConnect}
+            gmailOnly
           />
         )}
         {active === 'sending' && (

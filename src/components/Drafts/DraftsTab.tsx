@@ -10,6 +10,19 @@ import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
+import {
+  canSendDraft,
+  draftReadiness,
+  filterDrafts,
+  getCompanyName,
+  getRecipient,
+  getRecipientName,
+  htmlToEditableText,
+  nextReviewDraft,
+  sortDrafts,
+  stripDraftHtml,
+  textToDraftHtml,
+} from '../../lib/draftQueue'
 import { DRAFT_QUEUE_LIMIT, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
 import { writeDraftQueueCache } from '../../lib/workspaceCache'
 import Badge from '../ui/Badge'
@@ -20,68 +33,15 @@ import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 
-// For table row previews - collapse to one line
-function stripHtml(html) {
-  if (!html) return ''
-  return html
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/p>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-// Plain text → HTML for display (preserves paragraph and line-break structure)
-function textToHtml(text) {
-  if (!text) return ''
-  if (text.includes('<')) return text  // already HTML, render as-is
-  return text
-    .split(/\n{2,}/)
-    .map(block => `<p style="margin:0 0 0.75em">${block.replace(/\n/g, '<br>')}</p>`)
-    .join('')
-}
-
-// HTML → plain text for editing
-function htmlToText(html) {
-  if (!html) return ''
-  if (!html.includes('<')) return html
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
 function formatDate(iso) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function getRecipient(draft) {
-  return draft.contact?.email || draft.customContact?.email || ''
-}
-
-function getRecipientName(draft) {
-  return draft.contact?.name || draft.customContact?.name || 'Contact'
-}
-
-function getCompanyName(draft) {
-  return draft.userLead?.company?.name || draft.customContact?.companyName || ''
-}
-
-function getDraftReadiness(draft) {
-  if (!getRecipient(draft)) return { variant: 'failed', label: 'Needs recipient', icon: AlertCircle }
-  if (!draft.subject?.trim() || !stripHtml(draft.body).trim()) return { variant: 'paused', label: 'Needs edit', icon: Pencil }
-  return { variant: 'ready', label: 'Ready', icon: CheckCircle2 }
-}
-
-function canSendDraft(draft) {
-  return getDraftReadiness(draft).label === 'Ready'
+function readinessIcon(label) {
+  if (label === 'Ready') return CheckCircle2
+  if (label === 'Needs recipient') return AlertCircle
+  return Pencil
 }
 
 export default function DraftsTab({
@@ -236,14 +196,14 @@ export default function DraftsTab({
 
   const startEdit = () => {
     setSubjectValue(preview.subject || '')
-    setEditBody(htmlToText(preview.body))
+    setEditBody(htmlToEditableText(preview.body))
     setEditing(true)
     setSaveError(null)
   }
 
   const cancelEdit = () => {
     setSubjectValue(preview?.subject || '')
-    setEditBody(htmlToText(preview?.body))
+    setEditBody(htmlToEditableText(preview?.body))
     setEditing(false)
     setSaveError(null)
   }
@@ -272,7 +232,7 @@ export default function DraftsTab({
   const draftCounts = useMemo(() => {
     const counts = { all: drafts.length, ready: 0, needsReview: 0, needsRecipient: 0 }
     drafts.forEach(draft => {
-      const status = getDraftReadiness(draft).label
+      const status = draftReadiness(draft).label
       if (status === 'Ready') counts.ready += 1
       else counts.needsReview += 1
       if (status === 'Needs recipient') counts.needsRecipient += 1
@@ -280,34 +240,14 @@ export default function DraftsTab({
     return counts
   }, [drafts])
 
-  const sortedAll = useMemo(() => [...drafts].sort((a, b) => {
-    let av, bv
-    if (sortKey === 'name') {
-      av = getRecipientName(a)
-      bv = getRecipientName(b)
-    } else if (sortKey === 'company') {
-      av = getCompanyName(a)
-      bv = getCompanyName(b)
-    } else if (sortKey === 'subject') {
-      av = a.subject || ''
-      bv = b.subject || ''
-    } else {
-      av = tab === 'sent' ? (a.sentAt || '') : (a.createdAt || '')
-      bv = tab === 'sent' ? (b.sentAt || '') : (b.createdAt || '')
-    }
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0
-    return sortDir === 'asc' ? cmp : -cmp
-  }), [drafts, sortDir, sortKey, tab])
+  const sortedAll = useMemo(
+    () => sortDrafts(drafts, { key: sortKey, direction: sortDir, tab }),
+    [drafts, sortDir, sortKey, tab],
+  )
 
   const sorted = useMemo(() => {
-    if (tab !== 'draft' || reviewFilter === 'all') return sortedAll
-    return sortedAll.filter(draft => {
-      const status = getDraftReadiness(draft).label
-      if (reviewFilter === 'ready') return status === 'Ready'
-      if (reviewFilter === 'needsReview') return status !== 'Ready'
-      if (reviewFilter === 'needsRecipient') return status === 'Needs recipient'
-      return true
-    })
+    if (tab !== 'draft') return sortedAll
+    return filterDrafts(sortedAll, reviewFilter)
   }, [reviewFilter, sortedAll, tab])
 
   const previewIndex = preview ? sorted.findIndex(draft => draft.id === preview.id) : -1
@@ -378,15 +318,7 @@ export default function DraftsTab({
   }, [preview, editing, focusMode, tab, sending, sorted, previewIndex])
 
   const findNextReviewDraft = (sentIds) => {
-    const remaining = sorted.filter(draft => !sentIds.includes(draft.id) && canSendDraft(draft))
-    if (!remaining.length) return null
-    if (!preview) return remaining[0]
-
-    const currentIndex = sorted.findIndex(draft => draft.id === preview.id)
-    const after = sorted
-      .slice(Math.max(currentIndex + 1, 0))
-      .find(draft => !sentIds.includes(draft.id) && canSendDraft(draft))
-    return after || remaining[0]
+    return nextReviewDraft(sorted, preview?.id ?? null, sentIds)
   }
 
   const allSelected = sorted.length > 0 && sorted.every(d => selected.has(d.id))
@@ -842,11 +774,11 @@ export default function DraftsTab({
                         </span>
                       )}
                       {tab === 'draft' && (() => {
-                        const status = getDraftReadiness(draft)
+                        const status = draftReadiness(draft)
                         return (
-                          <Pill
-                            variant={status.label === 'Ready' ? 'success' : 'warning'}
-                            icon={status.icon}
+	                          <Pill
+	                            variant={status.label === 'Ready' ? 'success' : 'warning'}
+	                            icon={readinessIcon(status.label)}
                             className="shrink-0"
                           >
                             {status.label}
@@ -854,7 +786,7 @@ export default function DraftsTab({
                         )
                       })()}
                     </div>
-                    <div className="truncate text-xs text-muted">{stripHtml(draft.body)}</div>
+                    <div className="truncate text-xs text-muted">{stripDraftHtml(draft.body)}</div>
                   </td>
                   <td className="px-4 py-3 text-muted whitespace-nowrap">{formatDate(tab === 'sent' ? draft.sentAt : draft.createdAt)}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
@@ -914,8 +846,8 @@ export default function DraftsTab({
               {tab === 'sent' ? (
                 <Badge variant="sent">Sent</Badge>
               ) : (
-                <Badge variant={getDraftReadiness(preview).label === 'Ready' ? 'ready' : 'paused'}>
-                  {getDraftReadiness(preview).label}
+                <Badge variant={draftReadiness(preview).label === 'Ready' ? 'ready' : 'paused'}>
+                  {draftReadiness(preview).label}
                 </Badge>
               )}
               {previewIndex >= 0 && sorted.length > 1 && (
@@ -1073,6 +1005,7 @@ export default function DraftsTab({
               {tab === 'draft' && editing ? (
                 <input
                   type="text"
+                  aria-label="Draft subject"
                   value={subjectValue}
                   onChange={e => setSubjectValue(e.target.value)}
                   onKeyDown={e => {
@@ -1094,6 +1027,7 @@ export default function DraftsTab({
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Body</p>
               {editing ? (
                 <textarea
+                  aria-label="Draft body"
                   value={editBody}
                   onChange={e => setEditBody(e.target.value)}
                   rows={16}
@@ -1103,7 +1037,7 @@ export default function DraftsTab({
               ) : (
                 <div
                   className="max-w-[68ch] rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 text-[15px] leading-7 text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textToHtml(preview.body)) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textToDraftHtml(preview.body)) }}
                 />
               )}
             </div>

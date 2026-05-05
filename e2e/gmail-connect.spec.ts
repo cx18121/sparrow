@@ -119,16 +119,14 @@ test.describe('Settings tab structure', () => {
     await signInDemo(page)
   })
 
-  test('renders all 3 tabs and switching tabs swaps the panel content', async ({ page }) => {
+  test('renders all 5 tabs and switching tabs swaps the panel content', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     await page.goto('/settings')
 
     // All settings tabs are visible by name.
-    for (const label of ['Profile', 'Sending', 'Account']) {
+    for (const label of ['Profile', 'Style', 'Integrations', 'Sending', 'Account']) {
       await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({ timeout: 5000 })
     }
-    await expect(page.getByRole('tab', { name: /Style/ })).toHaveCount(0)
-    await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
     // Profile tab is the default landing — Sender identity panel is visible.
     await expect(page.locator('text=/Sender identity/i').first()).toBeVisible()
@@ -137,6 +135,10 @@ test.describe('Settings tab structure', () => {
     await page.getByRole('tab', { name: /Sending/ }).click()
     await expect(page.locator('text=/Send rate/i').first()).toBeVisible()
     await expect(page.locator('text=/Sender identity/i')).toHaveCount(0)
+
+    // Integrations exposes the Gmail connection controls outside Account.
+    await page.getByRole('tab', { name: /Integrations/ }).click()
+    await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
 
     // Account tab exposes Sign out + Delete account.
     await page.getByRole('tab', { name: /Account/ }).click()

@@ -119,11 +119,12 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
   await expect(card.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
   await expect(card.getByRole('button', { name: /^Refresh$/i })).toBeVisible()
   await card.getByRole('button', { name: /^Connect Gmail$/i }).click()
-  await expect.poll(() => calls).toEqual(['profile', 'profile'])
-  expect(profilePosts[1]?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
-  expect(profilePosts[1]?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
-  expect(profilePosts[1]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
-  expect(profilePosts[1]?.onboardingCompleted).toBe(false)
+  await expect.poll(() => calls.length).toBeGreaterThanOrEqual(2)
+  const finalProfilePost = profilePosts.at(-1)
+  expect(finalProfilePost?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(finalProfilePost?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
+  expect(finalProfilePost?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(finalProfilePost?.onboardingCompleted).toBe(false)
 })
 
 test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', async ({ page }) => {

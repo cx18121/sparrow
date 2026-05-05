@@ -1,10 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
-import { audienceToPrismaWhere } from "../lib/audience-query.js";
 import { parseBody } from "../lib/parse-params.js";
 import { sendRouteError } from "../lib/route-error.js";
-import { shuffle } from "../lib/company-selection.js";
+import { previewAudiencePool } from "../lib/audience-pool.js";
 import type { Audience } from "../../src/types/audience.js";
 
 // Live audience preview for the campaign wizard's Step 2.
@@ -18,39 +16,6 @@ import type { Audience } from "../../src/types/audience.js";
 // Returns { count, sample } where sample is up to 6 randomly-picked company
 // names so the user has a tangible preview ("~84 companies match. Sample: …")
 // instead of always seeing the alphabetical head ("14.ai, 1stCollab, 222…").
-
-const SAMPLE_SIZE = 6;
-
-// Pick up to SAMPLE_SIZE company names at random from the matched pool.
-// For small pools (<= SAMPLE_SIZE) we fetch everything and shuffle. For
-// larger pools we pick distinct random offsets and fetch each in parallel
-// — much cheaper than loading the whole pool into memory just to discard
-// most of it. The orderBy is required for deterministic offsets; the
-// shuffle randomises which rows we land on.
-async function pickRandomSample(
-  where: Record<string, unknown>,
-  count: number,
-): Promise<string[]> {
-  if (count === 0) return [];
-  if (count <= SAMPLE_SIZE) {
-    const rows = await prisma.company.findMany({ where, select: { name: true } });
-    return shuffle(rows.map(r => r.name)).slice(0, count);
-  }
-  const offsets = new Set<number>();
-  while (offsets.size < SAMPLE_SIZE) offsets.add(Math.floor(Math.random() * count));
-  const batches = await Promise.all(
-    Array.from(offsets).map(offset =>
-      prisma.company.findMany({
-        where,
-        select: { name: true },
-        orderBy: { id: "asc" },
-        skip: offset,
-        take: 1,
-      }),
-    ),
-  );
-  return batches.flatMap(b => b.map(c => c.name));
-}
 
 function isAudienceLike(value: unknown): value is Partial<Audience> {
   return Boolean(value) && typeof value === "object";
@@ -86,23 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const excludePreviouslySaved =
       (body as { excludePreviouslySaved?: unknown }).excludePreviouslySaved !== false;
 
-    const baseWhere = audienceToPrismaWhere(audience);
-
-    let where: Record<string, unknown> = baseWhere;
-    if (excludePreviouslySaved) {
-      const savedCompanyIds = await prisma.userLead.findMany({
-        where: { userId },
-        select: { companyId: true },
-        distinct: ["companyId"],
-      });
-      const ids = savedCompanyIds.map(r => r.companyId).filter((id): id is string => Boolean(id));
-      if (ids.length > 0) {
-        where = { ...baseWhere, id: { notIn: ids } };
-      }
-    }
-
-    const count = await prisma.company.count({ where });
-    const sample = await pickRandomSample(where, count);
+    const { count, sample } = await previewAudiencePool(userId, { audience, excludePreviouslySaved });
 
     return res.status(200).json({ count, sample });
   } catch (err) {

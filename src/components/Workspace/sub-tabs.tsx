@@ -231,6 +231,7 @@ function MetricButton({
   return (
     <button
       type="button"
+      aria-label={`${item.label} ${item.value === null ? '-' : item.value}`}
       onClick={() => onJump(item.key)}
       disabled={loading}
       className="group flex min-h-[86px] items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-warm-50 disabled:cursor-wait disabled:opacity-60"

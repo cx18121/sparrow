@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { prisma } from "./prisma.js";
 import { getSupabaseAdmin } from "./supabaseAdmin.js";
 import { decrypt } from "./crypto.js";
-import { parseWorkspaceConfig } from "./workspace-config.js";
+import { attachmentLibraryFromWorkspaceConfig, normalizeSendingLimits, parseWorkspaceConfig } from "./workspace-config.js";
 import {
   encodeHeader,
   encodeAddressHeader,
@@ -14,12 +14,7 @@ import {
 import { SENDABLE_STATUSES, claimForSending, markSent, markFailed } from "./email-status.js";
 import { checkEmailSendQuota, QuotaError } from "./rate-limit.js";
 import { HttpError } from "./user.js";
-
-declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
-
-function invalidateDashCache(userId: string) {
-  globalThis.__dashCache?.delete(userId);
-}
+import { invalidateEmailDashboardCache } from "./email-cache.js";
 
 async function readOwnedDraft(emailId: string, userId: string) {
   const email = await prisma.email.findUnique({
@@ -143,27 +138,11 @@ async function buildDraftAttachments(params: {
   return attachments;
 }
 
-function attachmentLibraryFromWorkspaceConfig(workspaceConfig: ReturnType<typeof parseWorkspaceConfig>) {
-  const files = workspaceConfig.files ?? [];
-  const resume = workspaceConfig.resumePath && workspaceConfig.resumeFileName
-    ? [{
-        id: "resume",
-        path: workspaceConfig.resumePath,
-        fileName: workspaceConfig.resumeFileName,
-        mimeType: mimeFromFileName(workspaceConfig.resumeFileName),
-      }]
-    : [];
-  return [...resume, ...files];
-}
-
 export async function sendDraft(emailId: string, userId: string) {
   const { email, toEmail } = await readOwnedDraft(emailId, userId);
   const { supabase, refreshToken, workspaceConfig } = await readSenderProfile(userId);
 
-  const rawDailyMax = Number(workspaceConfig.sendingLimits?.dailyMax ?? 100);
-  const dailyMax = Number.isFinite(rawDailyMax)
-    ? Math.min(500, Math.max(1, Math.round(rawDailyMax)))
-    : 100;
+  const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
   try {
     await checkEmailSendQuota(userId, dailyMax);
@@ -208,7 +187,7 @@ export async function sendDraft(emailId: string, userId: string) {
 
   const updated = await markSent(emailId);
   await markRecipientEmailed(email);
-  invalidateDashCache(userId);
+  invalidateEmailDashboardCache(userId);
   return updated;
 }
 
@@ -223,10 +202,7 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
   const email = await readOwnedDraftForTest(emailId, userId);
   const { supabase, refreshToken, workspaceConfig } = await readSenderProfile(userId);
 
-  const rawDailyMax = Number(workspaceConfig.sendingLimits?.dailyMax ?? 100);
-  const dailyMax = Number.isFinite(rawDailyMax)
-    ? Math.min(500, Math.max(1, Math.round(rawDailyMax)))
-    : 100;
+  const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
   // Test sends still consume daily quota — Gmail is sending real mail through
   // the user's account, so the cap protects against an OAuth-revoke storm just

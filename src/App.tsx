@@ -10,6 +10,7 @@ import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
 import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
+import { hasRecoverableCompletedSetup } from './lib/profileSetup'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
 
 const HomePage = lazy(() => import('./components/Home/HomePage'))
@@ -58,16 +59,6 @@ const getOnboardingForceKey = (user) => {
 
 const isExplicitOnboardingEdit = (value) => value === 'explicit'
 const isOnboardingSessionBypass = (value) => value === 'true' || value === 'complete' || value === 'dismissed'
-
-const hasRecoverableCompletedSetup = (profile) => {
-  const config = profile?.workspaceConfig || {}
-  const hasSender = Boolean(config.senderName?.trim?.())
-  const hasTemplate = Boolean(
-    config.templateId ||
-    (config.customTemplate?.subject?.trim?.() && config.customTemplate?.body?.trim?.())
-  )
-  return Boolean(hasSender && hasTemplate)
-}
 
 const formatTemplateBody = (body) => {
   if (!body) return ''

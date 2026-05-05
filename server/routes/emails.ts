@@ -3,6 +3,8 @@ import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { ALLOWED_EMAIL_STATUSES, isAllowedStatus } from "../lib/email-status.js";
+import { invalidateEmailDashboardCache } from "../lib/email-cache.js";
+import { countEmailsSentToday, listEmailQueue, readDashboardEmailQueue } from "../lib/email-query.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -24,38 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 
-// In-process cache for the combined dashboard query. Persists across warm invocations
-// within the same function container, so repeat loads skip the DB entirely.
-const DASHBOARD_CACHE_TTL = 30_000 // 30 seconds
-declare global { var __dashCache: Map<string, { data: unknown; ts: number }> | undefined }
-globalThis.__dashCache ??= new Map()
-
-function dashboardCacheKey(userId: string, campaignId?: string | null) {
-  return campaignId ? `${userId}:campaign:${campaignId}` : `${userId}:global`
-}
-
-function getDashCache(key: string) {
-  const entry = globalThis.__dashCache!.get(key)
-  if (!entry || Date.now() - entry.ts > DASHBOARD_CACHE_TTL) return null
-  return entry.data
-}
-function setDashCache(key: string, data: unknown) {
-  globalThis.__dashCache!.set(key, { data, ts: Date.now() })
-  // Evict oldest entries if the map grows too large (many users on one instance)
-  if (globalThis.__dashCache!.size > 500) {
-    const oldest = [...globalThis.__dashCache!.entries()]
-      .sort((a, b) => a[1].ts - b[1].ts)
-      .slice(0, 100)
-    oldest.forEach(([k]) => globalThis.__dashCache!.delete(k))
-  }
-}
-function invalidateDashCache(userId: string) {
-  const prefix = `${userId}:`
-  for (const key of globalThis.__dashCache!.keys()) {
-    if (key.startsWith(prefix)) globalThis.__dashCache!.delete(key)
-  }
-}
-
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, campaignId, status, limit = "50", cursor, countToday, combined } = req.query as Record<
     string,
@@ -63,13 +33,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   >;
 
   if (countToday === "true") {
-    const startOfToday = new Date()
-    startOfToday.setUTCHours(0, 0, 0, 0)
-    const [fromLeads, fromContacts] = await Promise.all([
-      prisma.email.count({ where: { status: "sent", sentAt: { gte: startOfToday }, userLead: { userId } } }),
-      prisma.email.count({ where: { status: "sent", sentAt: { gte: startOfToday }, customContact: { userId } } }),
-    ])
-    return res.status(200).json({ count: fromLeads + fromContacts })
+    return res.status(200).json(await countEmailsSentToday(userId))
   }
 
   if (status && !isAllowedStatus(status)) {
@@ -78,123 +42,13 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
 
-  const include = {
-    contact: { select: { id: true, name: true, email: true, title: true } },
-    customContact: { select: { id: true, name: true, email: true, title: true, companyName: true } },
-    userLead: {
-      select: {
-        id: true,
-        status: true,
-        company: { select: { id: true, name: true, domain: true } },
-      },
-    },
-  } as const;
-
   // Dashboard combined fetch: drafts + sent in one round trip to avoid two cold starts.
   if (combined === "true") {
-    // Workspace overview variant: combined shape, but scoped to a single
-    // campaign. Skip the global cache (which is user-keyed and would mix
-    // campaign + global counts), and skip the custom-contact branch (no
-    // campaign relation in the schema — matches the campaign-scoped list
-    // path below). Without this branch, the overview's "N drafts" count
-    // would show the user's global drafts while the Drafts sub-tab list
-    // showed only campaign drafts → a visible mismatch.
-    if (campaignId) {
-      const cacheKey = dashboardCacheKey(userId, campaignId)
-      const cached = getDashCache(cacheKey)
-      if (cached) {
-        res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
-        return res.status(200).json(cached)
-      }
-      const where = { userLead: { userId, campaignLeads: { some: { campaignId } } } } as const;
-      const [draftItems, sentItems] = await Promise.all([
-        prisma.email.findMany({ where: { ...where, status: "draft" }, take: 9, orderBy: { createdAt: "desc" }, include }),
-        prisma.email.findMany({ where: { ...where, status: "sent" }, take: 21, orderBy: { createdAt: "desc" }, include }),
-      ]);
-      const result = {
-        drafts: draftItems.slice(0, 8),
-        sent: sentItems.slice(0, 20),
-      }
-      setDashCache(cacheKey, result)
-      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
-      return res.status(200).json(result)
-    }
-
-    // Serve from in-process cache on warm invocations; browser gets stale-while-revalidate.
-    const cacheKey = dashboardCacheKey(userId)
-    const cached = getDashCache(cacheKey)
-    if (cached) {
-      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
-      return res.status(200).json(cached)
-    }
-
-    const branchWhere = (relation: "userLead" | "customContact", s: string) => ({ [relation]: { userId }, status: s });
-    const [draftLeads, draftContacts, sentLeads, sentContacts] = await Promise.all([
-      prisma.email.findMany({ where: branchWhere("userLead", "draft"), take: 9, orderBy: { createdAt: "desc" }, include }),
-      prisma.email.findMany({ where: branchWhere("customContact", "draft"), take: 9, orderBy: { createdAt: "desc" }, include }),
-      prisma.email.findMany({ where: branchWhere("userLead", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
-      prisma.email.findMany({ where: branchWhere("customContact", "sent"), take: 21, orderBy: { createdAt: "desc" }, include }),
-    ]);
-    const sort = (a: { createdAt: Date }, b: { createdAt: Date }) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    const drafts = [...draftLeads, ...draftContacts].sort(sort).slice(0, 8);
-    const sent = [...sentLeads, ...sentContacts].sort(sort).slice(0, 20);
-    const result = { drafts, sent }
-    setDashCache(cacheKey, result)
     res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
-    return res.status(200).json(result)
+    return res.status(200).json(await readDashboardEmailQueue(userId, { campaignId }));
   }
 
-  // When scoped to a specific lead, only one branch applies — single query with cursor support.
-  if (userLeadId) {
-    const items = await prisma.email.findMany({
-      where: { userLeadId, userLead: { userId }, ...(status && { status }) },
-      take: take + 1,
-      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      orderBy: { createdAt: "desc" },
-      include,
-    });
-    const hasMore = items.length > take;
-    const trimmed = hasMore ? items.slice(0, take) : items;
-    return res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
-  }
-
-  // Workspace Drafts/Sent sub-tab: scope to drafts whose lead belongs to this campaign.
-  // Custom-contact drafts (no campaign relation in the schema) are naturally excluded —
-  // matches the Phase 4b decision to drop "orphan" drafts from the new UI.
-  if (campaignId) {
-    const items = await prisma.email.findMany({
-      where: {
-        userLead: { userId, campaignLeads: { some: { campaignId } } },
-        ...(status && { status }),
-      },
-      take: take + 1,
-      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      orderBy: { createdAt: "desc" },
-      include,
-    });
-    const hasMore = items.length > take;
-    const trimmed = hasMore ? items.slice(0, take) : items;
-    return res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
-  }
-
-  // Two parallel queries avoid an OR across JOIN paths which prevents index use.
-  const branchWhere = (relation: "userLead" | "customContact") => ({
-    [relation]: { userId },
-    ...(status && { status }),
-  });
-
-  const [fromLeads, fromContacts] = await Promise.all([
-    prisma.email.findMany({ where: branchWhere("userLead"), take: take + 1, orderBy: { createdAt: "desc" }, include }),
-    prisma.email.findMany({ where: branchWhere("customContact"), take: take + 1, orderBy: { createdAt: "desc" }, include }),
-  ]);
-
-  const merged = [...fromLeads, ...fromContacts]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, take + 1);
-
-  const hasMore = merged.length > take;
-  const trimmed = hasMore ? merged.slice(0, take) : merged;
-  res.status(200).json({ items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null });
+  res.status(200).json(await listEmailQueue(userId, { userLeadId, campaignId, status: status as any, limit: take, cursor }));
 }
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -218,7 +72,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     const email = await prisma.email.create({
       data: { userLeadId, contactId: lead.contactId ?? null, subject, body, status, attachmentIds: safeAttachmentIds },
     });
-    invalidateDashCache(userId)
+    invalidateEmailDashboardCache(userId)
     return res.status(201).json(email);
   }
 
@@ -229,7 +83,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const email = await prisma.email.create({
     data: { customContactId, subject, body, status, attachmentIds: safeAttachmentIds },
   });
-  invalidateDashCache(userId)
+  invalidateEmailDashboardCache(userId)
   res.status(201).json(email);
 }
 
@@ -264,7 +118,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
     },
   });
 
-  invalidateDashCache(userId)
+  invalidateEmailDashboardCache(userId)
   res.status(200).json(email);
 }
 
@@ -294,6 +148,6 @@ async function remove(req: VercelRequest, res: VercelResponse, userId: string) {
   if (!ownedIds.length) throw new HttpError(404, "Email not found");
 
   await prisma.email.deleteMany({ where: { id: { in: ownedIds } } });
-  invalidateDashCache(userId)
+  invalidateEmailDashboardCache(userId)
   res.status(200).json({ deleted: ownedIds });
 }
