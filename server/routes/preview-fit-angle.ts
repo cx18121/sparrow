@@ -11,6 +11,13 @@ import { pickFitAngle, type CompanyDossier } from "../lib/ai/research-fit-angle.
 // keystroke would be wasteful, and (c) Anthropic's surface set is stable
 // enough that monthly drift is fine for a non-production preview.
 //
+// REFRESH POLICY: re-bake this constant ~once a quarter, or whenever a
+// major Anthropic launch makes the listed surfaces feel stale. Easiest
+// way: `npx tsx scripts/smoke-exa-vs-tavily.ts --domain anthropic.com`
+// and copy the Exa dossier output into the values below. There's no
+// automation for this yet — the staleness cost is "preview cites old
+// product names," not a real bug, so manual is fine.
+//
 // pickFitAngle stays the real model-picked path. The user types a resume,
 // we surface which Anthropic feature their resume best fits — same logic
 // production runs against any recipient.
