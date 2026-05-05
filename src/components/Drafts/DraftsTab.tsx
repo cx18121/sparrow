@@ -247,24 +247,15 @@ export default function DraftsTab({
   }
 
   const startEdit = () => {
+    setSubjectValue(preview.subject || '')
     setEditBody(htmlToText(preview.body))
     setEditing(true)
     setSaveError(null)
   }
 
-  const saveSubjectInline = async () => {
-    if (!preview || subjectValue === preview.subject) return
-    try {
-      const updated = await updateEmail({ id: preview.id, subject: subjectValue, body: preview.body })
-      const merged = { ...preview, subject: updated.subject ?? subjectValue }
-      setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: merged.subject } : d))
-      setPreview(merged)
-    } catch {
-      setSubjectValue(preview.subject || '')
-    }
-  }
-
   const cancelEdit = () => {
+    setSubjectValue(preview?.subject || '')
+    setEditBody(htmlToText(preview?.body))
     setEditing(false)
     setSaveError(null)
   }
@@ -1078,13 +1069,17 @@ export default function DraftsTab({
             {/* Subject */}
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Subject</p>
-              {tab === 'draft' ? (
+              {tab === 'draft' && editing ? (
                 <input
                   type="text"
                   value={subjectValue}
                   onChange={e => setSubjectValue(e.target.value)}
-                  onBlur={!editing ? saveSubjectInline : undefined}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!editing) (e.target as HTMLInputElement).blur() } }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      saveEdit()
+                    }
+                  }}
                   className="input w-full text-sm font-semibold"
                   placeholder="Subject line"
                 />

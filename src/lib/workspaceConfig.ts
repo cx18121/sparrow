@@ -18,7 +18,7 @@ const DEFAULT_CUSTOM_TEMPLATE = {
     '',
     'Would a 15-min call this week make sense?',
     '',
-    'Best',
+    'Best,',
     '{{sender_name}}',
   ].join('\n'),
   attachmentIds: [] as string[],

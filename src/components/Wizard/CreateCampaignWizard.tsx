@@ -28,6 +28,22 @@ const NAME_SUGGESTIONS = [
   'Climate-tech founders',
 ]
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function formatTemplatePreviewBody(body: string | null | undefined) {
+  if (!body) return ''
+  if (/<\/?[a-z][\s\S]*>/i.test(body)) return body
+  return body
+    .split(/\n{2,}/)
+    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
 const SECTOR_NAMESPACES = ['vertical', 'tech', 'model', 'investor', 'signal'] as const
 const NS_LABEL: Record<string, string> = {
   vertical: 'Sector',
@@ -669,7 +685,7 @@ function StepTemplate({
               <p className="mt-3 text-sm font-medium text-dark">Subject: {selected.subject}</p>
               <div
                 className="prose prose-sm mt-3 max-w-none text-sm text-dark"
-                dangerouslySetInnerHTML={{ __html: selected.body }}
+                dangerouslySetInnerHTML={{ __html: formatTemplatePreviewBody(selected.body) }}
               />
             </>
           ) : (
