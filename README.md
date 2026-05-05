@@ -40,6 +40,7 @@ cp .env.example .env
 ```
 
 Fill in `.env`:
+
 - Supabase URL + anon key + service role key
 - `ENCRYPTION_KEY` (`openssl rand -base64 48`)
 - Google OAuth client ID + secret + state secret
