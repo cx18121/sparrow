@@ -15,6 +15,8 @@ function fillVariables(content, data) {
     .replace(/\{\{company\}\}/g, data.company)
     .replace(/\{\{role\}\}/g, data.role)
     .replace(/\{\{sender_name\}\}/g, data.sender_name)
+    .replace(/\{\{feature_line\}\}/g, data.feature_line ?? '')
+    .replace(/\{\{fit_angle\}\}/g, data.fit_angle ?? '')
 }
 
 function stripHtml(content) {
@@ -70,6 +72,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
         step={1}
         total={TOTAL_STEPS}
         title="About you"
+        description="Sparrow uses this to personalize each draft so it sounds like you, not a template."
       />
 
       <div className="space-y-4">
@@ -162,12 +165,18 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
 
+  // Real-company example (Anthropic / Dario Amodei) so the preview reads
+  // like an actual draft. feature_line + fit_angle are filled with plausible
+  // values so users see what those merge tags do in practice — Sparrow's
+  // research step produces lines like these per recipient.
   const previewData = {
-    first_name: 'Alex',
-    last_name: 'Chen',
-    company: 'Momentum AI',
-    role: 'Co-founder & CEO',
+    first_name: 'Dario',
+    last_name: 'Amodei',
+    company: 'Anthropic',
+    role: 'CEO',
     sender_name: form.senderName || 'Your Name',
+    feature_line: 'claude code agentic coding',
+    fit_angle: 'my multi-agent eval harness project',
   }
 
   // Insert a merge tag at the caret of whichever field was last focused.
