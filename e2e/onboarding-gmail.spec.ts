@@ -95,7 +95,6 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
   await page.getByPlaceholder('Maya Chen').fill('Demo User')
   await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student builder')
   await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
-  await page.getByPlaceholder('Relevant experience, club role, recent work...').fill('Built outreach tooling for Cornell GenAI.')
   await page.locator('input[type="file"]').setInputFiles({
     name: 'resume.txt',
     mimeType: 'text/plain',
