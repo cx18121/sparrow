@@ -26,6 +26,12 @@ function trimLimited(value: string, maxLength: number): string {
   return value.trim().slice(0, maxLength);
 }
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    : [];
+}
+
 async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
   const items = await prisma.template.findMany({
     where: { userId },
@@ -36,7 +42,7 @@ async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { name, subject, body: content, verbatim } = body ?? {};
+  const { name, subject, body: content, verbatim, attachmentIds } = body ?? {};
   if (typeof name !== "string" || typeof subject !== "string" || typeof content !== "string") {
     return res.status(400).json({ error: "name, subject, and body are required" });
   }
@@ -54,6 +60,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
       // Verbatim is the default for new templates — the user opts INTO
       // AI-rewrite, not out of it. Explicit false stays respected.
       verbatim: verbatim === false ? false : true,
+      attachmentIds: stringArray(attachmentIds),
     },
   });
   res.status(201).json(template);
@@ -61,7 +68,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const body = parseBody(req);
-  const { id, name, subject, body: content, verbatim } = body ?? {};
+  const { id, name, subject, body: content, verbatim, attachmentIds } = body ?? {};
   if (typeof id !== "string") return res.status(400).json({ error: "id is required" });
   if (name !== undefined && typeof name !== "string") {
     return res.status(400).json({ error: "name must be a string" });
@@ -95,6 +102,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
       ...(subject !== undefined && { subject }),
       ...(content !== undefined && { body: content }),
       ...(verbatim !== undefined && { verbatim }),
+      ...(attachmentIds !== undefined && { attachmentIds: stringArray(attachmentIds) }),
     },
   });
   res.status(200).json(template);

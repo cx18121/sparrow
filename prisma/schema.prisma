@@ -160,9 +160,10 @@ model Template {
   // write the exact wording and have the AI plug in only the parts that
   // depend on per-recipient research. Set to false on a template-by-
   // template basis to fall back to the rewrite path.
-  verbatim  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  verbatim      Boolean  @default(true)
+  attachmentIds Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   campaigns Campaign[]
 

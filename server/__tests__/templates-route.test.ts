@@ -126,6 +126,26 @@ describe("templates route — POST", () => {
     expect(res.json).toHaveBeenCalledWith(newTemplate);
   });
 
+  it("creates template with sanitized attachmentIds", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.template.create.mockResolvedValue({ id: "t-files" });
+
+    const req = makeReq({
+      method: "POST",
+      body: {
+        name: "My T",
+        subject: "Sub",
+        body: "Body text",
+        attachmentIds: ["resume", 42, "file-1", ""],
+      },
+    });
+    await handler(req, makeRes());
+
+    expect(mockPrisma.template.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ attachmentIds: ["resume", "file-1"] }),
+    }));
+  });
+
   it("defaults verbatim to true; honors explicit false", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     mockPrisma.template.create.mockResolvedValue({ id: "t-v" });
@@ -187,6 +207,19 @@ describe("templates route — PATCH", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(updated);
+  });
+
+  it("updates template attachmentIds", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.template.findUnique.mockResolvedValue({ id: "t-1", userId: USER_ID });
+    mockPrisma.template.update.mockResolvedValue({ id: "t-1", attachmentIds: ["resume"] });
+
+    const req = makeReq({ method: "PATCH", body: { id: "t-1", attachmentIds: ["resume", null, "file-2"] } });
+    await handler(req, makeRes());
+
+    expect(mockPrisma.template.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ attachmentIds: ["resume", "file-2"] }),
+    }));
   });
 });
 

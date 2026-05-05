@@ -9,6 +9,7 @@ import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { REGION_INTL, REGION_REMOTE, REGION_US } from '../../types/audience'
 import type { CampaignOptions } from '../../types/api'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
+import { getAttachmentLibrary } from '../../lib/attachments'
 
 // Phase 4d: inline campaign editor that replaces CampaignFormModal in the
 // workspace. Same field set minus `tone` (dropped per redesign) and minus the
@@ -144,7 +145,7 @@ export default function SettingsTab() {
     }
   }
 
-  const files = (workspaceConfig?.files || []) as Array<{ id: string; fileName: string; size: number }>
+  const files = getAttachmentLibrary(workspaceConfig)
 
   return (
     <div className="space-y-6">

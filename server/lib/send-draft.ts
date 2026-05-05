@@ -88,7 +88,10 @@ async function readSenderProfile(userId: string) {
   return {
     supabase,
     refreshToken,
-    workspaceConfig: parseWorkspaceConfig(profile.workspace_config),
+    workspaceConfig: {
+      ...parseWorkspaceConfig(profile.workspace_config),
+      resumePath: parseWorkspaceConfig(profile.workspace_config).resumePath || profile.resume_path || null,
+    },
   };
 }
 
@@ -115,7 +118,7 @@ async function buildDraftAttachments(params: {
 }) {
   const { userId, emailId, attachmentIds, fileLibrary, supabase } = params;
   const emailAttachmentIds = Array.isArray(attachmentIds) ? (attachmentIds as string[]) : [];
-  const ownedPrefix = `files/${userId}/`;
+  const ownedPrefixes = [`files/${userId}/`, `${userId}/`];
   const attachments: Array<{ fileName: string; contentType: string; contentBase64: string }> = [];
 
   for (const fileId of emailAttachmentIds) {
@@ -124,7 +127,7 @@ async function buildDraftAttachments(params: {
       await markFailed(emailId);
       throw new HttpError(400, `Attachment "${fileId}" not found in your file library. Remove it from this draft and try again.`);
     }
-    if (!meta.path.startsWith(ownedPrefix)) {
+    if (!ownedPrefixes.some(prefix => meta.path.startsWith(prefix))) {
       await markFailed(emailId);
       throw new HttpError(403, "One or more attachment paths are invalid. Re-upload your files in Settings.");
     }
@@ -138,6 +141,19 @@ async function buildDraftAttachments(params: {
   }
 
   return attachments;
+}
+
+function attachmentLibraryFromWorkspaceConfig(workspaceConfig: ReturnType<typeof parseWorkspaceConfig>) {
+  const files = workspaceConfig.files ?? [];
+  const resume = workspaceConfig.resumePath && workspaceConfig.resumeFileName
+    ? [{
+        id: "resume",
+        path: workspaceConfig.resumePath,
+        fileName: workspaceConfig.resumeFileName,
+        mimeType: mimeFromFileName(workspaceConfig.resumeFileName),
+      }]
+    : [];
+  return [...resume, ...files];
 }
 
 export async function sendDraft(emailId: string, userId: string) {
@@ -165,7 +181,7 @@ export async function sendDraft(emailId: string, userId: string) {
     userId,
     emailId,
     attachmentIds: email.attachmentIds,
-    fileLibrary: workspaceConfig.files ?? [],
+    fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
     supabase,
   });
 
@@ -226,7 +242,7 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
     userId,
     emailId,
     attachmentIds: email.attachmentIds,
-    fileLibrary: workspaceConfig.files ?? [],
+    fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
     supabase,
   });
 

@@ -21,6 +21,7 @@ import {
 
 import { AppDataProvider } from './contexts/AppDataContext'
 import { createWorkspaceConfig } from './lib/workspaceConfig'
+import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
 
@@ -367,6 +368,7 @@ function AppShell() {
       subject: customTemplate.subject.trim(),
       body: formatTemplateBody(customTemplate.body.trim()),
       isShared: false,
+      attachmentIds: defaultAttachmentIds(data),
     }
 
     // Onboarding always creates a new Template (we don't roundtrip edits

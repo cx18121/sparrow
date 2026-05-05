@@ -9,12 +9,14 @@ import Placeholder from '@tiptap/extension-placeholder'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
   List, ListOrdered, Eye, Edit3, Search, Copy, Loader2, Check, X, Library, MoreHorizontal,
+  Paperclip, FileText,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
+import { defaultAttachmentIds, getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 
 const sampleContactData = {
   first_name: 'Alex',
@@ -224,6 +226,7 @@ export default function TemplatesTab({ workspaceConfig }) {
     ...sampleContactData,
     sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
   }), [workspaceConfig?.senderName])
+  const attachmentLibrary = useMemo(() => getAttachmentLibrary(workspaceConfig), [workspaceConfig])
 
   useEffect(() => {
     draftRef.current = draft
@@ -331,6 +334,7 @@ export default function TemplatesTab({ workspaceConfig }) {
           name: form.name,
           subject: form.subject || '(no subject)',
           body: '<p></p>',
+          attachmentIds: defaultAttachmentIds(workspaceConfig),
         })
         if (created?.id) setSelectedId(created.id)
       }
@@ -346,6 +350,7 @@ export default function TemplatesTab({ workspaceConfig }) {
         name: `${t.name} (copy)`,
         subject: t.subject,
         body: t.body,
+        attachmentIds: sanitizeAttachmentIds(t.attachmentIds),
         isShared: false,
       })
       if (created?.id) setSelectedId(created.id)
@@ -390,7 +395,14 @@ export default function TemplatesTab({ workspaceConfig }) {
                   }`}
                 >
                   <p className={`truncate text-sm font-medium ${selectedId === t.id ? 'text-primary' : 'text-dark/90'}`}>{t.name}</p>
-                  <p className="mt-1 truncate text-xs text-muted">{t.subject || 'No subject yet'}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+                    <span className="min-w-0 flex-1 truncate">{t.subject || 'No subject yet'}</span>
+                    {sanitizeAttachmentIds(t.attachmentIds).length > 0 && (
+                      <span className="inline-flex shrink-0 items-center gap-1">
+                        <Paperclip size={10} /> {sanitizeAttachmentIds(t.attachmentIds).length}
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))}
               {filtered.length === 0 && !search && (
@@ -569,6 +581,40 @@ export default function TemplatesTab({ workspaceConfig }) {
                       </span>
                     </span>
                   </label>
+                  {attachmentLibrary.length > 0 && (
+                    <div className="space-y-3 rounded-xl border border-warm-200 bg-warm-50/50 px-4 py-4">
+                      <div>
+                        <p className="text-sm font-semibold text-dark">Attachments</p>
+                        <p className="mt-0.5 text-xs text-muted">Included when drafts are generated from this template.</p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {attachmentLibrary.map(file => {
+                          const selectedIds = sanitizeAttachmentIds(selected.attachmentIds)
+                          const checked = selectedIds.includes(file.id)
+                          return (
+                            <label key={file.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-warm-200 bg-panel px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => onUpdate({
+                                  id: selected.id,
+                                  attachmentIds: checked
+                                    ? selectedIds.filter(id => id !== file.id)
+                                    : [...selectedIds, file.id],
+                                }).catch((err: any) => {
+                                  setToast({ type: 'error', title: 'Could not update attachments', message: err?.message || 'Please try again.' })
+                                })}
+                                className="rounded border-warm-300"
+                              />
+                              {file.source === 'resume' ? <FileText size={13} className="shrink-0 text-primary" /> : <Paperclip size={13} className="shrink-0 text-muted" />}
+                              <span className="min-w-0 flex-1 truncate text-sm text-dark">{file.fileName}</span>
+                              {file.source === 'resume' && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Resume</span>}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">

@@ -8,6 +8,7 @@ import {
 import { apiGetAuth, fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
+import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -136,6 +137,7 @@ export default function DraftsTab({
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
   const { toast, setToast } = useToast()
+  const attachmentLibrary = useMemo(() => getAttachmentLibrary(workspaceConfig), [workspaceConfig])
   const [gmailStatus, setGmailStatus] = useState(() =>
     profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
   )
@@ -855,6 +857,11 @@ export default function DraftsTab({
                   <td className="px-4 py-3 text-dark max-w-xs">
                     <div className="flex items-center gap-2">
                       <span className="truncate">{draft.subject || '(no subject)'}</span>
+                      {sanitizeAttachmentIds(draft.attachmentIds).length > 0 && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warm-100 px-2 py-0.5 text-[11px] font-medium text-muted">
+                          <Paperclip size={10} /> {sanitizeAttachmentIds(draft.attachmentIds).length}
+                        </span>
+                      )}
                       {tab === 'draft' && (() => {
                         const status = getDraftReadiness(draft)
                         return (
@@ -1107,10 +1114,7 @@ export default function DraftsTab({
 
             {/* Attachments */}
             {tab === 'draft' && !editing && (() => {
-              const fileLibrary: Array<{ id: string; fileName: string; size: number }> = workspaceConfig?.files || []
-              const attachedIds: string[] = Array.isArray(preview.attachmentIds) ? preview.attachmentIds : []
-              const attached = fileLibrary.filter(f => attachedIds.includes(f.id))
-              const available = fileLibrary.filter(f => !attachedIds.includes(f.id))
+              const attachedIds = sanitizeAttachmentIds(preview.attachmentIds)
 
               const toggleAttachment = async (fileId: string, add: boolean) => {
                 const next = add ? [...attachedIds, fileId] : attachedIds.filter(id => id !== fileId)
@@ -1118,32 +1122,38 @@ export default function DraftsTab({
                 setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, attachmentIds: next } : d))
                 try { await updateEmailAttachments(preview.id, next) } catch {
                   setPreview(p => p ? { ...p, attachmentIds: attachedIds } : p)
+                  setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, attachmentIds: attachedIds } : d))
                 }
               }
 
-              if (fileLibrary.length === 0) return null
               return (
                 <div className="border-t border-warm-200 pt-4">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Attachments</p>
-                  <div className="space-y-1">
-                    {attached.map(f => (
-                      <div key={f.id} className="flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5">
-                        <Paperclip size={11} className="shrink-0 text-primary" />
-                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-dark">{f.fileName}</span>
-                        <button type="button" onClick={() => toggleAttachment(f.id, false)} className="shrink-0 text-muted hover:text-dark"><X size={11} /></button>
-                      </div>
-                    ))}
-                    {available.length > 0 && (
-                      <select
-                        value=""
-                        onChange={e => { if (e.target.value) toggleAttachment(e.target.value, true) }}
-                        className="select text-xs py-1.5"
-                      >
-                        <option value="">+ Add attachment</option>
-                        {available.map(f => <option key={f.id} value={f.id}>{f.fileName}</option>)}
-                      </select>
-                    )}
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Attachments</p>
+                    {attachedIds.length > 0 && <span className="text-xs text-muted">{attachedIds.length} selected</span>}
                   </div>
+                  {attachmentLibrary.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-warm-200 bg-warm-50 px-3 py-2 text-xs text-muted">Upload a resume or file in Settings to attach it.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {attachmentLibrary.map(f => {
+                        const checked = attachedIds.includes(f.id)
+                        return (
+                          <label key={f.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-warm-200 bg-panel px-3 py-2 transition-colors hover:border-primary/20 hover:bg-primary/5">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleAttachment(f.id, !checked)}
+                              className="rounded border-warm-300"
+                            />
+                            {f.source === 'resume' ? <FileText size={13} className="shrink-0 text-primary" /> : <Paperclip size={13} className="shrink-0 text-muted" />}
+                            <span className="min-w-0 flex-1 truncate text-xs font-medium text-dark">{f.fileName}</span>
+                            {f.source === 'resume' && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Resume</span>}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })()}

@@ -211,6 +211,7 @@ export const updateEmail = (data: Partial<Email> & { id: string }) =>
 export const generateEmail = (data: {
   userLeadId?: string; customContactId?: string;
   templateId?: string | null; tone?: string;
+  attachmentIds?: string[];
   interestHook?: string | null; extraContext?: string | null;
   includeResumeBullet?: boolean; save?: boolean;
 }) => request<GenerateEmailResponse>('/emails/generate', { method: 'POST', body: JSON.stringify(data) })

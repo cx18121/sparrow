@@ -679,6 +679,40 @@ describe("generateDraft — save flag", () => {
     expect(result.emailId).toBe("email-saved-1");
   });
 
+  it("saves template attachmentIds onto generated draft records", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.template.findUnique.mockResolvedValue({
+      id: "tmpl-files",
+      userId: USER_ID,
+      subject: "Hello",
+      body: "Hi {{firstName}}",
+      verbatim: true,
+      attachmentIds: ["resume", "file-1"],
+    });
+    mockPrisma.email.create.mockResolvedValue({ id: "email-with-files" });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", templateId: "tmpl-files", save: true });
+
+    const createArg = mockPrisma.email.create.mock.calls[0][0];
+    expect(createArg.data.attachmentIds).toEqual(["resume", "file-1"]);
+  });
+
+  it("defaults saved generated drafts to the uploaded resume attachment", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockResolveProfile.mockResolvedValue({
+      ...mockProfile,
+      ws: { resumePath: `${USER_ID}/resume.pdf`, resumeFileName: "resume.pdf" },
+    });
+    mockPrisma.email.create.mockResolvedValue({ id: "email-resume-default" });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", save: true });
+
+    const createArg = mockPrisma.email.create.mock.calls[0][0];
+    expect(createArg.data.attachmentIds).toEqual(["resume"]);
+  });
+
   it("saves with userLeadId and contactId for lead-based drafts", async () => {
     const lead = makeUserLead();
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);

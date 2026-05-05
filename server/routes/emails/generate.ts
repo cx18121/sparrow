@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const body = parseBody(req) ?? {};
-    const { userLeadId, customContactId, templateId, interestHook, tone, extraContext, includeResumeBullet, save } = body as Record<string, unknown>;
+    const { userLeadId, customContactId, templateId, attachmentIds, interestHook, tone, extraContext, includeResumeBullet, save } = body as Record<string, unknown>;
 
     if (!userLeadId && !customContactId) {
       return res.status(400).json({ error: "userLeadId or customContactId is required" });
@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userLeadId: userLeadId as string | undefined,
       customContactId: customContactId as string | undefined,
       templateId: templateId as string | null | undefined,
+      attachmentIds: Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : undefined,
       interestHook: interestHook as string | null | undefined,
       tone: tone as string | null | undefined,
       extraContext: extraContext as string | null | undefined,

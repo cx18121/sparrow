@@ -133,11 +133,22 @@ export interface DraftGenerationParams {
   userLeadId?: string;
   customContactId?: string;
   templateId?: string | null;
+  attachmentIds?: string[];
   interestHook?: string | null;
   tone?: string | null;
   extraContext?: string | null;
   includeResumeBullet?: boolean;
   save?: boolean;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    : [];
+}
+
+function defaultResumeAttachmentIds(ws: { resumePath?: string | null; resumeFileName?: string | null }): string[] {
+  return ws.resumePath && ws.resumeFileName ? ["resume"] : [];
 }
 
 export interface DraftGenerationResult {
@@ -166,11 +177,11 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   } = await resolveDraftTarget(params);
 
   // Resolve template
-  let userTemplate: { subject: string; body: string; verbatim: boolean } | null = null;
+  let userTemplate: { subject: string; body: string; verbatim: boolean; attachmentIds: string[] } | null = null;
   if (templateId) {
     const t = await prisma.template.findUnique({ where: { id: templateId } });
     if (!t || t.userId !== userId) throw new GenerationError("Template not found. Select a different template and try again.", 404);
-    userTemplate = { subject: t.subject, body: t.body, verbatim: t.verbatim };
+    userTemplate = { subject: t.subject, body: t.body, verbatim: t.verbatim, attachmentIds: stringArray(t.attachmentIds) };
   }
 
   // Resolve sender profile (throws ProfileError on missing API key or decrypt failure)
@@ -262,6 +273,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
 
   let emailId: string | null = null;
   if (save) {
+    const explicitAttachmentIds = params.attachmentIds !== undefined ? stringArray(params.attachmentIds) : null;
+    const attachmentIds = explicitAttachmentIds ?? userTemplate?.attachmentIds ?? defaultResumeAttachmentIds(profile.ws);
     const saved = await prisma.email.create({
       data: {
         ...(savedLeadId ? { userLeadId: savedLeadId } : {}),
@@ -270,6 +283,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
         subject: draft.subject,
         body: draft.body,
         status: "draft",
+        attachmentIds,
       },
     });
     emailId = saved.id;

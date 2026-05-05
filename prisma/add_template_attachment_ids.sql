@@ -1,0 +1,1 @@
+ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "attachmentIds" JSONB NOT NULL DEFAULT '[]';

@@ -85,6 +85,7 @@ export interface Template {
   body: string
   isShared: boolean
   verbatim: boolean
+  attachmentIds: string[]
   createdAt: string
   updatedAt: string
 }

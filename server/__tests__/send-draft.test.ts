@@ -65,6 +65,7 @@ import { sendDraft, sendTestDraft } from "../lib/send-draft.js";
 const USER_ID = "user-1";
 
 function mockProfile() {
+  const download = vi.fn().mockResolvedValue({ data: new Blob(["resume bytes"]), error: null });
   const chain = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
@@ -76,8 +77,10 @@ function mockProfile() {
       },
       error: null,
     }),
+    storage: { from: vi.fn(() => ({ download })) },
   };
   mockGetSupabaseAdmin.mockReturnValue(chain);
+  return { chain, download };
 }
 
 beforeEach(() => {
@@ -137,6 +140,41 @@ describe("sendDraft", () => {
       data: { status: "EMAILED" },
     });
     expect(mockPrisma.userLead.update).not.toHaveBeenCalled();
+  });
+
+  it("sends the uploaded resume when attachmentIds contains the resume default", async () => {
+    const { download } = mockProfile();
+    mockGetSupabaseAdmin().maybeSingle.mockResolvedValue({
+      data: {
+        google_refresh_token_encrypted: "encrypted-refresh",
+        resume_path: `${USER_ID}/resume.pdf`,
+        workspace_config: {
+          sendingLimits: { dailyMax: 100 },
+          resumeFileName: "resume.pdf",
+          files: [],
+        },
+      },
+      error: null,
+    });
+    mockPrisma.email.findUnique.mockResolvedValue({
+      id: "email-1",
+      userLeadId: "lead-1",
+      customContactId: null,
+      status: "draft",
+      subject: "Hello",
+      body: "Body",
+      attachmentIds: ["resume"],
+      contact: { email: "sarah@example.com", name: "Sarah Chen" },
+      customContact: null,
+      userLead: { userId: USER_ID },
+    });
+
+    await sendDraft("email-1", USER_ID);
+
+    expect(download).toHaveBeenCalledWith(`${USER_ID}/resume.pdf`);
+    const raw = (mockGmailSend.mock.calls[0]?.[0] as { requestBody: { raw: string } }).requestBody.raw;
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    expect(decoded).toContain('filename="resume.pdf"');
   });
 });
 

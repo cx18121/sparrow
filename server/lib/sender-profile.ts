@@ -30,7 +30,7 @@ export async function resolveProfileForGeneration(userId: string): Promise<Resol
   const supabase = getSupabaseAdmin();
   const { data: profile, error } = await supabase
     .from("user_profiles")
-    .select("resume_text, workspace_config")
+    .select("resume_text, resume_path, workspace_config")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -38,7 +38,10 @@ export async function resolveProfileForGeneration(userId: string): Promise<Resol
 
   const apiKey = resolveClaudeKey();
 
-  const ws = parseWorkspaceConfig(profile?.workspace_config);
+  const ws = {
+    ...parseWorkspaceConfig(profile?.workspace_config),
+    resumePath: parseWorkspaceConfig(profile?.workspace_config).resumePath || profile?.resume_path || null,
+  };
   return {
     apiKey,
     senderName: ws.senderName ?? null,

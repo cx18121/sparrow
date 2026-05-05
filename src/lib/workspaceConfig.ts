@@ -21,6 +21,7 @@ const DEFAULT_CUSTOM_TEMPLATE = {
     'Best',
     '{{sender_name}}',
   ].join('\n'),
+  attachmentIds: [] as string[],
   isShared: false,
 };
 

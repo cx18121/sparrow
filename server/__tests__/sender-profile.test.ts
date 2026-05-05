@@ -44,10 +44,12 @@ describe("resolveProfileForGeneration", () => {
     const supabase = makeSupabaseProfileResult({
       data: {
         resume_text: "Built an eval harness.",
+        resume_path: "user-1/resume.pdf",
         workspace_config: {
           senderName: "Jane Smith",
           senderRole: "ML engineer",
           senderCompany: "ColdFlow",
+          resumeFileName: "resume.pdf",
         },
       },
       error: null,
@@ -57,12 +59,13 @@ describe("resolveProfileForGeneration", () => {
     const profile = await resolveProfileForGeneration("user-1");
 
     expect(supabase.from).toHaveBeenCalledWith("user_profiles");
-    expect(supabase.select).toHaveBeenCalledWith("resume_text, workspace_config");
+    expect(supabase.select).toHaveBeenCalledWith("resume_text, resume_path, workspace_config");
     expect(supabase.eq).toHaveBeenCalledWith("user_id", "user-1");
     expect(profile.apiKey).toBe("host-key");
     expect(profile.senderName).toBe("Jane Smith");
     expect(profile.senderRole).toBe("ML engineer");
     expect(profile.resumeText).toBe("Built an eval harness.");
+    expect(profile.ws.resumePath).toBe("user-1/resume.pdf");
   });
 
   it("returns null sender fields and empty workspace config when the profile row is missing", async () => {

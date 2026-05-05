@@ -10,6 +10,7 @@ import { fetchCampaignOptions, fetchEmailsCombined } from '../../lib/api'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import CreateCampaignWizard, { submissionToCampaignPayload, type WizardSubmission } from '../Wizard/CreateCampaignWizard'
+import { defaultAttachmentIds } from '../../lib/attachments'
 import type { CampaignOptions } from '../../types/api'
 
 // Phase 1 stood up the new campaigns-first surface; Phase 2 replaces the
@@ -158,7 +159,7 @@ function WelcomeCard({ name, onCreate }: { name: string; onCreate: () => void })
 }
 
 interface HomePageProps {
-  workspaceConfig: { senderName?: string; templateId?: string | null }
+  workspaceConfig: any
 }
 
 export default function HomePage({ workspaceConfig }: HomePageProps) {
@@ -269,6 +270,8 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
       if (!payload.templateId && workspaceConfig?.templateId) {
         payload.templateId = workspaceConfig.templateId
       }
+      const selectedTemplate = templates.find(t => t.id === payload.templateId) || null
+      payload.attachmentIds = defaultAttachmentIds(workspaceConfig, selectedTemplate)
       const created = await createCampaign(payload)
       setWizardOpen(false)
       enterCampaign({ id: created.id, name: created.name })
