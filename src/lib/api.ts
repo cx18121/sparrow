@@ -128,12 +128,12 @@ function friendlyApiMessage({ status, path, method, serverError }) {
 async function request<T = unknown>(path: string, opts: RequestInit = {}, retrying = false): Promise<T> {
   await ensureApiAuth()
   const res = await fetch(`${BASE}${path}`, {
+    ...opts,
     headers: {
       'Content-Type': 'application/json',
       ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
       ...(opts.headers || {}),
     },
-    ...opts,
   })
   if (res.status === 204) return null
   if (res.status === 401 && !retrying && await refreshApiAuth()) {
