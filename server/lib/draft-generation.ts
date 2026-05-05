@@ -207,17 +207,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     apiKey: profile.apiKey,
   });
 
-  // Verbatim mode: if the template has feature_line and we have one, OR the
-  // template doesn't reference feature_line at all, skip the AI rewrite and
-  // just substitute merge tags. If feature_line is referenced but research
-  // didn't yield one, fall back to the AI path so the AI can patch around
-  // the empty slot — sending a verbatim render with a missing feature
-  // sentence would ship awkward grammar to the recipient.
-  const verbatimSafe = userTemplate?.verbatim
-    && (!/\{\{(feature_line|featureLine)\}\}/.test(userTemplate.body) || fit.featureLine);
-
   const draftInput: DraftInput = userTemplate
-    ? verbatimSafe
+    ? userTemplate.verbatim
       ? {
           kind: "verbatim",
           body: userTemplate.body,

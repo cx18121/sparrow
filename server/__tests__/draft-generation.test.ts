@@ -356,7 +356,7 @@ describe("generateDraft — Template path", () => {
     expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("verbatim");
   });
 
-  it("falls back to template-AI mode when verbatim template references feature_line but research yielded none", async () => {
+  it("keeps verbatim mode when feature_line is missing so the checkbox is honored", async () => {
     const lead = makeUserLead();
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
     mockPrisma.company.update.mockResolvedValue({});
@@ -372,7 +372,7 @@ describe("generateDraft — Template path", () => {
 
     await generateDraft({ userId: USER_ID, userLeadId: "lead-1", templateId: "tmpl-v" });
 
-    expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("template");
+    expect(mockGenerateEmailDraft.mock.calls[0][0].kind).toBe("verbatim");
   });
 
   it("uses verbatim mode for templates that don't reference feature_line at all", async () => {

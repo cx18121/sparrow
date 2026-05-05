@@ -129,6 +129,8 @@ function AppShell() {
   const [profileLoading, setProfileLoading] = useState(true)
   const profileRefreshPromiseRef = useRef<Promise<any> | null>(null)
   const lastProfileRefreshRef = useRef(0)
+  const lastOnboardingResumePersistRef = useRef('')
+  const onboardingDraftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { templatesRef.current = templates }, [templates])
 
@@ -160,6 +162,10 @@ function AppShell() {
     window.addEventListener('sparrow:profile-updated', refreshFromEvent)
     return () => window.removeEventListener('sparrow:profile-updated', refreshFromEvent)
   }, [refreshProfile])
+
+  useEffect(() => () => {
+    if (onboardingDraftSaveTimerRef.current) clearTimeout(onboardingDraftSaveTimerRef.current)
+  }, [])
 
   // Workspace routes (`/campaigns/:id/<sub>`) live outside the global TABS
   // list — derive the active label from the URL segment so the top bar still
@@ -311,6 +317,10 @@ function AppShell() {
     templatesOverride = templates,
   } = {}) => {
     if (!user) return
+    if (onboardingDraftSaveTimerRef.current) {
+      clearTimeout(onboardingDraftSaveTimerRef.current)
+      onboardingDraftSaveTimerRef.current = null
+    }
 
     const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
     const storageKey = getOnboardingStorageKey(user)
@@ -358,6 +368,20 @@ function AppShell() {
     setOnboardingState({ loaded: true, completed, data: sanitizedConfig })
   }
 
+  const saveProfileDraft = useCallback((sanitizedConfig, normalized) => {
+    if (onboardingDraftSaveTimerRef.current) clearTimeout(onboardingDraftSaveTimerRef.current)
+    onboardingDraftSaveTimerRef.current = setTimeout(() => {
+      onboardingDraftSaveTimerRef.current = null
+      saveProfile({
+        workspaceConfig: sanitizedConfig,
+        defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
+        resumePath: normalized.resumePath || null,
+        resumeText: normalized.resumeText || null,
+        onboardingCompleted: false,
+      }).catch(err => console.warn('Failed to persist onboarding draft', err))
+    }, 800)
+  }, [])
+
   const enterOnboarding = () => {
     if (!user) return
     const forceKey = getOnboardingForceKey(user)
@@ -382,9 +406,28 @@ function AppShell() {
     }
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
+    const resumePersistSig = normalized.resumePath
+      ? `${normalized.resumePath}:${normalized.resumeText || ''}`
+      : ''
+    if (resumePersistSig && resumePersistSig !== lastOnboardingResumePersistRef.current) {
+      lastOnboardingResumePersistRef.current = resumePersistSig
+      if (onboardingDraftSaveTimerRef.current) {
+        clearTimeout(onboardingDraftSaveTimerRef.current)
+        onboardingDraftSaveTimerRef.current = null
+      }
+      saveProfile({
+        workspaceConfig: sanitizedConfig,
+        defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
+        resumePath: normalized.resumePath || null,
+        resumeText: normalized.resumeText || null,
+        onboardingCompleted: false,
+      }).catch(err => console.warn('Failed to persist onboarding resume draft', err))
+    } else {
+      saveProfileDraft(sanitizedConfig, normalized)
+    }
     setWorkspaceConfig(sanitizedConfig)
     setOnboardingState(current => ({ ...current, loaded: true, data: sanitizedConfig }))
-  }, [templates, user])
+  }, [saveProfileDraft, templates, user])
 
   const syncOnboardingTemplate = async (data) => {
     if (data.templateMode !== 'custom') {
@@ -458,8 +501,10 @@ function AppShell() {
   }
 
   const saveOnboardingProgress = async (data) => {
-    return persistWorkspaceConfig(data, {
+    const { data: nextData, templatesOverride } = await syncOnboardingTemplate(data)
+    return persistWorkspaceConfig(nextData, {
       completed: false,
+      templatesOverride,
     })
   }
 

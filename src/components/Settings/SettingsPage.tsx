@@ -9,6 +9,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { supabase, isDemo } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 
 // Maps the `google_error` codes returned by /api/google/callback into copy a
 // student can act on. Anything not in the map gets a generic message.
@@ -86,17 +87,37 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       setUploadState({ uploading: false, error: 'File must be under 10 MB.' })
       return
     }
+    if (!canExtractResumeText(file)) {
+      setUploadState({ uploading: false, error: 'Use a PDF, DOCX, or TXT file.' })
+      return
+    }
     setUploadState({ uploading: true, error: null })
+    let extractedResumeText = ''
+    try {
+      extractedResumeText = await extractResumeTextFromFile(file)
+    } catch (err: any) {
+      setUploadState({ uploading: false, error: err?.message || 'Could not read that file.' })
+      return
+    }
     if (isDemo || !user?.id) {
-      setForm((c: any) => ({ ...c, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString() }))
+      const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeText: extractedResumeText || form.resumeText || '' }
+      setForm(nextForm)
       setUploadState({ uploading: false, error: null })
       return
     }
     const path = `${user.id}/${Date.now()}-${file.name}`
     const { error } = await supabase.storage.from('resumes').upload(path, file, { upsert: true, contentType: file.type || undefined })
     if (error) { setUploadState({ uploading: false, error: error.message }); return }
-    setForm((c: any) => ({ ...c, resumeFileName: file.name, resumePath: path, resumeUploadedAt: new Date().toISOString() }))
-    setUploadState({ uploading: false, error: null })
+    const nextForm = {
+      ...form,
+      resumeFileName: file.name,
+      resumePath: path,
+      resumeUploadedAt: new Date().toISOString(),
+      resumeText: extractedResumeText || form.resumeText || '',
+    }
+    setForm(nextForm)
+    const saved = await onSave((current: any) => ({ ...current, ...pickProfileFields(nextForm) }))
+    setUploadState({ uploading: false, error: saved ? null : 'Uploaded, but profile save failed. Click Save to retry.' })
   }
 
   const uploadedAt = form.resumeUploadedAt
@@ -153,7 +174,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,.txt"
+            accept=".pdf,.docx,.txt"
             className="hidden"
             disabled={uploadState.uploading}
             onChange={e => uploadResume(e.target.files?.[0] || undefined)}
@@ -184,7 +205,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
               className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/40 px-3 py-2.5 text-sm text-muted transition-colors hover:border-primary/40 hover:text-dark disabled:opacity-50"
             >
               <UploadCloud size={14} />
-              {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .doc, .txt - max 10 MB)'}
+              {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .docx, .txt - max 10 MB)'}
             </button>
           )}
           {uploadState.error && <p className="mt-1 text-xs text-red-500">Could not upload: {uploadState.error}</p>}

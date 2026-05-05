@@ -167,13 +167,12 @@ function draftFallback(input: FallbackDraftInput): EmailDraft {
 
 function draftVerbatim(input: VerbatimDraftInput): EmailDraft {
   // Verbatim mode is the user's explicit "send my template as-is" opt-out
-  // from AI editing. We don't drop empty-tag paragraphs here even if the
-  // result reads awkwardly — that would silently rewrite the template the
-  // user chose. The drop pass exists in buildTemplateSkeleton for the
-  // AI-rewrite path because Claude would invent generic filler otherwise.
+  // from AI editing. We may drop paragraphs anchored on missing AI-only tags
+  // before substitution so verbatim templates stay authored by the user
+  // without shipping orphaned grammar when research has no grounded hook.
   const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company, ai)
-  const body = substituteVariables(input.body, input.contact, input.senderName, input.company, ai)
+  const body = substituteVariables(dropEmptyTagParagraphs(input.body, ai), input.contact, input.senderName, input.company, ai)
   return { subject, body }
 }
 

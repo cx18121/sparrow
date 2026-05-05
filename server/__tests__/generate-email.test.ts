@@ -290,7 +290,7 @@ describe("generateEmailDraft — Verbatim mode", () => {
     );
   });
 
-  it("substitutes empty strings when feature_line is null", async () => {
+  it("drops paragraphs anchored on empty feature_line or fit_angle tags", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -300,13 +300,13 @@ describe("generateEmailDraft — Verbatim mode", () => {
       company: baseAi.company,
       subjectTemplate: "Hello {{first_name}}",
       senderName: "Alex",
-      body: "Hi {{first_name}}, saw {{feature_line}} — wanted to chat.",
+      body: "Hi {{first_name}},\n\nSaw {{company}} just shipped {{feature_line}}.\n\nFor context, {{fit_angle}} feels like a fit.\n\nBest,\n{{sender_name}}",
       featureLine: null,
       fitAngle: null,
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(draft.body).toBe("Hi Sarah, saw  — wanted to chat.");
+    expect(draft.body).toBe("Hi Sarah,\n\nBest,\nAlex");
   });
 });
 

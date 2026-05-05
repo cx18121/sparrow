@@ -577,7 +577,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                       <span className="block text-xs text-muted">
                         Skip the AI rewrite — keep the wording exactly as authored, only fill merge tags including
                         {' '}<span className="font-mono text-primary">{'{{feature_line}}'}</span> from web research.
-                        If a research run yields no feature line for a recipient, the AI rewrite kicks in for that draft only.
+                        Missing research-only lines are removed instead of rewritten. Changes apply to newly generated drafts.
                       </span>
                     </span>
                   </label>

@@ -61,8 +61,9 @@ export interface AiDraftInput extends DraftBase {
 // authored, with merge tags (including {{feature_line}} / {{fit_angle}})
 // substituted from the AI research pass. No Claude rewrite is invoked,
 // so the email goes out word-for-word as the template author wrote it.
-// Used when Template.verbatim = true and either the template doesn't
-// reference feature_line, or research produced one.
+// Used whenever Template.verbatim = true. Paragraphs anchored on empty
+// AI-only tags are dropped before substitution so missing research does
+// not leave broken grammar.
 export interface VerbatimDraftInput extends DraftBase {
   kind: 'verbatim'
   body: string
