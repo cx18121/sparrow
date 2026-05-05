@@ -350,32 +350,6 @@ function AppShell() {
     setOnboardingState(current => ({ ...current, loaded: true, data: sanitizedConfig }))
   }, [templates, user])
 
-  const finishOnboardingLater = useCallback((data, templatesOverride = templates) => {
-    if (!user) return
-
-    const normalized = createWorkspaceConfig({ user, templates: templatesOverride, data })
-    const sanitizedConfig = {
-      ...normalized,
-    }
-    const storageKey = getOnboardingStorageKey(user)
-    const forceKey = getOnboardingForceKey(user)
-    const sessionKey = storageKey ? `${storageKey}_session` : null
-
-    const next = {
-      completed: false,
-      completedAt: null,
-      updatedAt: new Date().toISOString(),
-      data: sanitizedConfig,
-    }
-
-    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
-    if (forceKey) sessionStorage.removeItem(forceKey)
-    if (sessionKey) sessionStorage.setItem(sessionKey, 'dismissed')
-    setWorkspaceConfig(sanitizedConfig)
-    setOnboardingState({ loaded: true, completed: true, data: sanitizedConfig })
-    navigate('/dashboard', { replace: true })
-  }, [navigate, templates, user])
-
   const syncOnboardingTemplate = async (data) => {
     if (data.templateMode !== 'custom') {
       return { data, templatesOverride: templates }
@@ -410,6 +384,24 @@ function AppShell() {
       return { data, templatesOverride: templates }
     }
   }
+
+  const finishOnboardingLater = useCallback(async (data) => {
+    if (!user) return
+
+    const storageKey = getOnboardingStorageKey(user)
+    const forceKey = getOnboardingForceKey(user)
+    const sessionKey = storageKey ? `${storageKey}_session` : null
+    const { data: nextData, templatesOverride } = await syncOnboardingTemplate(data)
+
+    await persistWorkspaceConfig(nextData, {
+      completed: false,
+      templatesOverride,
+    })
+    if (forceKey) sessionStorage.removeItem(forceKey)
+    if (sessionKey) sessionStorage.setItem(sessionKey, 'dismissed')
+    setOnboardingState(current => ({ ...current, completed: true }))
+    navigate('/dashboard', { replace: true })
+  }, [navigate, user, syncOnboardingTemplate])
 
   const completeOnboarding = async (data) => {
     const { data: nextData, templatesOverride } = await syncOnboardingTemplate(data)

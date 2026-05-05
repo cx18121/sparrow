@@ -139,3 +139,48 @@ test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', 
   await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible()
   await expect(page.getByRole('heading', { name: /About you/i })).toBeHidden()
 })
+
+test('finish later persists onboarding profile fields to the server profile', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await signInNeedsOnboarding(page)
+  const profilePosts: any[] = []
+  await mockOnboardingApi(page, async route => {
+    if (route.request().method() === 'POST') {
+      profilePosts.push(route.request().postDataJSON())
+      return route.fulfill({ status: 204 })
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        profile: {
+          onboardingCompleted: false,
+          workspaceConfig: {
+            senderName: 'Demo User',
+            customTemplate: { name: 'Intro', subject: '', body: '' },
+            templateMode: 'custom',
+          },
+          hasClaudeKey: true,
+          hasGoogleRefreshToken: false,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/dashboard')
+  await page.getByPlaceholder('Maya Chen').fill('Taylor Student')
+  await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student founder')
+  await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
+  await page.getByPlaceholder('Relevant experience, club role, recent work...').fill('Built outbound tooling for student teams.')
+  await page.getByRole('button', { name: /^Finish later$/i }).click()
+
+  await expect.poll(() => profilePosts.length).toBe(1)
+  expect(profilePosts[0]?.workspaceConfig).toMatchObject({
+    senderName: 'Taylor Student',
+    senderRole: 'Student founder',
+    senderCompany: 'Cornell GenAI',
+    resumeText: 'Built outbound tooling for student teams.',
+  })
+  expect(profilePosts[0]?.resumeText).toBe('Built outbound tooling for student teams.')
+  expect(profilePosts[0]?.onboardingCompleted).toBe(false)
+})
