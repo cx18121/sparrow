@@ -144,7 +144,7 @@ export default function DraftsTab({
 
   // Edit state
   const [editing, setEditing] = useState(false)
-  const [editSubject, setEditSubject] = useState('')
+  const [subjectValue, setSubjectValue] = useState('')
   const [editBody, setEditBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
@@ -234,6 +234,10 @@ export default function DraftsTab({
     return undefined
   }, [preview, focusMode])
 
+  useEffect(() => {
+    setSubjectValue(preview?.subject || '')
+  }, [preview?.id])
+
   const openPreview = (draft) => {
     setPreview(draft)
     setEditing(false)
@@ -241,10 +245,21 @@ export default function DraftsTab({
   }
 
   const startEdit = () => {
-    setEditSubject(preview.subject || '')
     setEditBody(htmlToText(preview.body))
     setEditing(true)
     setSaveError(null)
+  }
+
+  const saveSubjectInline = async () => {
+    if (!preview || subjectValue === preview.subject) return
+    try {
+      const updated = await updateEmail({ id: preview.id, subject: subjectValue, body: preview.body })
+      const merged = { ...preview, subject: updated.subject ?? subjectValue }
+      setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: merged.subject } : d))
+      setPreview(merged)
+    } catch {
+      setSubjectValue(preview.subject || '')
+    }
   }
 
   const cancelEdit = () => {
@@ -256,8 +271,8 @@ export default function DraftsTab({
     setSaving(true)
     setSaveError(null)
     try {
-      const updated = await updateEmail({ id: preview.id, subject: editSubject, body: editBody })
-      const merged = { ...preview, subject: updated.subject ?? editSubject, body: updated.body ?? editBody }
+      const updated = await updateEmail({ id: preview.id, subject: subjectValue, body: editBody })
+      const merged = { ...preview, subject: updated.subject ?? subjectValue, body: updated.body ?? editBody }
       setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: merged.subject, body: merged.body } : d))
       setPreview(merged)
       setEditing(false)
@@ -892,7 +907,7 @@ export default function DraftsTab({
 
       {/* Preview / edit panel */}
       {preview && (
-        <div className={`flex shrink-0 flex-col border-t border-warm-200 bg-warm-50 lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[38%] lg:min-w-[440px] lg:max-w-[600px] lg:border-l'}`}>
+        <div className={`flex shrink-0 flex-col border-t border-warm-200 bg-warm-50 lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[46%] lg:min-w-[520px] lg:max-w-[720px] lg:border-l'}`}>
           {/* Panel header */}
           <div className="flex flex-col gap-3 border-b border-warm-200 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 flex items-center gap-2.5">
@@ -1056,12 +1071,14 @@ export default function DraftsTab({
             {/* Subject */}
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Subject</p>
-              {editing ? (
+              {tab === 'draft' ? (
                 <input
                   type="text"
-                  value={editSubject}
-                  onChange={e => setEditSubject(e.target.value)}
-                  className="input w-full text-sm"
+                  value={subjectValue}
+                  onChange={e => setSubjectValue(e.target.value)}
+                  onBlur={!editing ? saveSubjectInline : undefined}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!editing) (e.target as HTMLInputElement).blur() } }}
+                  className="input w-full text-sm font-semibold"
                   placeholder="Subject line"
                 />
               ) : (
