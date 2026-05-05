@@ -46,7 +46,7 @@ describe("generateEmailDraft — AI mode", () => {
   it("uses default subject template when subjectTemplate is null", async () => {
     vi.stubGlobal("fetch", makeAnthropicMock("Hi Sarah, reaching out."));
     const draft = await generateEmailDraft(baseAi);
-    expect(draft.subject).toBe("Quick intro — Alex");
+    expect(draft.subject).toBe("Interested in learning about Acme AI");
   });
 
   it("uses custom subject template", async () => {
@@ -318,10 +318,10 @@ describe("substituteVariables — merge tags", () => {
     const out = substituteVariables(
       "Hi {{first_name}} {{last_name}}, role: {{role}}, co: {{company}} / {{companyName}}, from {{sender_name}} ({{senderName}})",
       contact,
-      "Alex",
+      "Alex Morgan",
       company,
     );
-    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Momentum AI / Momentum AI, from Alex (Alex)");
+    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Momentum AI / Momentum AI, from Alex Morgan (Alex Morgan)");
   });
 
   it("fills feature_line and fit_angle when AI metadata is provided", () => {

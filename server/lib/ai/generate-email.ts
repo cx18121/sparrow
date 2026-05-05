@@ -82,13 +82,38 @@ export function buildSubjectLine(
   return tidySubject(substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company, ai))
 }
 
+// When pickFitAngle returns NONE (or feature research came up empty), the
+// merge tag substitutes to an empty string and leaves the surrounding
+// sentence orphaned ("For context,  feels like a natural stepping
+// stone..."). The AI rewrite then "repairs" the broken sentence by
+// inventing a generic placeholder ("my recent project"). To prevent that,
+// drop entire paragraphs whose only specific content was the now-empty
+// merge tag — better to ship a shorter email than a hallucinated one.
+function dropEmptyTagParagraphs(
+  body: string,
+  ai?: { featureLine?: string | null; fitAngle?: string | null }
+): string {
+  const featureEmpty = !ai?.featureLine
+  const fitEmpty = !ai?.fitAngle
+  if (!featureEmpty && !fitEmpty) return body
+  return body
+    .split(/\n\s*\n/)
+    .filter(para => {
+      if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(para)) return false
+      if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(para)) return false
+      return true
+    })
+    .join('\n\n')
+}
+
 function buildTemplateSkeleton(input: TemplateDraftInput): string {
+  const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
   return stripPlaceholders(substituteVariables(
-    input.body,
+    dropEmptyTagParagraphs(input.body, ai),
     input.contact,
     input.senderName,
     input.company,
-    { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null },
+    ai,
   ))
 }
 
@@ -141,6 +166,11 @@ function draftFallback(input: FallbackDraftInput): EmailDraft {
 }
 
 function draftVerbatim(input: VerbatimDraftInput): EmailDraft {
+  // Verbatim mode is the user's explicit "send my template as-is" opt-out
+  // from AI editing. We don't drop empty-tag paragraphs here even if the
+  // result reads awkwardly — that would silently rewrite the template the
+  // user chose. The drop pass exists in buildTemplateSkeleton for the
+  // AI-rewrite path because Claude would invent generic filler otherwise.
   const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company, ai)
   const body = substituteVariables(input.body, input.contact, input.senderName, input.company, ai)

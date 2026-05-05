@@ -14,6 +14,12 @@ describe("email MIME helpers", () => {
     expect(encodeAddressHeader('Jane\r\n"Bcc"', " jane@example.com\r\n<bad> ")).toBe("JaneBcc <jane@example.combad>");
   });
 
+  it("RFC 2047 encodes non-ASCII subject headers", () => {
+    expect(encodeHeader("[TEST] Quick intro — Charlie Xue")).toBe(
+      "=?UTF-8?B?W1RFU1RdIFF1aWNrIGludHJvIOKAlCBDaGFybGllIFh1ZQ==?=",
+    );
+  });
+
   it("detects common attachment MIME types from file names", () => {
     expect(mimeFromFileName("resume.PDF")).toBe("application/pdf");
     expect(mimeFromFileName("resume.docx")).toBe(
@@ -30,6 +36,18 @@ describe("email MIME helpers", () => {
 
     expect(html).toBe('<p >Hi</p><a href="about:blank">x</a>');
     expect(sanitizeHtml("<a href=javascript:evil()>x</a>")).toBe('<a href="about:blank">x</a>');
+  });
+
+  it("preserves plaintext line breaks when rendering as HTML", () => {
+    expect(sanitizeHtml("Bryon, hello\n\nThanks,\nCharlie Xue")).toBe(
+      "Bryon, hello<br><br>Thanks,<br>Charlie Xue",
+    );
+  });
+
+  it("preserves tabs and repeated spaces in plaintext bodies", () => {
+    expect(sanitizeHtml("Column\tValue\nIndented    text")).toBe(
+      "Column&nbsp;&nbsp;&nbsp;&nbsp;Value<br>Indented &nbsp;&nbsp;&nbsp;text",
+    );
   });
 
   it("builds chunked base64 attachments with inferred fallback MIME type", () => {

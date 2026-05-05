@@ -26,7 +26,11 @@ const DEFAULT_CUSTOM_TEMPLATE = {
 
 export function createWorkspaceConfig({ user, templates = [], data = null }) {
   const defaultName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.user_metadata?.preferred_username ||
+    user?.email?.split('@')[0] ||
+    '';
   const defaultTemplateId = templates[0]?.id || '';
 
   const baseConfig = {
