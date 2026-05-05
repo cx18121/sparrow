@@ -108,7 +108,7 @@ test.describe('Gmail connect button', () => {
     await page.goto('/settings?google_connected=1')
     const banner = page.locator('text=/Gmail connected/i').first()
     await expect(banner).toBeVisible({ timeout: 5000 })
-    await page.getByRole('tab', { name: /Account/ }).click()
+    await expect(page.getByRole('tab', { name: /Account/ })).toHaveAttribute('aria-selected', 'true')
     await expect(page.locator('text=/Ready to send drafts/i').first()).toBeVisible({ timeout: 5000 })
   })
 })
@@ -119,14 +119,16 @@ test.describe('Settings tab structure', () => {
     await signInDemo(page)
   })
 
-  test('renders all 5 tabs and switching tabs swaps the panel content', async ({ page }) => {
+  test('renders the three Settings tabs and switching tabs swaps the panel content', async ({ page }) => {
     await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     await page.goto('/settings')
 
     // All settings tabs are visible by name.
-    for (const label of ['Profile', 'Style', 'Integrations', 'Sending', 'Account']) {
+    for (const label of ['Profile', 'Sending', 'Account']) {
       await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({ timeout: 5000 })
     }
+    await expect(page.getByRole('tab', { name: /Style/ })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
     // Profile tab is the default landing — Sender identity panel is visible.
     await expect(page.locator('text=/Sender identity/i').first()).toBeVisible()
@@ -136,11 +138,7 @@ test.describe('Settings tab structure', () => {
     await expect(page.locator('text=/Send rate/i').first()).toBeVisible()
     await expect(page.locator('text=/Sender identity/i')).toHaveCount(0)
 
-    // Integrations exposes the Gmail connection controls outside Account.
-    await page.getByRole('tab', { name: /Integrations/ }).click()
-    await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
-
-    // Account tab exposes Sign out + Delete account.
+    // Account tab exposes Gmail, Sign out, and Delete account.
     await page.getByRole('tab', { name: /Account/ }).click()
     await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
     await expect(page.getByRole('button', { name: /Sign out/i })).toBeVisible()

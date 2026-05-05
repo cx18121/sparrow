@@ -1,4 +1,4 @@
-import { Palette, Plug, Send, ShieldAlert, User } from 'lucide-react'
+import { Send, ShieldAlert, User } from 'lucide-react'
 
 export const GOOGLE_ERROR_COPY: Record<string, string> = {
   callback_failed: 'Could not connect Gmail - Google rejected the sign-in. Try again, or remove access at myaccount.google.com first.',
@@ -15,8 +15,6 @@ export function getGoogleErrorMessage(code: string | null) {
 
 export const SETTINGS_TABS = [
   { key: 'profile', label: 'Profile', icon: User },
-  { key: 'style', label: 'Style', icon: Palette },
-  { key: 'integrations', label: 'Integrations', icon: Plug },
   { key: 'sending', label: 'Sending', icon: Send },
   { key: 'account', label: 'Account', icon: ShieldAlert },
 ] as const
@@ -41,8 +39,8 @@ export function profileSetupSummary(input: { workspaceConfig?: any; profile?: an
   const hasSender = !!workspaceConfig?.senderName?.trim?.()
   const incomplete = [
     !hasSender || !hasResume ? 'profile' : null,
-    !hasGoogle ? 'integrations' : null,
-  ].filter((value): value is 'profile' | 'integrations' => Boolean(value))
+    !hasGoogle ? 'account' : null,
+  ].filter((value): value is 'profile' | 'account' => Boolean(value))
 
   return { hasGoogle, hasResume, hasSender, incomplete }
 }
@@ -51,9 +49,7 @@ export function getSettingsTabStatus(input: { workspaceConfig?: any; profile?: a
   const setup = profileSetupSummary(input)
   return {
     profile: setup.hasSender && setup.hasResume ? 'ok' : 'warn',
-    style: null,
-    integrations: setup.hasGoogle ? 'ok' : 'warn',
     sending: null,
-    account: null,
+    account: setup.hasGoogle ? 'ok' : 'warn',
   }
 }

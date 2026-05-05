@@ -638,20 +638,6 @@ export default function SettingsPage({
             onSave={(updater) => saveWorkspace(updater, 'Profile saved')}
           />
         )}
-        {active === 'style' && (
-          <FieldGroup title="Style" hint="Writing preferences for future draft controls.">
-            <p className="text-sm text-muted">Style controls will appear here when campaign-level writing preferences move out of individual campaigns.</p>
-          </FieldGroup>
-        )}
-        {active === 'integrations' && (
-          <AccountTab
-            profile={profile}
-            profileLoading={profileLoading}
-            onRefreshProfile={onRefreshProfile}
-            onConnectGoogle={handleConnect}
-            gmailOnly
-          />
-        )}
         {active === 'sending' && (
           <SendingTab
             workspaceConfig={workspaceConfig}

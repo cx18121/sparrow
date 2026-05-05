@@ -6,21 +6,17 @@ import {
   getSettingsTabStatus,
   hasRecoverableCompletedSetup,
   profileSetupSummary,
-} from "../../src/lib/profileSetup.js";
+} from "../../src/lib/profileSetup.ts";
 
 describe("Profile setup helpers", () => {
-  it("keeps the five Settings tabs required by the workspace architecture", () => {
+  it("keeps the three Settings tabs required by the workspace architecture", () => {
     expect(SETTINGS_TABS.map(tab => tab.key)).toEqual([
       "profile",
-      "style",
-      "integrations",
       "sending",
       "account",
     ]);
     expect(SETTINGS_TABS.map(tab => tab.label)).toEqual([
       "Profile",
-      "Style",
-      "Integrations",
       "Sending",
       "Account",
     ]);
@@ -58,7 +54,7 @@ describe("Profile setup helpers", () => {
     expect(summary.hasSender).toBe(true);
     expect(summary.hasResume).toBe(true);
     expect(summary.hasGoogle).toBe(false);
-    expect(summary.incomplete).toEqual(["integrations"]);
+    expect(summary.incomplete).toEqual(["account"]);
   });
 
   it("maps Settings tab warning dots from setup summary", () => {
@@ -67,10 +63,8 @@ describe("Profile setup helpers", () => {
       profile: { hasGoogleRefreshToken: false, resumeText: null },
     })).toEqual({
       profile: "warn",
-      style: null,
-      integrations: "warn",
       sending: null,
-      account: null,
+      account: "warn",
     });
 
     expect(getSettingsTabStatus({
@@ -78,10 +72,8 @@ describe("Profile setup helpers", () => {
       profile: { hasGoogleRefreshToken: true, resumeText: null },
     })).toEqual({
       profile: "ok",
-      style: null,
-      integrations: "ok",
       sending: null,
-      account: null,
+      account: "ok",
     });
   });
 
