@@ -11,7 +11,7 @@ Sparrow does that automatically. All you have to do is pick a contact and pick a
 ## How it works
 
 1. **Pick a startup.**  
-   Filter ~6.3k verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and other startup lists.
+   Filter ~6.3k verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and verified startup lists.
 
 2. **Find contacts.**  
    Contact information and emails are found via Apollo.
