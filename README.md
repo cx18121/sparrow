@@ -10,12 +10,23 @@ Sparrow does that automatically. All you have to do is pick a contact and pick a
 
 ## How it works
 
-1. **Pick a startup.** Filter ~6.3k verified companies by tags (sector, tech, stage,investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and other startup lists.
-2. **Find contacts.** Contact information and emails are found via Apollo.
-3. **Per-company research.** Hybrid retrieval runs Exa first (to find recency company info, filtered to ~6 months) with Tavily search as a fallback if no recent info surfaces. Claude creates a structured set of products and recent launches per company.
-4. **Personalized fit angle.** Sparrow picks one feature line from that set that matches one relevant fit angle based on your resume context.
-5. **Email generation.** Claude generates an email using those personalized elements.
-6. **Send via your Gmail.** Drafts are sent through your own Gmail account using Google OAuth and the Gmail API.
+1. **Pick a startup.**  
+   Filter ~6.3k verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and other startup lists.
+
+2. **Find contacts.**  
+   Contact information and emails are found via Apollo.
+
+3. **Per-company research.**  
+   Hybrid retrieval runs Exa first (to find recent company info, filtered to ~6 months) with Tavily search as a fallback if no recent info surfaces. Claude creates a structured set of products and recent launches per company.
+
+4. **Personalized fit angle.**  
+   Sparrow picks one feature line from that set that matches one relevant fit angle based on your resume context.
+
+5. **Email generation.**  
+   Claude generates an email using those personalized elements.
+
+6. **Send via your Gmail.**  
+   Drafts are sent through your own Gmail account using Google OAuth and the Gmail API.
 
 ## Quick start
 
