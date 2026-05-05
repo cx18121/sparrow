@@ -2,7 +2,7 @@
 
 Cold email automation that personalizes emails using live web research and your resume.
 
-> Live at [usesparrow.dev](https://useparrow.dev).
+> Live at [usesparrow.dev](https://usesparrow.dev).
 
 Built for students doing cold outreach towards startups where the difference between "another cold email" and "actual reply" is whether the message references something specific and recent about the company.
 
