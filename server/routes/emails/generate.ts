@@ -3,36 +3,33 @@ import { getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
 import { generateDraft, GenerationError, ProfileError } from "../../lib/draft-generation.js";
 import { parseBody } from "../../lib/parse-params.js";
 import { sendRouteError } from "../../lib/route-error.js";
-
-const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
-const idempotencyCache = new Map<string, { expiresAt: number; promise: Promise<unknown> }>();
+import { hashRequest, runPersistentIdempotent, sanitizeIdempotencyKey } from "../../lib/idempotency.js";
 
 function readIdempotencyKey(req: VercelRequest) {
   const raw = req.headers["idempotency-key"] ?? req.headers["x-idempotency-key"];
   const value = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed && trimmed.length <= 160 ? trimmed : null;
+  return sanitizeIdempotencyKey(value);
 }
 
-function runIdempotent<T>(userId: string, key: string | null, task: () => Promise<T>): Promise<T> {
-  if (!key) return task();
-
-  const now = Date.now();
-  const cacheKey = `${userId}:${key}`;
-  for (const [entryKey, entry] of idempotencyCache) {
-    if (entry.expiresAt <= now) idempotencyCache.delete(entryKey);
+function generationIdempotencyKey(params: {
+  headerKey: string | null;
+  save: unknown;
+  userLeadId: unknown;
+  customContactId: unknown;
+  templateId: unknown;
+  attachmentIds: unknown;
+}) {
+  if (params.save === true) {
+    const target = params.userLeadId
+      ? `lead:${params.userLeadId}`
+      : params.customContactId
+      ? `custom:${params.customContactId}`
+      : null;
+    if (target) {
+      return `draft-save:${target}:template:${params.templateId ?? "none"}:attachments:${hashRequest(params.attachmentIds ?? [])}`;
+    }
   }
-
-  const existing = idempotencyCache.get(cacheKey);
-  if (existing && existing.expiresAt > now) return existing.promise as Promise<T>;
-
-  const promise = task().catch(err => {
-    idempotencyCache.delete(cacheKey);
-    throw err;
-  });
-  idempotencyCache.set(cacheKey, { expiresAt: now + IDEMPOTENCY_TTL_MS, promise });
-  return promise;
+  return params.headerKey;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -52,7 +49,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "userLeadId or customContactId is required" });
     }
 
-    const result = await runIdempotent(userId, readIdempotencyKey(req), () => generateDraft({
+    const idempotencyKey = generationIdempotencyKey({
+      headerKey: readIdempotencyKey(req),
+      save,
+      userLeadId,
+      customContactId,
+      templateId,
+      attachmentIds,
+    });
+    const requestHash = hashRequest({ userLeadId, customContactId, templateId, attachmentIds, interestHook, tone, extraContext, includeResumeBullet, save });
+
+    const result = await runPersistentIdempotent({
+      userId,
+      key: idempotencyKey,
+      requestHash,
+      task: () => generateDraft({
       userId,
       userLeadId: userLeadId as string | undefined,
       customContactId: customContactId as string | undefined,
@@ -63,7 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       extraContext: extraContext as string | null | undefined,
       includeResumeBullet: includeResumeBullet as boolean | undefined,
       save: save as boolean | undefined,
-    }));
+      }),
+    });
     return res.status(200).json(result);
   } catch (err) {
     if (err instanceof GenerationError) return res.status(err.status).json({ error: err.message });

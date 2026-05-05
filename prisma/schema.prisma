@@ -150,6 +150,21 @@ model Email {
   @@schema("public")
 }
 
+model IdempotencyKey {
+  userId      String
+  key         String
+  requestHash String
+  status      String   @default("processing")
+  response    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime
+
+  @@id([userId, key])
+  @@index([expiresAt])
+  @@schema("public")
+}
+
 model Template {
   id        String   @id @default(cuid())
   userId    String
