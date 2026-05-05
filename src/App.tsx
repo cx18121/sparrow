@@ -420,6 +420,12 @@ function AppShell() {
     })
   }
 
+  const saveOnboardingProgress = async (data) => {
+    return persistWorkspaceConfig(data, {
+      completed: false,
+    })
+  }
+
   const updateWorkspaceConfig = async (dataOrUpdater) => {
     const current = workspaceConfig || createWorkspaceConfig({ user, templates })
     const nextData = typeof dataOrUpdater === 'function' ? dataOrUpdater(current) : dataOrUpdater
@@ -460,6 +466,7 @@ function AppShell() {
         onConnectGoogle={connectGoogle}
         initialStepIndex={googleConnectReturn ? 2 : 0}
         onSaveDraft={saveOnboardingDraft}
+        onSaveProgress={saveOnboardingProgress}
         onFinishLater={finishOnboardingLater}
         onSaveForConnect={saveOnboardingForConnect}
         onComplete={completeOnboarding}

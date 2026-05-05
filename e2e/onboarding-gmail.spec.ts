@@ -93,18 +93,38 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
 
   await expect(page.getByRole('button', { name: /Go to Gmail/i })).toBeVisible()
   await page.getByPlaceholder('Maya Chen').fill('Demo User')
+  await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student builder')
+  await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
   await page.getByPlaceholder('Relevant experience, club role, recent work...').fill('Built outreach tooling for Cornell GenAI.')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'resume.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Built outreach tooling for Cornell GenAI.'),
+  })
   await page.getByRole('button', { name: /^Next$/i }).click()
+  await expect.poll(() => profilePosts.length).toBe(1)
+  expect(profilePosts[0]?.workspaceConfig).toMatchObject({
+    senderName: 'Demo User',
+    senderRole: 'Student builder',
+    senderCompany: 'Cornell GenAI',
+    resumeText: 'Built outreach tooling for Cornell GenAI.',
+    resumeFileName: 'resume.txt',
+    resumePath: '',
+  })
+  expect(profilePosts[0]?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
+  expect(profilePosts[0]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(profilePosts[0]?.onboardingCompleted).toBe(false)
   await page.getByRole('button', { name: /^Next$/i }).click()
   await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible()
   const card = page.locator('.rounded-2xl').filter({ hasText: /Gmail not connected/ }).first()
   await expect(card.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
   await expect(card.getByRole('button', { name: /^Refresh$/i })).toBeVisible()
   await card.getByRole('button', { name: /^Connect Gmail$/i }).click()
-  await expect.poll(() => calls).toEqual(['profile'])
-  expect(profilePosts[0]?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
-  expect(profilePosts[0]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
-  expect(profilePosts[0]?.onboardingCompleted).toBe(false)
+  await expect.poll(() => calls).toEqual(['profile', 'profile'])
+  expect(profilePosts[1]?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(profilePosts[1]?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
+  expect(profilePosts[1]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(profilePosts[1]?.onboardingCompleted).toBe(false)
 })
 
 test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', async ({ page }) => {

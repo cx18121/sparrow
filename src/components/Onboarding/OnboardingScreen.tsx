@@ -458,6 +458,7 @@ export default function OnboardingScreen({
   onConnectGoogle,
   initialStepIndex = 0,
   onSaveDraft,
+  onSaveProgress,
   onFinishLater,
   onSaveForConnect,
   onComplete,
@@ -541,7 +542,7 @@ export default function OnboardingScreen({
 
     if (isDemo || !user?.id) {
       markUserEdited()
-      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '' }))
+      setForm(current => ({ ...current, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString() }))
       setResumeUpload({ uploading: false, error: null })
       return
     }
@@ -557,7 +558,7 @@ export default function OnboardingScreen({
     }
 
     markUserEdited()
-    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path }))
+    setForm(current => ({ ...current, resumeFileName: file.name, resumePath: path, resumeUploadedAt: new Date().toISOString() }))
     setResumeUpload({ uploading: false, error: null })
   }
 
@@ -582,19 +583,48 @@ export default function OnboardingScreen({
 
   const isSenderNameValid = Boolean(form.senderName.trim())
 
-  const nextStep = () => {
+  const persistCurrentProgress = async () => {
+    setSaveError('')
+    setIsSaving(true)
+    try {
+      const payload = {
+        ...form,
+        templateId: form.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
+        skipped: false,
+      }
+      await onSaveProgress?.(payload)
+      return true
+    } catch (err) {
+      setSaveError(err.message || 'Setup could not be saved. Try again.')
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const nextStep = async () => {
     if (stepIndex === 0 && !isSenderNameValid) {
       setSenderNameAttempted(true)
       return
     }
+    if (stepIndex === 0) {
+      if (isSaving || resumeUpload.uploading) return
+      const saved = await persistCurrentProgress()
+      if (!saved) return
+    }
     setStepIndex(index => Math.min(index + 1, steps.length - 1))
   }
   const prevStep = () => setStepIndex(index => Math.max(index - 1, 0))
-  const goToStep = (index) => {
+  const goToStep = async (index) => {
     if (index > 0 && !isSenderNameValid) {
       setSenderNameAttempted(true)
       setStepIndex(0)
       return
+    }
+    if (stepIndex === 0 && index > 0) {
+      if (isSaving || resumeUpload.uploading) return
+      const saved = await persistCurrentProgress()
+      if (!saved) return
     }
     setStepIndex(index)
   }
