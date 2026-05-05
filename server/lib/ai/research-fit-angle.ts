@@ -70,13 +70,26 @@ Inputs:
 
 Choose:
 - ONE surface from the dossier the candidate is BEST positioned to contribute to, given the resume
-- ONE specific resume project (by topic, not title) that opens the conversation for THIS company
+- ONE specific resume project that opens the conversation for THIS company
+
+Strict grounding rules for FIT — these are hard constraints, not preferences:
+- Must reference a project, role, or named piece of work that EXPLICITLY appears in the candidate's resume. Use the resume's own words.
+- Do NOT invent, generalize, or paraphrase into a topic the resume doesn't mention. Generic technical phrasings like "compiler optimization," "ML research," "agent infrastructure," or "distributed systems work" are forbidden unless those exact concepts appear in the resume.
+- Generic stand-ins like "my recent project," "my research," or "my coursework" are forbidden — if you can't name a specific project from the resume, output FIT: NONE.
+- If no resume project plausibly maps to any dossier surface, output FIT: NONE. Stretching a weak match is worse than admitting no match.
 
 Output EXACTLY two lines, nothing else:
 FEATURE: <a short noun phrase from or grounded in the dossier surfaces, lowercase, no period>
-FIT: <"my X project" — a specific resume project, concrete, not generic>
+FIT: <must start with "my " and read as a noun phrase>
 
-Output FEATURE: NONE only if no dossier surface plausibly matches the resume. Output FIT: NONE only if the resume has no relevant project.`
+Format examples for FIT:
+  "my RAG eval pipeline project"
+  "my LLM inference latency optimization work"
+  "my multi-agent eval harness"
+The fit phrase has to grammatically slot into "For context, <FIT> feels like a natural stepping stone toward what your team is building." If "For context, [your phrasing] feels like..." doesn't read as a complete English sentence, rewrite.
+
+Output FEATURE: NONE only if no dossier surface plausibly matches the resume.
+Output FIT: NONE only if the resume has no project that maps to a dossier surface — better to send no fit angle than a hallucinated one.`
 
 function buildSearchQuery(input: ResearchCompanyInput): string {
   const parts = [input.company.name]
