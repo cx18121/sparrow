@@ -400,6 +400,7 @@ export default function OnboardingScreen({
   onConnectGoogle,
   onSaveDraft,
   onFinishLater,
+  onSaveForConnect,
   onComplete,
   onLogout,
 }) {
@@ -564,6 +565,12 @@ export default function OnboardingScreen({
     setConnectError('')
     setIsConnecting(true)
     try {
+      const payload = {
+        ...form,
+        templateId: form.templateMode === 'custom' ? '' : selectedTemplate?.id || '',
+        skipped: false,
+      }
+      await onSaveForConnect?.(payload)
       const res = await onConnectGoogle?.()
       if (res?.error?.message) setConnectError(res.error.message)
     } catch (err) {
