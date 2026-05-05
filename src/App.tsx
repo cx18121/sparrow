@@ -148,6 +148,7 @@ function AppShell() {
   const onboardingSearchParams = new URLSearchParams(location.search)
   const googleConnectedParam = onboardingSearchParams.get('google_connected')
   const googleErrorParam = onboardingSearchParams.get('google_error')
+  const googleConnectReturn = !!googleConnectedParam || !!googleErrorParam
 
   useEffect(() => {
     if (!user) {
@@ -167,7 +168,6 @@ function AppShell() {
     const sessionKey = storageKey ? `${storageKey}_session` : null
     const forceKey = getOnboardingForceKey(user)
     const googleConnectedReturn = !!googleConnectedParam
-    const googleConnectReturn = googleConnectedReturn || !!googleErrorParam
     if (googleConnectedReturn && forceKey) sessionStorage.removeItem(forceKey)
     const stored = storageKey ? localStorage.getItem(storageKey) : null
     const bypassedThisSession = sessionKey ? isOnboardingSessionBypass(sessionStorage.getItem(sessionKey)) : false
@@ -191,7 +191,13 @@ function AppShell() {
     const localConfig = createWorkspaceConfig({ user, templates: templatesRef.current, data: parsed?.data || null })
     const localRecoverableSetup = hasRecoverableCompletedSetup({ workspaceConfig: parsed?.data || {} })
     const hasLocalCompletionSignal = parsed?.completed === true || bypassedThisSession
-    const localCompleted = googleConnectedReturn ? true : forceOnboarding ? false : hasLocalCompletionSignal || localRecoverableSetup
+    const localCompleted = googleConnectedReturn
+      ? true
+      : googleConnectReturn
+        ? false
+        : forceOnboarding
+          ? false
+          : hasLocalCompletionSignal || localRecoverableSetup
     const canUseLocalGate = googleConnectReturn || forceOnboarding || hasLocalCompletionSignal || localRecoverableSetup
     setWorkspaceConfig(localConfig)
     // Never regress loaded from true→false on re-runs (e.g. token refresh causes user ref
@@ -219,7 +225,9 @@ function AppShell() {
           ? isExplicitOnboardingEdit(sessionStorage.getItem(forceKey))
           : false
         const latestStoredUpdatedAt = latestStored?.updatedAt ? new Date(latestStored.updatedAt).getTime() : 0
-        const serverCompleted = !!res.profile.onboardingCompleted || hasRecoverableCompletedSetup(res.profile)
+        const serverCompleted = googleConnectReturn
+          ? !!res.profile.onboardingCompleted
+          : !!res.profile.onboardingCompleted || hasRecoverableCompletedSetup(res.profile)
         if (latestStored?.data && latestStoredUpdatedAt > profileFetchStartedAt) {
           setWorkspaceConfig(latestStored.data)
           setOnboardingState({
@@ -458,6 +466,7 @@ function AppShell() {
         profileLoading={profileLoading}
         onRefreshProfile={refreshProfile}
         onConnectGoogle={connectGoogle}
+        initialStepIndex={googleConnectReturn ? 2 : 0}
         onSaveDraft={saveOnboardingDraft}
         onFinishLater={finishOnboardingLater}
         onSaveForConnect={saveOnboardingForConnect}

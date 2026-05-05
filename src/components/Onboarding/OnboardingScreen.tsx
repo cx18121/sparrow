@@ -390,6 +390,10 @@ function GmailStep({
   )
 }
 
+function normalizeStepIndex(index) {
+  return Number.isInteger(index) ? Math.max(0, Math.min(TOTAL_STEPS - 1, index)) : 0
+}
+
 export default function OnboardingScreen({
   user,
   templates,
@@ -398,13 +402,14 @@ export default function OnboardingScreen({
   profileLoading,
   onRefreshProfile,
   onConnectGoogle,
+  initialStepIndex = 0,
   onSaveDraft,
   onFinishLater,
   onSaveForConnect,
   onComplete,
   onLogout,
 }) {
-  const [stepIndex, setStepIndex] = useState(0)
+  const [stepIndex, setStepIndex] = useState(() => normalizeStepIndex(initialStepIndex))
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -432,6 +437,11 @@ export default function OnboardingScreen({
     if (!saveDraftMounted.current) { saveDraftMounted.current = true; return }
     onSaveDraft?.(form)
   }, [form, onSaveDraft])
+
+  useEffect(() => {
+    const nextStepIndex = normalizeStepIndex(initialStepIndex)
+    if (nextStepIndex > 0) setStepIndex(nextStepIndex)
+  }, [initialStepIndex])
 
   useEffect(() => {
     if (!syncMountedRef.current) {

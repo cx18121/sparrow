@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test'
-import { mockApi } from './fixtures/api-mocks'
 
 async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
@@ -9,8 +8,8 @@ async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
       styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
       customTemplate: {
         name: 'Intro',
-        subject: 'Quick question about {{company}}',
-        body: 'Hi {{first_name}},\\n\\nWanted to reach out.\\n\\nBest,\\n{{sender_name}}',
+        subject: '',
+        body: '',
       },
       templateMode: 'custom',
     }
@@ -29,17 +28,39 @@ async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
   })
 }
 
+async function mockOnboardingApi(
+  page: import('@playwright/test').Page,
+  handleProfile: (route: import('@playwright/test').Route) => Promise<void> | void,
+) {
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url())
+    const path = url.pathname
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+
+    if (path === '/api/profile') return handleProfile(route)
+    if (path === '/api/templates') return json({ items: [] })
+    if (path === '/api/campaigns') return json({ items: [] })
+    if (path === '/api/leads') return json({ items: [] })
+    if (path === '/api/custom-contacts') return json({ items: [] })
+    if (path === '/api/companies') return json({ items: [], nextCursor: null, seenTotal: 0, usingFallback: false })
+    if (path === '/api/campaign-options') return json({ industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0 })
+    if (path === '/api/audience-query') return json({ count: 0, sample: [] })
+    if (path === '/api/emails') {
+      if (url.searchParams.get('combined') === 'true') return json({ drafts: [], sent: [] })
+      if (url.searchParams.get('countToday') === 'true') return json({ count: 0 })
+      return json({ items: [] })
+    }
+    return json({})
+  })
+}
+
 test('onboarding includes an explicit Gmail connection step before dashboard access', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await signInNeedsOnboarding(page)
   const profilePosts: any[] = []
   const calls: string[] = []
-  await mockApi(page, {
-    profile: {
-      hasGoogleRefreshToken: false,
-    },
-  })
-  await page.route('**/api/profile', async route => {
+  await mockOnboardingApi(page, async route => {
     if (route.request().method() === 'POST') {
       calls.push('profile')
       profilePosts.push(route.request().postDataJSON())
@@ -56,8 +77,8 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
             styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
             customTemplate: {
               name: 'Intro',
-              subject: 'Quick question about {{company}}',
-              body: 'Hi {{first_name}},\\n\\nWanted to reach out.\\n\\nBest,\\n{{sender_name}}',
+              subject: '',
+              body: '',
             },
             templateMode: 'custom',
           },
@@ -65,14 +86,6 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
           hasGoogleRefreshToken: false,
         },
       }),
-    })
-  })
-  await page.route('**/api/google/connect', route => {
-    calls.push('google')
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ url: '/oauth-started' }),
     })
   })
 
@@ -92,4 +105,37 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
   expect(profilePosts[0]?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
   expect(profilePosts[0]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
   expect(profilePosts[0]?.onboardingCompleted).toBe(false)
+})
+
+test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await signInNeedsOnboarding(page)
+  await mockOnboardingApi(page, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        profile: {
+          onboardingCompleted: false,
+          workspaceConfig: {
+            senderName: 'Demo User',
+            resumeText: 'Built outreach tooling for Cornell GenAI.',
+            customTemplate: {
+              name: 'Intro',
+              subject: 'Quick question about {{company}}',
+              body: 'Hi {{first_name}},\\n\\nWanted to reach out.\\n\\nBest,\\n{{sender_name}}',
+            },
+            templateMode: 'custom',
+          },
+          hasClaudeKey: true,
+          hasGoogleRefreshToken: false,
+        },
+      }),
+    })
+  )
+
+  await page.goto('/dashboard?google_error=callback_failed')
+
+  await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /About you/i })).toBeHidden()
 })
