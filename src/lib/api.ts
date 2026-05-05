@@ -193,6 +193,12 @@ export const updateLead = (data: { id: string; status?: string; notes?: string |
   request<UserLead>('/leads', { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteLead = (id: string) => request<void>(`/leads${qs({ id })}`, { method: 'DELETE' })
 
+export const fetchPreviewFitAngle = (resumeText: string) =>
+  request<{ featureLine: string | null; fitAngle: string | null }>('/preview/fit-angle', {
+    method: 'POST',
+    body: JSON.stringify({ resumeText }),
+  })
+
 export const fetchEmails = (params: Record<string, unknown> = {}) =>
   request<PageResponse<Email>>(`/emails${qs(params)}`)
 export const fetchEmailsCombined = (params: { campaignId?: string } = {}) =>

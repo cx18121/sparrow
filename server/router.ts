@@ -16,6 +16,7 @@ import googleConnect from "./routes/google/connect.js";
 import health from "./routes/health.js";
 import leads from "./routes/leads.js";
 import account from "./routes/account.js";
+import previewFitAngle from "./routes/preview-fit-angle.js";
 import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
 
@@ -40,6 +41,7 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/campaign-options": campaignOptions,
   "/api/apollo-search": apolloSearch,
   "/api/audience-query": audienceQuery,
+  "/api/preview/fit-angle": previewFitAngle,
 };
 
 function pathFromCatchAll(req: VercelRequest): string | null {

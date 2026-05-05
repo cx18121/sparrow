@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, User } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
+import { fetchPreviewFitAngle } from '../../lib/api'
 import { supabase, isDemo } from '../../lib/supabase'
 
 const TOTAL_STEPS = 3
@@ -19,36 +20,18 @@ function fillVariables(content, data) {
     .replace(/\{\{fit_angle\}\}/g, data.fit_angle ?? '')
 }
 
-// Picks a (feature_line, fit_angle) pair for the onboarding template preview
-// based on what the user wrote in their resume. The recipient is fixed to
-// Anthropic in this preview, so feature_line is always a real Anthropic
-// surface; fit_angle is matched to the strongest signal in the resume so
-// the preview reflects the user's actual background, not a stock example.
-//
-// Match order is specificity-first: more niche concept clusters (RAG, agents,
-// inference) win over broader ones (data, sales) when both terms appear.
-// First match wins; falls back to a generic phrasing when nothing matches
-// so a user who hasn't typed a resume yet still sees a coherent preview.
-function inferPreviewPersonalization(resumeText: string): { feature_line: string; fit_angle: string } {
-  const text = (resumeText ?? '').toLowerCase()
-  const tracks: Array<{ match: RegExp; feature_line: string; fit_angle: string }> = [
-    { match: /\b(rag|retrieval|embedding|vector\s*(db|search))\b/, feature_line: 'claude code agentic coding', fit_angle: 'my RAG eval pipeline project' },
-    { match: /\b(multi-agent|agentic|tool\s*use|orchestrat)/,    feature_line: 'claude code agentic coding', fit_angle: 'my multi-agent eval harness project' },
-    { match: /\b(eval|benchmark|red\s*team|alignment|safety)\b/, feature_line: 'claude opus 4.7 release',     fit_angle: 'my model evaluation work' },
-    { match: /\b(inference|gpu|throughput|latency|quantiz)/,     feature_line: 'claude opus 4.7 release',     fit_angle: 'my inference cost optimization project' },
-    { match: /\b(figma|prototype|ux|ui|interface|design\s*system)\b/, feature_line: 'claude design prototyping tool', fit_angle: 'my design system project' },
-    { match: /\b(fintech|payment|bank|finance|underwriting)\b/,  feature_line: 'claude personal app connectors', fit_angle: 'my fintech integrations project' },
-    { match: /\b(security|infosec|appsec|threat|exploit)/,       feature_line: 'cyber verification program',  fit_angle: 'my security research project' },
-    { match: /\b(sales|sdr|bdr|pipeline|prospect|outbound)/,     feature_line: 'claude enterprise self-serve', fit_angle: 'my outbound campaign automation work' },
-    { match: /\b(growth|gtm|marketing|seo|acquisition)\b/,       feature_line: 'claude code agentic coding',  fit_angle: 'my growth experimentation work' },
-    { match: /\b(data|sql|warehouse|airflow|dbt|analytics|etl)\b/, feature_line: 'claude code agentic coding', fit_angle: 'my data pipeline work' },
-    { match: /\b(agent)\b/,                                      feature_line: 'claude code agentic coding',  fit_angle: 'my agent infrastructure project' },
-  ]
-  for (const t of tracks) {
-    if (t.match.test(text)) return { feature_line: t.feature_line, fit_angle: t.fit_angle }
-  }
-  return { feature_line: 'claude code agentic coding', fit_angle: 'my recent project' }
-}
+// Debounce delay for the preview fit-angle fetch. Long enough that users
+// pasting/typing a resume don't fire a request per keystroke; short enough
+// that Step 2 reflects their resume by the time they navigate to it.
+const PREVIEW_DEBOUNCE_MS = 700
+
+// Static fallback when the preview API hasn't returned yet, errored, or
+// the resume is empty. Anthropic-paired so the preview still reads as a
+// coherent draft to Dario before the real fit-angle resolves.
+const PREVIEW_FALLBACK = {
+  feature_line: 'claude code agentic coding',
+  fit_angle: 'my recent project',
+} as const
 
 function stripHtml(content) {
   if (!content) return ''
@@ -197,23 +180,48 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
 
   // Real-company example (Anthropic / Dario Amodei) so the preview reads
-  // like an actual draft. feature_line stays an Anthropic surface;
-  // fit_angle is inferred from the user's resume keywords so the preview
-  // updates as they fill out step 1 — same per-user uniqueness contract
-  // pickFitAngle enforces in production, just keyword-matched instead of
-  // model-picked since onboarding has no API budget yet.
-  const inferred = useMemo(
-    () => inferPreviewPersonalization(form.resumeText || ''),
-    [form.resumeText]
-  )
+  // like an actual draft. feature_line + fit_angle are produced by the
+  // SAME pickFitAngle path production uses — the recipient is fixed to
+  // Anthropic with a pre-baked dossier (server side), so all that varies
+  // per user is the resume. Updates live with debounce as the user types
+  // step 1; on error or empty input we fall back to PREVIEW_FALLBACK so
+  // the preview is never blank.
+  const [aiPreview, setAiPreview] = useState<{ featureLine: string | null; fitAngle: string | null }>({
+    featureLine: null,
+    fitAngle: null,
+  })
+
+  useEffect(() => {
+    const text = (form.resumeText || '').trim()
+    if (text.length === 0) {
+      setAiPreview({ featureLine: null, fitAngle: null })
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      fetchPreviewFitAngle(text)
+        .then(res => {
+          if (cancelled) return
+          setAiPreview({ featureLine: res?.featureLine ?? null, fitAngle: res?.fitAngle ?? null })
+        })
+        .catch(() => {
+          // Preview is best-effort — silent fallback keeps the rest of the
+          // onboarding flow usable when the host key is absent or the
+          // network drops.
+          if (!cancelled) setAiPreview({ featureLine: null, fitAngle: null })
+        })
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [form.resumeText])
+
   const previewData = {
     first_name: 'Dario',
     last_name: 'Amodei',
     company: 'Anthropic',
     role: 'CEO',
     sender_name: form.senderName || 'Your Name',
-    feature_line: inferred.feature_line,
-    fit_angle: inferred.fit_angle,
+    feature_line: aiPreview.featureLine ?? PREVIEW_FALLBACK.feature_line,
+    fit_angle: aiPreview.fitAngle ?? PREVIEW_FALLBACK.fit_angle,
   }
 
   // Insert a merge tag at the caret of whichever field was last focused.
