@@ -78,7 +78,12 @@ vi.mock("../lib/ai/research-fit-angle.js", async () => {
   );
   return {
     ...actual,
+    // Both names point at the same spy so test fixtures don't have to track
+    // which retrieval function the orchestrator currently calls. Production
+    // routes through the hybrid path; the Tavily-only export stays for
+    // direct callers (smoke scripts, retrieval A/B harness).
     researchCompanyDossier: mockResearchCompanyDossier,
+    researchCompanyDossierHybrid: mockResearchCompanyDossier,
     pickFitAngle: mockPickFitAngle,
   };
 });

@@ -1,7 +1,7 @@
 import { prisma } from "./prisma.js";
 import { generateEmailDraft } from "./ai/generate-email.js";
 import {
-  researchCompanyDossier,
+  researchCompanyDossierHybrid,
   pickFitAngle,
   parseCachedDossier,
   type CompanyDossier,
@@ -12,7 +12,7 @@ import { resolveDraftTarget } from "./draft-target.js";
 import { GenerationError } from "./generation-error.js";
 
 // In-process dedupe: when two drafts to the same company race a cache miss,
-// only one Tavily+Claude call fires; the second await piggybacks on the
+// only one search+Claude call fires; the second await piggybacks on the
 // first's Promise. Keyed by Company.id; entry is cleared as soon as the
 // research settles. Multi-process deployments can still double-research, but
 // the cache write is idempotent (last-writer-wins on identical public data).
@@ -51,13 +51,21 @@ async function researchAndCacheDossier(input: PersonalizationInput): Promise<Com
   if (existing) return existing;
 
   const envDepth = process.env.TAVILY_SEARCH_DEPTH?.trim();
-  const searchDepth = envDepth === "basic" || envDepth === "advanced" ? envDepth : undefined;
+  const tavilySearchDepth = envDepth === "basic" || envDepth === "advanced" ? envDepth : undefined;
+  const envRecency = parseInt(process.env.EXA_RECENCY_DAYS?.trim() ?? "", 10);
+  const recencyDays = Number.isFinite(envRecency) && envRecency > 0 ? envRecency : undefined;
 
-  const promise = researchCompanyDossier({
+  // Hybrid: Exa primary (precision + recency), Tavily fallback only when
+  // Exa returns 0 results (long-tail companies the neural index hasn't
+  // seen). Either key alone is fine; missing both gracefully degrades to
+  // an empty dossier and the email drafts without personalization.
+  const promise = researchCompanyDossierHybrid({
     company: input.companyInfo,
     apiKey: input.apiKey,
+    exaApiKey: process.env.EXA_API_KEY?.trim() || null,
     tavilyApiKey: process.env.TAVILY_API_KEY?.trim() || null,
-    searchDepth,
+    recencyDays,
+    tavilySearchDepth,
   })
     .then(async dossier => {
       // Persist for the next caller. Failure to write is non-fatal —

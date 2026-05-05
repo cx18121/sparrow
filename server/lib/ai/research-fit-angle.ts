@@ -1,5 +1,6 @@
 import { callClaude } from './anthropic.js'
 import { tavilySearch, type TavilyResult } from './tavily-search.js'
+import { exaSearch } from './exa-search.js'
 
 // Structured snapshot of a company, produced once via search + LLM synthesis
 // and reused across users + drafts. The per-recipient personalization
@@ -203,6 +204,28 @@ export function parseCachedDossier(value: unknown): CompanyDossier | null {
   }
 }
 
+// Synthesis step shared by every retrieval provider. The dossier shape is
+// the contract; the choice of search vendor is invisible past this boundary.
+async function synthesizeDossier(
+  company: ResearchCompanyInput['company'],
+  results: TavilyResult[],
+  apiKey: string
+): Promise<CompanyDossier> {
+  if (results.length === 0) return emptyDossier()
+  const text = await callClaude({
+    apiKey,
+    model: SYNTH_MODEL,
+    system: SYNTH_SYSTEM,
+    // buildSynthesisPrompt only reads input.company, so a partial input shape
+    // is fine — keeps both Tavily and Exa callers out of each other's typing.
+    userContent: buildSynthesisPrompt({ company } as ResearchCompanyInput, results),
+    // 2048 is comfortable for summary + ~7 surfaces + ~5 launches + ~5 areas.
+    // Lower (1024) was observed to truncate JSON mid-array.
+    maxTokens: 2048,
+  })
+  return parseDossier(text)
+}
+
 // Cacheable per-company research: Tavily search → Claude synthesis. Returns
 // an empty dossier when Tavily is disabled or returns no usable results.
 export async function researchCompanyDossier(
@@ -216,19 +239,110 @@ export async function researchCompanyDossier(
     maxResults: 5,
     searchDepth: input.searchDepth,
   })
-  if (search.results.length === 0) return emptyDossier()
+  return synthesizeDossier(input.company, search.results, input.apiKey)
+}
 
-  const text = await callClaude({
-    apiKey: input.apiKey,
-    model: SYNTH_MODEL,
-    system: SYNTH_SYSTEM,
-    userContent: buildSynthesisPrompt(input, search.results),
-    // 2048 is comfortable for summary + ~7 surfaces + ~5 launches + ~5 areas.
-    // Lower (1024) was observed to truncate JSON mid-array.
-    maxTokens: 2048,
+export interface ResearchCompanyExaInput {
+  company: ResearchCompanyInput['company']
+  apiKey: string
+  exaApiKey: string | null
+  // Days back from now to constrain results. Default 180 — tight enough to
+  // privilege recent launches, loose enough that small companies still surface.
+  recencyDays?: number
+  // Override Exa's per-query routing classifier. Default 'auto'.
+  type?: 'neural' | 'keyword' | 'auto'
+}
+
+// Exa-backed sibling of researchCompanyDossier. Identical contract: returns
+// the same CompanyDossier shape, fails closed to an empty dossier on missing
+// key or empty results. The synthesis prompt is shared, so Tavily vs Exa is
+// a pure retrieval-quality A/B with no downstream confounds.
+export async function researchCompanyDossierExa(
+  input: ResearchCompanyExaInput
+): Promise<CompanyDossier> {
+  if (!input.exaApiKey) return emptyDossier()
+
+  const recencyDays = input.recencyDays ?? 180
+  const startDate = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString()
+
+  const search = await exaSearch({
+    query: buildSearchQuery({ company: input.company } as ResearchCompanyInput),
+    apiKey: input.exaApiKey,
+    numResults: 5,
+    type: input.type ?? 'auto',
+    startPublishedDate: startDate,
+    textMaxCharacters: 2000,
   })
 
-  return parseDossier(text)
+  // ExaResult is a structural superset of TavilyResult ({ title, url, content }
+  // shared, plus optional metadata). The synthesis prompt only reads the
+  // shared fields, so the cast is safe and avoids a redundant remap.
+  return synthesizeDossier(input.company, search.results, input.apiKey)
+}
+
+export interface ResearchCompanyHybridInput {
+  company: ResearchCompanyInput['company']
+  apiKey: string
+  // Both keys are nullable — caller passes whatever's in env. Behavior:
+  //   both set    → Exa first, Tavily fallback on 0-result whiff
+  //   only Exa    → Exa-only (same as researchCompanyDossierExa)
+  //   only Tavily → Tavily-only (same as researchCompanyDossier)
+  //   neither     → empty dossier (email drafts without personalization)
+  exaApiKey: string | null
+  tavilyApiKey: string | null
+  recencyDays?: number
+  type?: 'neural' | 'keyword' | 'auto'
+  // Tavily depth when falling back. Defaults to 'advanced' (richer extracts
+  // matter more on the long tail where each result is precious).
+  tavilySearchDepth?: 'basic' | 'advanced'
+}
+
+// Hybrid retrieval. Exa wins on precision and recency for companies with
+// real web footprint (the bulk of our DB). Tavily wins on long-tail recall
+// for companies Exa's neural index has never seen. Composing them — Exa
+// first, Tavily only when Exa returns zero — captures both wins without
+// diluting Exa's quality with Tavily's aggregator-spam pages on entities
+// where Exa already has signal.
+//
+// We deliberately do NOT merge results when both providers return data:
+// the synthesis prompt would have to balance Exa's clean recent launches
+// against Tavily's status-checker pages, and the live A/B showed the mix
+// degrades the dossier vs. Exa-pure. Fallback fires only when Exa whiffs.
+export async function researchCompanyDossierHybrid(
+  input: ResearchCompanyHybridInput
+): Promise<CompanyDossier> {
+  const { company, apiKey, exaApiKey, tavilyApiKey } = input
+  const recencyDays = input.recencyDays ?? 180
+
+  if (exaApiKey) {
+    const startDate = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString()
+    const exaResults = await exaSearch({
+      query: buildSearchQuery({ company } as ResearchCompanyInput),
+      apiKey: exaApiKey,
+      numResults: 5,
+      type: input.type ?? 'auto',
+      startPublishedDate: startDate,
+      textMaxCharacters: 2000,
+    })
+
+    if (exaResults.results.length > 0) {
+      return synthesizeDossier(company, exaResults.results, apiKey)
+    }
+    // Exa whiffed (long-tail entity, or recency window too tight). Fall
+    // through to Tavily — its keyword-matched Google index has wider raw
+    // coverage on obscure companies than Exa's neural model.
+    console.info(`hybrid retrieval: Exa returned 0 results for "${company.name}", falling back to Tavily`)
+  }
+
+  if (!tavilyApiKey) return emptyDossier()
+
+  const tavilyResults = await tavilySearch({
+    query: buildSearchQuery({ company } as ResearchCompanyInput),
+    apiKey: tavilyApiKey,
+    maxResults: 5,
+    searchDepth: input.tavilySearchDepth ?? 'advanced',
+  })
+  return synthesizeDossier(company, tavilyResults.results, apiKey)
 }
 
 // Per-recipient personalization. Token-only — no search.
