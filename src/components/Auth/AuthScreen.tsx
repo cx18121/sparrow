@@ -123,19 +123,19 @@ export default function AuthScreen() {
           <form onSubmit={handleSubmit} className="space-y-3.5">
             {mode === 'signup' && (
               <div>
-                <label className="label">Full name</label>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                <label htmlFor="auth-full-name" className="label">Full name</label>
+                <input id="auth-full-name" type="text" value={fullName} onChange={e => setFullName(e.target.value)}
                   placeholder="Jane Smith" required className="input" />
               </div>
             )}
             <div>
-              <label className="label">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              <label htmlFor="auth-email" className="label">Email</label>
+              <input id="auth-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com" required className="input" />
             </div>
             <div>
-              <label className="label">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              <label htmlFor="auth-password" className="label">Password</label>
+              <input id="auth-password" type="password" value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••" required minLength={6} className="input" />
             </div>
 

@@ -173,8 +173,9 @@ export default function SettingsTab() {
       <section className="surface-panel space-y-3 px-5 py-5">
         <h3 className="text-base font-semibold text-dark">Basics</h3>
         <div>
-          <label className="label">Campaign name *</label>
+          <label htmlFor="campaign-settings-name" className="label">Campaign name *</label>
           <input
+            id="campaign-settings-name"
             value={form.name}
             onChange={e => field('name', e.target.value)}
             className="input"
@@ -183,15 +184,16 @@ export default function SettingsTab() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">Template</label>
-            <select value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
+            <label htmlFor="campaign-settings-template" className="label">Template</label>
+            <select id="campaign-settings-template" value={form.templateId} onChange={e => field('templateId', e.target.value)} className="select">
               <option value="">Select template…</option>
               {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">Status</label>
+            <label htmlFor="campaign-settings-status" className="label">Status</label>
             <select
+              id="campaign-settings-status"
               value={form.status}
               onChange={e => field('status', e.target.value as FormValue['status'])}
               className="select"
@@ -281,8 +283,9 @@ export default function SettingsTab() {
         <h3 className="text-base font-semibold text-dark">Batching</h3>
         <div className="flex items-center gap-4">
           <div className="shrink-0">
-            <label className="label">Batch size</label>
+            <label htmlFor="campaign-settings-batch-size" className="label">Batch size</label>
             <input
+              id="campaign-settings-batch-size"
               type="number" min="1" max="50"
               value={form.batchSize}
               onChange={e => field('batchSize', e.target.value)}

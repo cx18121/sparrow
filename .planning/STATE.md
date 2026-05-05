@@ -1,92 +1,58 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-stopped_at: Completed 02-03-PLAN.md — is-main-module guards and REQUIREMENTS traceability fix
-last_updated: "2026-03-22T02:35:09.530Z"
-progress:
-  total_phases: 3
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+milestone: v1
+milestone_name: Sparrow campaign workspace
+status: active
+last_updated: "2026-05-05"
 ---
 
 # Project State
 
-## Project Reference
+## Source Of Truth
 
-See: .planning/PROJECT.md (updated 2026-03-15)
+Use these docs for current behavior:
 
-**Core value:** Automate startup discovery, contact enrichment, and personalized email generation end-to-end — so users focus on relationships, not research.
-**Current focus:** Phase 02 — discovery
+- `CONTEXT.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/adr/`
+- `.planning/PROJECT.md`
+- `.planning/REQUIREMENTS.md`
+- `.planning/ROADMAP.md`
 
-## Current Position
+Older files under `.planning/research/`, `.planning/phases/`, and `.scratch/` are historical unless a current doc explicitly points at them.
 
-Phase: 02 (discovery) — EXECUTING
-Plan: 2 of 3
+## Current Product
 
-## Performance Metrics
+Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campaign work lives under `/campaigns/:id/*` with Overview, Leads, Drafts, Sent, and Settings.
 
-**Velocity:**
+## Current Architecture
 
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Frontend: Vite + React + Tailwind.
+- API: Vercel Functions-compatible router, with `local-api.ts` for local Express development.
+- Database: Supabase Postgres via Prisma 7.
+- Auth: Supabase Auth.
+- Gmail: Google OAuth + Gmail API.
+- AI: host-managed Anthropic Claude key.
+- Research: Exa-first, Tavily fallback.
+- Contacts: Apollo search/reveal.
 
-**By Phase:**
+## Current Decisions
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
+- No per-user Claude or Apollo keys in the product.
+- Settings has three tabs: Profile, Sending, Account.
+- Templates default to verbatim mode.
+- Headcount filter is retired from the audience UI.
+- `LeadStatus` is SAVED, EMAILED, NO_RESPONSE, DECLINED.
+- Reply detection, scheduled sends, and follow-up automation are deferred.
 
-**Recent Trend:**
+## Active Concerns
 
-- Last 5 plans: —
-- Trend: —
+- Accessibility hardening: labels and modal focus management.
+- Bundle size around vendor/pdf/docx parser chunks.
+- Research dossier freshness is manual/implicit, not a scheduled refresh.
+- Some old planning files are archived and intentionally not reliable as current implementation docs.
 
-*Updated after each plan completion*
-| Phase 02 P01 | 20 | 3 tasks | 12 files |
-| Phase 02-discovery P02 | 5 | 3 tasks | 8 files |
-| Phase 02-discovery P03 | 7 | 2 tasks | 6 files |
+## Last Manual Refresh
 
-## Accumulated Context
-
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Architecture: BullMQ workers CANNOT run on Vercel — worker process must deploy on Railway/Fly.io
-- Architecture: Supabase RLS must be enabled on all tables before any data is written (Phase 1 prerequisite)
-- Architecture: Gmail OAuth2 only (basic SMTP auth deprecated May 2025) — use `googleapis` + Nodemailer
-- Data model: Shared global company/contact pool (no userId); per-user data always userId-scoped
-- Auth: Google OAuth serves dual purpose — account auth AND Gmail sending authorization
-- [Phase 02]: Prisma 7 requires driver adapter pattern — used @prisma/adapter-pg instead of datasourceUrl in PrismaClient constructor
-- [Phase 02]: Prisma 7 datasource URL moved to prisma.config.ts using defineConfig (breaking change from v6)
-- [Phase 02]: manual-add.ts uses dynamic imports for DB modules so usage prints before any DB connection attempt
-- [Phase 02-discovery]: Apollo enrichment uses /people/search per domain (not /people/match per contact) to avoid per-contact credit consumption
-- [Phase 02-discovery]: Product Hunt API requires commercial approval — script exits with code 1 and helptext pointing to hello@producthunt.com
-- [Phase 02-discovery]: is-main-module guard: always include process.argv[1] nullability check before pathToFileURL() to prevent crash in eval/import contexts
-- [Phase 02-discovery]: Config-at-call-time: env vars and CLI args for credentials read inside exported async functions, not at module level — prevents side effects at import time
-- [Phase 02-discovery]: Use throw new Error() inside library functions instead of process.exit(1) — lets caller catch blocks handle failures gracefully
-
-### Pending Todos
-
-None yet.
-
-### Blockers/Concerns
-
-- Apollo API tier: free tier (600 credits/month) likely insufficient. Cost model for per-user Apollo key storage needs validation before Phase 2 planning.
-- Gmail push notifications (Pub/Sub) vs IMAP polling tradeoff unresolved — evaluate during Phase 3 planning before building reply detection.
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-
-## Session Continuity
-
-Last session: 2026-03-22
-Stopped at: Completed Phase 02 — discovery pipeline (YC, Product Hunt, Apollo enrichment)
-Resume file: None
+2026-05-05: Root context, ADRs, README, product/design docs, env example, and active planning docs updated to match current implementation.

@@ -76,7 +76,7 @@ function ToolbarButton({ onClick, active, title, children }) {
   )
 }
 
-function RichEditor({ content, onChange, placeholder = 'Write your email…' }) {
+function RichEditor({ content, onChange, placeholder = 'Write your email…', ariaLabel = 'Email body' }) {
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
   const linkInputRef = useRef(null)
@@ -91,7 +91,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
-      attributes: { class: 'focus:outline-none' },
+      attributes: { class: 'focus:outline-none', role: 'textbox', 'aria-label': ariaLabel },
     },
   })
 
@@ -168,6 +168,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…' }) 
           <input
             ref={linkInputRef}
             type="url"
+            aria-label="Link URL"
             value={linkUrl}
             onChange={e => setLinkUrl(e.target.value)}
             onKeyDown={e => {
@@ -379,7 +380,7 @@ export default function TemplatesTab({ workspaceConfig }) {
         <aside className="surface-panel flex h-fit flex-col gap-4 p-3 xl:sticky xl:top-6">
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
+            <input aria-label="Search templates" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
           </div>
 
           <div className="space-y-4 overflow-y-auto pr-1 xl:max-h-[calc(100vh-180px)]">
@@ -545,8 +546,9 @@ export default function TemplatesTab({ workspaceConfig }) {
               {view === 'edit' && !selectedIsLibrary ? (
                 <div className="space-y-5 surface-panel px-5 py-5">
                   <div>
-                    <label className="label">Subject line</label>
+                    <label htmlFor="template-editor-subject" className="label">Subject line</label>
                     <input
+                      id="template-editor-subject"
                       value={draft.id === selected.id ? draft.subject : (selected.subject || '')}
                       onChange={e => scheduleFlush({ ...draft, id: selected.id, subject: e.target.value })}
                       onBlur={() => flushDraft()}
@@ -555,12 +557,13 @@ export default function TemplatesTab({ workspaceConfig }) {
                     />
                   </div>
                   <div>
-                    <label className="label">Body</label>
+                    <span className="label">Body</span>
                     <RichEditor
                       key={selected.id}
                       content={selected.body}
                       onChange={body => scheduleFlush({ ...draft, id: selected.id, body })}
                       placeholder="Write your email here… Use the variable buttons to insert recipient details."
+                      ariaLabel="Template body"
                     />
                   </div>
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-warm-200 bg-warm-50/60 px-4 py-3">
@@ -638,8 +641,9 @@ export default function TemplatesTab({ workspaceConfig }) {
       <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Rename template' : 'New template'} size="sm">
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="label">Template name *</label>
+            <label htmlFor="template-modal-name" className="label">Template name *</label>
             <input
+              id="template-modal-name"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && form.name && saveModal()}
@@ -650,8 +654,9 @@ export default function TemplatesTab({ workspaceConfig }) {
           </div>
           {!editingId && (
             <div>
-              <label className="label">Subject line</label>
+              <label htmlFor="template-modal-subject" className="label">Subject line</label>
               <input
+                id="template-modal-subject"
                 value={form.subject}
                 onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
                 placeholder="e.g. Quick question about {{company}}"

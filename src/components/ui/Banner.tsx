@@ -1,4 +1,5 @@
 import React from 'react'
+import { getStatusTone } from './statusTokens'
 
 // Inline alert banner - a tinted, bordered block for contextual messages
 // (errors, warnings, success notes) that live in the page flow rather than
@@ -7,13 +8,6 @@ import React from 'react'
 // Use Banner for:    persistent contextual messages tied to a page or section.
 // Use Toast for:     transient confirmations and errors after user actions.
 // Use Pill for:      short read-only state labels next to other content.
-
-const VARIANTS = {
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  danger:  'border-red-200 bg-red-50 text-red-700',
-  info:    'border-primary/20 bg-primary/8 text-primary',
-}
 
 const SIZES = {
   sm: 'px-3 py-2 text-xs gap-1.5',
@@ -28,7 +22,8 @@ export default function Banner({
   className = '',
   ...rest
 }) {
-  const variantCls = VARIANTS[variant] || VARIANTS.info
+  const tone = getStatusTone(variant)
+  const variantCls = `${tone.border} ${tone.surface} ${variant === 'info' ? tone.text : tone.textStrong}`
   const sizeCls = SIZES[size] || SIZES.md
   const iconSize = size === 'sm' ? 13 : 15
 

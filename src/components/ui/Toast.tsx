@@ -1,21 +1,16 @@
 import React, { useEffect } from 'react'
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
+import { TOAST_TONES, getStatusTone } from './statusTokens'
 
 const styles = {
   success: {
     icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    iconClassName: 'text-emerald-600',
   },
   error: {
     icon: AlertCircle,
-    className: 'border-red-200 bg-red-50 text-red-800',
-    iconClassName: 'text-red-600',
   },
   info: {
     icon: Info,
-    className: 'border-primary/20 bg-primary/8 text-dark',
-    iconClassName: 'text-primary',
   },
 }
 
@@ -29,8 +24,9 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
 
   if (!toast) return null
 
-  const tone = styles[toast.type] || styles.info
-  const Icon = tone.icon
+  const style = styles[toast.type] || styles.info
+  const tone = getStatusTone(TOAST_TONES[toast.type] || 'info')
+  const Icon = style.icon
 
   return (
     <div
@@ -39,8 +35,8 @@ export default function Toast({ toast, onClose, duration = 4500 }) {
       aria-atomic="true"
       className="pointer-events-none fixed right-5 top-16 z-50 w-[min(380px,calc(100vw-2.5rem))]"
     >
-      <div className={`pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-modal animate-toast-in ${tone.className}`}>
-        <Icon size={17} className={`mt-0.5 shrink-0 ${tone.iconClassName}`} />
+      <div className={`pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-modal animate-toast-in ${tone.border} ${tone.surface} ${tone.textStrong}`}>
+        <Icon size={17} className={`mt-0.5 shrink-0 ${tone.icon}`} />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{toast.title}</p>
           {toast.message && <p className="mt-0.5 text-xs leading-5 opacity-80">{toast.message}</p>}

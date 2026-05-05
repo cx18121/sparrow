@@ -1,128 +1,88 @@
-# Requirements: Cold Email Automation
+# Requirements: Sparrow
 
-**Defined:** 2026-03-15
-**Core Value:** Automate startup discovery, contact enrichment, and personalized email generation end-to-end — so users focus on relationships, not research.
+**Updated:** 2026-05-05  
+**Core value:** Campaign-first cold outreach for students, from startup/contact discovery to reviewed Gmail-sent drafts.
 
-## v1 Requirements
+## Current v1 Requirements
 
-### Authentication
+### Authentication And Setup
 
-- [ ] **AUTH-01**: User can create an account with email and password
-- [ ] **AUTH-02**: User can sign in with Google OAuth (also enables Gmail sending)
-- [ ] **AUTH-03**: User session persists across browser refresh
+- [x] **AUTH-01**: User can sign up/sign in with email and password.
+- [x] **AUTH-02**: User can sign in with Google OAuth.
+- [x] **AUTH-03**: User session persists across refresh.
+- [x] **AUTH-04**: Google sign-in requests identity and `gmail.send` scopes in one consent flow.
+- [x] **AUTH-05**: Settings Account tab can start a manual Gmail reconnect flow.
 
-### Onboarding
+### Onboarding And Settings
 
-- [ ] **ONBD-01**: User can upload their resume (PDF or text) stored per account
-- [ ] **ONBD-02**: User can set sender info (name, role/title) and a base email template
-- [ ] **ONBD-03**: User can store encrypted API keys (Apollo, Claude)
-- [ ] **ONBD-04**: User can set default lead filters (industry, stage, location, contact role)
+- [x] **SETUP-01**: User can enter sender name, organization, and role.
+- [x] **SETUP-02**: User can paste resume/background text.
+- [x] **SETUP-03**: User can upload PDF, DOCX, or TXT resume/bio and extract text client-side.
+- [x] **SETUP-04**: User can choose a default template.
+- [x] **SETUP-05**: User can configure daily send limit and delay between sends.
+- [x] **SETUP-06**: User can maintain a reusable attachment library.
+- [x] **SETUP-07**: Settings has exactly three tabs: Profile, Sending, Account.
+- [x] **SETUP-08**: BYO Claude key, signature, time zone, Style tab, and Integrations tab are retired.
 
-### Lead Discovery
+### Campaigns And Audience
 
-- [x] **DISC-01**: App pulls companies from YC and Product Hunt into shared global pool via background jobs
-- [x] **DISC-02**: App enriches contacts with emails via user's Apollo API key
-- [x] **DISC-03**: User can filter the lead pool by company size, funding stage, location, industry, is-hiring, and contact role
-- [x] **DISC-04**: Location filtering groups nearby cities into named regions (e.g. "Bay Area" = SF + San Jose)
-- [x] **DISC-05**: User can manually add a company and contact to their lead list
+- [x] **CAMP-01**: User can create campaigns through a full-screen wizard.
+- [x] **CAMP-02**: User can filter audience by region, stage, YC batch, hiring, and namespaced tags.
+- [x] **CAMP-03**: Headcount is not exposed as an audience filter.
+- [x] **CAMP-04**: YC batch picker appears only when YC-backed signal is selected.
+- [x] **CAMP-05**: Audience previews sample randomly rather than alphabetically.
+- [x] **CAMP-06**: Campaigns support Active, Paused, and Completed states in the UI.
+- [x] **CAMP-07**: Campaigns can exclude previously saved companies by default, with an opt-in include toggle.
+- [x] **CAMP-08**: Campaign workspace exposes Overview, Leads, Drafts, Sent, Settings.
 
-### Lead Management
+### Discovery And Contacts
 
-- [x] **LEAD-01**: User can view all leads in a filterable, searchable dashboard
-- [x] **LEAD-02**: User can save leads to their personal list from the global pool
-- [x] **LEAD-03**: User can tag leads with status: New / Saved / Emailed / Rejected
-- [x] **LEAD-04**: User can bulk-select leads and trigger batch email generation
+- [x] **DISC-01**: App maintains a shared verified company pool.
+- [x] **DISC-02**: User can save company-backed Leads into a Campaign.
+- [x] **DISC-03**: User can add Custom Contacts that bypass the Company/Contact pipeline.
+- [x] **DISC-04**: Apollo contact search returns previews for a Company.
+- [x] **DISC-05**: Apollo reveal persists Contacts and consumes paid reveal credits only through explicit reveal flows/scripts.
+- [x] **DISC-06**: When Apollo senior-title search returns zero, server retries without title filter and reports `usedFallback`.
 
-### Email Generation
+### Templates And Drafting
 
-- [ ] **EGEN-01**: App generates a personalized email per lead using Claude API with user's resume + template as context
-- [ ] **EGEN-02**: App performs agentic context gathering (fetches recent company info) before generating each email
-- [ ] **EGEN-03**: Email generation uses structural variation and anti-AI-pattern prompting to avoid spam filters
-- [ ] **EGEN-04**: User can preview and edit each generated email before sending
+- [x] **TMPL-01**: User can create, edit, duplicate, delete, search, and preview Templates.
+- [x] **TMPL-02**: Templates support merge tags including `{{first_name}}`, `{{company}}`, `{{sender_name}}`, `{{feature_line}}`, and `{{fit_angle}}`.
+- [x] **TMPL-03**: New Templates default to verbatim mode.
+- [x] **TMPL-04**: User can opt a Template into AI rewrite mode.
+- [x] **DRAFT-01**: User can generate Drafts for Leads and Custom Contacts.
+- [x] **DRAFT-02**: Company-backed Drafts use cached/researched company dossier plus per-user resume fit-angle picking.
+- [x] **DRAFT-03**: Custom Contact drafts skip company dossier research.
+- [x] **DRAFT-04**: Drafts are editable before sending.
+- [x] **DRAFT-05**: Saved Drafts can include selected attachments.
 
-### Email Sending
+### Sending And Tracking
 
-- [ ] **SEND-01**: User can send emails directly from the app via their Gmail account (OAuth2)
-- [ ] **SEND-02**: App enforces per-user daily send caps to protect Gmail sender reputation
-- [ ] **SEND-03**: Every sent email includes CAN-SPAM compliance elements (unsubscribe link, physical sender address)
-- [ ] **SEND-04**: User can schedule emails to send at a specified future time
+- [x] **SEND-01**: User can send saved Drafts through connected Gmail.
+- [x] **SEND-02**: App enforces daily send limit and delay between sends.
+- [x] **SEND-03**: Sent emails update Email status and mark the target Lead/Custom Contact as EMAILED.
+- [x] **TRACK-01**: User can view draft and sent email lists.
+- [x] **TRACK-02**: Lead/Custom Contact status vocabulary is SAVED, EMAILED, NO_RESPONSE, DECLINED.
 
-### Email Tracking
+## Deferred / Future
 
-- [ ] **TRAK-01**: User can view all generated and sent emails in a dashboard
-- [ ] **TRAK-02**: User can manually update email status (Sent / Replied / Interested / Rejected)
-- [ ] **TRAK-03**: App auto-detects replies via IMAP polling and updates email status
-- [ ] **TRAK-04**: App sends follow-up reminders to the user if no reply is received after a configurable number of days
+- [ ] **FUTURE-01**: Reply detection.
+- [ ] **FUTURE-02**: Follow-up reminders and follow-up draft generation.
+- [ ] **FUTURE-03**: Scheduled sends.
+- [ ] **FUTURE-04**: Password reset.
+- [ ] **FUTURE-05**: Analytics such as open/reply rates, if privacy and deliverability tradeoffs are revisited.
+- [ ] **FUTURE-06**: Shared template/library marketplace beyond existing legacy/library compatibility fields.
 
-## v2 Requirements
+## Explicitly Removed
 
-### Auth
-- **AUTH-V2-01**: Password reset via email link
-
-### Sourcing
-- **SRC-V2-01**: Crunchbase integration for richer company funding data
-- **SRC-V2-02**: LinkedIn enrichment for contact discovery
-
-### Collaboration
-- **COLB-V2-01**: Co-founder / collaborator mode with different email tone and targeting
-- **COLB-V2-02**: University enrichment on contacts (for student-to-student outreach)
-
-### Email Generation
-- **EGEN-V2-01**: AI-generated follow-up email drafts
-- **EGEN-V2-02**: A/B template testing across leads
-
-### Analytics
-- **ANLX-V2-01**: Dashboard showing open rates, reply rates, and best-performing templates
-
-## Out of Scope
-
-| Feature | Reason |
-|---------|--------|
-| LinkedIn scraping | ToS violation risk; high legal exposure |
-| Clearbit enrichment | Too expensive for v1 |
-| Real-time chat or messaging | Not core to cold email value |
-| Mobile app | Web-first; mobile later |
-| Open tracking (email pixels) | Privacy concerns; deliverability risk; status management covers v1 needs |
-| Built-in email warmup service | Out of scope — users manage their own sender reputation |
-
-## Traceability
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| ONBD-01 | Phase 1 | Pending |
-| ONBD-02 | Phase 1 | Pending |
-| ONBD-03 | Phase 1 | Pending |
-| ONBD-04 | Phase 1 | Pending |
-| DISC-01 | Phase 2 | Complete |
-| DISC-02 | Phase 2 | Complete |
-| DISC-03 | Phase 2 | Complete |
-| DISC-04 | Phase 2 | Complete |
-| DISC-05 | Phase 2 | Complete |
-| LEAD-01 | Phase 3 | Complete |
-| LEAD-02 | Phase 2 | Complete |
-| LEAD-03 | Phase 2 | Complete |
-| LEAD-04 | Phase 3 | Complete |
-| EGEN-01 | Phase 3 | Pending |
-| EGEN-02 | Phase 3 | Pending |
-| EGEN-03 | Phase 3 | Pending |
-| EGEN-04 | Phase 3 | Pending |
-| SEND-01 | Phase 3 | Pending |
-| SEND-02 | Phase 3 | Pending |
-| SEND-03 | Phase 3 | Pending |
-| SEND-04 | Phase 3 | Pending |
-| TRAK-01 | Phase 3 | Pending |
-| TRAK-02 | Phase 3 | Pending |
-| TRAK-03 | Phase 3 | Pending |
-| TRAK-04 | Phase 3 | Pending |
-
-**Coverage:**
-- v1 requirements: 28 total
-- Mapped to phases: 28
-- Unmapped: 0
+- Per-user Claude keys.
+- Per-user Apollo key storage.
+- Product Hunt as a required v1 source.
+- Headcount audience filter.
+- `NEW` and `REJECTED` lead statuses.
+- CAN-SPAM footer/unsubscribe automation in the current app.
+- Auto reply detection.
+- BullMQ/Redis worker deployment.
 
 ---
-*Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after roadmap creation*
+*Last updated: 2026-05-05*

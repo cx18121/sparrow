@@ -1,18 +1,56 @@
-import React, { useEffect, useId } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    const getFocusable = (): HTMLElement[] => {
+      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      return Array.from(nodes ?? []).filter(
+        (el): el is HTMLElement => !el.hasAttribute('hidden') && el.getAttribute('aria-hidden') !== 'true',
+      )
+    }
+    const focusFirstElement = () => {
+      const focusable = getFocusable()
+      const preferred = dialogRef.current?.querySelector<HTMLElement>('[autofocus]')
+      ;(preferred || focusable[0] || dialogRef.current)?.focus()
+    }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusable = getFocusable()
+      if (focusable.length === 0) {
+        e.preventDefault()
+        dialogRef.current?.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    requestAnimationFrame(focusFirstElement)
     document.addEventListener('keydown', handler)
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handler)
+      previouslyFocused?.focus()
     }
   }, [open, onClose])
 
@@ -32,10 +70,13 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       aria-modal="true"
       aria-labelledby={titleId}
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-0 bg-dark/35 animate-backdrop-in" />
-      <div className={`relative max-h-[92vh] w-full ${sizeClass} overflow-hidden rounded-t-3xl border border-warm-200 bg-panel shadow-modal animate-modal-rise sm:rounded-2xl`}>
+      <div className="absolute inset-0 bg-dark/35 animate-backdrop-in" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        className={`relative max-h-[92vh] w-full ${sizeClass} overflow-hidden rounded-t-3xl border border-warm-200 bg-panel shadow-modal animate-modal-rise sm:rounded-2xl`}
+      >
         <div className="flex min-h-14 items-center justify-between border-b border-warm-200 px-4 py-3 sm:px-5">
           <h2 id={titleId} className="text-base font-semibold text-dark">{title}</h2>
           <button onClick={onClose} className="btn-ghost h-8 w-8 p-0 text-muted" aria-label="Close dialog">

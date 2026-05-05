@@ -1,12 +1,12 @@
 # Sparrow
 
-Cold email automation that personalizes emails using live web research and your resume.
+Campaign-first cold outreach for students. Sparrow helps users find startup contacts, draft specific emails from their resume/background context, and send reviewed drafts through Gmail.
 
 > Live at [usesparrow.dev](https://usesparrow.dev).
 
 Built for students doing cold outreach towards startups where the difference between "another cold email" and "actual reply" is whether the message references something specific and recent about the company.
 
-Sparrow does that automatically. All you have to do is pick a contact and pick a template, and then each email draft is created with its own personalized angle based on the selected company, using context from your resume.
+Sparrow does the research and drafting work around the user's review loop. Pick a campaign, find contacts, choose or write a template, then generate drafts with per-company context before editing and sending.
 
 ## How it works
 
@@ -14,16 +14,16 @@ Sparrow does that automatically. All you have to do is pick a contact and pick a
    Filter ~6.3k verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and verified startup lists.
 
 2. **Find contacts.**  
-   Contact information and emails are found via Apollo.
+   Apollo search returns contact previews for a company. Revealing an email is the paid Apollo-credit step.
 
 3. **Per-company research.**  
-   Hybrid retrieval runs Exa first (to find recent company info, filtered to ~6 months) with Tavily search as a fallback if no recent info surfaces. Claude creates a structured set of products and recent launches per company.
+   Hybrid retrieval runs Exa first, with Tavily as a fallback only when Exa returns no usable results. Claude synthesizes a structured company dossier that is cached on the Company row.
 
 4. **Personalized fit angle.**  
    Sparrow picks one feature line from that set that matches one relevant fit angle based on your resume context.
 
 5. **Email generation.**  
-   Claude generates an email using those personalized elements.
+   Templates default to verbatim: Sparrow fills merge tags, including `{{feature_line}}` and `{{fit_angle}}`, without rewriting the authored body. Users can opt a template into Claude rewrite mode, or generate an AI draft without a template.
 
 6. **Send via your Gmail.**  
    Drafts are sent through your own Gmail account using Google OAuth and the Gmail API.

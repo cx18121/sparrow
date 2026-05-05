@@ -109,10 +109,11 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Name <span className="text-red-500">*</span></label>
+            <label htmlFor="onboarding-sender-name" className="label">Name <span className="text-red-500">*</span></label>
             <div className="relative">
               <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <input
+                id="onboarding-sender-name"
                 value={form.senderName}
                 onChange={e => updateField('senderName', e.target.value)}
                 placeholder="Maya Chen"
@@ -125,8 +126,9 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
             )}
           </div>
           <div>
-            <label className="label">Role</label>
+            <label htmlFor="onboarding-sender-role" className="label">Role</label>
             <input
+              id="onboarding-sender-role"
               value={form.senderRole}
               onChange={e => updateField('senderRole', e.target.value)}
               placeholder="Founder, GTM Lead, SDR"
@@ -136,10 +138,11 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
         </div>
 
         <div>
-          <label className="label">Company</label>
+          <label htmlFor="onboarding-sender-company" className="label">Company</label>
           <div className="relative">
             <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
+              id="onboarding-sender-company"
               value={form.senderCompany}
               onChange={e => updateField('senderCompany', e.target.value)}
               placeholder="Cornell Generative AI"
@@ -150,6 +153,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
 
         <div>
           <textarea
+            aria-label="Relevant experience"
             value={form.resumeText}
             onChange={e => updateField('resumeText', e.target.value)}
             placeholder="Relevant experience, club role, recent work..."
@@ -164,6 +168,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
           </div>
           <Upload size={18} className="shrink-0 text-primary" />
           <input
+            aria-label="Upload resume or bio"
             type="file"
             accept=".pdf,.docx,.txt"
             className="hidden"
@@ -274,8 +279,9 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
       {writingMode ? (
         <div className="space-y-4">
           <div>
-            <label className="label">Template name</label>
+            <label htmlFor="onboarding-template-name" className="label">Template name</label>
             <input
+              id="onboarding-template-name"
               value={form.customTemplate.name}
               onChange={e => updateCustomTemplate('name', e.target.value)}
               placeholder="Founder intro"
@@ -283,8 +289,9 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
             />
           </div>
           <div>
-            <label className="label">Subject</label>
+            <label htmlFor="onboarding-template-subject" className="label">Subject</label>
             <input
+              id="onboarding-template-subject"
               ref={subjectRef}
               value={form.customTemplate.subject}
               onChange={e => updateCustomTemplate('subject', e.target.value)}
@@ -295,7 +302,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
           </div>
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-3">
-              <span className="label mb-0">Body</span>
+              <label htmlFor="onboarding-template-body" className="label mb-0">Body</label>
               <div className="flex flex-wrap items-center gap-1">
                 <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
                   Insert
@@ -314,6 +321,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
               </div>
             </div>
             <textarea
+              id="onboarding-template-body"
               ref={bodyRef}
               value={form.customTemplate.body}
               onChange={e => updateCustomTemplate('body', e.target.value)}
@@ -358,10 +366,11 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <label className="label">Template</label>
+              <label htmlFor="onboarding-existing-template" className="label">Template</label>
               <div className="relative">
                 <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
                 <select
+                  id="onboarding-existing-template"
                   value={form.templateId}
                   onChange={e => updateField('templateId', e.target.value)}
                   className="select pl-8"

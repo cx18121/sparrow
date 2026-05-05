@@ -1,3 +1,5 @@
+> ARCHIVE NOTICE: This file is historical planning/research context and may describe superseded architecture or requirements. For current project truth, read `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `docs/adr/`, and `.planning/PROJECT.md` first.
+
 # Feature Research
 
 **Domain:** Cold email outreach SaaS — targeting students, internship seekers, and collaborator seekers focused on startup discovery

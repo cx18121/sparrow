@@ -1,80 +1,60 @@
-# Roadmap: Cold Email Automation
+# Roadmap: Sparrow
 
-## Overview
+## Current State
 
-Three phases deliver the complete cold email loop. Phase 1 establishes the user model, authentication, and onboarding so every subsequent feature has a `userId` to anchor to. Phase 2 builds the background job infrastructure and lead discovery pipeline that populates the shared company/contact pool users browse and filter. Phase 3 closes the loop: AI email generation from the user's resume and lead context, Gmail-based sending with compliance guardrails, and reply detection with follow-up reminders. After Phase 3, users can go from zero to sent personalized email in one session.
+Sparrow has moved beyond the original three-phase scaffold. The active product is a Vite React + Vercel Functions + Supabase app with campaign workspaces, Gmail sending, Apollo contact search/reveal, Claude drafting, Exa/Tavily research, and a redesigned Home/Templates/Settings shell.
 
-## Phases
+Historical phase documents under `.planning/phases/` and `.planning/research/` are archived planning notes. Use `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, this roadmap, and ADRs for current truth.
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+## Shipped Foundation
 
-Decimal phases appear between their surrounding integers in numeric order.
+- Supabase auth and profile persistence.
+- Google OAuth + Gmail send grant/reconnect.
+- Host-managed Claude generation.
+- Shared Company/Contact pool and user-scoped Leads, Custom Contacts, Campaigns, Templates, Emails.
+- Campaign-first IA and sidebar.
+- Full-screen create campaign wizard.
+- Campaign workspace routes.
+- Template library with verbatim default and optional AI rewrite.
+- Draft generation, review, attachment selection, and Gmail sending.
+- Apollo search/reveal flows.
+- Exa-first personalization research with Tavily fallback.
 
-- [ ] **Phase 1: Foundation** - User accounts, authentication, and onboarding wizard (resume, sender info, API keys, email template)
-- [x] **Phase 2: Discovery** - Background job infrastructure, scrapers, shared lead pool, lead dashboard with filters and management (completed 2026-03-22)
-- [ ] **Phase 3: Outreach Loop** - AI email generation, Gmail sending with compliance, reply detection, and follow-up reminders
+## Near-Term Roadmap
 
-## Phase Details
+1. **Quality hardening**
+   - Programmatic form labels.
+   - Accessible modal focus trap/restore.
+   - Settings and template form resilience.
+   - E2E coverage for keyboard and dialog behavior.
 
-### Phase 1: Foundation
-**Goal**: A new user can sign up, authenticate, and complete onboarding — leaving the wizard with their resume stored, sender identity configured, Gmail connected, and API keys saved.
-**Depends on**: Nothing (first phase)
-**Requirements**: AUTH-01, AUTH-02, AUTH-03, ONBD-01, ONBD-02, ONBD-03, ONBD-04
-**Success Criteria** (what must be TRUE):
-  1. User can create an account with email/password or sign in with Google OAuth and remain logged in across browser refresh
-  2. User can upload or paste their resume during onboarding and see it stored on their profile
-  3. User can set their sender name, title, and a base email template that persists to future sessions
-  4. User can store encrypted API keys (Apollo, Claude) that are retrievable in later flows without re-entry
-  5. User can set default lead filters (industry, funding stage, location, contact role) that pre-populate the discovery view
-**Plans**: TBD
+2. **Performance and reliability**
+   - Verify document parser chunks only load on upload paths.
+   - Review vendor/manual chunks.
+   - Keep campaign/email cache invalidation predictable after send/generate/delete.
 
-Plans:
-- [ ] 01-01: Project scaffold — Next.js 15 App Router, Prisma schema, Supabase Auth, RLS on all tables, environment config
-- [ ] 01-02: Onboarding wizard — resume upload, sender info, Gmail OAuth connect, API key storage, default filter preferences
+3. **Research freshness**
+   - Add manual re-research action for stale or weak company dossiers.
+   - Make cache freshness policy explicit in UI or admin tooling.
 
-### Phase 2: Discovery
-**Goal**: Prisma schema and standalone ingestion scripts that populate the shared company/contact pool from YC, Product Hunt, and Apollo — runnable via `npx tsx scripts/<name>.ts` with idempotent upserts and region normalization.
-**Depends on**: Phase 1
-**Requirements**: DISC-01, DISC-02, DISC-03, DISC-04, DISC-05, LEAD-01, LEAD-02, LEAD-03, LEAD-04
-**Success Criteria** (what must be TRUE):
-  1. Background job worker (Railway) is running and the BullMQ scrape queue populates the shared `companies` and `contacts` tables from YC and Product Hunt without duplicates
-  2. User can open the lead dashboard and see companies filterable by funding stage, industry, location (with region grouping), company size, is-hiring, and contact role
-  3. User can save individual leads from the global pool to their personal list and tag them as New / Saved / Emailed / Rejected
-  4. User can manually add a company and contact that does not appear in the scraped pool
-  5. User can bulk-select leads from the dashboard and queue them for batch email generation
-**Plans**: 3 plans
+4. **Drafting UX**
+   - Surface fallback/generic-draft state when AI generation degrades.
+   - Improve row-level error reporting for bulk generation.
+   - Tighten attachment and template affordances.
 
-Plans:
-- [x] 02-01-PLAN.md — Prisma schema (Company, Contact, UserLead, Email) with indexed filter columns, shared utility library (region map, role normalizer, upsert helpers)
-- [x] 02-02-PLAN.md — Ingestion scripts (YC, Product Hunt, Apollo enrichment) and polling orchestrator
-- [x] 02-03-PLAN.md — Gap closure: is-main-module guards on ingestion scripts, REQUIREMENTS.md traceability fix for LEAD-01/LEAD-04
+5. **Data quality**
+   - Continue verified company enrichment where ROI is clear.
+   - Avoid reopening headcount filtering unless the product strategy changes.
 
-### Phase 3: Outreach Loop
-**Goal**: Users can generate a personalized AI-drafted email for any lead, review and edit it, send it from their own Gmail account, and track replies and follow-up reminders — completing the full cold outreach cycle in one product.
-**Depends on**: Phase 2
-**Requirements**: EGEN-01, EGEN-02, EGEN-03, EGEN-04, SEND-01, SEND-02, SEND-03, SEND-04, TRAK-01, TRAK-02, TRAK-03, TRAK-04
-**Success Criteria** (what must be TRUE):
-  1. User can trigger email generation for a lead and receive a draft that uses their resume, email template, and live company context — with structural variation that avoids AI-pattern signatures
-  2. User can preview and edit the generated draft in the UI before sending, and the edited version is what gets sent
-  3. User can send the email from their connected Gmail account and see it appear in the sent email dashboard with status Sent
-  4. App enforces a daily send cap per user and attaches a CAN-SPAM-compliant footer (unsubscribe link, physical sender address) to every outgoing email
-  5. App auto-detects a reply to a sent email and updates the email status to Replied; user receives a follow-up reminder if no reply arrives within a configurable number of days
-**Plans**: TBD
+## Deferred
 
-Plans:
-- [ ] 03-01: Email generation — Claude API integration with per-user key injection, agentic company context fetch, prompt architecture with structural variation, resume summarization cache, draft saved to DB
-- [ ] 03-02: Email sending — Gmail OAuth2 send via BullMQ worker, unique Message-ID stored, daily send cap enforcement, suppression list, CAN-SPAM footer, scheduled send
-- [ ] 03-03: Tracking and follow-ups — email dashboard, manual status management, IMAP reply detection via repeatable BullMQ job, follow-up reminder delayed jobs, token health check
+- Reply detection and follow-up automation.
+- Scheduled sends.
+- Native mobile app.
+- Open/click tracking.
+- LinkedIn scraping.
+- BYO API keys.
+- BullMQ/Redis worker architecture.
 
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Foundation | 0/2 | Not started | - |
-| 2. Discovery | 3/3 | Complete   | 2026-03-22 |
-| 3. Outreach Loop | 0/3 | Not started | - |
+---
+*Last updated: 2026-05-05*

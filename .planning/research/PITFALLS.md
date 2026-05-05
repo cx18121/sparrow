@@ -1,3 +1,5 @@
+> ARCHIVE NOTICE: This file is historical planning/research context and may describe superseded architecture or requirements. For current project truth, read `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `docs/adr/`, and `.planning/PROJECT.md` first.
+
 # Pitfalls Research
 
 **Domain:** Cold Email Outreach SaaS (web scraping + Apollo API + Gmail SMTP + AI personalization)
