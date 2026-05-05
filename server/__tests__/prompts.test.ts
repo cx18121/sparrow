@@ -93,7 +93,10 @@ describe("DEFAULT_SUBJECT_TEMPLATE", () => {
     expect(DEFAULT_SUBJECT_TEMPLATE.length).toBeGreaterThan(0);
   });
 
-  it("contains senderName placeholder", () => {
-    expect(DEFAULT_SUBJECT_TEMPLATE).toContain("{{senderName}}");
+  it("contains a merge tag placeholder", () => {
+    // The specific tag changes over time (was {{senderName}}, now {{company}});
+    // what matters is that the default template uses *some* personalization
+    // tag — a constant-string subject would land in spam at scale.
+    expect(DEFAULT_SUBJECT_TEMPLATE).toMatch(/\{\{[a-zA-Z_]+\}\}/);
   });
 });

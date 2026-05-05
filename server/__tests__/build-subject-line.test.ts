@@ -3,8 +3,8 @@ import { buildSubjectLine } from "../lib/ai/generate-email.js";
 
 describe("buildSubjectLine", () => {
   it("uses default template when template is null", () => {
-    const subject = buildSubjectLine(null, { name: "Jane Smith" }, "Alex");
-    expect(subject).toBe("Quick intro — Alex");
+    const subject = buildSubjectLine(null, { name: "Jane Smith" }, "Alex", { name: "Acme AI" });
+    expect(subject).toBe("Interested in learning about Acme AI");
   });
 
   it("substitutes senderName", () => {
@@ -27,11 +27,12 @@ describe("buildSubjectLine", () => {
     expect(subject).toBe("From");
   });
 
-  it("strips dangling em-dash when default template's senderName is empty", () => {
-    // Without tidying, a missing senderName turns the default template
-    // 'Quick intro — {{senderName}}' into 'Quick intro — ', which lands in
-    // the inbox looking truncated. tidySubject removes the trailing dash.
-    const subject = buildSubjectLine(null, { name: "Jane" }, null);
+  it("strips dangling separators when an explicit-template merge tag substitutes empty", () => {
+    // Regression coverage for tidySubject. The default template no longer
+    // ends in a senderName placeholder, but the same hazard exists for any
+    // user template that ends in a merge tag — a missing value would land
+    // in the inbox looking truncated without trailing-separator stripping.
+    const subject = buildSubjectLine("Quick intro — {{senderName}}", { name: "Jane" }, null);
     expect(subject).toBe("Quick intro");
   });
 

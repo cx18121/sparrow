@@ -10,7 +10,20 @@ const STEP_LABELS = ['About', 'Template', 'Gmail']
 
 function fillVariables(content, data) {
   if (!content) return ''
-  return content
+  // Mirrors server-side dropEmptyTagParagraphs: when feature_line or fit_angle
+  // is missing, drop the entire paragraph anchored on that tag so the preview
+  // shows what production would actually ship — no orphaned "For context,
+  // feels like a stepping stone…" sentences.
+  const featureEmpty = !data.feature_line
+  const fitEmpty = !data.fit_angle
+  const trimmed = (featureEmpty || fitEmpty)
+    ? content.split(/\n\s*\n/).filter(para => {
+        if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(para)) return false
+        if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(para)) return false
+        return true
+      }).join('\n\n')
+    : content
+  return trimmed
     .replace(/\{\{first_name\}\}/g, data.first_name)
     .replace(/\{\{last_name\}\}/g, data.last_name)
     .replace(/\{\{company\}\}/g, data.company)
@@ -25,12 +38,15 @@ function fillVariables(content, data) {
 // that Step 2 reflects their resume by the time they navigate to it.
 const PREVIEW_DEBOUNCE_MS = 700
 
-// Static fallback when the preview API hasn't returned yet, errored, or
-// the resume is empty. Anthropic-paired so the preview still reads as a
-// coherent draft to Dario before the real fit-angle resolves.
+// Static fallback while the preview API hasn't returned. Only feature_line
+// gets a default — Anthropic's dossier almost always produces one, so this
+// renders something coherent on first paint. fit_angle deliberately stays
+// null: if the model returns NONE (or no resume yet), the preview drops
+// the fit-angle paragraph rather than showing a generic placeholder, which
+// matches what production would ship.
 const PREVIEW_FALLBACK = {
   feature_line: 'claude code agentic coding',
-  fit_angle: 'my recent project',
+  fit_angle: null as string | null,
 } as const
 
 const MAX_EXTRACTED_RESUME_CHARS = 100_000

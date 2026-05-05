@@ -26,7 +26,11 @@ const DEFAULT_CUSTOM_TEMPLATE = {
 
 export function createWorkspaceConfig({ user, templates = [], data = null }) {
   const defaultName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.user_metadata?.preferred_username ||
+    user?.email?.split('@')[0] ||
+    '';
   const defaultTemplateId = templates[0]?.id || '';
 
   const baseConfig = {
@@ -37,7 +41,14 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     senderName: defaultName,
     senderCompany: '',
     senderRole: '',
-    templateMode: 'existing',
+    // Default to 'custom' for fresh users (no existing templates). Without
+    // this, syncOnboardingTemplate in App.tsx silently drops the pre-filled
+    // customTemplate because its persistence path is gated on
+    // `data.templateMode === 'custom'` — and the user never explicitly flips
+    // this since the UI forces writing mode whenever templates is empty.
+    // Returning users with saved templates inherit their previously chosen
+    // mode through the data merge below.
+    templateMode: defaultTemplateId ? 'existing' : 'custom',
     templateId: defaultTemplateId,
     customTemplate: { ...DEFAULT_CUSTOM_TEMPLATE },
     files: [] as Array<{
