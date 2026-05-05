@@ -7,10 +7,12 @@ const { mockPrisma } = vi.hoisted(() => {
       findUnique: vi.fn(),
       delete: vi.fn(),
     },
-    campaignLead: { findMany: vi.fn() },
+    userLead: { findUnique: vi.fn() },
+    campaignLead: { findMany: vi.fn(), findFirst: vi.fn(), upsert: vi.fn() },
     campaignCustomContact: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      upsert: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
     },
@@ -21,6 +23,7 @@ const { mockPrisma } = vi.hoisted(() => {
 vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
 
 import {
+  addCampaignMember,
   attachCustomContactToCampaign,
   listCampaignMembers,
   removeCampaignCustomContact,
@@ -62,26 +65,27 @@ describe("attachCustomContactToCampaign", () => {
   it("creates a join row when none exists", async () => {
     mockPrisma.campaign.findUnique.mockResolvedValue({ id: "c1", userId: USER_ID });
     mockPrisma.customContact.findUnique.mockResolvedValue({ id: "cc1", userId: USER_ID });
-    mockPrisma.campaignCustomContact.findUnique.mockResolvedValue(null);
-    mockPrisma.campaignCustomContact.create.mockResolvedValue({ id: "ccc-new" });
+    mockPrisma.campaignCustomContact.upsert.mockResolvedValue({ id: "ccc-new" });
 
     const link = await attachCustomContactToCampaign("c1", "cc1", USER_ID);
 
     expect(link).toEqual({ id: "ccc-new" });
-    expect(mockPrisma.campaignCustomContact.create).toHaveBeenCalledWith({
-      data: { campaignId: "c1", customContactId: "cc1" },
+    expect(mockPrisma.campaignCustomContact.upsert).toHaveBeenCalledWith({
+      where: { campaignId_customContactId: { campaignId: "c1", customContactId: "cc1" } },
+      update: {},
+      create: { campaignId: "c1", customContactId: "cc1" },
     });
   });
 
   it("is idempotent when the contact is already attached", async () => {
     mockPrisma.campaign.findUnique.mockResolvedValue({ id: "c1", userId: USER_ID });
     mockPrisma.customContact.findUnique.mockResolvedValue({ id: "cc1", userId: USER_ID });
-    mockPrisma.campaignCustomContact.findUnique.mockResolvedValue({ id: "ccc-existing" });
+    mockPrisma.campaignCustomContact.upsert.mockResolvedValue({ id: "ccc-existing" });
 
     const link = await attachCustomContactToCampaign("c1", "cc1", USER_ID);
 
     expect(link).toEqual({ id: "ccc-existing" });
-    expect(mockPrisma.campaignCustomContact.create).not.toHaveBeenCalled();
+    expect(mockPrisma.campaignCustomContact.upsert).toHaveBeenCalledOnce();
   });
 
   it("rejects a contact owned by a different user", async () => {
@@ -89,7 +93,30 @@ describe("attachCustomContactToCampaign", () => {
     mockPrisma.customContact.findUnique.mockResolvedValue({ id: "cc1", userId: "someone-else" });
 
     await expect(attachCustomContactToCampaign("c1", "cc1", USER_ID)).rejects.toThrow(/Contact not found/);
-    expect(mockPrisma.campaignCustomContact.create).not.toHaveBeenCalled();
+    expect(mockPrisma.campaignCustomContact.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("addCampaignMember", () => {
+  it("upserts the campaign lead join so duplicate submits are idempotent", async () => {
+    mockPrisma.campaign.findUnique.mockResolvedValue({ id: "c1", userId: USER_ID });
+    mockPrisma.campaignLead.findFirst.mockResolvedValue(null);
+    mockPrisma.userLead.findUnique.mockResolvedValue({ id: "ul1", userId: USER_ID });
+    mockPrisma.campaignLead.upsert.mockResolvedValue({
+      id: "cl-new",
+      batchNumber: 0,
+      userLead: { id: "ul1", company: { name: "Acme" } },
+    });
+
+    const result = await addCampaignMember({ campaignId: "c1", userLeadId: "ul1" }, USER_ID);
+
+    expect(result.created).toBe(true);
+    expect(result.item).toEqual({ id: "ul1", company: { name: "Acme" }, campaignLeadId: "cl-new", batchNumber: 0 });
+    expect(mockPrisma.campaignLead.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { campaignId_batchNumber_userLeadId: { campaignId: "c1", batchNumber: 0, userLeadId: "ul1" } },
+      update: {},
+      create: { campaignId: "c1", userLeadId: "ul1", batchNumber: 0 },
+    }));
   });
 });
 

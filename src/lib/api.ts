@@ -214,7 +214,11 @@ export const generateEmail = (data: {
   attachmentIds?: string[];
   interestHook?: string | null; extraContext?: string | null;
   includeResumeBullet?: boolean; save?: boolean;
-}) => request<GenerateEmailResponse>('/emails/generate', { method: 'POST', body: JSON.stringify(data) })
+}, idempotencyKey?: string) => request<GenerateEmailResponse>('/emails/generate', {
+  method: 'POST',
+  ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+  body: JSON.stringify(data),
+})
 export const sendEmail = (emailId: string) =>
   request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
 export const sendTestEmail = (emailId: string, recipient: string) =>

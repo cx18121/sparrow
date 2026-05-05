@@ -88,13 +88,10 @@ export async function attachCustomContactToCampaign(
   const contact = await prisma.customContact.findUnique({ where: { id: customContactId } });
   if (!contact || contact.userId !== userId) throw new HttpError(404, "Contact not found");
 
-  const existing = await prisma.campaignCustomContact.findUnique({
+  return prisma.campaignCustomContact.upsert({
     where: { campaignId_customContactId: { campaignId, customContactId } },
-  });
-  if (existing) return existing;
-
-  return prisma.campaignCustomContact.create({
-    data: { campaignId, customContactId },
+    update: {},
+    create: { campaignId, customContactId },
   });
 }
 
@@ -127,8 +124,16 @@ export async function addCampaignMember(body: Record<string, unknown> | null, us
   });
   if (existing) return { item: serializeCampaignLead(existing), created: false };
 
-  const row = await prisma.campaignLead.create({
-    data: { campaignId: campaignId as string, userLeadId: userLeadId as string, batchNumber: 0 },
+  const row = await prisma.campaignLead.upsert({
+    where: {
+      campaignId_batchNumber_userLeadId: {
+        campaignId: campaignId as string,
+        batchNumber: 0,
+        userLeadId: userLeadId as string,
+      },
+    },
+    update: {},
+    create: { campaignId: campaignId as string, userLeadId: userLeadId as string, batchNumber: 0 },
     include: campaignLeadUserLeadInclude,
   });
 

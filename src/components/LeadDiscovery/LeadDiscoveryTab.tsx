@@ -9,6 +9,7 @@ import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
+import { actionKey, runExclusive } from '../../lib/pendingActions'
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
 
@@ -167,6 +168,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const [apolloUsedFallback, setApolloUsedFallback] = useState(false)
   const [savedIds, setSavedIds] = useState(new Set())
   const [savingIds, setSavingIds] = useState(new Set())
+  const savingIdsRef = useRef(new Set())
   const [cachedPreviews, setCachedPreviews] = useState({})
   // Bug 05: the per-contact reveal loop inside handleCompanySelect used to
   // skip already-revealed contacts by reading `revealedEmails[p.id]` from
@@ -401,16 +403,18 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   const handleSaveLead = async (preview) => {
     if (!selectedCompany) return
+    if (savingIdsRef.current.has(preview.id) || savedIds.has(preview.id) || persistedSavedApolloIds.has(preview.id)) return
+    savingIdsRef.current = new Set(savingIdsRef.current).add(preview.id)
     setSavingIds(prev => new Set(prev).add(preview.id))
+    setSavedIds(prev => new Set(prev).add(preview.id))
     try {
-      const savedLead = await saveLead({
+      const savedLead = await runExclusive(actionKey('save-lead', selectedCompany.id, preview.id), () => saveLead({
         companyId: selectedCompany.id,
         contactId: null,
         apolloPersonId: preview.id,
         notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} - ${preview.title || 'unknown title'}`,
-      })
+      }))
       // Always refresh leads and close modal - even if campaign add fails
-      setSavedIds(prev => new Set(prev).add(preview.id))
       setSelectedCompany(null)
       setApolloResults([])
       setApolloError(null)
@@ -431,9 +435,15 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         message: 'Open Contacts to generate a draft, or keep browsing.',
       })
     } catch (err) {
+      setSavedIds(prev => { const n = new Set(prev); n.delete(preview.id); return n })
       setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
-      setSavingIds(prev => { const n = new Set(prev); n.delete(preview.id); return n })
+      setSavingIds(prev => {
+        const n = new Set(prev)
+        n.delete(preview.id)
+        savingIdsRef.current = n
+        return n
+      })
     }
   }
 

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Mail, PenLine, Plus, Send, Users, Trash2, X } from 'lucide-react'
 import Banner from '../ui/Banner'
+import Pill from '../ui/Pill'
 import {
   createCustomContact,
   generateEmail,
@@ -8,6 +9,7 @@ import {
   removeCampaignLead,
   type CampaignMembers,
 } from '../../lib/api'
+import { actionKey, createIdempotencyKey, runExclusive } from '../../lib/pendingActions'
 import { useCampaignMembers } from '../../hooks/useCampaignWorkspaceData'
 import type { EmailStatus, UserLead } from '../../types/api'
 
@@ -70,22 +72,22 @@ function customToRow(cc: CustomMember): Row {
 function StatusPill({ status }: { status: DraftPillStatus }) {
   if (status === 'sent') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        <Send size={11} /> Sent
-      </span>
+      <Pill variant="success" icon={Send} className="text-xs font-medium">
+        Sent
+      </Pill>
     )
   }
   if (status === 'draft') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-        <PenLine size={11} /> Draft ready
-      </span>
+      <Pill variant="info" icon={PenLine} className="text-xs font-medium">
+        Draft ready
+      </Pill>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-warm-100 px-2 py-0.5 text-xs font-medium text-muted">
+    <Pill variant="neutral" className="text-xs font-medium">
       No draft
-    </span>
+    </Pill>
   )
 }
 
@@ -181,23 +183,14 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
   const [leads, setLeads] = useState<UserLead[] | null>(null)
   const [customContacts, setCustomContacts] = useState<CustomMember[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set())
+  const generatingIdsRef = useRef<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<{ kind: 'generate' | 'remove'; done: number; total: number } | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const addingRef = useRef(false)
   const members = useCampaignMembers(campaignId)
-
-  const load = useCallback(async () => {
-    try {
-      const res = await members.mutate()
-      setLeads(res?.items ?? [])
-      setCustomContacts(res?.customContacts ?? [])
-      setError(null)
-    } catch (err) {
-      setError((err as Error)?.message || 'Could not load saved contacts.')
-    }
-  }, [members])
 
   useEffect(() => {
     if (members.data) {
@@ -250,38 +243,90 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     [rows, selectedIds]
   )
   const selectedNoDraftRows = useMemo(
-    () => selectedRows.filter(r => r.draftStatus === 'no-draft' && r.hasEmail),
-    [selectedRows]
+    () => selectedRows.filter(r => r.draftStatus === 'no-draft' && r.hasEmail && !generatingIds.has(r.selectionId)),
+    [generatingIds, selectedRows]
   )
 
   const handleAddSubmit = async (data: { name: string; email: string; title: string; companyName: string }) => {
+    if (addingRef.current) return
+    addingRef.current = true
     setAdding(true)
+    const tempId = `temp-${Date.now()}`
+    const optimisticContact: CustomMember = {
+      id: tempId,
+      userId: '',
+      name: data.name || null,
+      email: data.email || null,
+      title: data.title || null,
+      companyName: data.companyName || null,
+      status: 'SAVED',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      campaignCustomContactId: tempId,
+      emails: [],
+    }
+    const previousLeads = leads ?? []
+    const previousCustomContacts = customContacts
+    setCustomContacts(prev => [optimisticContact, ...prev])
+    members.mutate(
+      { items: previousLeads, customContacts: [optimisticContact, ...previousCustomContacts] },
+      { revalidate: false },
+    )
     try {
-      await createCustomContact({
+      const created = await runExclusive(actionKey('custom-contact-create', campaignId, data.email || data.name), () => createCustomContact({
         name: data.name || null,
         email: data.email || null,
         title: data.title || null,
         companyName: data.companyName || null,
         campaignId,
-      })
+      }))
+      const hydrated = { ...created, campaignCustomContactId: created.campaignCustomContactId ?? tempId, emails: [] } as CustomMember
+      setCustomContacts(prev => [hydrated, ...prev.filter(c => c.id !== tempId)])
+      members.mutate(
+        { items: leads ?? [], customContacts: [hydrated, ...customContacts.filter(c => c.id !== tempId)] },
+        { revalidate: false },
+      )
       setAddOpen(false)
-      await load()
+      void members.mutate()
     } catch (err) {
+      setCustomContacts(previousCustomContacts)
+      members.mutate({ items: previousLeads, customContacts: previousCustomContacts }, { revalidate: false })
       setError((err as Error)?.message || 'Could not add contact.')
     } finally {
+      addingRef.current = false
       setAdding(false)
     }
   }
 
   const handleGenerate = async (row: Row) => {
-    setGeneratingId(row.selectionId)
+    if (generatingIdsRef.current.has(row.selectionId)) return
+    generatingIdsRef.current = new Set(generatingIdsRef.current).add(row.selectionId)
+    setGeneratingIds(prev => new Set(prev).add(row.selectionId))
     try {
-      await generateEmail({ ...row.generateArgs, save: true })
-      await load()
+      const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
+      const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, save: true }, createIdempotencyKey(key)))
+      const email = { id: result.emailId ?? `draft-${row.selectionId}`, subject: result.subject ?? null, status: 'draft' as const }
+      if (row.rowKind === 'lead' && row.generateArgs.userLeadId) {
+        setLeads(prev => (prev ?? []).map(lead => lead.id === row.generateArgs.userLeadId
+          ? { ...lead, emails: [email, ...(lead.emails ?? []).filter(e => e.status !== 'draft')] }
+          : lead
+        ))
+      } else if (row.generateArgs.customContactId) {
+        setCustomContacts(prev => prev.map(contact => contact.id === row.generateArgs.customContactId
+          ? { ...contact, emails: [email, ...(contact.emails ?? []).filter(e => e.status !== 'draft')] }
+          : contact
+        ))
+      }
+      void members.mutate()
     } catch (err) {
       setError((err as Error)?.message || 'Draft generation failed.')
     } finally {
-      setGeneratingId(null)
+      setGeneratingIds(prev => {
+        const next = new Set(prev)
+        next.delete(row.selectionId)
+        generatingIdsRef.current = next
+        return next
+      })
     }
   }
 
@@ -292,7 +337,20 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     let succeeded = 0
     for (const row of targets) {
       try {
-        await generateEmail({ ...row.generateArgs, save: true })
+        const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
+        const result = await runExclusive(key, () => generateEmail({ ...row.generateArgs, save: true }, createIdempotencyKey(key)))
+        const email = { id: result.emailId ?? `draft-${row.selectionId}`, subject: result.subject ?? null, status: 'draft' as const }
+        if (row.rowKind === 'lead' && row.generateArgs.userLeadId) {
+          setLeads(prev => (prev ?? []).map(lead => lead.id === row.generateArgs.userLeadId
+            ? { ...lead, emails: [email, ...(lead.emails ?? []).filter(e => e.status !== 'draft')] }
+            : lead
+          ))
+        } else if (row.generateArgs.customContactId) {
+          setCustomContacts(prev => prev.map(contact => contact.id === row.generateArgs.customContactId
+            ? { ...contact, emails: [email, ...(contact.emails ?? []).filter(e => e.status !== 'draft')] }
+            : contact
+          ))
+        }
         succeeded++
       } catch {
         // Continue on failure; the partial-success count surfaces in the toast.
@@ -301,7 +359,7 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     }
     setBulkAction(null)
     setSelectedIds(new Set())
-    await load()
+    void members.mutate()
     if (succeeded < targets.length) {
       setError(`${succeeded} of ${targets.length} drafts generated. The rest failed — try again.`)
     }
@@ -311,7 +369,16 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
     const targets = selectedRows
     if (targets.length === 0) return
     if (!window.confirm(`Remove ${targets.length} contact${targets.length === 1 ? '' : 's'} from this campaign?`)) return
+    const previousLeads = leads ?? []
+    const previousCustomContacts = customContacts
+    const targetIds = new Set(targets.map(row => row.selectionId))
+    const optimisticLeads = previousLeads.filter(lead => !targetIds.has(`lead:${lead.id}`))
+    const optimisticCustomContacts = previousCustomContacts.filter(contact => !targetIds.has(`cc:${contact.id}`))
+    setLeads(optimisticLeads)
+    setCustomContacts(optimisticCustomContacts)
+    members.mutate({ items: optimisticLeads, customContacts: optimisticCustomContacts }, { revalidate: false })
     setBulkAction({ kind: 'remove', done: 0, total: targets.length })
+    let failed = false
     for (const row of targets) {
       try {
         if (row.rowKind === 'lead') {
@@ -320,13 +387,19 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
           await removeCampaignCustomContact(row.rowId)
         }
       } catch {
+        failed = true
         // Ignore individual failures — they'll just stay in the list.
       }
       setBulkAction(prev => (prev ? { ...prev, done: prev.done + 1 } : prev))
     }
     setBulkAction(null)
     setSelectedIds(new Set())
-    await load()
+    if (failed) {
+      setLeads(previousLeads)
+      setCustomContacts(previousCustomContacts)
+      members.mutate({ items: previousLeads, customContacts: previousCustomContacts }, { revalidate: false })
+    }
+    void members.mutate()
   }
 
   if (leads === null && !error) {
@@ -456,7 +529,7 @@ export default function ContactsTab({ campaignId, onJumpToDrafts, onJumpToLeads 
             </thead>
             <tbody className="divide-y divide-warm-200/80">
               {rows.map(row => {
-                const generating = generatingId === row.selectionId
+                const generating = generatingIds.has(row.selectionId)
                 const checked = selectedIds.has(row.selectionId)
                 return (
                   <tr key={row.selectionId} className={`transition-colors hover:bg-warm-50/60 ${checked ? 'bg-warm-50/40' : ''}`}>

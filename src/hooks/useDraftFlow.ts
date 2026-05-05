@@ -8,6 +8,7 @@
 
 import { useRef, useState } from 'react'
 import { generateEmail, createEmail } from '../lib/api'
+import { actionKey, createIdempotencyKey, runExclusive } from '../lib/pendingActions'
 
 export type DraftTarget =
   | { kind: 'lead'; id: string; companyName?: string | null; contactName?: string | null }
@@ -64,11 +65,12 @@ export function useDraftFlow() {
     }
     inFlightRef.current = true
     setState(s => ({ ...s, generating: true, error: null }))
+    const key = actionKey('draft-preview', target.kind, target.id)
     try {
       const payload = target.kind === 'custom'
         ? { customContactId: target.id, ...opts, save: false }
         : { userLeadId: target.id, ...opts, save: false }
-      const res = await generateEmail(payload)
+      const res = await runExclusive(key, () => generateEmail(payload, createIdempotencyKey(key)))
       setState({
         subject: res.subject || '', body: res.body || '',
         generating: false, saving: false, error: null, generated: true,
@@ -98,10 +100,11 @@ export function useDraftFlow() {
     setState(s => ({ ...s, generating: true, error: null }))
     try {
       const results = await Promise.allSettled(targets.map(target => {
+        const key = actionKey('draft-save', target.kind, target.id)
         const payload = target.kind === 'custom'
           ? { customContactId: target.id, ...opts, save: true }
           : { userLeadId: target.id, ...opts, save: true }
-        return generateEmail(payload)
+        return runExclusive(key, () => generateEmail(payload, createIdempotencyKey(key)))
       }))
       const succeeded = results.filter(r => r.status === 'fulfilled').length
       const failed = results.length - succeeded

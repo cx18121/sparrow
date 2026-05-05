@@ -8,6 +8,10 @@ import { QuotaError } from "../lib/rate-limit.js";
 const ALLOWED_STATUSES = ["SAVED", "EMAILED", "NO_RESPONSE", "DECLINED"] as const;
 type LeadStatus = (typeof ALLOWED_STATUSES)[number];
 
+function leadLockKey(userId: string, companyId: string, contactId: string | null) {
+  return `lead:${userId}:${companyId}:${contactId ?? "no-contact"}`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req);
@@ -93,36 +97,28 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     }
   }
 
-  // Prisma @@unique([userId, companyId, contactId]) does not coalesce nulls in
-  // PostgreSQL — two rows with contactId=null would conflict. Use find+create
-  // instead of upsert to avoid the error.
-  const existing = await prisma.userLead.findFirst({
-    where: {
-      userId,
-      companyId,
-      ...(resolvedContactId !== undefined ? { contactId: resolvedContactId } : {}),
-    },
-  });
+  const result = await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${leadLockKey(userId, companyId, resolvedContactId)}))`;
 
-  if (existing) {
-    const updated = await prisma.userLead.update({
-      where: { id: existing.id },
-      data: { notes, ...(apolloPersonId && { apolloPersonId }) },
+    const existing = await tx.userLead.findFirst({
+      where: { userId, companyId, contactId: resolvedContactId },
     });
-    return res.status(200).json(updated);
-  }
 
-  try {
-    const lead = await prisma.userLead.create({
+    if (existing) {
+      const updated = await tx.userLead.update({
+        where: { id: existing.id },
+        data: { notes, ...(apolloPersonId && { apolloPersonId }) },
+      });
+      return { lead: updated, status: 200 };
+    }
+
+    const lead = await tx.userLead.create({
       data: { userId, companyId, contactId: resolvedContactId, notes, apolloPersonId: apolloPersonId ?? null, status: "SAVED" },
     });
-    res.status(201).json(lead);
-  } catch (err: any) {
-    if (err?.code === "P2002") {
-      return res.status(409).json({ error: "Lead already exists" });
-    }
-    throw err;
-  }
+    return { lead, status: 201 };
+  });
+
+  res.status(result.status).json(result.lead);
 }
 
 

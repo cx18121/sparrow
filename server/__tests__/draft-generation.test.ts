@@ -20,8 +20,10 @@ const {
     userLead: { findUnique: vi.fn(), update: vi.fn() },
     contact: { findUnique: vi.fn() },
     template: { findUnique: vi.fn() },
-    email: { create: vi.fn() },
+    email: { create: vi.fn(), findFirst: vi.fn() },
     company: { update: vi.fn() },
+    $executeRaw: vi.fn(),
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockPrisma)),
   };
   const mockReveal = vi.fn();
   const mockResolveProfile = vi.fn();
@@ -134,6 +136,12 @@ const makeUserLead = (overrides: Record<string, unknown> = {}) => ({
 describe("generateDraft — CustomContact path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.email.findFirst.mockReset();
+    mockPrisma.email.create.mockReset();
+    mockPrisma.$executeRaw.mockReset();
+    mockPrisma.$transaction.mockReset();
+    mockPrisma.email.findFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(mockPrisma));
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
@@ -647,6 +655,12 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
 describe("generateDraft — save flag", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.email.findFirst.mockReset();
+    mockPrisma.email.create.mockReset();
+    mockPrisma.$executeRaw.mockReset();
+    mockPrisma.$transaction.mockReset();
+    mockPrisma.email.findFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(mockPrisma));
     mockResolveProfile.mockResolvedValue(mockProfile);
     mockBuildContext.mockReturnValue("sender context string");
     mockGenerateEmailDraft.mockResolvedValue(mockDraft);
@@ -677,6 +691,50 @@ describe("generateDraft — save flag", () => {
     expect(createArg.data.body).toBe(mockDraft.body);
     expect(createArg.data.status).toBe("draft");
     expect(result.emailId).toBe("email-saved-1");
+  });
+
+  it("returns an existing draft without generating a duplicate", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.email.findFirst.mockResolvedValue({
+      id: "email-existing",
+      subject: "Existing subject",
+      body: "Existing body",
+    });
+
+    const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1", save: true });
+
+    expect(mockGenerateEmailDraft).not.toHaveBeenCalled();
+    expect(mockPrisma.email.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      emailId: "email-existing",
+      subject: "Existing subject",
+      body: "Existing body",
+    });
+  });
+
+  it("rechecks for an existing draft inside the save transaction", async () => {
+    const lead = makeUserLead();
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.email.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "email-raced",
+        subject: "Raced subject",
+        body: "Raced body",
+      });
+
+    const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1", save: true });
+
+    expect(mockGenerateEmailDraft).toHaveBeenCalledOnce();
+    expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(mockPrisma.email.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      emailId: "email-raced",
+      subject: "Raced subject",
+      body: "Raced body",
+    });
   });
 
   it("saves template attachmentIds onto generated draft records", async () => {

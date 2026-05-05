@@ -25,6 +25,7 @@ import {
 } from '../../lib/draftQueue'
 import { DRAFT_QUEUE_LIMIT, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
 import { writeDraftQueueCache } from '../../lib/workspaceCache'
+import { actionKey, runExclusive } from '../../lib/pendingActions'
 import Badge from '../ui/Badge'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -211,13 +212,23 @@ export default function DraftsTab({
   const saveEdit = async () => {
     setSaving(true)
     setSaveError(null)
+    const originalDrafts = drafts
+    const originalPreview = preview
+    const optimisticDrafts = drafts.map(d => d.id === preview.id ? { ...d, subject: subjectValue, body: editBody } : d)
+    setDrafts(optimisticDrafts)
+    setPreview({ ...preview, subject: subjectValue, body: editBody })
+    draftQueue.mutate({ items: optimisticDrafts, nextCursor }, { revalidate: false })
     try {
-      const updated = await updateEmail({ id: preview.id, subject: subjectValue, body: editBody })
+      const updated = await runExclusive(actionKey('draft-edit', preview.id), () => updateEmail({ id: preview.id, subject: subjectValue, body: editBody }))
       const merged = { ...preview, subject: updated.subject ?? subjectValue, body: updated.body ?? editBody }
       setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: merged.subject, body: merged.body } : d))
       setPreview(merged)
       setEditing(false)
+      void draftQueue.mutate()
     } catch (err) {
+      setDrafts(originalDrafts)
+      setPreview(originalPreview)
+      draftQueue.mutate({ items: originalDrafts, nextCursor }, { revalidate: false })
       setSaveError(err.message || 'Failed to save')
     } finally {
       setSaving(false)
@@ -383,7 +394,7 @@ export default function DraftsTab({
       if (sendableIds.length > 1) setBatchProgress({ current: i + 1, total: sendableIds.length })
 
       try {
-        await sendEmail(id)
+        await runExclusive(actionKey('send-email', id), () => sendEmail(id))
         succeeded.push(id)
         setDrafts(prev => prev.filter(d => d.id !== id))
         setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
@@ -490,7 +501,10 @@ export default function DraftsTab({
     if (!testSendOpen) return
     setTestSendBusy(true)
     try {
-      await sendTestEmail(testSendOpen, testSendRecipient)
+      await runExclusive(
+        actionKey('test-send-email', testSendOpen, testSendRecipient.trim().toLowerCase()),
+        () => sendTestEmail(testSendOpen, testSendRecipient),
+      )
       setToast({
         type: 'success',
         title: 'Test email sent',
@@ -510,21 +524,29 @@ export default function DraftsTab({
 
   const deleteDrafts = async (ids: string[]) => {
     setDeleting(true)
+    const originalDrafts = drafts
+    const originalPreview = preview
+    const remaining = drafts.filter(d => !ids.includes(d.id))
+    setDrafts(remaining)
+    setSelected(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
+    if (preview && ids.includes(preview.id)) {
+      const nextDraft = sorted.find(d => !ids.includes(d.id) && d.id !== preview.id)
+      setPreview(nextDraft || null)
+      setEditing(false)
+    }
+    draftQueue.mutate({ items: remaining, nextCursor }, { revalidate: false })
     try {
-      await deleteEmails(ids)
-      setDrafts(prev => prev.filter(d => !ids.includes(d.id)))
-      setSelected(prev => { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next })
-      if (preview && ids.includes(preview.id)) {
-        const nextDraft = sorted.find(d => !ids.includes(d.id) && d.id !== preview.id)
-        setPreview(nextDraft || null)
-        setEditing(false)
-      }
+      await runExclusive(actionKey('draft-delete', ids.join(',')), () => deleteEmails(ids))
+      void draftQueue.mutate()
       setToast({
         type: 'success',
         title: ids.length === 1 ? 'Draft deleted' : `${ids.length} drafts deleted`,
         message: '',
       })
     } catch (err: any) {
+      setDrafts(originalDrafts)
+      setPreview(originalPreview)
+      draftQueue.mutate({ items: originalDrafts, nextCursor }, { revalidate: false })
       setToast({ type: 'error', title: 'Could not delete', message: err?.message || 'Please try again.' })
     } finally {
       setDeleting(false)

@@ -72,6 +72,28 @@ describe("POST /emails/generate", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "Invalid JSON body" });
     expect(mockGenerateDraft).not.toHaveBeenCalled();
   });
+
+  it("dedupes concurrent requests with the same idempotency key", async () => {
+    let resolveDraft: (value: { subject: string; body: string }) => void = () => {};
+    mockGenerateDraft.mockReturnValue(new Promise(resolve => { resolveDraft = resolve; }));
+    const req = makeReq({
+      headers: { host: "localhost:5173", "idempotency-key": "generate-1" },
+      body: { userLeadId: "lead-1", save: true },
+    });
+    const res1 = makeRes();
+    const res2 = makeRes();
+
+    const first = generateHandler(req, res1);
+    const second = generateHandler(req, res2);
+    resolveDraft({ subject: "Hello", body: "Body" });
+    await Promise.all([first, second]);
+
+    expect(mockGenerateDraft).toHaveBeenCalledOnce();
+    expect(res1.status).toHaveBeenCalledWith(200);
+    expect(res2.status).toHaveBeenCalledWith(200);
+    expect(res1.json).toHaveBeenCalledWith({ subject: "Hello", body: "Body" });
+    expect(res2.json).toHaveBeenCalledWith({ subject: "Hello", body: "Body" });
+  });
 });
 
 describe("POST /emails/send", () => {

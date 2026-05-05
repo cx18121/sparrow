@@ -151,6 +151,71 @@ function defaultResumeAttachmentIds(ws: { resumePath?: string | null; resumeFile
   return ws.resumePath && ws.resumeFileName ? ["resume"] : [];
 }
 
+type ExistingDraft = { id: string; subject: string | null; body: string | null };
+
+function draftLookupWhere(savedLeadId: string | null, savedCustomContactId: string | null) {
+  if (savedLeadId) return { userLeadId: savedLeadId, status: "draft" };
+  if (savedCustomContactId) return { customContactId: savedCustomContactId, status: "draft" };
+  return null;
+}
+
+function draftLockKey(savedLeadId: string | null, savedCustomContactId: string | null) {
+  if (savedLeadId) return `draft:userLead:${savedLeadId}`;
+  if (savedCustomContactId) return `draft:customContact:${savedCustomContactId}`;
+  return null;
+}
+
+async function findExistingDraft(client: any, savedLeadId: string | null, savedCustomContactId: string | null): Promise<ExistingDraft | null> {
+  const where = draftLookupWhere(savedLeadId, savedCustomContactId);
+  if (!where) return null;
+  return client.email.findFirst({
+    where,
+    orderBy: { createdAt: "desc" },
+    select: { id: true, subject: true, body: true },
+  });
+}
+
+async function saveDraftOnce(params: {
+  savedLeadId: string | null;
+  savedContactId: string | null;
+  savedCustomContactId: string | null;
+  subject: string;
+  body: string;
+  attachmentIds: string[];
+}): Promise<ExistingDraft> {
+  const lockKey = draftLockKey(params.savedLeadId, params.savedCustomContactId);
+  if (!lockKey) {
+    return prisma.email.create({
+      data: {
+        ...(params.savedContactId ? { contactId: params.savedContactId } : {}),
+        subject: params.subject,
+        body: params.body,
+        status: "draft",
+        attachmentIds: params.attachmentIds,
+      },
+      select: { id: true, subject: true, body: true },
+    });
+  }
+
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    const existing = await findExistingDraft(tx, params.savedLeadId, params.savedCustomContactId);
+    if (existing) return existing;
+    return tx.email.create({
+      data: {
+        ...(params.savedLeadId ? { userLeadId: params.savedLeadId } : {}),
+        ...(params.savedContactId ? { contactId: params.savedContactId } : {}),
+        ...(params.savedCustomContactId ? { customContactId: params.savedCustomContactId } : {}),
+        subject: params.subject,
+        body: params.body,
+        status: "draft",
+        attachmentIds: params.attachmentIds,
+      },
+      select: { id: true, subject: true, body: true },
+    });
+  });
+}
+
 export interface DraftGenerationResult {
   subject: string;
   body: string;
@@ -175,6 +240,17 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     savedContactId,
     savedCustomContactId,
   } = await resolveDraftTarget(params);
+
+  if (save) {
+    const existing = await findExistingDraft(prisma, savedLeadId, savedCustomContactId);
+    if (existing) {
+      return {
+        subject: existing.subject ?? "",
+        body: existing.body ?? "",
+        emailId: existing.id,
+      };
+    }
+  }
 
   // Resolve template
   let userTemplate: { subject: string; body: string; verbatim: boolean; attachmentIds: string[] } | null = null;
@@ -266,18 +342,19 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   if (save) {
     const explicitAttachmentIds = params.attachmentIds !== undefined ? stringArray(params.attachmentIds) : null;
     const attachmentIds = explicitAttachmentIds ?? userTemplate?.attachmentIds ?? defaultResumeAttachmentIds(profile.ws);
-    const saved = await prisma.email.create({
-      data: {
-        ...(savedLeadId ? { userLeadId: savedLeadId } : {}),
-        ...(savedContactId ? { contactId: savedContactId } : {}),
-        ...(savedCustomContactId ? { customContactId: savedCustomContactId } : {}),
-        subject: draft.subject,
-        body: draft.body,
-        status: "draft",
-        attachmentIds,
-      },
+    const saved = await saveDraftOnce({
+      savedLeadId,
+      savedContactId,
+      savedCustomContactId,
+      subject: draft.subject,
+      body: draft.body,
+      attachmentIds,
     });
     emailId = saved.id;
+    draft = {
+      subject: saved.subject ?? draft.subject,
+      body: saved.body ?? draft.body,
+    };
   }
 
   return {

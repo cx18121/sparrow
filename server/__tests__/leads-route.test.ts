@@ -4,6 +4,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const { mockGetUserId, mockPrisma, mockRevealAndUpsert } = vi.hoisted(() => {
   const mockGetUserId = vi.fn<[], Promise<string | null>>();
   const mockPrisma = {
+    $executeRaw: vi.fn(),
+    $transaction: vi.fn(async (fn) => fn(mockPrisma)),
     userLead: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -160,6 +162,25 @@ describe("leads route — POST", () => {
     await invokeHandler(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(newLead);
+  });
+
+  it("serializes nullable-contact saves so duplicate submits cannot double-create", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.company.findUnique.mockResolvedValue({ id: "co-1" });
+    mockPrisma.userLead.findFirst.mockResolvedValue(null);
+    const newLead = { id: "lead-new", userId: USER_ID, companyId: "co-1", contactId: null, status: "SAVED" };
+    mockPrisma.userLead.create.mockResolvedValue(newLead);
+    const req = makeReq({ method: "POST", body: { companyId: "co-1" } });
+    const res = makeRes();
+
+    await invokeHandler(req, res);
+
+    expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(mockPrisma.userLead.findFirst).toHaveBeenCalledWith({
+      where: { userId: USER_ID, companyId: "co-1", contactId: null },
+    });
+    expect(mockPrisma.userLead.create).toHaveBeenCalledOnce();
   });
 
   it("returns 200 when lead already exists (updates instead)", async () => {
