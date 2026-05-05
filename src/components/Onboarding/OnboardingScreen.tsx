@@ -19,6 +19,37 @@ function fillVariables(content, data) {
     .replace(/\{\{fit_angle\}\}/g, data.fit_angle ?? '')
 }
 
+// Picks a (feature_line, fit_angle) pair for the onboarding template preview
+// based on what the user wrote in their resume. The recipient is fixed to
+// Anthropic in this preview, so feature_line is always a real Anthropic
+// surface; fit_angle is matched to the strongest signal in the resume so
+// the preview reflects the user's actual background, not a stock example.
+//
+// Match order is specificity-first: more niche concept clusters (RAG, agents,
+// inference) win over broader ones (data, sales) when both terms appear.
+// First match wins; falls back to a generic phrasing when nothing matches
+// so a user who hasn't typed a resume yet still sees a coherent preview.
+function inferPreviewPersonalization(resumeText: string): { feature_line: string; fit_angle: string } {
+  const text = (resumeText ?? '').toLowerCase()
+  const tracks: Array<{ match: RegExp; feature_line: string; fit_angle: string }> = [
+    { match: /\b(rag|retrieval|embedding|vector\s*(db|search))\b/, feature_line: 'claude code agentic coding', fit_angle: 'my RAG eval pipeline project' },
+    { match: /\b(multi-agent|agentic|tool\s*use|orchestrat)/,    feature_line: 'claude code agentic coding', fit_angle: 'my multi-agent eval harness project' },
+    { match: /\b(eval|benchmark|red\s*team|alignment|safety)\b/, feature_line: 'claude opus 4.7 release',     fit_angle: 'my model evaluation work' },
+    { match: /\b(inference|gpu|throughput|latency|quantiz)/,     feature_line: 'claude opus 4.7 release',     fit_angle: 'my inference cost optimization project' },
+    { match: /\b(figma|prototype|ux|ui|interface|design\s*system)\b/, feature_line: 'claude design prototyping tool', fit_angle: 'my design system project' },
+    { match: /\b(fintech|payment|bank|finance|underwriting)\b/,  feature_line: 'claude personal app connectors', fit_angle: 'my fintech integrations project' },
+    { match: /\b(security|infosec|appsec|threat|exploit)/,       feature_line: 'cyber verification program',  fit_angle: 'my security research project' },
+    { match: /\b(sales|sdr|bdr|pipeline|prospect|outbound)/,     feature_line: 'claude enterprise self-serve', fit_angle: 'my outbound campaign automation work' },
+    { match: /\b(growth|gtm|marketing|seo|acquisition)\b/,       feature_line: 'claude code agentic coding',  fit_angle: 'my growth experimentation work' },
+    { match: /\b(data|sql|warehouse|airflow|dbt|analytics|etl)\b/, feature_line: 'claude code agentic coding', fit_angle: 'my data pipeline work' },
+    { match: /\b(agent)\b/,                                      feature_line: 'claude code agentic coding',  fit_angle: 'my agent infrastructure project' },
+  ]
+  for (const t of tracks) {
+    if (t.match.test(text)) return { feature_line: t.feature_line, fit_angle: t.fit_angle }
+  }
+  return { feature_line: 'claude code agentic coding', fit_angle: 'my recent project' }
+}
+
 function stripHtml(content) {
   if (!content) return ''
   if (!content.includes('<')) return content
@@ -166,17 +197,23 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
 
   // Real-company example (Anthropic / Dario Amodei) so the preview reads
-  // like an actual draft. feature_line + fit_angle are filled with plausible
-  // values so users see what those merge tags do in practice — Sparrow's
-  // research step produces lines like these per recipient.
+  // like an actual draft. feature_line stays an Anthropic surface;
+  // fit_angle is inferred from the user's resume keywords so the preview
+  // updates as they fill out step 1 — same per-user uniqueness contract
+  // pickFitAngle enforces in production, just keyword-matched instead of
+  // model-picked since onboarding has no API budget yet.
+  const inferred = useMemo(
+    () => inferPreviewPersonalization(form.resumeText || ''),
+    [form.resumeText]
+  )
   const previewData = {
     first_name: 'Dario',
     last_name: 'Amodei',
     company: 'Anthropic',
     role: 'CEO',
     sender_name: form.senderName || 'Your Name',
-    feature_line: 'claude code agentic coding',
-    fit_angle: 'my multi-agent eval harness project',
+    feature_line: inferred.feature_line,
+    fit_angle: inferred.fit_angle,
   }
 
   // Insert a merge tag at the caret of whichever field was last focused.
