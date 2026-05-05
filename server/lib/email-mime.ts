@@ -31,13 +31,78 @@ export function mimeFromFileName(fileName: string | null | undefined): string {
   return "application/octet-stream";
 }
 
+const HTML_TAG_NAMES = new Set([
+  "a",
+  "article",
+  "aside",
+  "b",
+  "blockquote",
+  "br",
+  "button",
+  "caption",
+  "code",
+  "col",
+  "colgroup",
+  "dd",
+  "del",
+  "details",
+  "div",
+  "dl",
+  "dt",
+  "em",
+  "figcaption",
+  "figure",
+  "footer",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hr",
+  "i",
+  "img",
+  "ins",
+  "li",
+  "main",
+  "mark",
+  "nav",
+  "ol",
+  "p",
+  "pre",
+  "s",
+  "section",
+  "small",
+  "span",
+  "strong",
+  "sub",
+  "summary",
+  "sup",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "u",
+  "ul",
+]);
+
+function containsHtmlTag(value: string): boolean {
+  return Array.from(value.matchAll(/<\/?([a-z][a-z0-9-]*)\b[^>]*>/gi)).some(match =>
+    HTML_TAG_NAMES.has(match[1].toLowerCase()),
+  );
+}
+
 // Strips dangerous HTML to prevent stored XSS reaching the recipient's email client.
 export function sanitizeHtml(raw: string): string {
   const sanitized = raw
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\bhref\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]*)/gi, 'href="about:blank"');
-  if (/<\/?[a-z][\s\S]*>/i.test(sanitized)) return sanitized;
+  if (containsHtmlTag(sanitized)) return sanitized;
   return sanitized
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

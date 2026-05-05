@@ -44,6 +44,12 @@ describe("email MIME helpers", () => {
     );
   });
 
+  it("does not treat plaintext angle-bracket placeholders as HTML", () => {
+    expect(sanitizeHtml("I saw <Company Name> just shipped\nNice work")).toBe(
+      "I saw &lt;Company Name&gt; just shipped<br>Nice work",
+    );
+  });
+
   it("preserves tabs and repeated spaces in plaintext bodies", () => {
     expect(sanitizeHtml("Column\tValue\nIndented    text")).toBe(
       "Column&nbsp;&nbsp;&nbsp;&nbsp;Value<br>Indented &nbsp;&nbsp;&nbsp;text",
