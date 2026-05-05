@@ -895,20 +895,22 @@ export default function DraftsTab({
         <div className={`flex shrink-0 flex-col border-t border-warm-200 bg-warm-50 lg:border-t-0 ${focusMode ? 'w-full flex-1' : 'w-full lg:w-[38%] lg:min-w-[440px] lg:max-w-[600px] lg:border-l'}`}>
           {/* Panel header */}
           <div className="flex flex-col gap-3 border-b border-warm-200 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-dark truncate">{getRecipientName(preview)}</p>
-                {previewIndex >= 0 && (
-                  <span className="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-medium text-muted">
-                    {previewIndex + 1} of {sorted.length}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted truncate">
-                {getRecipient(preview) || getCompanyName(preview) || ''}
-              </p>
+            <div className="min-w-0 flex items-center gap-2.5">
+              <p className="font-medium text-dark truncate">{getRecipientName(preview)}</p>
+              {tab === 'sent' ? (
+                <Badge variant="sent">Sent</Badge>
+              ) : (
+                <Badge variant={getDraftReadiness(preview).label === 'Ready' ? 'ready' : 'paused'}>
+                  {getDraftReadiness(preview).label}
+                </Badge>
+              )}
+              {previewIndex >= 0 && sorted.length > 1 && (
+                <span className="text-[11px] text-muted/70 tabular-nums shrink-0">
+                  {previewIndex + 1} / {sorted.length}
+                </span>
+              )}
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2 lg:ml-3">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 lg:ml-3">
               {/* Navigation */}
               <div className="flex items-center rounded-full bg-warm-50 p-0.5">
                 <button
@@ -1129,23 +1131,9 @@ export default function DraftsTab({
               )
             })()}
 
-            {/* Meta */}
+            {/* Meta — dates only. Status lives in the header; recipient + company
+                live in the recipient card above. */}
             <div className="border-t border-warm-200 pt-4 space-y-1.5">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Details</p>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted">Status</span>
-                {tab === 'sent' ? (
-                  <Badge variant="sent">Sent</Badge>
-                ) : (
-                  <Badge variant={getDraftReadiness(preview).label === 'Ready' ? 'ready' : 'paused'}>
-                    {getDraftReadiness(preview).label}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex justify-between gap-4 text-xs">
-                <span className="text-muted">Recipient</span>
-                <span className="truncate text-dark">{getRecipient(preview) || 'Missing'}</span>
-              </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted">Created</span>
                 <span className="text-dark">{formatDate(preview.createdAt)}</span>
@@ -1154,12 +1142,6 @@ export default function DraftsTab({
                 <div className="flex justify-between text-xs">
                   <span className="text-muted">Sent</span>
                   <span className="text-dark">{formatDate(preview.sentAt)}</span>
-                </div>
-              )}
-              {preview.userLead?.company?.name && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted">Company</span>
-                  <span className="text-dark">{preview.userLead.company.name}</span>
                 </div>
               )}
             </div>

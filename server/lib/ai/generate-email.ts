@@ -57,6 +57,21 @@ export function substituteVariables(
     .replace(/\{\{fitAngle\}\}/g, fitAngle)
 }
 
+// Strip dangling separators and whitespace left behind when a merge tag
+// substitutes to empty. Without this, a profile with no senderName turns
+// the default subject 'Quick intro — {{senderName}}' into 'Quick intro — ',
+// which lands in the inbox looking truncated. Runs at the tail until stable
+// to handle compounded cases like 'Foo — , '.
+function tidySubject(subject: string): string {
+  let prev = subject
+  let next = subject
+  do {
+    prev = next
+    next = next.trim().replace(/[\s\-–—:,|·]+$/u, '').trim()
+  } while (next !== prev)
+  return next
+}
+
 export function buildSubjectLine(
   template: string | null,
   contact: { name: string | null; title?: string | null },
@@ -64,7 +79,7 @@ export function buildSubjectLine(
   company?: { name: string },
   ai?: { featureLine?: string | null; fitAngle?: string | null }
 ): string {
-  return substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company, ai)
+  return tidySubject(substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company, ai))
 }
 
 function buildTemplateSkeleton(input: TemplateDraftInput): string {

@@ -17,14 +17,27 @@ describe("buildSubjectLine", () => {
     expect(subject).toBe("Hi Jane");
   });
 
-  it("leaves firstName empty when contact name is null", () => {
+  it("trims trailing whitespace when firstName substitutes empty", () => {
     const subject = buildSubjectLine("Hi {{firstName}}", { name: null }, null);
-    expect(subject).toBe("Hi ");
+    expect(subject).toBe("Hi");
   });
 
-  it("leaves senderName empty when null", () => {
+  it("trims trailing whitespace when senderName substitutes empty", () => {
     const subject = buildSubjectLine("From {{senderName}}", { name: "Jane" }, null);
-    expect(subject).toBe("From ");
+    expect(subject).toBe("From");
+  });
+
+  it("strips dangling em-dash when default template's senderName is empty", () => {
+    // Without tidying, a missing senderName turns the default template
+    // 'Quick intro — {{senderName}}' into 'Quick intro — ', which lands in
+    // the inbox looking truncated. tidySubject removes the trailing dash.
+    const subject = buildSubjectLine(null, { name: "Jane" }, null);
+    expect(subject).toBe("Quick intro");
+  });
+
+  it("strips compounded trailing separators", () => {
+    const subject = buildSubjectLine("Re: {{firstName}} — {{senderName}}", { name: null }, null);
+    expect(subject).toBe("Re");
   });
 
   it("replaces all occurrences of a placeholder", () => {
