@@ -63,7 +63,7 @@ export default function AuthScreen() {
             <span style={{ color: '#7DB480' }}>worth emailing.</span>
           </h1>
           <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(253,250,245,0.48)' }}>
-            Find relevant startup contacts, turn your background into personalized drafts, and send only after you approve.
+            Find relevant startup contacts and turn your background into personalized first drafts for every outreach list.
           </p>
         </div>
 
