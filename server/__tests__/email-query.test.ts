@@ -112,4 +112,17 @@ describe("listEmailQueue", () => {
       skip: 1,
     }));
   });
+
+  it("applies cursor pagination after merging the global queue", async () => {
+    const contactNewer = { id: "contact-newer", createdAt: new Date("2026-01-03") };
+    const leadCursor = { id: "lead-cursor", createdAt: new Date("2026-01-02") };
+    const leadOlder = { id: "lead-older", createdAt: new Date("2026-01-01") };
+    mockPrisma.email.findMany.mockResolvedValueOnce([leadCursor, leadOlder]).mockResolvedValueOnce([contactNewer]);
+
+    await expect(listEmailQueue(USER_ID, {
+      status: "draft",
+      limit: 1,
+      cursor: "lead-cursor",
+    })).resolves.toEqual({ items: [leadOlder], nextCursor: null });
+  });
 });

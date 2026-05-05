@@ -37,6 +37,11 @@ function page<T extends { id: string }>(items: T[], take: number) {
   return { items: trimmed, nextCursor: hasMore ? trimmed[trimmed.length - 1]?.id : null };
 }
 
+function pageAfterCursor<T extends { id: string }>(items: T[], take: number, cursor?: string) {
+  const cursorIndex = cursor ? items.findIndex((item) => item.id === cursor) : -1;
+  return page(cursorIndex >= 0 ? items.slice(cursorIndex + 1) : items, take);
+}
+
 export async function countEmailsSentToday(userId: string, db: Db = prisma) {
   const startOfToday = new Date();
   startOfToday.setUTCHours(0, 0, 0, 0);
@@ -125,5 +130,5 @@ export async function listEmailQueue(userId: string, params: EmailQueueParams, d
     db.email.findMany({ where: branchWhere("customContact"), take: take + 1, orderBy: { createdAt: "desc" }, include: emailInclude }),
   ]);
 
-  return page(sortNewestFirst([...fromLeads, ...fromContacts]).slice(0, take + 1), take);
+  return pageAfterCursor(sortNewestFirst([...fromLeads, ...fromContacts]), take, cursor);
 }
