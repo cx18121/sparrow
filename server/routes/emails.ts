@@ -85,6 +85,26 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   // Dashboard combined fetch: drafts + sent in one round trip to avoid two cold starts.
   if (combined === "true") {
+    // Workspace overview variant: combined shape, but scoped to a single
+    // campaign. Skip the global cache (which is user-keyed and would mix
+    // campaign + global counts), and skip the custom-contact branch (no
+    // campaign relation in the schema — matches the campaign-scoped list
+    // path below). Without this branch, the overview's "N drafts" count
+    // would show the user's global drafts while the Drafts sub-tab list
+    // showed only campaign drafts → a visible mismatch.
+    if (campaignId) {
+      const where = { userLead: { userId, campaignLeads: { some: { campaignId } } } } as const;
+      const [draftItems, sentItems] = await Promise.all([
+        prisma.email.findMany({ where: { ...where, status: "draft" }, take: 9, orderBy: { createdAt: "desc" }, include }),
+        prisma.email.findMany({ where: { ...where, status: "sent" }, take: 21, orderBy: { createdAt: "desc" }, include }),
+      ]);
+      res.setHeader("Cache-Control", "private, max-age=0, stale-while-revalidate=3600")
+      return res.status(200).json({
+        drafts: draftItems.slice(0, 8),
+        sent: sentItems.slice(0, 20),
+      })
+    }
+
     // Serve from in-process cache on warm invocations; browser gets stale-while-revalidate.
     const cached = getDashCache(userId)
     if (cached) {
