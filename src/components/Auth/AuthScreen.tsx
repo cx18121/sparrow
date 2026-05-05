@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { AlertCircle, Zap, Search, Send } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -39,12 +39,6 @@ export default function AuthScreen() {
     if (authError) setError(authErrorMessage(authError.message))
   }
 
-  const features = [
-    'Leads from YC, a16z, and other top VC firms',
-    'Emails written in your style, not a template',
-    'Reusable templates to speed up your outreach',
-  ]
-
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[1.1fr_0.9fr]">
 
@@ -69,18 +63,8 @@ export default function AuthScreen() {
             <span style={{ color: '#7DB480' }}>worth emailing.</span>
           </h1>
           <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(253,250,245,0.48)' }}>
-            Sparrow pulls startup leads and drafts emails in your voice, so you spend less time writing and more time talking.
+            Find relevant startup contacts, turn your background into personalized drafts, and send only after you approve.
           </p>
-
-          {/* Feature list */}
-          <ul className="mt-10 flex flex-col gap-3.5">
-            {features.map((text) => (
-              <li key={text} className="flex items-start gap-3">
-                <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: '#557A57' }} />
-                <span className="text-[13px] leading-snug" style={{ color: 'rgba(255,255,255,0.52)' }}>{text}</span>
-              </li>
-            ))}
-          </ul>
         </div>
 
         {/* Footer */}
