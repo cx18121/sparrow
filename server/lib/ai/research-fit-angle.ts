@@ -1,6 +1,6 @@
 import { callClaude } from './anthropic.js'
 import { tavilySearch, type TavilyResult } from './tavily-search.js'
-import { exaSearch } from './exa-search.js'
+import { exaSearch, exaContents, type ExaResult } from './exa-search.js'
 
 // Structured snapshot of a company, produced once via search + LLM synthesis
 // and reused across users + drafts. The per-recipient personalization
@@ -221,7 +221,8 @@ export function parseCachedDossier(value: unknown): CompanyDossier | null {
 
 // Synthesis step shared by every retrieval provider. The dossier shape is
 // the contract; the choice of search vendor is invisible past this boundary.
-async function synthesizeDossier(
+// Exported so eval harnesses can run synthesis over arbitrary result sets.
+export async function synthesizeDossier(
   company: ResearchCompanyInput['company'],
   results: TavilyResult[],
   apiKey: string
@@ -312,17 +313,38 @@ export interface ResearchCompanyHybridInput {
   tavilySearchDepth?: 'basic' | 'advanced'
 }
 
-// Hybrid retrieval. Exa wins on precision and recency for companies with
-// real web footprint (the bulk of our DB). Tavily wins on long-tail recall
-// for companies Exa's neural index has never seen. Composing them — Exa
-// first, Tavily only when Exa returns zero — captures both wins without
-// diluting Exa's quality with Tavily's aggregator-spam pages on entities
-// where Exa already has signal.
+// Dedupe by canonical URL. Trailing slash + case-insensitive host so
+// "https://acme.com/" and "https://Acme.com" collapse. First occurrence wins
+// — callers control ordering by which list they pass first.
+function dedupeByUrl(items: ExaResult[]): ExaResult[] {
+  const seen = new Set<string>()
+  const out: ExaResult[] = []
+  for (const r of items) {
+    const key = r.url.toLowerCase().replace(/\/+$/, '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(r)
+  }
+  return out
+}
+
+// Hybrid retrieval. The Exa layer is itself two-arm:
+//   1. /search — third-party coverage, news, launches; brings recency hooks
+//   2. /contents — the company's own homepage + /about /team /careers /blog
+//                  /product subpages; resolves entity-name collisions where
+//                  /search returns competitors (Consus vs Consensus, Multi vs
+//                  Microsoft Multi-app, etc.) and grounds the dossier in the
+//                  company's actual product description.
+// Both run in parallel; results merge with /contents first (so the company's
+// own positioning anchors the synthesizer's input). Per the side-by-side at
+// .scratch/exa-arms-eval.md, layered recovers dossiers /search alone gets
+// wrong (entity collisions) and retains the news that /contents alone misses.
 //
-// We deliberately do NOT merge results when both providers return data:
-// the synthesis prompt would have to balance Exa's clean recent launches
-// against Tavily's status-checker pages, and the live A/B showed the mix
-// degrades the dossier vs. Exa-pure. Fallback fires only when Exa whiffs.
+// Tavily stays as the final rescue branch: only fires when BOTH Exa calls
+// return zero results (long-tail entities the neural index hasn't seen, or
+// dead sites). Cost: layered Exa is 2 retrieval calls per first-research,
+// but the result caches indefinitely on Company.researchDossier — paid once
+// per company, never again unless someone wires a manual refresh path.
 export async function researchCompanyDossierHybrid(
   input: ResearchCompanyHybridInput
 ): Promise<CompanyDossier> {
@@ -331,22 +353,38 @@ export async function researchCompanyDossierHybrid(
 
   if (exaApiKey) {
     const startDate = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString()
-    const exaResults = await exaSearch({
-      query: buildSearchQuery({ company } as ResearchCompanyInput),
-      apiKey: exaApiKey,
-      numResults: 5,
-      type: input.type ?? 'auto',
-      startPublishedDate: startDate,
-      textMaxCharacters: 2000,
-    })
+    const url = company.domain
+      ? (company.domain.startsWith('http') ? company.domain : `https://${company.domain}`)
+      : null
 
-    if (exaResults.results.length > 0) {
-      return synthesizeDossier(company, exaResults.results, apiKey)
+    const [searchResp, contentsResp] = await Promise.all([
+      exaSearch({
+        query: buildSearchQuery({ company } as ResearchCompanyInput),
+        apiKey: exaApiKey,
+        numResults: 5,
+        type: input.type ?? 'auto',
+        startPublishedDate: startDate,
+        textMaxCharacters: 2000,
+      }),
+      url
+        ? exaContents({
+            urls: [url],
+            apiKey: exaApiKey,
+            subpageTarget: ['about', 'team', 'careers', 'blog', 'product'],
+            subpages: 5,
+            livecrawl: 'auto',
+            textMaxCharacters: 2000,
+          })
+        : Promise.resolve({ results: [] as ExaResult[] }),
+    ])
+
+    const merged = dedupeByUrl([...contentsResp.results, ...searchResp.results])
+    if (merged.length > 0) {
+      return synthesizeDossier(company, merged, apiKey)
     }
-    // Exa whiffed (long-tail entity, or recency window too tight). Fall
-    // through to Tavily — its keyword-matched Google index has wider raw
-    // coverage on obscure companies than Exa's neural model.
-    console.info(`hybrid retrieval: Exa returned 0 results for "${company.name}", falling back to Tavily`)
+    // Both Exa calls whiffed. Fall through to Tavily — its keyword-matched
+    // Google index has wider raw coverage on obscure / dead-site companies.
+    console.info(`hybrid retrieval: Exa search+contents returned 0 results for "${company.name}", falling back to Tavily`)
   }
 
   if (!tavilyApiKey) return emptyDossier()

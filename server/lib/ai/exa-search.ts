@@ -151,3 +151,81 @@ export async function exaSearch(input: ExaSearchInput): Promise<ExaSearchRespons
     autopromptString: typeof data.autopromptString === 'string' ? data.autopromptString : null,
   }
 }
+
+// Exa /contents — fetch cleaned text/highlights for URLs you already have,
+// without burning a search-credit on retrieval. Pair with subpageTarget to
+// pick up /about, /team, /careers etc. in one shot. Returns the same
+// ExaResult shape as exaSearch so synthesizeDossier can consume it unchanged.
+export interface ExaContentsInput {
+  urls: string[]
+  apiKey: string
+  textMaxCharacters?: number
+  // Names of subpages to also crawl (e.g. ['about', 'team', 'careers']).
+  subpageTarget?: string[]
+  // Max number of subpages per URL to return.
+  subpages?: number
+  // 'auto' lets Exa decide cache-vs-live; 'always' forces a fresh fetch.
+  livecrawl?: 'auto' | 'always' | 'never' | 'preferred' | 'fallback'
+}
+
+export async function exaContents(input: ExaContentsInput): Promise<ExaSearchResponse> {
+  const body: Record<string, unknown> = {
+    urls: input.urls,
+    text: { maxCharacters: input.textMaxCharacters ?? 2000 },
+    highlights: { numSentences: 3, highlightsPerUrl: 2 },
+  }
+  if (input.subpages !== undefined) body.subpages = input.subpages
+  if (input.subpageTarget && input.subpageTarget.length > 0) {
+    body.subpageTarget = input.subpageTarget
+  }
+  if (input.livecrawl) body.livecrawl = input.livecrawl
+
+  let resp: Response
+  try {
+    resp = await fetch('https://api.exa.ai/contents', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': input.apiKey },
+      body: JSON.stringify(body),
+    })
+  } catch (err) {
+    console.warn('Exa contents network error:', err)
+    return { results: [] }
+  }
+
+  if (resp.status === 401 || resp.status === 403) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(`Exa /contents ${resp.status}: ${text || 'auth failed'}`)
+  }
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    console.warn(`Exa /contents ${resp.status}:`, text)
+    return { results: [] }
+  }
+
+  let data: { results?: unknown[] }
+  try {
+    data = (await resp.json()) as { results?: unknown[] }
+  } catch (err) {
+    console.warn('Exa /contents JSON parse error:', err)
+    return { results: [] }
+  }
+
+  // /contents returns subpages nested under each top-level result. Flatten so
+  // the synthesizer sees one uniform list of pages rather than a tree.
+  const flat: ExaResult[] = []
+  if (Array.isArray(data.results)) {
+    for (const raw of data.results) {
+      const top = normalize(raw)
+      if (top) flat.push(top)
+      const subs = (raw as { subpages?: unknown[] })?.subpages
+      if (Array.isArray(subs)) {
+        for (const sub of subs) {
+          const s = normalize(sub)
+          if (s) flat.push(s)
+        }
+      }
+    }
+  }
+  return { results: flat }
+}

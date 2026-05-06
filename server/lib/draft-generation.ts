@@ -55,10 +55,11 @@ async function researchAndCacheDossier(input: PersonalizationInput): Promise<Com
   const envRecency = parseInt(process.env.EXA_RECENCY_DAYS?.trim() ?? "", 10);
   const recencyDays = Number.isFinite(envRecency) && envRecency > 0 ? envRecency : undefined;
 
-  // Hybrid: Exa primary (precision + recency), Tavily fallback only when
-  // Exa returns 0 results (long-tail companies the neural index hasn't
-  // seen). Either key alone is fine; missing both gracefully degrades to
-  // an empty dossier and the email drafts without personalization.
+  // Hybrid: layered Exa /search + /contents merged (anchor truth from the
+  // company's own pages plus third-party news for recency), Tavily as final
+  // fallback only when both Exa calls return 0 results. Either key alone is
+  // fine; missing both gracefully degrades to an empty dossier and the email
+  // drafts without personalization.
   const promise = researchCompanyDossierHybrid({
     company: input.companyInfo,
     apiKey: input.apiKey,
