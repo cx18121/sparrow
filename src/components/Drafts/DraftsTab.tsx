@@ -23,7 +23,7 @@ import {
   stripDraftHtml,
   textToDraftHtml,
 } from '../../lib/draftQueue'
-import { DRAFT_QUEUE_LIMIT, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
+import { DRAFT_QUEUE_LIMIT, invalidateSentQueue, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
 import { writeDraftQueueCache } from '../../lib/workspaceCache'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
 import Badge from '../ui/Badge'
@@ -414,6 +414,11 @@ export default function DraftsTab({
 
     setSending(false)
     setBatchProgress(null)
+
+    // Sent queue caches for an hour to keep the Sent tab instant on revisit;
+    // invalidate now so the freshly-sent rows show up next time the user
+    // opens Sent (or right now, if they already have it open).
+    if (succeeded.length > 0) invalidateSentQueue(user?.id, campaignId)
 
     // Fix: only treat as cancelled if it actually prevented remaining sends
     const wasCancelled = cancelBatchRef.current && succeeded.length < sendableIds.length

@@ -24,6 +24,25 @@ const swrOptions = {
   keepPreviousData: true,
 }
 
+// Sent emails are effectively immutable per row plus an append-on-send. The
+// cross-region Vercel→Supabase call costs ~280ms+ and the list grows
+// unboundedly, so re-fetching every time the user opens Sent is the most
+// expensive idle work the app does. Cache for an hour within a session and
+// skip focus-revalidation entirely. Mutations that change the sent set
+// (markSent, delete) call invalidateSentQueue() to force a fresh read.
+const sentSwrOptions = {
+  ...swrOptions,
+  dedupingInterval: 60 * 60 * 1000,
+  revalidateOnFocus: false,
+}
+
+// Explicit invalidation for code paths that change the sent set — primarily
+// markSent in DraftsTab. Re-fetches the sent queue for the given campaign.
+export function invalidateSentQueue(userId: string | null | undefined, campaignId: string | null | undefined) {
+  const key = draftQueueKey(userId, campaignId, 'sent')
+  if (key) mutate(key)
+}
+
 async function fetchCampaignMembers(campaignId: string) {
   const data = await fetchCampaignLeads(campaignId)
   writeCampaignMembersCache(campaignId, data)
@@ -69,7 +88,7 @@ export function useDraftQueue(userId: string | null | undefined, campaignId: str
     draftQueueKey(userId, campaignId, tab),
     () => fetchDraftQueue(userId!, campaignId, tab),
     {
-      ...swrOptions,
+      ...(tab === 'sent' ? sentSwrOptions : swrOptions),
       fallbackData,
     },
   )
