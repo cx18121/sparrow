@@ -79,8 +79,10 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const { id, status } = parseBody(req) ?? {};
-  if (!id) return res.status(400).json({ error: "id is required" });
-  if (status !== undefined && !VALID_STATUSES.has(status)) {
+  if (typeof id !== "string" || id.length === 0) {
+    return res.status(400).json({ error: "id is required" });
+  }
+  if (status !== undefined && (typeof status !== "string" || !VALID_STATUSES.has(status))) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}` });
   }
 
@@ -91,7 +93,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const updated = await prisma.customContact.update({
     where: { id },
-    data: { ...(status ? { status } : {}) },
+    data: { ...(typeof status === "string" ? { status } : {}) },
   });
   res.status(200).json(updated);
 }
