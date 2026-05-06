@@ -39,15 +39,13 @@ function fillVariables(content, data) {
 // that Step 2 reflects their resume by the time they navigate to it.
 const PREVIEW_DEBOUNCE_MS = 700
 
-// Static fallback while the preview API hasn't returned. Only feature_line
-// gets a default — Anthropic's dossier almost always produces one, so this
-// renders something coherent on first paint. fit_angle deliberately stays
-// null: if the model returns NONE (or no resume yet), the preview drops
-// the fit-angle paragraph rather than showing a generic placeholder, which
-// matches what production would ship.
+// Static fallback used when the preview API hasn't returned yet or returns no
+// result. feature_line gets a real dossier surface. fit_angle gets a domain-
+// neutral phrase so the paragraph is always visible — "your background" reads
+// naturally in the template sentence without implying a specific skill set.
 const PREVIEW_FALLBACK = {
   feature_line: 'claude code agentic coding',
-  fit_angle: null as string | null,
+  fit_angle: 'your background' as string | null,
 } as const
 
 function stripHtml(content) {
@@ -194,47 +192,12 @@ const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
   { tag: '{{fit_angle}}',   label: 'fit angle' },
 ]
 
-function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode }) {
+function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode, aiPreview, isLoadingPreview }) {
   const hasTemplates = templates.length > 0
   const writingMode = !hasTemplates || form.templateMode !== 'existing'
   const subjectRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
-
-  // Real-company example (Anthropic / Dario Amodei) so the preview reads
-  // like an actual draft. feature_line + fit_angle are produced by the
-  // SAME pickFitAngle path production uses — the recipient is fixed to
-  // Anthropic with a pre-baked dossier (server side), so all that varies
-  // per user is the resume. Updates live with debounce as the user types
-  // step 1; on error or empty input we fall back to PREVIEW_FALLBACK so
-  // the preview is never blank.
-  const [aiPreview, setAiPreview] = useState<{ featureLine: string | null; fitAngle: string | null }>({
-    featureLine: null,
-    fitAngle: null,
-  })
-
-  useEffect(() => {
-    const text = (form.resumeText || '').trim()
-    if (text.length === 0) {
-      setAiPreview({ featureLine: null, fitAngle: null })
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      fetchPreviewFitAngle(text)
-        .then(res => {
-          if (cancelled) return
-          setAiPreview({ featureLine: res?.featureLine ?? null, fitAngle: res?.fitAngle ?? null })
-        })
-        .catch(() => {
-          // Preview is best-effort — silent fallback keeps the rest of the
-          // onboarding flow usable when the host key is absent or the
-          // network drops.
-          if (!cancelled) setAiPreview({ featureLine: null, fitAngle: null })
-        })
-    }, PREVIEW_DEBOUNCE_MS)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [form.resumeText])
 
   const previewData = {
     first_name: 'Dario',
@@ -242,8 +205,8 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
     company: 'Anthropic',
     role: 'CEO',
     sender_name: form.senderName || 'Your Name',
-    feature_line: aiPreview.featureLine ?? PREVIEW_FALLBACK.feature_line,
-    fit_angle: aiPreview.fitAngle ?? PREVIEW_FALLBACK.fit_angle,
+    feature_line: aiPreview.featureLine ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.feature_line),
+    fit_angle: aiPreview.fitAngle ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.fit_angle),
   }
 
   // Insert a merge tag at the caret of whichever field was last focused.
@@ -513,6 +476,42 @@ export default function OnboardingScreen({
   const userEditedRef = useRef(false)
   const syncMountedRef = useRef(false)
 
+  // Preview personalization — fetched here (not inside TemplateStep) so the
+  // debounce starts while the user is still on step 1 filling in their resume.
+  // By the time they navigate to step 2 the result is usually ready.
+  const [aiPreview, setAiPreview] = useState<{ featureLine: string | null; fitAngle: string | null }>({
+    featureLine: null,
+    fitAngle: null,
+  })
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+
+  useEffect(() => {
+    const text = (form.resumeText || '').trim()
+    if (text.length === 0) {
+      setAiPreview({ featureLine: null, fitAngle: null })
+      setIsLoadingPreview(false)
+      return
+    }
+    setIsLoadingPreview(true)
+    let cancelled = false
+    const timer = setTimeout(() => {
+      fetchPreviewFitAngle(text)
+        .then(res => {
+          if (cancelled) return
+          setAiPreview({ featureLine: res?.featureLine ?? null, fitAngle: res?.fitAngle ?? null })
+          setIsLoadingPreview(false)
+        })
+        .catch((err) => {
+          console.error('[preview] fetchPreviewFitAngle failed:', err)
+          if (!cancelled) {
+            setAiPreview({ featureLine: null, fitAngle: null })
+            setIsLoadingPreview(false)
+          }
+        })
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [form.resumeText])
+
   const saveDraftMounted = useRef(false)
   useEffect(() => {
     if (!saveDraftMounted.current) { saveDraftMounted.current = true; return }
@@ -745,6 +744,8 @@ export default function OnboardingScreen({
       updateField={updateField}
       updateCustomTemplate={updateCustomTemplate}
       setTemplateMode={setTemplateMode}
+      aiPreview={aiPreview}
+      isLoadingPreview={isLoadingPreview}
     />,
     <GmailStep
       key="gmail"

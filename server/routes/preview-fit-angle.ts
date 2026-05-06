@@ -87,6 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       resumeText,
       apiKey,
     });
+    console.log('[preview/fit-angle] result:', JSON.stringify(result));
     return res.status(200).json(result);
   } catch (err) {
     return sendRouteError(res, err);
