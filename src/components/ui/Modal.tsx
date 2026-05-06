@@ -4,6 +4,12 @@ import { X } from 'lucide-react'
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement | null>(null)
+  // Keep onClose in a ref so the keyboard handler always has the latest
+  // version without triggering the focus-management effect on every render.
+  // Without this, an inline `() => setState(false)` prop recreates each
+  // render, re-fires the effect, and steals focus from the active input.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -25,7 +31,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     }
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -52,7 +58,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       document.removeEventListener('keydown', handler)
       previouslyFocused?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
