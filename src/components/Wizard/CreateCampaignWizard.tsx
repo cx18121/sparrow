@@ -28,40 +28,25 @@ const NAME_SUGGESTIONS = [
   'Climate-tech founders',
 ]
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
 // Sample values used to populate merge tags in the wizard's template preview.
 // The wizard runs before any contact is selected, so the preview can't use
-// real lead data. These are deliberately generic-looking so users read the
-// preview as a template-shape demo, not a real draft.
+// real lead data. Mirrors the onboarding Step-2 preview (Anthropic / Dario)
+// so users see consistent sample values across both surfaces. feature_line
+// and fit_angle use the same fallbacks as the onboarding preview when the
+// pickFitAngle path isn't running here.
 const PREVIEW_SAMPLE = {
-  first_name: 'Sarah',
-  last_name: 'Chen',
-  company: 'Acme AI',
-  role: 'Head of Engineering',
+  first_name: 'Dario',
+  last_name: 'Amodei',
+  company: 'Anthropic',
+  role: 'CEO',
   sender_name: 'Your Name',
+  feature_line: 'claude code agentic coding',
+  fit_angle: 'your background',
 } as const
 
 function fillTemplateTags(content: string) {
   if (!content) return ''
-  // feature_line and fit_angle are produced at draft time by the AI personalization
-  // path — they don't have a sane sample value, so drop the entire paragraph
-  // anchored on either tag (mirrors server-side dropEmptyTagParagraphs).
-  const isHtml = /<\/?[a-z][\s\S]*>/i.test(content)
-  const stripped = isHtml
-    ? content.replace(/<p\b[^>]*>[\s\S]*?<\/p>/gi, p =>
-        /\{\{(feature_line|featureLine|fit_angle|fitAngle)\}\}/.test(p) ? '' : p,
-      )
-    : content
-        .split(/\n\s*\n/)
-        .filter(p => !/\{\{(feature_line|featureLine|fit_angle|fitAngle)\}\}/.test(p))
-        .join('\n\n')
-  return stripped
+  return content
     .replace(/\{\{first_name\}\}/g, PREVIEW_SAMPLE.first_name)
     .replace(/\{\{firstName\}\}/g, PREVIEW_SAMPLE.first_name)
     .replace(/\{\{last_name\}\}/g, PREVIEW_SAMPLE.last_name)
@@ -72,16 +57,37 @@ function fillTemplateTags(content: string) {
     .replace(/\{\{role\}\}/g, PREVIEW_SAMPLE.role)
     .replace(/\{\{sender_name\}\}/g, PREVIEW_SAMPLE.sender_name)
     .replace(/\{\{senderName\}\}/g, PREVIEW_SAMPLE.sender_name)
+    .replace(/\{\{feature_line\}\}/g, PREVIEW_SAMPLE.feature_line)
+    .replace(/\{\{featureLine\}\}/g, PREVIEW_SAMPLE.feature_line)
+    .replace(/\{\{fit_angle\}\}/g, PREVIEW_SAMPLE.fit_angle)
+    .replace(/\{\{fitAngle\}\}/g, PREVIEW_SAMPLE.fit_angle)
 }
 
-function formatTemplatePreviewBody(body: string | null | undefined) {
-  if (!body) return ''
-  const filled = fillTemplateTags(body)
-  if (/<\/?[a-z][\s\S]*>/i.test(filled)) return filled
-  return filled
-    .split(/\n{2,}/)
-    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
-    .join('')
+// Strip HTML to readable plaintext for the preview pane. Mirrors the
+// onboarding Step-2 preview's stripHtml — keeps paragraph breaks via \n\n
+// so `whitespace-pre-line` renders the email as it would arrive in an inbox.
+function stripPreviewHtml(content: string) {
+  if (!content) return ''
+  if (!content.includes('<')) return content
+  if (typeof window !== 'undefined' && window.DOMParser) {
+    const doc = new DOMParser().parseFromString(content, 'text/html')
+    doc.body.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
+    doc.body.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li').forEach(node => {
+      node.appendChild(doc.createTextNode('\n\n'))
+    })
+    return (doc.body.textContent || '')
+      .replace(/ /g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }
+  return content
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 const SECTOR_NAMESPACES = ['vertical', 'tech', 'model', 'investor', 'signal'] as const
@@ -718,27 +724,28 @@ function StepTemplate({
           </button>
         </div>
 
-        <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
-          {selected ? (
-            <>
+        {selected ? (
+          <div className="rounded-xl border border-warm-200 bg-warm-50/60">
+            <div className="border-b border-warm-200 px-4 py-3">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
                 <p className="text-[11px] text-muted/70">filled with sample lead</p>
               </div>
-              <p className="mt-3 text-sm font-medium text-dark">Subject: {fillTemplateTags(selected.subject || '')}</p>
-              <div
-                className="prose prose-sm mt-3 max-w-none text-sm text-dark"
-                dangerouslySetInnerHTML={{ __html: formatTemplatePreviewBody(selected.body) }}
-              />
-            </>
-          ) : (
+              <p className="mt-1 text-sm font-medium text-dark">{fillTemplateTags(selected.subject || '')}</p>
+            </div>
+            <div className="whitespace-pre-line px-4 py-4 text-sm leading-7 text-dark">
+              {stripPreviewHtml(fillTemplateTags(selected.body || ''))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
             <p className="text-sm text-muted">
               {selectedId === null
                 ? 'Each draft will start from lead context.'
                 : 'Select a template on the left to preview it here.'}
             </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   )
