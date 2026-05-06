@@ -14,6 +14,10 @@ const { mockGetUserId, mockPrisma } = vi.hoisted(() => {
     template: {
       findUnique: vi.fn(),
     },
+    // listCampaignDefinitions runs a $queryRaw aggregate for draft/sent
+    // counts. Tests can override the resolved value when they care; default
+    // is empty (all counts → 0).
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
   return { mockGetUserId, mockPrisma };
 });
@@ -61,8 +65,8 @@ describe("campaigns route — GET", () => {
   it("returns list of user's campaigns", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     const campaigns = [
-      { id: "c-1", userId: USER_ID, name: "Campaign A", status: "DRAFT" },
-      { id: "c-2", userId: USER_ID, name: "Campaign B", status: "ACTIVE" },
+      { id: "c-1", userId: USER_ID, name: "Campaign A", status: "DRAFT", _count: { leads: 0 } },
+      { id: "c-2", userId: USER_ID, name: "Campaign B", status: "ACTIVE", _count: { leads: 0 } },
     ];
     mockPrisma.campaign.findMany.mockResolvedValue(campaigns);
     const req = makeReq({ method: "GET" });
@@ -212,8 +216,8 @@ describe("campaigns route — DRAFT legacy coercion", () => {
   it("coerces DRAFT to PAUSED in GET list responses", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     mockPrisma.campaign.findMany.mockResolvedValue([
-      { id: "c-legacy", userId: USER_ID, name: "Legacy", status: "DRAFT" },
-      { id: "c-active", userId: USER_ID, name: "Active", status: "ACTIVE" },
+      { id: "c-legacy", userId: USER_ID, name: "Legacy", status: "DRAFT", _count: { leads: 0 } },
+      { id: "c-active", userId: USER_ID, name: "Active", status: "ACTIVE", _count: { leads: 0 } },
     ]);
     const req = makeReq({ method: "GET" });
     const res = makeRes();

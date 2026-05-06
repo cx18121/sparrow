@@ -85,6 +85,10 @@ interface CampaignCardProps {
 function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
   const audience = audienceToDisplayPills(audienceFromCampaign(campaign)).slice(0, 3).join(' · ')
   const status = campaign.status
+  const leads = campaign.leadCount ?? 0
+  const drafts = campaign.draftCount ?? 0
+  const sent = campaign.sentCount ?? 0
+  const hasActivity = leads + drafts + sent > 0
   // Optimistic temp-id rows are pre-server commit. Letting them be clicked
   // navigates to a workspace URL the server doesn't know about, and every
   // fetch the workspace makes 404s. Render them muted + non-clickable until
@@ -110,17 +114,31 @@ function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
         <h3 className="font-display text-base font-semibold text-dark">{campaign.name}</h3>
         {audience && <p className="mt-1 line-clamp-1 text-xs text-muted">{audience}</p>}
       </div>
-      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-warm-200/70 pt-3">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted/70">Batch</div>
-        <div className="text-right text-sm font-medium tabular-nums text-dark">{campaign.currentBatch ?? 0}</div>
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted/70">Size</div>
-        <div className="text-right text-sm font-medium tabular-nums text-dark">{campaign.batchSize ?? 10}</div>
+      <div className="mt-1 border-t border-warm-200/70 pt-3">
+        {hasActivity ? (
+          <div className="flex items-center divide-x divide-warm-200/70 text-sm">
+            <CardStat value={leads} label={leads === 1 ? 'lead' : 'leads'} />
+            <CardStat value={drafts} label={drafts === 1 ? 'draft' : 'drafts'} accent={drafts > 0} />
+            <CardStat value={sent} label="sent" />
+          </div>
+        ) : (
+          <p className="text-xs text-muted">Not started · {campaign.batchSize ?? 10} per batch</p>
+        )}
       </div>
       <div className="flex items-center justify-between gap-3 text-xs text-muted">
         <span>{isOptimistic ? 'Saving…' : formatRelative(campaign.updatedAt)}</span>
         {templateName && <span className="truncate">{templateName}</span>}
       </div>
     </button>
+  )
+}
+
+function CardStat({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1.5 px-3 first:pl-0 last:pr-0">
+      <span className={`font-medium tabular-nums ${accent ? 'text-primary' : 'text-dark'}`}>{value}</span>
+      <span className="text-muted">{label}</span>
+    </div>
   )
 }
 

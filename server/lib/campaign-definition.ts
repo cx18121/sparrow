@@ -54,10 +54,50 @@ export async function listCampaignDefinitions(userId: string, status?: string) {
       ...(allowedStatus && { status: allowedStatus }),
     },
     orderBy: { updatedAt: "desc" },
-    include: campaignInclude,
+    include: {
+      ...campaignInclude,
+      // Lead count is the natural _count of CampaignLead rows.
+      _count: { select: { leads: true } },
+    },
   });
 
-  return items.map(coerceLegacyCampaignStatus);
+  if (items.length === 0) return [];
+
+  // Draft / sent counts: Email rows aren't pinned to a Campaign directly —
+  // they hang off UserLead, which joins to Campaign through CampaignLead.
+  // One grouped raw query covers all of the user's campaigns in a single
+  // round-trip; matches the same email-belongs-to-multi-campaigns join that
+  // readDashboardEmailQueue uses inside the workspace, so Home counts agree
+  // with what the user sees once they open a campaign.
+  const campaignIds = items.map(c => c.id);
+  const emailCounts = await prisma.$queryRaw<
+    Array<{ campaignId: string; draftCount: bigint; sentCount: bigint }>
+  >`
+    SELECT
+      cl."campaignId" AS "campaignId",
+      COUNT(*) FILTER (WHERE e.status = 'draft')::bigint AS "draftCount",
+      COUNT(*) FILTER (WHERE e.status = 'sent')::bigint AS "sentCount"
+    FROM "CampaignLead" cl
+    LEFT JOIN "Email" e ON e."userLeadId" = cl."userLeadId"
+    WHERE cl."campaignId" = ANY(${campaignIds}::text[])
+    GROUP BY cl."campaignId"
+  `;
+  const countsById = new Map(
+    emailCounts.map(r => [r.campaignId, { drafts: Number(r.draftCount), sent: Number(r.sentCount) }])
+  );
+
+  return items.map(coerceLegacyCampaignStatus).map(item => {
+    const ec = countsById.get(item.id) ?? { drafts: 0, sent: 0 };
+    // Strip the _count field from the response shape — we re-expose the
+    // numbers as flat top-level fields so the API type stays clean.
+    const { _count, ...rest } = item;
+    return {
+      ...rest,
+      leadCount: _count.leads,
+      draftCount: ec.drafts,
+      sentCount: ec.sent,
+    };
+  });
 }
 
 export async function createCampaignDefinition(userId: string, body: Record<string, unknown> | null) {

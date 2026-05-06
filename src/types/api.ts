@@ -110,6 +110,12 @@ export interface Campaign {
   tone: string | null
   attachmentIds: string[]
   includePreviouslySaved: boolean
+  // Aggregates included by GET /api/campaigns. Match the same campaign-scope
+  // join the workspace dashboard uses, so Home and inside-campaign counts
+  // agree. Optional so legacy callers that don't unpack them stay typed.
+  leadCount?: number
+  draftCount?: number
+  sentCount?: number
   createdAt: string
   updatedAt: string
 }
