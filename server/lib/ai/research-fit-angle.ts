@@ -62,15 +62,17 @@ Output ONLY valid JSON with this exact shape (no prose, no code fences):
 
 Be specific. "the agent eval harness" is good. "their AI features" is bad. Never name the entire company in a list item. If the search results don't reveal concrete product detail, return empty arrays and an empty summary.`
 
-const PICK_SYSTEM = `You pick the single best company surface and resume project for a cold-email candidate.
+const PICK_SYSTEM = `You pick the single best (feature, fit) PAIR for a cold-email candidate.
 
 Inputs:
 - A research dossier (the company's product surfaces, recent launches, technical areas)
 - The candidate's resume
 
-Choose:
-- ONE surface from the dossier the candidate is BEST positioned to contribute to, given the resume
-- ONE specific resume project that opens the conversation for THIS company
+This is ONE coupled decision, not two independent ones. Search the cross-product of dossier surfaces × resume projects and return the strongest matching pair:
+- FIT is the specific named project from the resume that opens the conversation
+- FEATURE is the dossier surface that THAT project most directly bridges to — i.e. the surface where this specific project is the strongest credential, not the most prominent surface overall
+
+If two surfaces tie, prefer the one that is more specific to the chosen project. A resume project about LLM training should pair with a model/research surface, not a generic "code" surface — even if both are plausible. A resume project about UI work should pair with a design/frontend surface. A resume project about agent infrastructure should pair with an agentic/tooling surface. Only fall back to a generic surface like "code" or "developer tools" when the chosen project genuinely has no more specific match.
 
 Strict grounding rules for FIT — these are hard constraints, not preferences:
 - Must reference a project, role, or named piece of work that EXPLICITLY appears in the candidate's resume. Use the resume's own words.
@@ -88,8 +90,8 @@ Format examples for FIT:
   "my multi-agent eval harness"
 The fit phrase has to grammatically slot into "For context, <FIT> feels like a natural stepping stone toward what your team is building." If "For context, [your phrasing] feels like..." doesn't read as a complete English sentence, rewrite.
 
-Output FEATURE: NONE only if no dossier surface plausibly matches the resume.
-Output FIT: NONE only if the resume has no project that maps to a dossier surface — better to send no fit angle than a hallucinated one.`
+Output FEATURE: NONE only if no dossier surface plausibly fits.
+Output FIT: NONE only if the resume has no specific project that maps to any dossier surface — when FIT is NONE, still pick the most relevant FEATURE based on the resume's broad area (e.g. an engineering resume → a code/tooling surface). The opener still works without a fit angle.`
 
 function buildSearchQuery(input: ResearchCompanyInput): string {
   const parts = [input.company.name]
@@ -372,6 +374,7 @@ export async function pickFitAngle(input: PickFitAngleInput): Promise<FitAngleRe
     maxTokens: 256,
   })
 
+  console.log('[pickFitAngle] raw output:', text)
   return {
     featureLine: parseLine(text, 'FEATURE'),
     fitAngle: parseLine(text, 'FIT'),
