@@ -35,10 +35,50 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
 }
 
+// Sample values used to populate merge tags in the wizard's template preview.
+// The wizard runs before any contact is selected, so the preview can't use
+// real lead data. These are deliberately generic-looking so users read the
+// preview as a template-shape demo, not a real draft.
+const PREVIEW_SAMPLE = {
+  first_name: 'Sarah',
+  last_name: 'Chen',
+  company: 'Acme AI',
+  role: 'Head of Engineering',
+  sender_name: 'Your Name',
+} as const
+
+function fillTemplateTags(content: string) {
+  if (!content) return ''
+  // feature_line and fit_angle are produced at draft time by the AI personalization
+  // path — they don't have a sane sample value, so drop the entire paragraph
+  // anchored on either tag (mirrors server-side dropEmptyTagParagraphs).
+  const isHtml = /<\/?[a-z][\s\S]*>/i.test(content)
+  const stripped = isHtml
+    ? content.replace(/<p\b[^>]*>[\s\S]*?<\/p>/gi, p =>
+        /\{\{(feature_line|featureLine|fit_angle|fitAngle)\}\}/.test(p) ? '' : p,
+      )
+    : content
+        .split(/\n\s*\n/)
+        .filter(p => !/\{\{(feature_line|featureLine|fit_angle|fitAngle)\}\}/.test(p))
+        .join('\n\n')
+  return stripped
+    .replace(/\{\{first_name\}\}/g, PREVIEW_SAMPLE.first_name)
+    .replace(/\{\{firstName\}\}/g, PREVIEW_SAMPLE.first_name)
+    .replace(/\{\{last_name\}\}/g, PREVIEW_SAMPLE.last_name)
+    .replace(/\{\{lastName\}\}/g, PREVIEW_SAMPLE.last_name)
+    .replace(/\{\{company\}\}/g, PREVIEW_SAMPLE.company)
+    .replace(/\{\{company_name\}\}/g, PREVIEW_SAMPLE.company)
+    .replace(/\{\{companyName\}\}/g, PREVIEW_SAMPLE.company)
+    .replace(/\{\{role\}\}/g, PREVIEW_SAMPLE.role)
+    .replace(/\{\{sender_name\}\}/g, PREVIEW_SAMPLE.sender_name)
+    .replace(/\{\{senderName\}\}/g, PREVIEW_SAMPLE.sender_name)
+}
+
 function formatTemplatePreviewBody(body: string | null | undefined) {
   if (!body) return ''
-  if (/<\/?[a-z][\s\S]*>/i.test(body)) return body
-  return body
+  const filled = fillTemplateTags(body)
+  if (/<\/?[a-z][\s\S]*>/i.test(filled)) return filled
+  return filled
     .split(/\n{2,}/)
     .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
     .join('')
@@ -681,8 +721,11 @@ function StepTemplate({
         <div className="rounded-2xl border border-warm-200 bg-panel px-5 py-4">
           {selected ? (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
-              <p className="mt-3 text-sm font-medium text-dark">Subject: {selected.subject}</p>
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
+                <p className="text-[11px] text-muted/70">filled with sample lead</p>
+              </div>
+              <p className="mt-3 text-sm font-medium text-dark">Subject: {fillTemplateTags(selected.subject || '')}</p>
               <div
                 className="prose prose-sm mt-3 max-w-none text-sm text-dark"
                 dangerouslySetInnerHTML={{ __html: formatTemplatePreviewBody(selected.body) }}
