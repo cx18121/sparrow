@@ -30,9 +30,7 @@ export const EMPTY_AUDIENCE: Audience = {
 }
 
 // Build an Audience from raw Campaign fields stored in the DB / wire format.
-// Keeps callers from having to know which fields are nullable how. The
-// filterHeadcountMin/Max wire fields are tolerated for back-compat with
-// pre-headcount-removal campaigns but never read into the active Audience.
+// Keeps callers from having to know which fields are nullable how.
 export function audienceFromCampaign(c: {
   filterTags?: string[] | null
   filterRegion?: string | null
@@ -49,9 +47,7 @@ export function audienceFromCampaign(c: {
   }
 }
 
-// Inverse: serialize an Audience to the wire-format filter* fields. Sets
-// filterHeadcountMin/Max to null so any previously-saved values get cleared
-// on the next save (no point keeping a filter we no longer apply).
+// Inverse: serialize an Audience to the wire-format filter* fields.
 export function audienceToCampaignFields(a: Audience) {
   return {
     filterTags: a.tags,
@@ -59,8 +55,6 @@ export function audienceToCampaignFields(a: Audience) {
     filterStage: a.stage,
     filterBatch: a.batch,
     filterIsHiring: a.isHiring,
-    filterHeadcountMin: null,
-    filterHeadcountMax: null,
   }
 }
 

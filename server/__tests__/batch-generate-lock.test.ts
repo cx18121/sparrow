@@ -47,7 +47,7 @@ describe("Batch.generate — advisory lock (bug 10H)", () => {
     mockTx.campaign.findUnique.mockResolvedValue({
       id: CAMPAIGN_ID, userId: USER_ID, currentBatch: 0, batchSize: 10,
       filterTags: [], filterRegion: null, filterStage: null, filterBatch: null,
-      filterIsHiring: null, filterHeadcountMin: null, filterHeadcountMax: null,
+      filterIsHiring: null,
       includePreviouslySaved: false,
     });
     mockTx.campaignSeenCompany.findMany.mockResolvedValue([]);

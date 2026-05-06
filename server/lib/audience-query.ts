@@ -16,8 +16,6 @@ export interface CampaignFilters {
   filterStage?: string | null;
   filterBatch?: string | null;
   filterIsHiring?: boolean | null;
-  filterHeadcountMin?: number | null;
-  filterHeadcountMax?: number | null;
 }
 
 export function audienceFromCampaign(c: CampaignFilters): Audience {

@@ -33,8 +33,6 @@ interface FormValue {
   filterStage: string
   filterBatch: string
   filterIsHiring: boolean
-  filterHeadcountMin: string
-  filterHeadcountMax: string
   batchSize: string
   attachmentIds: string[]
   includePreviouslySaved: boolean
@@ -51,8 +49,6 @@ function fromCampaign(c: UiCampaign): FormValue {
     filterStage: c.filterStage || '',
     filterBatch: c.filterBatch || '',
     filterIsHiring: c.filterIsHiring === true,
-    filterHeadcountMin: c.filterHeadcountMin != null ? String(c.filterHeadcountMin) : '',
-    filterHeadcountMax: c.filterHeadcountMax != null ? String(c.filterHeadcountMax) : '',
     batchSize: String(c.batchSize ?? 10),
     attachmentIds: Array.isArray(c.attachmentIds) ? c.attachmentIds : [],
     includePreviouslySaved: c.includePreviouslySaved === true,
@@ -119,8 +115,6 @@ export default function SettingsTab() {
         filterStage: form.filterStage || null,
         filterBatch: form.filterBatch || null,
         filterIsHiring: form.filterIsHiring || null,
-        filterHeadcountMin: form.filterHeadcountMin ? Number(form.filterHeadcountMin) : null,
-        filterHeadcountMax: form.filterHeadcountMax ? Number(form.filterHeadcountMax) : null,
         batchSize: Number(form.batchSize) || 10,
         attachmentIds: form.attachmentIds || [],
         includePreviouslySaved: form.includePreviouslySaved,

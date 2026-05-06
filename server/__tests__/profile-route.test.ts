@@ -169,8 +169,6 @@ describe("profile route — POST", () => {
     const res = makeRes();
     await handler(req, res);
     expect(mockEncrypt).not.toHaveBeenCalledWith("sk-ant-my-key");
-    const upsertArg = chain.upsert.mock.calls[0][0];
-    expect(upsertArg.claude_api_key_encrypted).toBeUndefined();
     expect(res.status).toHaveBeenCalledWith(204);
   });
 

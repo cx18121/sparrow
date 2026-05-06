@@ -1,5 +1,5 @@
 import { prisma } from "./prisma.js";
-import { parseBatchSize, parseNullableBoolean, parseNullableNumber } from "./parse-params.js";
+import { parseBatchSize, parseNullableBoolean } from "./parse-params.js";
 import { HttpError } from "./user.js";
 
 export const CAMPAIGN_STATUSES = ["ACTIVE", "PAUSED", "COMPLETED"] as const;
@@ -64,7 +64,7 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
   const {
     name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
+    batchSize, tone, attachmentIds,
     includePreviouslySaved,
   } = body ?? {};
 
@@ -85,8 +85,6 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
       filterStage: (filterStage as string | null) ?? null,
       filterBatch: (filterBatch as string | null) ?? null,
       filterIsHiring: parseNullableBoolean(filterIsHiring),
-      filterHeadcountMin: parseNullableNumber(filterHeadcountMin),
-      filterHeadcountMax: parseNullableNumber(filterHeadcountMax),
       batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
       attachmentIds: stringArray(attachmentIds),
@@ -100,7 +98,7 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
   const {
     id, name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
-    filterHeadcountMin, filterHeadcountMax, batchSize, tone, attachmentIds,
+    batchSize, tone, attachmentIds,
     includePreviouslySaved,
   } = body ?? {};
 
@@ -128,8 +126,6 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
       ...(filterStage !== undefined && { filterStage: (filterStage as string | null) ?? null }),
       ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
       ...(filterIsHiring !== undefined && { filterIsHiring: parseNullableBoolean(filterIsHiring) }),
-      ...(filterHeadcountMin !== undefined && { filterHeadcountMin: parseNullableNumber(filterHeadcountMin) }),
-      ...(filterHeadcountMax !== undefined && { filterHeadcountMax: parseNullableNumber(filterHeadcountMax) }),
       ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
       ...(attachmentIds !== undefined && { attachmentIds: stringArray(attachmentIds) }),

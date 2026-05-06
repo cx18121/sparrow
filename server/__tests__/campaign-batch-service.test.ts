@@ -78,8 +78,6 @@ const emptyCampaign = {
   filterStage: null,
   filterBatch: null,
   filterIsHiring: null,
-  filterHeadcountMin: null,
-  filterHeadcountMax: null,
 };
 
 describe("selectCandidateIds", () => {
@@ -200,21 +198,6 @@ describe("selectCandidateIds", () => {
 
     const call = mockPrisma.company.findMany.mock.calls[0][0];
     expect(call.where.isHiring).toBe(true);
-  });
-
-  it("ignores legacy filterHeadcountMin/Max on the campaign (headcount filter retired)", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([]);
-
-    await selectCandidateIds(
-      CAMPAIGN_ID,
-      { ...emptyCampaign, filterHeadcountMin: 10, filterHeadcountMax: 50 },
-      [],
-      10
-    );
-
-    const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.headcount).toBeUndefined();
   });
 
   it("does not add id exclusion clause when there are no excluded IDs", async () => {

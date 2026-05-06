@@ -104,8 +104,6 @@ export interface Campaign {
   filterStage: string | null
   filterBatch: string | null
   filterIsHiring: boolean | null
-  filterHeadcountMin: number | null
-  filterHeadcountMax: number | null
   filterTags: string[]
   batchSize: number
   currentBatch: number

@@ -199,13 +199,12 @@ create policy "Owners can manage invites" on team_invites
 -- ──────────────────────────────────────────────
 -- User profiles (one row per user)
 -- ──────────────────────────────────────────────
--- Holds onboarding state, encrypted secrets (Google refresh token,
--- Claude API key), the resume storage path, and the workspace config
--- JSON so onboarding hydrates across devices.
+-- Holds onboarding state, encrypted Google refresh token, the resume
+-- storage path, and the workspace config JSON so onboarding hydrates
+-- across devices.
 create table user_profiles (
   user_id                       uuid primary key references auth.users(id) on delete cascade,
   google_refresh_token_encrypted text,
-  claude_api_key_encrypted       text,
   resume_path                    text,
   resume_text                    text,
   workspace_config               jsonb not null default '{}',

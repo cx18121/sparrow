@@ -208,8 +208,6 @@ model Campaign {
   filterStage            String?
   filterBatch            String?
   filterIsHiring         Boolean?
-  filterHeadcountMin     Int?
-  filterHeadcountMax     Int?
   filterTags             String[]
   batchSize              Int            @default(10)
   currentBatch           Int            @default(0)
