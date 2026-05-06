@@ -308,6 +308,29 @@ describe("generateEmailDraft — Verbatim mode", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(draft.body).toBe("Hi Sarah,\n\nBest,\nAlex");
   });
+
+  it("drops only the offending <p> blocks when the template body is HTML", async () => {
+    // Templates from the RichEditor are stored as HTML — splitting on blank
+    // lines would treat the whole body as one paragraph and drop everything
+    // when any merge tag is empty. Regression guard: ensure individual <p>
+    // blocks are removed instead.
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const draft = await generateEmailDraft({
+      kind: "verbatim",
+      contact: baseAi.contact,
+      company: baseAi.company,
+      subjectTemplate: "Hello {{first_name}}",
+      senderName: "Alex",
+      body: "<p>Hi {{first_name}},</p><p>Saw {{company}} just shipped {{feature_line}}.</p><p>For context, {{fit_angle}} feels like a fit.</p><p>Would a 15-min call make sense?</p>",
+      featureLine: null,
+      fitAngle: null,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(draft.body).toBe("<p>Hi Sarah,</p><p>Would a 15-min call make sense?</p>");
+  });
 });
 
 describe("substituteVariables — merge tags", () => {

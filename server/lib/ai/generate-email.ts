@@ -96,13 +96,27 @@ function dropEmptyTagParagraphs(
   const featureEmpty = !ai?.featureLine
   const fitEmpty = !ai?.fitAngle
   if (!featureEmpty && !fitEmpty) return body
+
+  const shouldDrop = (chunk: string) => {
+    if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(chunk)) return true
+    if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(chunk)) return true
+    return false
+  }
+
+  // Templates from the RichEditor are stored as HTML (e.g. "<p>...</p><p>...</p>")
+  // with no \n\n separators. Splitting only on blank lines would treat the whole
+  // body as one paragraph and drop everything when any tag is empty. Detect
+  // HTML and remove individual <p> blocks instead.
+  if (/<p\b/i.test(body)) {
+    return body
+      .replace(/<p\b[^>]*>[\s\S]*?<\/p>/gi, paragraph => (shouldDrop(paragraph) ? '' : paragraph))
+      .replace(/(\s*<br\s*\/?>\s*){2,}/gi, '<br />')
+      .trim()
+  }
+
   return body
     .split(/\n\s*\n/)
-    .filter(para => {
-      if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(para)) return false
-      if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(para)) return false
-      return true
-    })
+    .filter(para => !shouldDrop(para))
     .join('\n\n')
 }
 
