@@ -137,6 +137,11 @@ model Email {
   body            String?        @db.Text
   status          String         @default("draft")
   attachmentIds   Json           @default("[]")
+  // AI generation metadata (nullable — populated only by the draft-generation
+  // path; rows pre-migration and rows written by other paths stay null).
+  featureLine     String?
+  fitAngle        String?
+  generationKind  String?
   sentAt          DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt

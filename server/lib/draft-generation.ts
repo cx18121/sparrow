@@ -182,6 +182,9 @@ async function saveDraftOnce(params: {
   subject: string;
   body: string;
   attachmentIds: string[];
+  featureLine: string | null;
+  fitAngle: string | null;
+  generationKind: "verbatim" | "template" | "ai" | "fallback";
 }): Promise<ExistingDraft> {
   const lockKey = draftLockKey(params.savedLeadId, params.savedCustomContactId);
   if (!lockKey) {
@@ -192,6 +195,9 @@ async function saveDraftOnce(params: {
         body: params.body,
         status: "draft",
         attachmentIds: params.attachmentIds,
+        featureLine: params.featureLine,
+        fitAngle: params.fitAngle,
+        generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
     });
@@ -210,6 +216,9 @@ async function saveDraftOnce(params: {
         body: params.body,
         status: "draft",
         attachmentIds: params.attachmentIds,
+        featureLine: params.featureLine,
+        fitAngle: params.fitAngle,
+        generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
     });
@@ -349,6 +358,12 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
       subject: draft.subject,
       body: draft.body,
       attachmentIds,
+      // Capture what was actually fed into the draft. fit values reflect what
+      // pickFitAngle returned (or null on NONE / disabled). generationKind
+      // reflects the path that ran — fallback wins if the primary path threw.
+      featureLine: fit.featureLine,
+      fitAngle: fit.fitAngle,
+      generationKind: fallback ? "fallback" : draftInput.kind,
     });
     emailId = saved.id;
     draft = {
