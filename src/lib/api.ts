@@ -1,4 +1,4 @@
-import { isDemo, supabase } from './supabase'
+import { supabase } from './supabase'
 import type {
   Campaign, CampaignOptions, CompanyListResponse, CustomContact,
   DashboardEmailsResponse, Email, GenerateEmailResponse, PageResponse, SendEmailResponse,
@@ -36,7 +36,7 @@ export function apiGetAuth() {
 }
 
 async function ensureApiAuth() {
-  if (currentAccessToken || isDemo) return
+  if (currentAccessToken) return
   // Never restore from a Supabase session after an explicit sign-out —
   // doing so would re-populate a signed-out user's token for a brief window
   // while supabase.auth.signOut() is still in flight.
@@ -48,7 +48,6 @@ async function ensureApiAuth() {
 }
 
 async function refreshApiAuth() {
-  if (isDemo) return false
   const { data, error } = await supabase.auth.refreshSession()
   const session = error ? null : data?.session
   if (!session) {

@@ -7,7 +7,7 @@ import { deleteAccount } from '../../lib/api'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
-import { supabase, isDemo } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
@@ -80,7 +80,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       setUploadState({ uploading: false, error: err?.message || 'Could not read that file.' })
       return
     }
-    if (isDemo || !user?.id) {
+    if (!user?.id) {
       const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeText: extractedResumeText || form.resumeText || '' }
       setForm(nextForm)
       setUploadState({ uploading: false, error: null })
@@ -347,8 +347,8 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
     if (file.size > 10 * 1024 * 1024) { setUploadError('File must be under 10 MB.'); return }
     setUploading(true); setUploadError(null)
     const fileId = crypto.randomUUID()
-    const path = `files/${user?.id ?? 'demo'}/${fileId}`
-    if (!isDemo && user?.id) {
+    const path = `files/${user?.id ?? 'anonymous'}/${fileId}`
+    if (user?.id) {
       const { error } = await supabase.storage.from('resumes').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' })
       if (error) { setUploadError(error.message); setUploading(false); return }
     }
@@ -363,7 +363,7 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
 
   const removeFile = async (fileId: string) => {
     const meta = files.find(f => f.id === fileId)
-    if (meta && !isDemo && user?.id) await supabase.storage.from('resumes').remove([meta.path])
+    if (meta && user?.id) await supabase.storage.from('resumes').remove([meta.path])
     setForm((c: any) => ({ ...c, files: (c.files || []).filter((f: WorkspaceFile) => f.id !== fileId) }))
   }
 

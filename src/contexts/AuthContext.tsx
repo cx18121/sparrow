@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, isDemo } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId } from '../lib/api'
 
 const AuthContext = createContext(null)
@@ -22,18 +22,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // In demo mode, check localStorage for a persisted demo user
-    if (isDemo) {
-      const stored = localStorage.getItem('cf_demo_user')
-      if (stored) {
-        const demoUser = JSON.parse(stored)
-        setUser(demoUser)
-        setApiUserId(demoUser.id)
-      }
-      setLoading(false)
-      return
-    }
-
     supabase.auth.getSession().then(async () => {
       // Re-check: onAuthStateChange may have fired SIGNED_OUT before this resolves.
       const { data: { session: current } } = await supabase.auth.getSession()
@@ -67,15 +55,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signIn = async ({ email, password }) => {
-    if (isDemo) {
-      const demoId = localStorage.getItem('cf_demo_id') || crypto.randomUUID()
-      localStorage.setItem('cf_demo_id', demoId)
-      const demoUser = { id: demoId, email, user_metadata: { full_name: email.split('@')[0], avatar_url: null } }
-      setUser(demoUser)
-      localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
-      setApiUserId(demoUser.id)
-      return { error: null }
-    }
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (!error && data.session) {
       applySessionToApiClient(data.session)
@@ -85,15 +64,6 @@ export function AuthProvider({ children }) {
   }
 
   const signUp = async ({ email, password, fullName }) => {
-    if (isDemo) {
-      const demoId = localStorage.getItem('cf_demo_id') || crypto.randomUUID()
-      localStorage.setItem('cf_demo_id', demoId)
-      const demoUser = { id: demoId, email, user_metadata: { full_name: fullName, avatar_url: null } }
-      setUser(demoUser)
-      localStorage.setItem('cf_demo_user', JSON.stringify(demoUser))
-      setApiUserId(demoUser.id)
-      return { error: null }
-    }
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -107,30 +77,21 @@ export function AuthProvider({ children }) {
   }
 
   const signInWithGoogle = async () => {
-    if (isDemo) {
-      return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
-    }
-
     // signInWithGoogle is only called from AuthScreen. It requests identity
     // scopes only; Gmail send permission is a separate explicit action.
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    // signInWithOAuth returns a redirect URL — the session arrives later
+    // via onAuthStateChange, so there's no session to apply synchronously.
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
         scopes: GOOGLE_AUTH_SCOPES,
       },
     })
-    if (!error && data?.session) {
-      applySessionToApiClient(data.session)
-    }
     return { error }
   }
 
   const connectGoogle = async () => {
-    if (isDemo) {
-      return { error: { message: 'Google OAuth requires Supabase — configure VITE_SUPABASE_URL' } }
-    }
-
     try {
       const returnTo = `${window.location.pathname}${window.location.search}`
       const res = await startGoogleConnect(returnTo)
@@ -147,18 +108,10 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
     // Clear cross-user session caches so a new sign-in starts fresh.
     try { sessionStorage.removeItem('cf_discover_state') } catch {}
-
-    if (isDemo) {
-      // Clear both demo identity keys so the next "sign up" doesn't inherit
-      // the previous demo user's ID and bleed state across personas.
-      localStorage.removeItem('cf_demo_user')
-      localStorage.removeItem('cf_demo_id')
-      return
-    }
     await supabase.auth.signOut()
   }
 
-  const value = { user, loading, signIn, signUp, signInWithGoogle, connectGoogle, signOut, isDemo }
+  const value = { user, loading, signIn, signUp, signInWithGoogle, connectGoogle, signOut }
 
   return (
     <AuthContext.Provider value={value}>

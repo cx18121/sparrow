@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, Us
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig } from '../../lib/workspaceConfig'
 import { fetchPreviewFitAngle } from '../../lib/api'
-import { supabase, isDemo } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 
 const TOTAL_STEPS = 3
@@ -581,7 +581,7 @@ export default function OnboardingScreen({
       return
     }
 
-    if (isDemo || !user?.id) {
+    if (!user?.id) {
       markUserEdited()
       setForm(current => ({
         ...current,
