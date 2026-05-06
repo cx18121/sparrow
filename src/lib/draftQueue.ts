@@ -28,11 +28,31 @@ export function stripDraftHtml(html?: string | null) {
     .trim()
 }
 
+function signoffLine(line: string) {
+  return /^(best|thanks|thank you|regards|sincerely|cheers),?$/i.test(line.trim())
+}
+
+function draftTextBlocks(text: string) {
+  if (/\n\s*\n/.test(text)) return text.split(/\n{2,}/)
+
+  const lines = text
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (lines.length < 3) return [text]
+
+  if (lines.length >= 2 && signoffLine(lines[lines.length - 2])) {
+    return [...lines.slice(0, -2), `${lines[lines.length - 2]}\n${lines[lines.length - 1]}`]
+  }
+
+  return lines
+}
+
 export function textToDraftHtml(text?: string | null) {
   if (!text) return ''
   if (text.includes('<')) return text
-  return text
-    .split(/\n{2,}/)
+  return draftTextBlocks(text)
     .map(block => `<p style="margin:0 0 0.75em">${block.replace(/\n/g, '<br>')}</p>`)
     .join('')
 }
