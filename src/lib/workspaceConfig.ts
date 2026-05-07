@@ -98,6 +98,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
 
   const baseConfig = {
     resumeText: '',
+    resumeExtractedText: '',
     resumeFileName: '',
     resumePath: '',
     resumeUploadedAt: '',
@@ -150,4 +151,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     ...merged,
     templateId: templateExists ? merged.templateId : defaultTemplateId,
   };
+}
+
+export function profileResumeTextFromWorkspace(workspaceConfig: any): string {
+  const typed = workspaceConfig?.resumeText?.trim?.() || '';
+  const extracted = workspaceConfig?.resumeExtractedText?.trim?.() || '';
+  return [typed, extracted].filter(Boolean).join('\n\n');
 }

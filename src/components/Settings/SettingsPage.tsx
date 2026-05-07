@@ -81,7 +81,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       return
     }
     if (!user?.id) {
-      const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeText: extractedResumeText || form.resumeText || '' }
+      const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeExtractedText: extractedResumeText || form.resumeExtractedText || '' }
       setForm(nextForm)
       setUploadState({ uploading: false, error: null })
       return
@@ -94,10 +94,10 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       resumeFileName: file.name,
       resumePath: path,
       resumeUploadedAt: new Date().toISOString(),
-      resumeText: extractedResumeText || form.resumeText || '',
+      resumeExtractedText: extractedResumeText || form.resumeExtractedText || '',
     }
-    setForm(nextForm)
     const saved = await onSave((current: any) => ({ ...current, ...pickProfileFields(nextForm) }))
+    if (!saved) setForm(nextForm)
     setUploadState({ uploading: false, error: saved ? null : 'Uploaded, but profile save failed. Click Save to retry.' })
   }
 
@@ -212,6 +212,7 @@ function pickProfileFields(c: any) {
     senderCompany: c?.senderCompany || '',
     senderRole: c?.senderRole || '',
     resumeText: c?.resumeText || '',
+    resumeExtractedText: c?.resumeExtractedText || '',
     resumeFileName: c?.resumeFileName || '',
     resumePath: c?.resumePath || '',
     resumeUploadedAt: c?.resumeUploadedAt || '',

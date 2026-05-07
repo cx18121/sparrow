@@ -74,24 +74,26 @@ This is ONE coupled decision, not two independent ones. Search the cross-product
 
 If two surfaces tie, prefer the one that is more specific to the chosen project. A resume project about LLM training should pair with a model/research surface, not a generic "code" surface — even if both are plausible. A resume project about UI work should pair with a design/frontend surface. A resume project about agent infrastructure should pair with an agentic/tooling surface. Only fall back to a generic surface like "code" or "developer tools" when the chosen project genuinely has no more specific match.
 
-Strict grounding rules for FIT — these are hard constraints, not preferences:
-- Must reference a project, role, or named piece of work that EXPLICITLY appears in the candidate's resume. Use the resume's own words.
-- Do NOT invent, generalize, or paraphrase into a topic the resume doesn't mention. Generic technical phrasings like "compiler optimization," "ML research," "agent infrastructure," or "distributed systems work" are forbidden unless those exact concepts appear in the resume.
-- Generic stand-ins like "my recent project," "my research," or "my coursework" are forbidden — if you can't name a specific project from the resume, output FIT: NONE.
-- If no resume project plausibly maps to any dossier surface, output FIT: NONE. Stretching a weak match is worse than admitting no match.
+Grounding rules for FIT — keep it grounded in the resume, but use whatever concrete element the resume actually has:
+- Must anchor on something concrete that appears in the resume: a named project, role, internship, course, research focus, paper, hackathon, club, or specific tool/stack/topic the resume lists. Use the resume's own words where natural.
+- Do NOT invent topics the resume doesn't mention. If the resume only lists "Software Engineer at Acme working on backend services," "my backend work at Acme" is fine — the role and area are both concrete. But "my distributed systems research" would be forbidden when "distributed systems" isn't in the resume.
+- Avoid pure stand-ins like "my recent project" or "my background" — anchor on a specific element from the resume even when that's a role or course rather than a flagship project.
+- Output FIT: NONE only when the resume is genuinely empty or has no concrete element to anchor on (rare). A weak-but-grounded fit is better than NONE.
 
 Output EXACTLY two lines, nothing else:
 FEATURE: <a short noun phrase from or grounded in the dossier surfaces, lowercase, no period>
 FIT: <must start with "my " and read as a noun phrase>
 
 Format examples for FIT:
-  "my RAG eval pipeline project"
-  "my LLM inference latency optimization work"
-  "my multi-agent eval harness"
+  "my RAG eval pipeline project"             // named project
+  "my multi-agent eval harness"              // named project
+  "my backend internship at Acme"            // named role
+  "my research on agent benchmarks at MIT"   // named focus area
+  "my CS 6741 LLM systems coursework"        // named course
 The fit phrase has to grammatically slot into "For context, <FIT> feels like a natural stepping stone toward what your team is building." If "For context, [your phrasing] feels like..." doesn't read as a complete English sentence, rewrite.
 
 Output FEATURE: NONE only if no dossier surface plausibly fits.
-Output FIT: NONE only if the resume has no specific project that maps to any dossier surface — when FIT is NONE, still pick the most relevant FEATURE based on the resume's broad area (e.g. an engineering resume → a code/tooling surface). The opener still works without a fit angle.`
+Output FIT: NONE only when the resume has no concrete element to anchor on — when FIT is NONE, still pick the most relevant FEATURE based on the resume's broad area (e.g. an engineering resume → a code/tooling surface). The opener still works without a fit angle.`
 
 function buildSearchQuery(input: ResearchCompanyInput): string {
   const parts = [input.company.name]

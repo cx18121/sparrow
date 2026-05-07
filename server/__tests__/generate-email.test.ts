@@ -382,7 +382,7 @@ describe("generateEmailDraft — Verbatim mode", () => {
 
 describe("substituteVariables — merge tags", () => {
   const contact = { name: "Sarah Chen", title: "Head of Engineering" };
-  const company = { name: "Momentum AI" };
+  const company = { name: "Anthropic" };
 
   it("fills snake_case and camelCase contact/sender/company tags", () => {
     const out = substituteVariables(
@@ -391,7 +391,7 @@ describe("substituteVariables — merge tags", () => {
       "Alex Morgan",
       company,
     );
-    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Momentum AI / Momentum AI, from Alex Morgan (Alex Morgan)");
+    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Anthropic / Anthropic, from Alex Morgan (Alex Morgan)");
   });
 
   it("fills feature_line and fit_angle when AI metadata is provided", () => {
@@ -403,7 +403,7 @@ describe("substituteVariables — merge tags", () => {
       { featureLine: "the agent eval harness", fitAngle: "My multi-agent eval project" },
     );
     expect(out).toBe(
-      "I noticed Momentum AI just shipped the agent eval harness. My multi-agent eval project feels like a fit.",
+      "I noticed Anthropic just shipped the agent eval harness. My multi-agent eval project feels like a fit.",
     );
   });
 

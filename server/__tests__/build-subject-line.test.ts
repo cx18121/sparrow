@@ -52,8 +52,8 @@ describe("buildSubjectLine", () => {
   });
 
   it("substitutes company name placeholders", () => {
-    const company = { name: "Momentum AI" };
+    const company = { name: "Anthropic" };
     const subject = buildSubjectLine("Quick question about {{company}} / {{company_name}} / {{companyName}}", { name: "Jane" }, "Alex", company);
-    expect(subject).toBe("Quick question about Momentum AI / Momentum AI / Momentum AI");
+    expect(subject).toBe("Quick question about Anthropic / Anthropic / Anthropic");
   });
 });

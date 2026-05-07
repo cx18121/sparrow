@@ -17,14 +17,17 @@ const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
 
 const DISCOVER_CACHE_KEY = 'cf_discover_state'
-function readDiscoverCache() {
-  try { return JSON.parse(sessionStorage.getItem(DISCOVER_CACHE_KEY) || 'null') } catch { return null }
+function discoverCacheKey(campaignId?: string | null) {
+  return campaignId ? `${DISCOVER_CACHE_KEY}:${campaignId}` : DISCOVER_CACHE_KEY
 }
-function writeDiscoverCache(state: object) {
-  try { sessionStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(state)) } catch {}
+function readDiscoverCache(campaignId?: string | null) {
+  try { return JSON.parse(sessionStorage.getItem(discoverCacheKey(campaignId)) || 'null') } catch { return null }
 }
-function clearDiscoverCache() {
-  try { sessionStorage.removeItem(DISCOVER_CACHE_KEY) } catch {}
+function writeDiscoverCache(state: object, campaignId?: string | null) {
+  try { sessionStorage.setItem(discoverCacheKey(campaignId), JSON.stringify(state)) } catch {}
+}
+function clearDiscoverCache(campaignId?: string | null) {
+  try { sessionStorage.removeItem(discoverCacheKey(campaignId)) } catch {}
 }
 const NS_LABELS = {
   stage: 'Stage',
@@ -125,8 +128,32 @@ interface LeadDiscoveryTabProps {
   campaignFilters?: any
 }
 
+type DiscoveryRegionFilter = 'us' | 'international' | 'remote' | null
+
+export function discoveryFiltersFromCampaign(campaignFilters: any): {
+  selectedTags: string[]
+  regionFilter: DiscoveryRegionFilter
+  stageFilter: string | null
+  batchFilter: string | null
+  isHiring: boolean
+} {
+  const regionMap: Record<string, DiscoveryRegionFilter> = {
+    __US__: 'us',
+    __INTL__: 'international',
+    __REMOTE__: 'remote',
+  }
+  return {
+    selectedTags: Array.isArray(campaignFilters?.filterTags) ? campaignFilters.filterTags : [],
+    regionFilter: campaignFilters?.filterRegion ? (regionMap[campaignFilters.filterRegion] ?? null) : null,
+    stageFilter: typeof campaignFilters?.filterStage === 'string' && campaignFilters.filterStage ? campaignFilters.filterStage : null,
+    batchFilter: typeof campaignFilters?.filterBatch === 'string' && campaignFilters.filterBatch ? campaignFilters.filterBatch : null,
+    isHiring: campaignFilters?.filterIsHiring === true,
+  }
+}
+
 export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = null, campaignFilters = null }: LeadDiscoveryTabProps) {
   const { leads, refreshLeads } = useAppData()
+  const campaignSeed = useMemo(() => discoveryFiltersFromCampaign(campaignFilters), [campaignFilters])
   // Set of apolloPersonIds already saved as UserLeads — used to disable the
   // Save button on previously-saved contacts in the Find-contacts modal,
   // even after a tab switch or a re-open of the same company. Combined with
@@ -141,21 +168,23 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   }, [leads])
   const { toast, setToast } = useToast()
   const [search, setSearch] = useState('')
-  const [selectedTags, setSelectedTags] = useState(new Set())
-  const selectedTagsRef = useRef(new Set())
+  const [selectedTags, setSelectedTags] = useState(() => new Set(campaignSeed.selectedTags))
+  const selectedTagsRef = useRef(new Set(campaignSeed.selectedTags))
   const [tagOptions, setTagOptions] = useState({})
   const [hiringCount, setHiringCount] = useState(null)
   const [regionCounts, setRegionCounts] = useState<{ us: number | null; intl: number | null; remote: number | null }>({ us: null, intl: null, remote: null })
-  const [isHiring, setIsHiring] = useState(false)
-  const [regionFilter, setRegionFilter] = useState<'us' | 'international' | 'remote' | null>(null)
+  const [isHiring, setIsHiring] = useState(campaignSeed.isHiring)
+  const [regionFilter, setRegionFilter] = useState<DiscoveryRegionFilter>(campaignSeed.regionFilter)
+  const [stageFilter, setStageFilter] = useState<string | null>(campaignSeed.stageFilter)
+  const [batchFilter, setBatchFilter] = useState<string | null>(campaignSeed.batchFilter)
   const [pageSize, setPageSize] = useState<number>(() => {
-    const cached = readDiscoverCache()
+    const cached = readDiscoverCache(activeCampaign?.id)
     return PAGE_SIZE_OPTIONS.includes(cached?.pageSize) ? cached.pageSize : 20
   })
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [tagsOpen, setTagsOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(campaignSeed.selectedTags.length > 0)
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
@@ -197,6 +226,8 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     const query = overrides.search ?? search
     const hiringOnly = overrides.isHiring ?? isHiring
     const rf = overrides.regionFilter !== undefined ? overrides.regionFilter : regionFilter
+    const stage = overrides.stageFilter !== undefined ? overrides.stageFilter : stageFilter
+    const batch = overrides.batchFilter !== undefined ? overrides.batchFilter : batchFilter
     const tags = overrides.selectedTags ?? selectedTagsRef.current
     const append = overrides.append ?? Boolean(cursor)
     try {
@@ -207,6 +238,8 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         ...(tags.size > 0 && { tags: [...tags].join(',') }),
         ...(hiringOnly && { isHiring: 'true' }),
         ...(rf && { regionType: rf }),
+        ...(stage && { stage }),
+        ...(batch && { batch }),
         ...(cursor && { cursor }),
       }
       const data = await apiFetchCompanies(params)
@@ -231,7 +264,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       setError(err.message)
       setLoading(false)
     }
-  }, [search, isHiring, regionFilter, pageSize])
+  }, [search, isHiring, regionFilter, stageFilter, batchFilter, pageSize])
 
   const doSearch = useCallback(() => {
     setPage(1)
@@ -266,13 +299,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     if (!activeCampaign?.id || !campaignFilters) return
     if (seededCampaignIdRef.current === activeCampaign.id) return
     seededCampaignIdRef.current = activeCampaign.id
-    const regionMap: Record<string, 'us' | 'international' | 'remote'> = {
-      __US__: 'us', __INTL__: 'international', __REMOTE__: 'remote',
-    }
-    const rf = campaignFilters.filterRegion ? (regionMap[campaignFilters.filterRegion] ?? null) : null
-    const tags = new Set<string>(campaignFilters.filterTags || [])
-    setRegionFilter(rf)
-    setIsHiring(Boolean(campaignFilters.filterIsHiring))
+    const seeded = discoveryFiltersFromCampaign(campaignFilters)
+    const tags = new Set<string>(seeded.selectedTags)
+    setRegionFilter(seeded.regionFilter)
+    setStageFilter(seeded.stageFilter)
+    setBatchFilter(seeded.batchFilter)
+    setIsHiring(seeded.isHiring)
     selectedTagsRef.current = tags
     setSelectedTags(tags)
     // Open the tag-filters panel when the campaign has seeded tags. Otherwise
@@ -283,7 +315,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   useEffect(() => {
     initialMount.current = false
-    const cached = readDiscoverCache()
+    const cached = activeCampaign?.id ? null : readDiscoverCache()
     if (cached?.companies?.length > 0) {
       setCompanies(cached.companies)
       setNextCursor(cached.nextCursor ?? null)
@@ -292,6 +324,8 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       setSearch(cached.search || '')
       setIsHiring(cached.isHiring || false)
       setRegionFilter(cached.regionFilter || null)
+      setStageFilter(cached.stageFilter || null)
+      setBatchFilter(cached.batchFilter || null)
       const tags = new Set<string>(cached.selectedTags || [])
       setSelectedTags(tags)
       selectedTagsRef.current = tags
@@ -312,13 +346,14 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   useEffect(() => {
     if (companies.length === 0) return
+    if (activeCampaign?.id) return
     writeDiscoverCache({
       companies, nextCursor, hasMore, meta: discoveryMeta,
-      search, isHiring, regionFilter,
+      search, isHiring, regionFilter, stageFilter, batchFilter,
       selectedTags: [...selectedTags],
       tagOptions, hiringCount, regionCounts, pageSize,
     })
-  }, [companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, selectedTags, tagOptions, hiringCount, regionCounts, pageSize])
+  }, [activeCampaign?.id, companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, stageFilter, batchFilter, selectedTags, tagOptions, hiringCount, regionCounts, pageSize])
 
   const loadMore = useCallback(() => {
     fetchCompanies(nextCursor, { append: true })
@@ -327,7 +362,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const resetSeen = useCallback(async () => {
     setLoading(true)
     setError(null)
-    clearDiscoverCache()
+    clearDiscoverCache(activeCampaign?.id)
     try {
       await resetDiscoverySeen()
       setCompanies([])
@@ -609,15 +644,17 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
             <button
               type="button"
               onClick={() => {
-                const clearedTags = new Set()
+                const clearedTags = new Set<string>()
                 setSearch('')
                 selectedTagsRef.current = clearedTags
                 setSelectedTags(clearedTags)
                 setIsHiring(false)
                 setRegionFilter(null)
+                setStageFilter(null)
+                setBatchFilter(null)
                 setCompanies([])
                 setNextCursor(null)
-                fetchCompanies(null, { search: '', isHiring: false, regionFilter: null, selectedTags: clearedTags })
+                fetchCompanies(null, { search: '', isHiring: false, regionFilter: null, stageFilter: null, batchFilter: null, selectedTags: clearedTags })
               }}
               className="btn-secondary mt-4 text-xs"
             >

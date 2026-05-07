@@ -86,7 +86,7 @@ test.describe('Templates UX', () => {
     await expect.poll(() => patchPayload?.subject).toBe('Following up on {{company}}')
 
     await page.getByRole('button', { name: /Preview/i }).click()
-    await expect(page.locator('text=/Following up on Momentum AI/i').first()).toBeVisible()
+    await expect(page.locator('text=/Following up on Anthropic/i').first()).toBeVisible()
   })
 
   test('search keeps the template list scannable and shows an empty result state', async ({ page }) => {
