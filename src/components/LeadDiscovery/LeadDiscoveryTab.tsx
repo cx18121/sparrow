@@ -14,7 +14,7 @@ import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
-const DISCOVERY_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal']
+const DISCOVERY_NS = ['vertical', 'tech', 'model', 'investor', 'signal']
 
 const DISCOVER_CACHE_KEY = 'cf_discover_state'
 function discoverCacheKey(campaignId?: string | null) {
@@ -171,6 +171,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const [selectedTags, setSelectedTags] = useState(() => new Set(campaignSeed.selectedTags))
   const selectedTagsRef = useRef(new Set(campaignSeed.selectedTags))
   const [tagOptions, setTagOptions] = useState({})
+  const [stageOptions, setStageOptions] = useState<string[]>([])
   const [hiringCount, setHiringCount] = useState(null)
   const [regionCounts, setRegionCounts] = useState<{ us: number | null; intl: number | null; remote: number | null }>({ us: null, intl: null, remote: null })
   const [isHiring, setIsHiring] = useState(campaignSeed.isHiring)
@@ -330,6 +331,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       setSelectedTags(tags)
       selectedTagsRef.current = tags
       setTagOptions(cached.tagOptions || {})
+      setStageOptions(cached.stageOptions || [])
       setHiringCount(cached.hiringCount ?? null)
       setRegionCounts(cached.regionCounts || { us: null, intl: null, remote: null })
     } else {
@@ -337,6 +339,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       fetchCampaignOptions()
         .then(data => {
           setTagOptions(data.tags || {})
+          setStageOptions(data.stages || [])
           setHiringCount(data.hiringCount ?? null)
           setRegionCounts({ us: data.usCount ?? null, intl: data.intlCount ?? null, remote: data.remoteCount ?? null })
         })
@@ -351,9 +354,9 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       companies, nextCursor, hasMore, meta: discoveryMeta,
       search, isHiring, regionFilter, stageFilter, batchFilter,
       selectedTags: [...selectedTags],
-      tagOptions, hiringCount, regionCounts, pageSize,
+      tagOptions, stageOptions, hiringCount, regionCounts, pageSize,
     })
-  }, [activeCampaign?.id, companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, stageFilter, batchFilter, selectedTags, tagOptions, hiringCount, regionCounts, pageSize])
+  }, [activeCampaign?.id, companies, nextCursor, hasMore, discoveryMeta, search, isHiring, regionFilter, stageFilter, batchFilter, selectedTags, tagOptions, stageOptions, hiringCount, regionCounts, pageSize])
 
   const loadMore = useCallback(() => {
     fetchCompanies(nextCursor, { append: true })
@@ -482,7 +485,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     }
   }
 
-  const hasActiveFilters = search || selectedTags.size > 0 || isHiring || regionFilter
+  const hasActiveFilters = search || selectedTags.size > 0 || isHiring || regionFilter || stageFilter
 
   return (
     <div className="space-y-5">
@@ -578,6 +581,26 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
               {tagsOpen ? 'Hide filters' : selectedTags.size > 0 ? `More filters (${selectedTags.size})` : 'More filters'}
             </button>
           </div>
+
+          {/* Stage filter - collapsed with other tag filters */}
+          {tagsOpen && stageOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">Stage</span>
+              {stageOptions.map(stage => (
+                <button
+                  key={stage}
+                  onClick={() => setStageFilter(prev => prev === stage ? null : stage)}
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150 whitespace-nowrap ${
+                    stageFilter === stage
+                      ? 'border-primary bg-primary text-warm-50'
+                      : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
+                  }`}
+                >
+                  {stage}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Tag filters - collapsed by default */}
           {tagsOpen && DISCOVERY_NS.map(ns => {

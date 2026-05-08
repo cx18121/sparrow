@@ -503,6 +503,20 @@ function StepFilters({
             </FilterChip>
           </FilterRow>
 
+          {(options.stages || []).length > 0 && (
+            <FilterRow label="Stage">
+              {(options.stages || []).map(stage => (
+                <FilterChip
+                  key={stage}
+                  active={audience.stage === stage}
+                  onClick={() => onAudienceChange({ ...audience, stage: audience.stage === stage ? null : stage })}
+                >
+                  {stage}
+                </FilterChip>
+              ))}
+            </FilterRow>
+          )}
+
           {SECTOR_NAMESPACES.map(ns => {
             const tags = (options.tags?.[ns] || [])
               .filter(t => t.count >= 15 && !HIDDEN_SIGNAL_TAGS.has(t.namespaced))

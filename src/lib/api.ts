@@ -70,23 +70,45 @@ function extractServerError(text) {
   }
 }
 
+// Messages that are too generic to show directly to users — fall back to
+// path-specific guidance or the generic 500 message instead.
+const GENERIC_SERVER_MESSAGES = new Set([
+  'internal server error',
+  'an unexpected error occurred',
+  'something went wrong',
+])
+
 function friendlyApiMessage({ status, path, method, serverError }) {
   const normalized = `${serverError || ''}`.trim()
   const lower = normalized.toLowerCase()
+  // If the server sent a specific, readable message (i.e. came from HttpError),
+  // show it directly rather than replacing it with a hardcoded string — unless
+  // the message is one of the known generic fallbacks below.
+  const serverMessageIsSpecific = normalized && !GENERIC_SERVER_MESSAGES.has(lower)
 
   if (status === 401) return 'Sign in again to continue. Your session may have expired.'
   if (status === 403) return 'You do not have access to this item.'
 
   if (path === '/emails/send') {
     if (status === 429) return serverError || 'Daily send limit reached for today.'
-    if (status === 404) return 'We could not find that draft. Refresh Drafts and try again.'
+    if (status === 404) return 'We could not find that draft. Refresh and try again.'
+    if (lower.includes('already been sent')) return 'This email was already sent.'
+    if (lower.includes('already being sent')) return 'This email is currently being sent. Refresh and try again.'
     if (lower.includes('gmail not connected') || lower.includes('connect gmail')) {
-      return 'Connect Gmail in Settings before sending email.'
+      return 'Gmail is not connected. Go to Settings → Account to reconnect.'
     }
-    if (lower.includes('recipient')) return 'Add a recipient email address before sending this draft.'
+    if (lower.includes('reconnect google') || lower.includes('google connection')) {
+      return 'Your Google connection needs to be refreshed. Go to Settings → Account to reconnect.'
+    }
+    if (lower.includes('recipient') || lower.includes('no recipient')) {
+      return 'No recipient email address on this draft. Add a contact before sending.'
+    }
     if (lower.includes('gmail') || status === 502) {
-      return 'Gmail could not send this email. Check that Gmail API is enabled in Google Cloud, then reconnect Google in Settings.'
+      return 'Gmail failed to send this email. Try reconnecting Gmail in Settings → Account.'
     }
+    if (lower.includes('attachment')) return normalized
+    if (serverMessageIsSpecific) return normalized
+    return 'Send failed. Check that Gmail is connected in Settings → Account and try again.'
   }
 
   if (path === '/emails/generate') {
@@ -94,32 +116,37 @@ function friendlyApiMessage({ status, path, method, serverError }) {
       return 'Email generation is not configured on this deployment.'
     }
     if (status === 404 && lower.includes('template')) return 'The selected template no longer exists. Choose a different template and try again.'
-    if (status === 404) return 'Lead not found — it may have been removed. Refresh the page and try again.'
-    if (status === 400 && lower.includes('no contact')) return 'No contact email found for this lead. Save a contact from Discover first.'
+    if (status === 404) return 'Lead not found — it may have been removed. Refresh and try again.'
+    if (lower.includes('no contact')) return 'No contact email found for this lead. Save a contact from Discover first.'
+    if (serverMessageIsSpecific) return normalized
   }
 
   if (path === '/apollo-search' || path === '/leads') {
     if (lower.includes('apollo_api_key') || lower.includes('apollo api key') || lower.includes('apollo key')) {
-      return 'Lead search is not configured yet. Add or check the Apollo key before searching contacts.'
+      return 'Lead search is not configured. Add or check the Apollo key in your environment.'
     }
     if (lower.includes('rate limit') || status === 429) return 'Apollo rate limit reached. Wait a moment and try again.'
-    if (lower.includes('apollo api error') || lower.includes('apollo search failed')) return serverError || 'Apollo search failed. Try again.'
+    if (serverMessageIsSpecific) return normalized
   }
 
   if (path === '/profile') {
-    if (method === 'GET') return 'We could not load your setup status. Refresh Settings or sign in again.'
-    return 'Settings could not be saved. Check that all required environment variables are set, then try again.'
+    if (method === 'GET') return 'Could not load your settings. Refresh or sign in again.'
+    if (serverMessageIsSpecific) return normalized
+    return 'Settings could not be saved. Try again.'
   }
 
   if (path === '/google/connect') {
-    if (status === 404) return 'Gmail connection endpoint is not reachable. Make sure the API server is running (npm run dev:api or vercel dev) or redeploy.'
-    if (status === 500) return serverError || 'Gmail connection could not start. Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set on the server.'
+    if (status === 404) return 'Gmail connection endpoint is not reachable. Check that your API server is running.'
+    if (serverMessageIsSpecific) return normalized
+    return 'Gmail connection could not start. Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.'
   }
 
-  if (status === 404) return 'We could not find what you asked for. Refresh the page and try again.'
-  if (status === 429) return 'Too many requests at once. Wait a minute, then try again.'
-  if (status >= 500) return 'The server could not finish that request. Try again in a moment.'
-  if (normalized) return normalized
+  if (status === 404) return 'We could not find what you asked for. Refresh and try again.'
+  if (status === 429) return 'Too many requests. Wait a moment and try again.'
+  // Show the server's specific message if it's readable; only fall back to the
+  // generic phrasing when the server gave us nothing useful.
+  if (serverMessageIsSpecific) return normalized
+  if (status >= 500) return 'Something went wrong on the server. Try again in a moment.'
 
   return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
 }
