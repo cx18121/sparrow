@@ -77,9 +77,6 @@ async function refreshApiAuth() {
     if (!session) {
       currentUserId = null
       currentAccessToken = null
-      // Refresh token is expired or revoked — sign out so onAuthStateChange
-      // fires SIGNED_OUT and the app surfaces the sign-in screen.
-      supabase.auth.signOut().catch(() => {})
       return false
     }
     currentUserId = session.user?.id ?? null
