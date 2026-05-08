@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { VercelRequest } from "@vercel/node";
 
@@ -17,63 +16,15 @@ export function getSupabaseAdmin(): SupabaseClient {
   return cached;
 }
 
-// Verify a Supabase JWT locally using HMAC-SHA256 — no network call needed.
-// Returns the user ID (sub claim) or null if the token is invalid/expired.
-function verifyJwtLocally(token: string, secret: string): string | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-
-    const [headerB64, payloadB64, sigB64] = parts;
-    const signingInput = `${headerB64}.${payloadB64}`;
-
-    const expected = createHmac("sha256", secret).update(signingInput).digest();
-    const actual = Buffer.from(
-      sigB64.replace(/-/g, "+").replace(/_/g, "/"),
-      "base64"
-    );
-
-    if (expected.length !== actual.length) return null;
-    if (!timingSafeEqual(expected, actual)) return null;
-
-    const payload = JSON.parse(
-      Buffer.from(
-        payloadB64.replace(/-/g, "+").replace(/_/g, "/"),
-        "base64"
-      ).toString("utf8")
-    );
-
-    if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) {
-      return null;
-    }
-
-    return typeof payload.sub === "string" ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
-
-// Verifies the Authorization: Bearer <jwt> header and returns the user id,
-// or null if the token is missing/invalid.
-//
-// Uses local HMAC verification when SUPABASE_JWT_SECRET is set — eliminates
-// the round-trip to Supabase's Auth API that was causing intermittent 401s
-// in production. Falls back to auth.getUser() if the secret is not configured.
-export async function getUserIdFromRequest(
-  req: VercelRequest
-): Promise<string | null> {
+// Verifies the Authorization: Bearer <jwt> header against Supabase and
+// returns the user id, or null if the token is missing/invalid.
+export async function getUserIdFromRequest(req: VercelRequest): Promise<string | null> {
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) return null;
-
-  const token = auth.slice("Bearer ".length);
-
-  const jwtSecret = process.env.SUPABASE_JWT_SECRET;
-  if (jwtSecret) {
-    return verifyJwtLocally(token, jwtSecret);
+  if (auth && auth.startsWith("Bearer ")) {
+    const token = auth.slice("Bearer ".length);
+    const { data, error } = await getSupabaseAdmin().auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user.id;
   }
-
-  // Fallback: validate via Supabase Auth API (requires network call).
-  const { data, error } = await getSupabaseAdmin().auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
+  return null;
 }
