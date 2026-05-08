@@ -35,12 +35,23 @@ export function apiGetAuth() {
   return { userId: currentUserId, accessToken: currentAccessToken }
 }
 
+// Decode a JWT's payload without verifying the signature — used only to
+// check the `exp` claim so we can proactively refresh before sending a
+// request that would otherwise bounce with 401.
+function jwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()
+  } catch {
+    return false // don't block on parse failure
+  }
+}
+
 async function ensureApiAuth() {
-  if (currentAccessToken) return
-  // Never restore from a Supabase session after an explicit sign-out —
-  // doing so would re-populate a signed-out user's token for a brief window
-  // while supabase.auth.signOut() is still in flight.
   if (explicitlySignedOut) return
+  // Proactively refresh if the stored token is expired rather than waiting
+  // for the server to bounce it with 401 — avoids the extra round-trip.
+  if (currentAccessToken && !jwtExpired(currentAccessToken)) return
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return
   currentUserId = session.user?.id ?? currentUserId
@@ -49,6 +60,18 @@ async function ensureApiAuth() {
 
 async function refreshApiAuth() {
   try {
+    // Supabase's auto-refresh timer may have already renewed the session.
+    // Check the stored session first to avoid racing with the internal refresh
+    // (rotating refresh tokens: if Supabase rotated the token a moment ago, a
+    // manual refreshSession() with the old token would fail).
+    const { data: { session: stored } } = await supabase.auth.getSession()
+    if (stored?.access_token && !jwtExpired(stored.access_token)) {
+      currentUserId = stored.user?.id ?? null
+      currentAccessToken = stored.access_token
+      return true
+    }
+
+    // Token still stale — do a hard network refresh.
     const { data, error } = await supabase.auth.refreshSession()
     const session = error ? null : data?.session
     if (!session) {
