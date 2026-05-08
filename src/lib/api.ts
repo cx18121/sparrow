@@ -48,16 +48,24 @@ async function ensureApiAuth() {
 }
 
 async function refreshApiAuth() {
-  const { data, error } = await supabase.auth.refreshSession()
-  const session = error ? null : data?.session
-  if (!session) {
-    currentUserId = null
-    currentAccessToken = null
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    const session = error ? null : data?.session
+    if (!session) {
+      currentUserId = null
+      currentAccessToken = null
+      // Refresh token is expired or revoked — sign out so onAuthStateChange
+      // fires SIGNED_OUT and the app surfaces the sign-in screen.
+      supabase.auth.signOut().catch(() => {})
+      return false
+    }
+    currentUserId = session.user?.id ?? null
+    currentAccessToken = session.access_token ?? null
+    return Boolean(currentAccessToken)
+  } catch {
+    // Network error during refresh — don't sign out, just report failure.
     return false
   }
-  currentUserId = session.user?.id ?? null
-  currentAccessToken = session.access_token ?? null
-  return Boolean(currentAccessToken)
 }
 
 function extractServerError(text) {
