@@ -77,6 +77,11 @@ async function refreshApiAuth() {
     if (!session) {
       currentUserId = null
       currentAccessToken = null
+      // A non-zero HTTP status means Supabase Auth rejected the refresh
+      // (expired or revoked token) — this is a genuine auth failure, not a
+      // transient network blip. Sign out so the auth screen surfaces.
+      // AuthRetryableFetchError has no status; that case stays in the catch.
+      if (error?.status) supabase.auth.signOut().catch(() => {})
       return false
     }
     currentUserId = session.user?.id ?? null
