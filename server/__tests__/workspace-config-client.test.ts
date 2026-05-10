@@ -48,11 +48,11 @@ describe("createWorkspaceConfig", () => {
       delaySeconds: 15,
     });
     expect(normalizeSendingLimits({ dailyMax: 999, delaySeconds: 7200 })).toEqual({
-      dailyMax: 100,
+      dailyMax: 500,
       delaySeconds: 3600,
     });
     expect(normalizeSendingLimits({ dailyMax: "bad", delaySeconds: null })).toEqual({
-      dailyMax: 100,
+      dailyMax: 250,
       delaySeconds: 15,
     });
   });

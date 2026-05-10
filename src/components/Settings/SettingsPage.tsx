@@ -286,7 +286,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
     return ok
   }
 
-  const limits = form.sendingLimits || { dailyMax: 100, delaySeconds: 15 }
+  const limits = form.sendingLimits || { dailyMax: 250, delaySeconds: 15 }
   const setLimit = (k: string, v: number) => setForm((c: any) => ({ ...c, sendingLimits: { ...(c.sendingLimits || {}), [k]: v } }))
 
   return (
@@ -371,7 +371,7 @@ function pickSendingFields(c: any) {
   return {
     leadsPerGeneration: c?.leadsPerGeneration ?? 25,
     templateId: c?.templateId ?? '',
-    sendingLimits: c?.sendingLimits || { dailyMax: 100, delaySeconds: 15 },
+    sendingLimits: c?.sendingLimits || { dailyMax: 250, delaySeconds: 15 },
     files: c?.files || [],
   }
 }
@@ -530,9 +530,9 @@ function AccountTab({
             >
               <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
             </button>
-            {!hasGoogle && onConnectGoogle && (
+            {onConnectGoogle && (
               <button type="button" onClick={onConnectGoogle} className="btn-primary text-xs">
-                Connect
+                {hasGoogle ? 'Reconnect' : 'Connect'}
               </button>
             )}
           </div>

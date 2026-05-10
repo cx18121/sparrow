@@ -43,13 +43,13 @@ function finiteNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
-export function normalizeSendingLimits(value: any, bounds = { maxDaily: 100 }) {
+export function normalizeSendingLimits(value: any, bounds = { maxDaily: 500 }) {
   const daily = finiteNumber(value?.dailyMax);
   const delay = finiteNumber(value?.delaySeconds);
   return {
     dailyMax:
       daily == null
-        ? 100
+        ? 250
         : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
     delaySeconds:
       delay == null ? 15 : Math.min(3600, Math.max(15, Math.round(delay))),
@@ -125,7 +125,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     }>,
     leadsPerGeneration: 25,
     sendingLimits: {
-      dailyMax: 100,
+      dailyMax: 250,
       delaySeconds: 15,
     },
   };

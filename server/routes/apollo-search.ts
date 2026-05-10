@@ -61,6 +61,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
     }
+    // Apollo upstream failures bubble here from revealContact. Apply the same
+    // mapping as apolloSearch: 401/403 → 502 so the client doesn't show
+    // "Sign in again" for Apollo's credential problems.
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        return res.status(502).json({
+          error: `Apollo credentials rejected (HTTP ${status}). Check that APOLLO_API_KEY is set and current.`,
+        });
+      }
+      if (status === 429) {
+        return res.status(429).json({
+          error: "Apollo rate limit reached. Please wait a moment and try again.",
+        });
+      }
+      const upstreamMsg = (err.response?.data as any)?.error ?? err.message ?? "Apollo upstream error";
+      return res.status(502).json({ error: `Apollo upstream error: ${upstreamMsg}` });
+    }
     return res.status(500).json({ error: "Internal server error" });
   }
 }

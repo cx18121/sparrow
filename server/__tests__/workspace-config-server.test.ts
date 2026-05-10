@@ -25,7 +25,7 @@ describe("server Workspace config", () => {
       delaySeconds: 3600,
     });
     expect(normalizeSendingLimits(null)).toEqual({
-      dailyMax: 100,
+      dailyMax: 250,
       monthlyMax: 2000,
       delaySeconds: 15,
     });

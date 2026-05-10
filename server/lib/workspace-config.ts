@@ -35,7 +35,7 @@ export function normalizeSendingLimits(value: unknown, bounds = { maxDaily: 500,
   const monthly = finiteNumber(limits.monthlyMax);
   const delay = finiteNumber(limits.delaySeconds);
   return {
-    dailyMax: daily == null ? 100 : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
+    dailyMax: daily == null ? 250 : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
     monthlyMax: monthly == null ? 2000 : Math.min(bounds.maxMonthly, Math.max(1, Math.round(monthly))),
     delaySeconds: delay == null ? 15 : Math.min(3600, Math.max(15, Math.round(delay))),
   };

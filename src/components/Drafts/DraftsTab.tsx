@@ -501,7 +501,7 @@ export default function DraftsTab({
     if (ids.length > 1) {
       setBatchSendConfirm(ids)
       setBatchDailyInfo(null)
-      const dailyMax = workspaceConfig?.sendingLimits?.dailyMax ?? 100
+      const dailyMax = workspaceConfig?.sendingLimits?.dailyMax ?? 250
       fetchSentTodayCount()
         .then(({ count }) => setBatchDailyInfo({ sentToday: count, dailyMax }))
         .catch(() => {})

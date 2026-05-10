@@ -280,13 +280,21 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
     throw err;
   }
 
-  const attachments = await buildDraftAttachments({
-    userId,
-    emailId,
-    attachmentIds: email.attachmentIds,
-    fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
-    supabase,
-  });
+  let attachments: Awaited<ReturnType<typeof buildDraftAttachments>>;
+  try {
+    attachments = await buildDraftAttachments({
+      userId,
+      emailId,
+      attachmentIds: email.attachmentIds,
+      fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
+      supabase,
+    });
+  } catch (err) {
+    // Attachment-build failure means we never hand Gmail anything to send,
+    // so the reserved quota slot would otherwise be wasted. Release it.
+    await releaseQuota();
+    throw err;
+  }
 
   const subject = `[TEST] ${email.subject ?? "(no subject)"}`;
   const htmlBody = sanitizeHtml(email.body ?? "");
