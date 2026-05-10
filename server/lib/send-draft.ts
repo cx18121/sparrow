@@ -144,13 +144,27 @@ export async function sendDraft(emailId: string, userId: string) {
 
   const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
+  // Build the Gmail client up front so we can fetch the sender's Gmail
+  // address before reserving a quota slot. The quota is keyed on the Gmail
+  // address (not the Sparrow user id) so it survives account deletion +
+  // re-signup — preventing the user from bypassing their daily cap by
+  // recreating their account.
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  const gmail = google.gmail({ version: "v1", auth: oauth2 });
+
+  const gmailAddress = await resolveGmailAddress(gmail);
+
   // Atomically reserve a quota slot before doing any work. The DailyQuota row
   // increment is serialized by Postgres at the row level, so concurrent sends
   // each get a distinct count. If over the limit the increment is rolled back
   // and QuotaError is thrown — no slot consumed.
   let releaseQuota: () => Promise<void>;
   try {
-    releaseQuota = await reserveEmailSendQuota(userId, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;
@@ -177,13 +191,6 @@ export async function sendDraft(emailId: string, userId: string) {
     await releaseQuota();
     throw err;
   }
-
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
-  );
-  oauth2.setCredentials({ refresh_token: refreshToken });
-  const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
   const subject = email.subject ?? "(no subject)";
   const rawBody = email.body ?? "";
@@ -252,11 +259,22 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
 
   const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
+  // Build Gmail client first — quota is keyed on the Gmail address so we need
+  // to resolve it before reserving a slot. See sendDraft for the rationale.
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  const gmail = google.gmail({ version: "v1", auth: oauth2 });
+
+  const gmailAddress = await resolveGmailAddress(gmail);
+
   // Test sends consume the same quota and use the same atomic reservation so
   // they can't race past the limit either.
   let releaseQuota: () => Promise<void>;
   try {
-    releaseQuota = await reserveEmailSendQuota(userId, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;
@@ -269,13 +287,6 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
     fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
     supabase,
   });
-
-  const oauth2 = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
-  );
-  oauth2.setCredentials({ refresh_token: refreshToken });
-  const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
   const subject = `[TEST] ${email.subject ?? "(no subject)"}`;
   const htmlBody = sanitizeHtml(email.body ?? "");
@@ -291,4 +302,20 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
   }
 
   return { recipient: trimmed.toLowerCase() };
+}
+
+// Resolves the sender's Gmail address from an authenticated Gmail client.
+// Used to key the daily send quota on the Gmail account itself (so the
+// quota persists across Sparrow account deletion + recreation). Throws on
+// failure rather than falling back to a different identifier — we want
+// quota enforcement to fail closed.
+async function resolveGmailAddress(
+  gmail: ReturnType<typeof google.gmail>,
+): Promise<string> {
+  const profile = await gmail.users.getProfile({ userId: "me" });
+  const address = profile.data.emailAddress;
+  if (!address) {
+    throw new HttpError(502, "Gmail did not return an email address for this account.");
+  }
+  return address.toLowerCase();
 }

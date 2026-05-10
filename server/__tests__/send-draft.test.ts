@@ -58,7 +58,12 @@ vi.mock("googleapis", () => ({
   google: {
     auth: { OAuth2: vi.fn().mockImplementation(function OAuth2() { return { setCredentials: vi.fn() } }) },
     gmail: vi.fn(() => ({
-      users: { messages: { send: mockGmailSend } },
+      users: {
+        messages: { send: mockGmailSend },
+        // sendDraft / sendTestDraft call this to resolve the Gmail address
+        // for keying the daily send quota.
+        getProfile: vi.fn().mockResolvedValue({ data: { emailAddress: "sender@gmail.test" } }),
+      },
     })),
   },
 }));

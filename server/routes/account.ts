@@ -55,7 +55,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       await tx.campaignSeenCompany.deleteMany({ where: { campaign: { userId } } });
       await tx.discoverySeenCompany.deleteMany({ where: { userId } });
-      await tx.dailyQuota.deleteMany({ where: { subjectId: userId } });
+      // Wipe user-scoped quotas (Apollo, anything keyed on userId) but leave
+      // gmail-scoped send quotas intact: those are keyed on the Gmail address
+      // (not this user id), and we want a user who deletes + recreates their
+      // account to inherit any sends they already made today against the same
+      // Gmail account — otherwise they could bypass the daily cap by churning
+      // accounts and risk a real Gmail-side rate limit.
+      await tx.dailyQuota.deleteMany({ where: { subjectId: userId, scope: { not: "gmail" } } });
       await tx.campaign.deleteMany({ where: { userId } });
       await tx.userLead.deleteMany({ where: { userId } });
       await tx.customContact.deleteMany({ where: { userId } });

@@ -33,23 +33,28 @@ export async function consumeDurableDailyQuota(
 
 // Atomically reserves one email send slot for today.
 //
-// How it works: atomically upsert-increments the DailyQuota counter for this
-// user. PostgreSQL serializes concurrent increments on the same row, so each
-// caller gets a distinct count. If the count exceeds the limit, the increment
-// is rolled back and QuotaError is thrown — no slot consumed.
+// Keyed on the Gmail address (scope='gmail'), NOT the Sparrow user id. The
+// Gmail account is the thing being rate-limited at the upstream provider,
+// and it persists across Sparrow account deletion + re-signup — so a user
+// can't bypass the limit by deleting their account and recreating it.
+//
+// How it works: atomically upsert-increments the DailyQuota counter for the
+// Gmail address. PostgreSQL serializes concurrent increments on the same row,
+// so each caller gets a distinct count. If the count exceeds the limit, the
+// increment is rolled back and QuotaError is thrown — no slot consumed.
 //
 // Returns a `release` function. Call it if the send fails after reservation
 // (Gmail error, claim collision, etc.) to restore the slot so the draft stays
 // retryable. Do NOT call release if Gmail accepted the message — the slot is
 // consumed regardless of whether the DB write that follows succeeds.
 export async function reserveEmailSendQuota(
-  userId: string,
+  gmailEmail: string,
   limit: number,
   db: Db = prisma,
 ): Promise<() => Promise<void>> {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
   const day = todayKey();
-  const key = { scope: "user", subjectId: userId, action: "email_send", day };
+  const key = { scope: "gmail", subjectId: gmailEmail.toLowerCase(), action: "email_send", day };
 
   const row = await db.dailyQuota.upsert({
     where: { scope_subjectId_action_day: key },
@@ -77,10 +82,8 @@ export async function reserveEmailSendQuota(
   return release;
 }
 
-// Checks how many emails the user has already sent today (across both lead
-// and custom-contact recipients) and throws if they are at or over the limit.
-// Used as a pre-flight before reserveEmailSendQuota to give a cleaner error
-// message when the user has clearly exhausted their quota.
+// Pre-flight check for batch sends. Not the source of truth — reserveEmailSendQuota
+// is. This just gives a cleaner error message when the user is clearly at the cap.
 export async function checkEmailSendQuota(
   userId: string,
   limit: number,
