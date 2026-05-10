@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isAuthRetryableFetchError } from "@supabase/auth-js";
 import type { VercelRequest } from "@vercel/node";
 
 let cached: SupabaseClient | null = null;
@@ -16,15 +17,23 @@ export function getSupabaseAdmin(): SupabaseClient {
   return cached;
 }
 
-// Verifies the Authorization: Bearer <jwt> header against Supabase and
-// returns the user id, or null if the token is missing/invalid.
+// Verifies the Authorization: Bearer <jwt> header against Supabase Auth and
+// returns the user id, or null if the token is missing/invalid/expired.
+//
+// Throws (rather than returning null) on transient network failures so the
+// calling route can return 5xx instead of 401 — prevents the client from
+// interpreting a Supabase Auth outage as "sign in again".
 export async function getUserIdFromRequest(req: VercelRequest): Promise<string | null> {
   const auth = req.headers.authorization;
-  if (auth && auth.startsWith("Bearer ")) {
-    const token = auth.slice("Bearer ".length);
-    const { data, error } = await getSupabaseAdmin().auth.getUser(token);
-    if (error || !data.user) return null;
-    return data.user.id;
+  if (!auth?.startsWith("Bearer ")) return null;
+  const token = auth.slice("Bearer ".length);
+  const { data, error } = await getSupabaseAdmin().auth.getUser(token);
+  if (error) {
+    if (isAuthRetryableFetchError(error)) {
+      // Network blip or Supabase Auth outage — let the route return 5xx.
+      throw error;
+    }
+    return null;
   }
-  return null;
+  return data.user?.id ?? null;
 }
