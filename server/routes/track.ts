@@ -18,14 +18,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!emailId) return;
 
   try {
-    await prisma.email.updateMany({
-      where: { id: emailId, openedAt: null },
-      data: { openedAt: new Date() },
-    });
-    await prisma.email.updateMany({
-      where: { id: emailId },
-      data: { openCount: { increment: 1 } },
-    });
+    await prisma.$executeRaw`
+      UPDATE "Email"
+      SET "openedAt" = COALESCE("openedAt", NOW()),
+          "openCount" = "openCount" + 1
+      WHERE id = ${emailId}
+    `;
   } catch {
     // Fire-and-forget — pixel already returned
   }

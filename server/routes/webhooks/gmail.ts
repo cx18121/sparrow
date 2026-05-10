@@ -47,6 +47,7 @@ async function fetchAllNewMessageIds(
         userId: "me",
         startHistoryId,
         historyTypes: ["messageAdded"],
+        labelId: "INBOX",
         ...(pageToken && { pageToken }),
       });
       for (const entry of res.data.history ?? []) {

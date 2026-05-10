@@ -173,8 +173,7 @@ export async function sendDraft(emailId: string, userId: string) {
 
   const subject = email.subject ?? "(no subject)";
   const rawBody = email.body ?? "";
-  const bodyWithPixel = injectTrackingPixel(rawBody, emailId);
-  const htmlBody = sanitizeHtml(bodyWithPixel);
+  const htmlBody = injectTrackingPixel(sanitizeHtml(rawBody), emailId);
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
   const toHeader = encodeAddressHeader(toName, toEmail);
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);

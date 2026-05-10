@@ -3,8 +3,8 @@ import { google } from "googleapis";
 import { renewExpiringWatches } from "../../lib/gmail-watch.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
