@@ -47,59 +47,54 @@ export const SAMPLE_TEMPLATE = {
 
 /**
  * Authenticates as the e2e test user by calling the local Supabase auth
- * endpoint directly, then seeds the real session into the browser's
- * localStorage so the Supabase JS client picks it up without a redirect.
+ * Signs in via the real auth form, yielding a genuine Supabase session.
+ * Onboarding is bypassed by intercepting localStorage.getItem so the app
+ * always sees onboarding as complete (userId is unknown until after sign-in).
  *
- * Also marks onboarding as complete so tests start on the dashboard.
- *
- * Call this BEFORE page.goto().
+ * Call this BEFORE page.goto() — it navigates to /dashboard to do the sign-in.
  */
 export async function signInDemo(page: Page): Promise<{ session: any; userId: string }> {
-  // Get a real JWT from local Supabase.
-  const resp = await page.request.post(
-    `${LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: {
-        apikey: ANON_KEY,
-        'Content-Type': 'application/json',
-      },
-      data: { email: 'e2e@sparrow.test', password: 'SparrowE2E2024!' },
-    },
-  )
-
-  if (!resp.ok()) {
-    throw new Error(`[signInDemo] Auth failed: ${resp.status()} ${await resp.text()}`)
-  }
-
-  const session = await resp.json()
-  const userId: string = session.user.id
-
-  // Seed session + onboarding flag into localStorage before page JS runs.
-  await page.addInitScript(
-    ({ session, storageKey, userId }: { session: any; storageKey: string; userId: string }) => {
-      localStorage.setItem(storageKey, JSON.stringify(session))
-
-      const now = new Date().toISOString()
-      localStorage.setItem(
-        `cf_onboarding_${userId}`,
-        JSON.stringify({
+  // Intercept localStorage.getItem so every cf_onboarding_* key returns
+  // "completed" regardless of actual storage state. This bypasses the
+  // onboarding wizard without needing the userId in advance.
+  await page.addInitScript(() => {
+    const origGetItem = localStorage.getItem.bind(localStorage)
+    localStorage.getItem = (key: string) => {
+      if (key.startsWith('cf_onboarding_')) {
+        return JSON.stringify({
           completed: true,
-          completedAt: now,
-          updatedAt: now,
-          data: {
-            senderName: 'E2E Test User',
-            styleProfile: { examples: ['hi'] },
-          },
-        }),
-      )
-    },
-    { session, storageKey: STORAGE_KEY, userId },
-  )
+          completedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: { senderName: 'E2E Test User', styleProfile: { examples: ['hi'] } },
+        })
+      }
+      return origGetItem(key)
+    }
+  })
+
+  // Navigate to the auth screen and sign in via the real form.
+  await page.goto('/dashboard')
+  await page.getByPlaceholder('you@example.com').fill('e2e@sparrow.test')
+  await page.getByPlaceholder('••••••••').fill('SparrowE2E2024!')
+  await page.getByRole('button', { name: /^Sign in$/i }).click()
+
+  // Wait until the app redirects away from the auth screen.
+  await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
+
+  // Read the real session that Supabase stored in localStorage.
+  const session = await page.evaluate((storageKey: string) => {
+    const raw = localStorage.getItem(storageKey)
+    return raw ? JSON.parse(raw) : null
+  }, STORAGE_KEY)
+
+  if (!session?.user?.id) {
+    throw new Error('[signInDemo] Session not found in localStorage after sign-in')
+  }
 
   // Store token for use by createTestCampaign / createTestTemplate.
   _accessToken = session.access_token
 
-  return { session, userId }
+  return { session, userId: session.user.id }
 }
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────

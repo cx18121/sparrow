@@ -11,11 +11,11 @@ const LOCAL_URL = process.env.E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321'
 const SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
 
 export default async function globalSetup() {
-  // 1. Check supabase is running; start if not.
+  // 1. Check supabase is running via the auth health endpoint; start if not.
   let supabaseRunning = false
   try {
-    const r = await fetch(`${LOCAL_URL}/health`)
-    supabaseRunning = r.ok
+    const r = await fetch(`${LOCAL_URL}/auth/v1/health`)
+    supabaseRunning = r.status < 500
   } catch {
     supabaseRunning = false
   }
@@ -27,9 +27,15 @@ export default async function globalSetup() {
     console.log('[global-setup] Local Supabase already running.')
   }
 
-  // 2. Reset DB so migrations (schema.sql) are applied fresh.
-  console.log('[global-setup] Resetting database...')
-  execSync('supabase db reset --no-seed', { stdio: 'inherit', cwd: PROJECT_ROOT })
+  // 2. Reset DB only when explicitly requested (SUPABASE_RESET=1) or on CI.
+  // Local dev: skip reset to keep existing data and avoid the ~90s overhead.
+  const shouldReset = process.env.SUPABASE_RESET === '1' || !!process.env.CI
+  if (shouldReset) {
+    console.log('[global-setup] Resetting database (SUPABASE_RESET=1)...')
+    execSync('supabase db reset --no-seed', { stdio: 'inherit', cwd: PROJECT_ROOT })
+  } else {
+    console.log('[global-setup] Skipping db reset (set SUPABASE_RESET=1 to force).')
+  }
 
   // 3. Push Prisma-managed tables (Campaign, Template, UserLead, etc.).
   console.log('[global-setup] Pushing Prisma schema...')
