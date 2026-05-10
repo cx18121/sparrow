@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import Badge from '../ui/Badge'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { prefetchCampaignWorkspace } from '../../hooks/useCampaignWorkspaceData'
+import { prefetchLeadDiscovery } from '../../lib/leadDiscoveryPrefetch'
 
 // Phase 3 of the campaigns-as-workspaces redesign. Provides the persistent
 // shell - header (campaign name, status, back-to-Home) + sub-tab nav - for
@@ -50,6 +51,15 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
   useEffect(() => {
     if (campaign) prefetchCampaignWorkspace(campaign.id)
   }, [campaign?.id])
+
+  // Kick off the first companies page in the background so navigating to
+  // the Leads sub-tab feels instant. Re-runs when the campaign object
+  // identity changes (e.g., after a settings save swaps filters); the
+  // prefetch helper dedupes on a filter fingerprint, so same-filter
+  // re-renders are no-ops.
+  useEffect(() => {
+    if (campaign) prefetchLeadDiscovery(campaign.id, campaign)
+  }, [campaign])
 
   if (!id) return <Navigate to="/dashboard" replace />
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGoogle as startGoogleConnect, setApiAccessToken, setApiUserId } from '../lib/api'
+import { clearLeadDiscoveryPrefetch } from '../lib/leadDiscoveryPrefetch'
 
 const AuthContext = createContext(null)
 
@@ -108,6 +109,7 @@ export function AuthProvider({ children }) {
     applySessionToApiClient(null)
     // Clear cross-user session caches so a new sign-in starts fresh.
     try { sessionStorage.removeItem('cf_discover_state') } catch {}
+    clearLeadDiscoveryPrefetch()
     await supabase.auth.signOut()
   }
 

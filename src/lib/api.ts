@@ -302,8 +302,8 @@ function qs(params: Record<string, unknown>) {
   return s ? `?${s}` : ''
 }
 
-export const fetchCompanies = (params: Record<string, unknown> = {}) =>
-  request<CompanyListResponse>(`/companies${qs(params)}`)
+export const fetchCompanies = (params: Record<string, unknown> = {}, init?: RequestInit) =>
+  request<CompanyListResponse>(`/companies${qs(params)}`, init)
 export const resetDiscoverySeen = () => request<void>('/companies?seen=discovery', { method: 'DELETE' })
 
 export const apolloSearch = (domain: string, companyId: string) =>

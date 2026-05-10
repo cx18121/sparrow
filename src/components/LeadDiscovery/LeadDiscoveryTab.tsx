@@ -10,6 +10,12 @@ import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, generateEmail, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
+import {
+  discoveryFiltersFromCampaign,
+  consumeLeadDiscoveryPrefetch,
+  markLeadDiscoveryFetched,
+  type DiscoveryRegionFilter,
+} from '../../lib/leadDiscoveryPrefetch'
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
 
@@ -143,28 +149,9 @@ interface LeadDiscoveryTabProps {
   campaignFilters?: any
 }
 
-type DiscoveryRegionFilter = 'us' | 'international' | 'remote' | null
-
-export function discoveryFiltersFromCampaign(campaignFilters: any): {
-  selectedTags: string[]
-  regionFilter: DiscoveryRegionFilter
-  stageFilter: string | null
-  batchFilter: string | null
-  isHiring: boolean
-} {
-  const regionMap: Record<string, DiscoveryRegionFilter> = {
-    __US__: 'us',
-    __INTL__: 'international',
-    __REMOTE__: 'remote',
-  }
-  return {
-    selectedTags: Array.isArray(campaignFilters?.filterTags) ? campaignFilters.filterTags : [],
-    regionFilter: campaignFilters?.filterRegion ? (regionMap[campaignFilters.filterRegion] ?? null) : null,
-    stageFilter: typeof campaignFilters?.filterStage === 'string' && campaignFilters.filterStage ? campaignFilters.filterStage : null,
-    batchFilter: typeof campaignFilters?.filterBatch === 'string' && campaignFilters.filterBatch ? campaignFilters.filterBatch : null,
-    isHiring: campaignFilters?.filterIsHiring === true,
-  }
-}
+// Backward-compat re-export: tests and other call sites import
+// discoveryFiltersFromCampaign from this file by historical convention.
+export { discoveryFiltersFromCampaign } from '../../lib/leadDiscoveryPrefetch'
 
 export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = null, campaignFilters = null }: LeadDiscoveryTabProps) {
   const { leads, refreshLeads } = useAppData()
@@ -324,10 +311,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   // Seed Discover filters from the active campaign once filters are available.
   // Runs when campaign ID changes or when filters arrive after campaign is already active.
-  // We intentionally do NOT auto-fetch here: the user's "Find companies" button
-  // is the only thing that should trigger a network search. On tab re-mount the
-  // sessionStorage cache (effect below) restores the last result set, and the
-  // user controls when to re-search.
+  // The seed effect itself doesn't fetch — the initial fetch is driven from the
+  // mount effect (so the Leads tab is populated as soon as you land on it).
+  // Subsequent filter changes that flow through here cascade into a fetch via
+  // the [isHiring, regionFilter, pageSize] effect just above.
   const seededCampaignIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeCampaign?.id || !campaignFilters) return
@@ -368,9 +355,10 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       setHiringCount(cached.hiringCount ?? null)
       setRegionCounts(cached.regionCounts || { us: null, intl: null, remote: null })
     } else {
-      // Don't auto-fetch companies on mount — the user should click "Find companies"
-      // intentionally so they see a consistent result set (not one that gets
-      // immediately replaced when they click the button).
+      // Auto-fetch on mount so the Leads tab is populated immediately —
+      // campaign filters are already seeded into state via the useState
+      // initializers above, so this fetch uses the right filters from the
+      // first call. Filter metadata loads in parallel.
       fetchCampaignOptions()
         .then(data => {
           setTagOptions(data.tags || {})
@@ -379,6 +367,38 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
           setRegionCounts({ us: data.usCount ?? null, intl: data.intlCount ?? null, remote: data.remoteCount ?? null })
         })
         .catch(() => {})
+      // If WorkspaceShell already kicked off a background prefetch for this
+      // campaign+filter combo, adopt its in-flight (or already-resolved)
+      // promise instead of firing a duplicate request. Falls back to a fresh
+      // doSearch() if there's no compatible prefetch. In either branch we
+      // mark the combo "fetched" so any later WorkspaceShell effect re-run
+      // (e.g. campaign-object reference churn) won't fire a redundant
+      // background random=true request that would waste seen-state.
+      markLeadDiscoveryFetched(activeCampaign?.id, campaignFilters)
+      const prefetched = activeCampaign?.id
+        ? consumeLeadDiscoveryPrefetch(activeCampaign.id, campaignFilters)
+        : null
+      if (prefetched) {
+        const gen = ++fetchGenRef.current
+        setLoading(true)
+        prefetched
+          .then(data => {
+            if (fetchGenRef.current !== gen) return
+            const items = data.items ?? []
+            setCompanies(items)
+            setNextCursor(data.nextCursor ?? null)
+            setHasMore(!data.usingFallback && items.length > 0)
+            setDiscoveryMeta({ seenTotal: data.seenTotal ?? 0, usingFallback: data.usingFallback ?? false })
+            setLoading(false)
+          })
+          .catch(() => {
+            if (fetchGenRef.current !== gen) return
+            // Prefetch failed — fall back to a regular search.
+            doSearch()
+          })
+      } else {
+        doSearch()
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
