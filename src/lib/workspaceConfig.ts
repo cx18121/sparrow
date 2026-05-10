@@ -94,7 +94,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     user?.user_metadata?.preferred_username ||
     user?.email?.split('@')[0] ||
     '';
-  const defaultTemplateId = templates[0]?.id || '';
+  // Library templates are read-only and rejected by draft-generation. They
+  // must not become the workspace default; users have to clone them first.
+  const personalTemplates = templates.filter((t: any) => t?.userId !== '__library__');
+  const defaultTemplateId = personalTemplates[0]?.id || '';
 
   const baseConfig = {
     resumeText: '',
@@ -143,8 +146,8 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     files: Array.isArray(data?.files) ? data.files : baseConfig.files,
   };
 
-  const templateExists = templates.some(
-    (template) => template.id === merged.templateId
+  const templateExists = personalTemplates.some(
+    (template: any) => template.id === merged.templateId
   );
 
   return {

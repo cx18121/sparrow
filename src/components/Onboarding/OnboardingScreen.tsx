@@ -199,7 +199,12 @@ const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
 ]
 
 function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode, aiPreview, isLoadingPreview, showBodyError }) {
-  const hasTemplates = templates.length > 0
+  // Library templates are preview-only — picking one here would set the
+  // workspace's default templateId to a row the draft-generation endpoint
+  // refuses to load. Onboarding only offers the user's own templates;
+  // library templates are reached via the Templates tab clone flow.
+  const personalTemplates = templates.filter((t: any) => t?.userId !== '__library__')
+  const hasTemplates = personalTemplates.length > 0
   const writingMode = !hasTemplates || form.templateMode !== 'existing'
   const subjectRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
@@ -347,7 +352,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
                   onChange={e => updateField('templateId', e.target.value)}
                   className="select pl-8"
                 >
-                  {templates.map(template => (
+                  {personalTemplates.map(template => (
                     <option key={template.id} value={template.id}>{template.name}</option>
                   ))}
                 </select>
@@ -599,10 +604,10 @@ export default function OnboardingScreen({
     }
   }, [form.senderName])
 
-  const selectedTemplate = useMemo(
-    () => templates.find(template => template.id === form.templateId) || templates[0] || null,
-    [form.templateId, templates]
-  )
+  const selectedTemplate = useMemo(() => {
+    const personalTemplates = templates.filter((t: any) => t?.userId !== '__library__')
+    return personalTemplates.find(template => template.id === form.templateId) || personalTemplates[0] || null
+  }, [form.templateId, templates])
 
   const markUserEdited = () => { userEditedRef.current = true }
   const updateField = (key, value) => {

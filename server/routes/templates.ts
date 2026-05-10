@@ -34,7 +34,7 @@ function stringArray(value: unknown): string[] {
 
 async function list(_req: VercelRequest, res: VercelResponse, userId: string) {
   const items = await prisma.template.findMany({
-    where: { userId },
+    where: { OR: [{ userId }, { userId: "__library__" }] },
     orderBy: { updatedAt: "desc" },
   });
   res.status(200).json({ items });

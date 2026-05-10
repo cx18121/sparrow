@@ -67,10 +67,11 @@ describe("templates route — GET", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "An unexpected error occurred" });
   });
 
-  it("returns only the user's templates", async () => {
+  it("returns the user's templates plus shared library templates", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     const templates = [
       { id: "t-1", userId: USER_ID, name: "My Template", isShared: false },
+      { id: "lib_warm_intro", userId: "__library__", name: "Warm Intro", isShared: true },
     ];
     mockPrisma.template.findMany.mockResolvedValue(templates);
     const req = makeReq({ method: "GET" });
@@ -78,10 +79,10 @@ describe("templates route — GET", () => {
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(mockPrisma.template.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { userId: USER_ID },
+      where: { OR: [{ userId: USER_ID }, { userId: "__library__" }] },
     }));
     const jsonArg = res.json.mock.calls[0][0];
-    expect(jsonArg.items).toHaveLength(1);
+    expect(jsonArg.items).toHaveLength(2);
   });
 });
 
