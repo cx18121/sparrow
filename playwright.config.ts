@@ -2,21 +2,34 @@ import { defineConfig, devices } from '@playwright/test'
 import { config } from 'dotenv'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { execSync } from 'child_process'
+import { existsSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const envFile = resolve(__dirname, '.env.test.local')
 
-// Load local e2e env vars (.env.test.local) — run `supabase status` to get values.
-// Copy .env.test.example → .env.test.local and fill in your local keys.
-config({ path: resolve(__dirname, '.env.test.local') })
+// Load .env.test.local if present; otherwise auto-derive keys from `supabase status`.
+// This means `npx playwright test` works out of the box — no manual file copying needed.
+if (existsSync(envFile)) {
+  config({ path: envFile })
+} else {
+  try {
+    const status = JSON.parse(
+      execSync('supabase status --output json 2>/dev/null', { cwd: __dirname, encoding: 'utf8' })
+    )
+    process.env.E2E_SUPABASE_URL      = status.API_URL
+    process.env.E2E_SUPABASE_ANON_KEY = status.PUBLISHABLE_KEY ?? status.ANON_KEY
+    process.env.E2E_SUPABASE_SERVICE_KEY = status.SECRET_KEY ?? status.SERVICE_ROLE_KEY
+    process.env.E2E_DB_URL            = status.DB_URL
+  } catch {
+    // Supabase not running yet — global-setup will start it.
+  }
+}
 
-const SUPABASE_URL = process.env.E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+const SUPABASE_URL = process.env.E2E_SUPABASE_URL      ?? 'http://127.0.0.1:54321'
 const ANON_KEY     = process.env.E2E_SUPABASE_ANON_KEY ?? ''
 const SERVICE_KEY  = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
 const DB_URL       = process.env.E2E_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-
-if (!ANON_KEY || !SERVICE_KEY) {
-  console.warn('[playwright] E2E_SUPABASE_ANON_KEY / E2E_SUPABASE_SERVICE_KEY not set. Copy .env.test.example → .env.test.local')
-}
 
 // Tests run against a real local Supabase stack (Docker).
 // Auth uses real signInWithPassword; internal API routes hit real Postgres.
@@ -25,8 +38,6 @@ export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
-  // Run tests serially to avoid inter-test data collisions.
-  // Each test creates its own data and cleans up in afterEach.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -41,8 +52,6 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Vite frontend — pass local Supabase env vars so the client connects
-      // to the local instance instead of production.
       command: [
         `VITE_SUPABASE_URL=${SUPABASE_URL}`,
         `VITE_SUPABASE_ANON_KEY=${ANON_KEY}`,
@@ -53,7 +62,6 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      // Local API server — connected to local Supabase + Postgres.
       command: [
         `SUPABASE_URL=${SUPABASE_URL}`,
         `SUPABASE_SERVICE_ROLE_KEY=${SERVICE_KEY}`,

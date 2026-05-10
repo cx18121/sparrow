@@ -3,15 +3,36 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { existsSync } from 'fs'
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-config({ path: resolve(PROJECT_ROOT, '.env.test.local') })
+
+// Load .env.test.local if it exists; otherwise auto-derive keys from `supabase status`.
+const envFile = resolve(PROJECT_ROOT, '.env.test.local')
+if (existsSync(envFile)) {
+  config({ path: envFile })
+} else {
+  // Auto-populate from `supabase status` so developers don't need to copy keys.
+  try {
+    const status = execSync('supabase status --output json 2>/dev/null', {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+    })
+    const json = JSON.parse(status)
+    process.env.E2E_SUPABASE_URL = json.API_URL ?? 'http://127.0.0.1:54321'
+    process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
+    process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
+    process.env.E2E_DB_URL = json.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+  } catch {
+    // Supabase not running yet — globalSetup will start it and keys will be set after.
+  }
+}
 
 const LOCAL_URL = process.env.E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321'
-const SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
+let SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
 
 export default async function globalSetup() {
-  // 1. Check supabase is running via the auth health endpoint; start if not.
+  // 1. Check supabase is running; start if not.
   let supabaseRunning = false
   try {
     const r = await fetch(`${LOCAL_URL}/auth/v1/health`)
@@ -27,17 +48,33 @@ export default async function globalSetup() {
     console.log('[global-setup] Local Supabase already running.')
   }
 
-  // 2. Reset DB only when explicitly requested (SUPABASE_RESET=1) or on CI.
-  // Local dev: skip reset to keep existing data and avoid the ~90s overhead.
-  const shouldReset = process.env.SUPABASE_RESET === '1' || !!process.env.CI
-  if (shouldReset) {
-    console.log('[global-setup] Resetting database (SUPABASE_RESET=1)...')
-    execSync('supabase db reset --no-seed', { stdio: 'inherit', cwd: PROJECT_ROOT })
-  } else {
-    console.log('[global-setup] Skipping db reset (set SUPABASE_RESET=1 to force).')
+  // After start, if keys weren't loaded from file, derive them now.
+  if (!SERVICE_KEY) {
+    try {
+      const status = execSync('supabase status --output json 2>/dev/null', {
+        cwd: PROJECT_ROOT,
+        encoding: 'utf8',
+      })
+      const json = JSON.parse(status)
+      process.env.E2E_SUPABASE_URL = json.API_URL ?? LOCAL_URL
+      process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
+      process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
+      SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY
+    } catch {
+      throw new Error('[global-setup] Could not read Supabase keys. Run `supabase start` first.')
+    }
   }
 
-  // 3. Push Prisma-managed tables (Campaign, Template, UserLead, etc.).
+  // 2. Reset DB only when explicitly requested or on CI.
+  const shouldReset = process.env.SUPABASE_RESET === '1' || !!process.env.CI
+  if (shouldReset) {
+    console.log('[global-setup] Resetting database...')
+    execSync('supabase db reset --no-seed', { stdio: 'inherit', cwd: PROJECT_ROOT })
+  } else {
+    console.log('[global-setup] Skipping db reset (SUPABASE_RESET=1 to force).')
+  }
+
+  // 3. Push Prisma-managed tables.
   console.log('[global-setup] Pushing Prisma schema...')
   execSync('npx prisma db push --url postgresql://postgres:postgres@127.0.0.1:54322/postgres', {
     stdio: 'inherit',
@@ -64,9 +101,7 @@ export default async function globalSetup() {
       email_confirm: true,
       user_metadata: { full_name: 'E2E Test User' },
     })
-    if (error) {
-      throw new Error(`Failed to create e2e test user: ${error.message}`)
-    }
+    if (error) throw new Error(`Failed to create e2e test user: ${error.message}`)
   } else {
     console.log('[global-setup] E2E test user already exists.')
   }
