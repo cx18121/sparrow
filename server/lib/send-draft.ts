@@ -12,7 +12,7 @@ import {
   mimeFromFileName,
 } from "./email-mime.js";
 import { SENDABLE_STATUSES, claimForSending, markSent, markFailed } from "./email-status.js";
-import { checkEmailSendQuota, QuotaError } from "./rate-limit.js";
+import { reserveEmailSendQuota, QuotaError } from "./rate-limit.js";
 import { HttpError } from "./user.js";
 import { invalidateEmailDashboardCache } from "./email-cache.js";
 
@@ -144,25 +144,39 @@ export async function sendDraft(emailId: string, userId: string) {
 
   const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
+  // Atomically reserve a quota slot before doing any work. The DailyQuota row
+  // increment is serialized by Postgres at the row level, so concurrent sends
+  // each get a distinct count. If over the limit the increment is rolled back
+  // and QuotaError is thrown — no slot consumed.
+  let releaseQuota: () => Promise<void>;
   try {
-    await checkEmailSendQuota(userId, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(userId, dailyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;
   }
 
+  // Atomically claim the draft for sending. Release the quota slot on failure
+  // so the draft stays retryable and the count stays accurate.
   const claimed = await claimForSending(emailId);
   if (!claimed) {
+    await releaseQuota();
     throw new HttpError(409, "Email is already being sent or was sent. Refresh Drafts and try again.");
   }
 
-  const attachments = await buildDraftAttachments({
-    userId,
-    emailId,
-    attachmentIds: email.attachmentIds,
-    fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
-    supabase,
-  });
+  let attachments: Awaited<ReturnType<typeof buildDraftAttachments>>;
+  try {
+    attachments = await buildDraftAttachments({
+      userId,
+      emailId,
+      attachmentIds: email.attachmentIds,
+      fileLibrary: attachmentLibraryFromWorkspaceConfig(workspaceConfig),
+      supabase,
+    });
+  } catch (err) {
+    await releaseQuota();
+    throw err;
+  }
 
   const oauth2 = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -178,17 +192,39 @@ export async function sendDraft(emailId: string, userId: string) {
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
   const raw = Buffer.from(message).toString("base64url");
 
+  let gmailResponse: Awaited<ReturnType<typeof gmail.users.messages.send>>;
   try {
-    await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+    gmailResponse = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch {
+    // Gmail rejected the send — release the slot so the draft is retryable.
+    await releaseQuota();
     await markFailed(emailId);
     throw new HttpError(502, "Gmail send failed");
   }
 
-  const updated = await markSent(emailId);
+  // Gmail accepted the message — quota slot is consumed regardless of what
+  // follows. Do NOT release. If markSent fails, retry once then surface as
+  // Failed with a clear message (email was delivered, DB just didn't catch up).
+  const updated = await markSentWithRetry(emailId);
   await markRecipientEmailed(email);
   invalidateEmailDashboardCache(userId);
   return updated;
+}
+
+async function markSentWithRetry(emailId: string) {
+  try {
+    return await markSent(emailId);
+  } catch {
+    try {
+      return await markSent(emailId);
+    } catch {
+      await markFailed(emailId);
+      throw new HttpError(
+        500,
+        "Email was sent by Gmail but we could not update its status. Refresh Drafts — it may appear as Failed but was delivered.",
+      );
+    }
+  }
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -204,11 +240,11 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
 
   const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
-  // Test sends still consume daily quota — Gmail is sending real mail through
-  // the user's account, so the cap protects against an OAuth-revoke storm just
-  // as much as it would for real sends.
+  // Test sends consume the same quota and use the same atomic reservation so
+  // they can't race past the limit either.
+  let releaseQuota: () => Promise<void>;
   try {
-    await checkEmailSendQuota(userId, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(userId, dailyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;
@@ -238,6 +274,7 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
   try {
     await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch {
+    await releaseQuota();
     throw new HttpError(502, "Gmail send failed");
   }
 
