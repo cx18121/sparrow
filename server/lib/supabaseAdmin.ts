@@ -17,6 +17,8 @@ export function getSupabaseAdmin(): SupabaseClient {
   return cached;
 }
 
+const CLOCK_SKEW_SECONDS = 30;
+
 // Verify a Supabase JWT locally using HMAC-SHA256 — no network call needed.
 // Returns the user ID (sub claim) or null if the token is invalid/expired.
 function verifyJwtLocally(token: string, secret: string): string | null {
@@ -25,8 +27,14 @@ function verifyJwtLocally(token: string, secret: string): string | null {
     if (parts.length !== 3) return null;
 
     const [headerB64, payloadB64, sigB64] = parts;
-    const signingInput = `${headerB64}.${payloadB64}`;
 
+    // Validate alg before trusting anything else.
+    const header = JSON.parse(
+      Buffer.from(headerB64.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    );
+    if (header.alg !== "HS256") return null;
+
+    const signingInput = `${headerB64}.${payloadB64}`;
     const expected = createHmac("sha256", secret).update(signingInput).digest();
     const actual = Buffer.from(
       sigB64.replace(/-/g, "+").replace(/_/g, "/"),
@@ -43,9 +51,10 @@ function verifyJwtLocally(token: string, secret: string): string | null {
       ).toString("utf8")
     );
 
-    if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) {
-      return null;
-    }
+    // exp is mandatory — reject tokens that omit it.
+    if (typeof payload.exp !== "number") return null;
+    // Allow a small clock-skew window.
+    if (payload.exp + CLOCK_SKEW_SECONDS < Math.floor(Date.now() / 1000)) return null;
 
     return typeof payload.sub === "string" ? payload.sub : null;
   } catch {
