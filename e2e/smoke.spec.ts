@@ -59,9 +59,8 @@ test.describe('Sparrow smoke tests', () => {
       const errors: string[] = []
       page.on('pageerror', e => errors.push(e.message))
       await page.goto(path)
-      await page.waitForLoadState('networkidle')
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 5_000 })
       expect(errors, `Errors visiting ${path}: ${errors.join(', ')}`).toHaveLength(0)
-      await expect(page).toHaveURL(/\/dashboard/)
     }
   })
 

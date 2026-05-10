@@ -9,12 +9,14 @@ export const ANON_KEY = process.env.E2E_SUPABASE_ANON_KEY ?? ''
 
 const SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
 
-// localStorage key derived from the Supabase URL hostname
-const STORAGE_KEY = `sb-${new URL(LOCAL_SUPABASE_URL).hostname}-auth-token`
-
 // Module-level token set by signInDemo — safe with workers:1 (serial tests).
 // createTestCampaign / createTestTemplate read this automatically.
+// Call clearAccessToken() in afterEach if you want explicit reset between tests.
 let _accessToken: string | null = null
+
+export function clearAccessToken() {
+  _accessToken = null
+}
 
 // ─── Reference objects for assertions (not for mocking) ──────────────────────
 
@@ -113,10 +115,11 @@ export async function signInDemo(page: Page): Promise<{ session: any; userId: st
 /**
  * Creates a campaign by POSTing to the real API and returns the created object.
  */
-export async function createTestCampaign(page: Page, overrides: Record<string, unknown> = {}) {
-  if (!_accessToken) console.error('[createTestCampaign] _accessToken is null!')
+export async function createTestCampaign(page: Page, overrides: Record<string, unknown> = {}, token?: string) {
+  const tok = token ?? _accessToken
+  if (!tok) console.error('[createTestCampaign] no access token — call signInDemo first')
   const resp = await page.request.post('/api/campaigns', {
-    headers: { Authorization: `Bearer ${_accessToken}` },
+    headers: { Authorization: `Bearer ${tok}` },
     data: { name: 'Test Campaign', status: 'ACTIVE', ...overrides },
   })
   if (!resp.ok()) {
@@ -128,10 +131,11 @@ export async function createTestCampaign(page: Page, overrides: Record<string, u
 /**
  * Creates a template by POSTing to the real API and returns the created object.
  */
-export async function createTestTemplate(page: Page, overrides: Record<string, unknown> = {}) {
-  if (!_accessToken) console.error('[createTestTemplate] _accessToken is null!')
+export async function createTestTemplate(page: Page, overrides: Record<string, unknown> = {}, token?: string) {
+  const tok = token ?? _accessToken
+  if (!tok) console.error('[createTestTemplate] no access token — call signInDemo first')
   const resp = await page.request.post('/api/templates', {
-    headers: { Authorization: `Bearer ${_accessToken}` },
+    headers: { Authorization: `Bearer ${tok}` },
     data: {
       name: 'Test Template',
       subject: 'Test Subject',
@@ -209,6 +213,18 @@ export async function cleanupTestData(userId: string) {
 
   // Delete DiscoverySeen rows.
   await admin.from('DiscoverySeenCompany').delete().eq('userId', userId)
+
+  // Delete IdempotencyKey rows.
+  await admin.from('IdempotencyKey').delete().eq('userId', userId)
+
+  // Delete DailyQuota rows keyed to this user.
+  await admin.from('DailyQuota').delete().eq('subjectId', userId)
+
+  // Delete UserGmailWatch row.
+  await admin.from('UserGmailWatch').delete().eq('userId', userId)
+
+  // Delete user_profiles row (auth-adjacent, managed outside Prisma).
+  await admin.from('user_profiles').delete().eq('user_id', userId)
 }
 
 // ─── External-service mocks only ─────────────────────────────────────────────

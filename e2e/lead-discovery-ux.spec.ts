@@ -169,7 +169,14 @@ test.describe('Lead discovery UX', () => {
     await expect(savedButton).toBeVisible()
     await expect(savedButton).toBeDisabled()
     await savedButton.click({ force: true }).catch(() => {})
-    await page.waitForTimeout(200)
+    // Assert no POST fired — waitForRequest rejects on timeout, meaning no request = correct.
+    const spurious = await page
+      .waitForRequest(
+        req => req.url().includes('/api/campaign-leads') && req.method() === 'POST',
+        { timeout: 500 },
+      )
+      .catch(() => null)
+    expect(spurious).toBeNull()
     expect(postLeadCalled).toBe(false)
   })
 

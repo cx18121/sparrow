@@ -13,12 +13,14 @@ export default async function globalTeardown() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { data } = await admin.auth.admin.listUsers()
-  const user = data?.users?.find(u => u.email === 'e2e@sparrow.test')
+  const { data, error: listErr } = await admin.auth.admin.listUsers()
+  if (listErr) throw new Error(`[global-teardown] Could not list users: ${listErr.message}`)
 
+  const user = data?.users?.find(u => u.email === 'e2e@sparrow.test')
   if (user) {
     console.log('[global-teardown] Deleting e2e test user...')
-    await admin.auth.admin.deleteUser(user.id)
+    const { error: deleteErr } = await admin.auth.admin.deleteUser(user.id)
+    if (deleteErr) throw new Error(`[global-teardown] Failed to delete e2e test user: ${deleteErr.message}`)
   }
 
   console.log('[global-teardown] Teardown complete.')

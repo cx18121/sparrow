@@ -1,9 +1,9 @@
 import { execSync } from 'child_process'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { existsSync } from 'fs'
+import { createClient } from '@supabase/supabase-js'
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -86,13 +86,17 @@ export default async function globalSetup() {
     },
   })
 
-  // 4. Create e2e test user if it doesn't already exist.
-  const admin = createClient(LOCAL_URL, SERVICE_KEY, {
+  // 4. Ensure e2e test user exists — must run after any DB reset so the auth
+  //    row isn't wiped before tests can sign in.
+  const adminUrl = process.env.E2E_SUPABASE_URL ?? LOCAL_URL
+  const adminKey = process.env.E2E_SUPABASE_SERVICE_KEY ?? SERVICE_KEY
+  const admin = createClient(adminUrl, adminKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
-  const { data: existing } = await admin.auth.admin.listUsers()
-  const alreadyExists = existing?.users?.some(u => u.email === 'e2e@sparrow.test')
+  const { data: existing, error: listErr } = await admin.auth.admin.listUsers()
+  if (listErr) throw new Error(`[global-setup] Could not list users: ${listErr.message}`)
 
+  const alreadyExists = existing?.users?.some(u => u.email === 'e2e@sparrow.test')
   if (!alreadyExists) {
     console.log('[global-setup] Creating e2e test user...')
     const { error } = await admin.auth.admin.createUser({
@@ -101,7 +105,7 @@ export default async function globalSetup() {
       email_confirm: true,
       user_metadata: { full_name: 'E2E Test User' },
     })
-    if (error) throw new Error(`Failed to create e2e test user: ${error.message}`)
+    if (error) throw new Error(`[global-setup] Failed to create e2e test user: ${error.message}`)
   } else {
     console.log('[global-setup] E2E test user already exists.')
   }

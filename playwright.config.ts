@@ -22,7 +22,9 @@ if (existsSync(envFile)) {
     process.env.E2E_SUPABASE_SERVICE_KEY = status.SECRET_KEY ?? status.SERVICE_ROLE_KEY
     process.env.E2E_DB_URL            = status.DB_URL
   } catch {
-    // Supabase not running yet — global-setup will start it.
+    throw new Error(
+      '[playwright] Could not load e2e env vars — run `npm run test:e2e` (starts Supabase and writes .env.test.local) or `supabase start` first.'
+    )
   }
 }
 
@@ -52,28 +54,28 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: [
-        `VITE_SUPABASE_URL=${SUPABASE_URL}`,
-        `VITE_SUPABASE_ANON_KEY=${ANON_KEY}`,
-        'npm run dev',
-      ].join(' '),
+      command: 'npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
+      env: {
+        VITE_SUPABASE_URL: SUPABASE_URL,
+        VITE_SUPABASE_ANON_KEY: ANON_KEY,
+      },
     },
     {
-      command: [
-        `SUPABASE_URL=${SUPABASE_URL}`,
-        `SUPABASE_SERVICE_ROLE_KEY=${SERVICE_KEY}`,
-        `DATABASE_URL=${DB_URL}`,
-        `DIRECT_URL=${DB_URL}`,
-        'ANTHROPIC_API_KEY=fake-e2e',
-        'APOLLO_API_KEY=fake-e2e',
-        'npx prisma generate && npm run dev:api:local',
-      ].join(' '),
+      command: 'npx prisma generate && npm run dev:api:local',
       url: 'http://localhost:3000/api/health',
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       timeout: 30_000,
+      env: {
+        SUPABASE_URL: SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+        DATABASE_URL: DB_URL,
+        DIRECT_URL: DB_URL,
+        ANTHROPIC_API_KEY: 'fake-e2e',
+        APOLLO_API_KEY: 'fake-e2e',
+      },
     },
   ],
 })
