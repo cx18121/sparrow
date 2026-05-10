@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Check, X, Building2, Briefcase, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
+  Check, X, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
   LogOut, Mail, Trash2, MessageSquare, Send as SendIcon,
 } from 'lucide-react'
 import { deleteAccount } from '../../lib/api'
@@ -171,36 +171,19 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
         These are the same fields you filled in during onboarding. Changes here are reflected in all future AI-generated drafts.
       </p>
       <FieldGroup title="Sender identity" hint="Used in generated drafts.">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label htmlFor="settings-sender-name" className="label">
-              Sender name
-              {!form.senderName?.trim() && <span className="ml-1 text-amber-500 text-[10px] font-semibold">Required</span>}
-            </label>
-            <input
-              id="settings-sender-name"
-              value={form.senderName || ''}
-              onChange={e => field('senderName', e.target.value)}
-              placeholder="Jordan Lee"
-              className={`input ${!form.senderName?.trim() ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100' : ''}`}
-            />
-          </div>
-          <div>
-            <label htmlFor="settings-sender-company" className="label">Organization</label>
-            <div className="relative">
-              <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input id="settings-sender-company" value={form.senderCompany || ''} onChange={e => field('senderCompany', e.target.value)} placeholder="Cornell Generative AI" className="input pl-8" />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="settings-sender-role" className="label">Role</label>
-            <div className="relative">
-              <Briefcase size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input id="settings-sender-role" value={form.senderRole || ''} onChange={e => field('senderRole', e.target.value)} placeholder="Founder" className="input pl-8" />
-            </div>
-          </div>
+        <div>
+          <label htmlFor="settings-sender-name" className="label">
+            Sender name
+            {!form.senderName?.trim() && <span className="ml-1 text-amber-500 text-[10px] font-semibold">Required</span>}
+          </label>
+          <input
+            id="settings-sender-name"
+            value={form.senderName || ''}
+            onChange={e => field('senderName', e.target.value)}
+            placeholder="Jordan Lee"
+            className={`input ${!form.senderName?.trim() ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100' : ''}`}
+          />
         </div>
-
       </FieldGroup>
 
       <FieldGroup title="Background" hint={!form.resumeText?.trim() && !form.resumeFileName ? "⚠ Add your background so drafts can personalize around your experience." : "Add context the draft should know."}>
@@ -274,8 +257,6 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 function pickProfileFields(c: any) {
   return {
     senderName: c?.senderName || '',
-    senderCompany: c?.senderCompany || '',
-    senderRole: c?.senderRole || '',
     resumeText: c?.resumeText || '',
     resumeExtractedText: c?.resumeExtractedText || '',
     resumeFileName: c?.resumeFileName || '',

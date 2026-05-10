@@ -11,17 +11,12 @@ describe("buildSenderContext", () => {
   });
 
   it("returns empty string when all fields are null", () => {
-    expect(buildSenderContext({ name: null, bio: null, targetRole: null, resumeText: null })).toBe("");
+    expect(buildSenderContext({ name: null, bio: null, resumeText: null })).toBe("");
   });
 
   it("includes name when provided", () => {
     const ctx = buildSenderContext({ name: "Jane Smith" });
     expect(ctx).toContain("Name: Jane Smith");
-  });
-
-  it("includes targetRole when provided", () => {
-    const ctx = buildSenderContext({ targetRole: "Software Engineer" });
-    expect(ctx).toContain("Looking for: Software Engineer");
   });
 
   it("includes bio when provided", () => {
@@ -42,13 +37,13 @@ describe("buildSenderContext", () => {
   });
 
   it("joins multiple fields with commas", () => {
-    const ctx = buildSenderContext({ name: "Jane", targetRole: "PM" });
-    expect(ctx).toBe("Name: Jane, Looking for: PM");
+    const ctx = buildSenderContext({ name: "Jane", bio: "PM" });
+    expect(ctx).toBe("Name: Jane, Background: PM");
   });
 
   it("omits undefined fields", () => {
     const ctx = buildSenderContext({ name: "Jane" });
-    expect(ctx).not.toContain("Looking for");
     expect(ctx).not.toContain("Background");
+    expect(ctx).not.toContain("Resume excerpt");
   });
 });

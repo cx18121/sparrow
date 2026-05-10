@@ -5,7 +5,6 @@ import { parseWorkspaceConfig, type WorkspaceConfig } from "./workspace-config.j
 export interface ResolvedProfile {
   apiKey: string;
   senderName: string | null;
-  senderRole: string | null;
   resumeText: string | null;
   ws: WorkspaceConfig;
 }
@@ -45,7 +44,6 @@ export async function resolveProfileForGeneration(userId: string): Promise<Resol
   return {
     apiKey,
     senderName: ws.senderName ?? null,
-    senderRole: ws.senderRole ?? null,
     resumeText: profile?.resume_text ?? null,
     ws,
   };
@@ -59,7 +57,7 @@ export function buildSenderContextFromProfile(
   const resumeBulletInstruction = extras.includeResumeBullet
     ? "Use one relevant detail from the sender's resume only if it strengthens the email. Make it specific and natural; do not list multiple bullets or invent experience."
     : null;
-  const extraParts = [
+  const bio = [
     extras.tone ? `Tone: ${extras.tone}` : null,
     resumeBulletInstruction,
     extras.extraContext ?? null,
@@ -69,9 +67,7 @@ export function buildSenderContextFromProfile(
 
   return buildSenderContext({
     name: profile.senderName,
-    company: profile.ws.senderCompany ?? null,
-    bio: [profile.senderRole, extraParts].filter(Boolean).join(". ") || null,
-    targetRole: profile.senderRole,
+    bio: bio || null,
     resumeText: profile.resumeText,
   });
 }

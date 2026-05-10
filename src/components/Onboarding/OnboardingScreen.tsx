@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, User } from 'lucide-react'
+import { ArrowLeft, ArrowRight, FileText, Mail, RefreshCw, Upload, User } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { createWorkspaceConfig, profileResumeTextFromWorkspace } from '../../lib/workspaceConfig'
 import { fetchPreviewFitAngle } from '../../lib/api'
@@ -111,48 +111,22 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
       />
 
       <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="onboarding-sender-name" className="label">Name <span className="text-red-500">*</span></label>
-            <div className="relative">
-              <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                id="onboarding-sender-name"
-                value={form.senderName}
-                onChange={e => updateField('senderName', e.target.value)}
-                placeholder="Maya Chen"
-                className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
-                aria-invalid={showNameError}
-              />
-            </div>
-            {showNameError && (
-              <p className="mt-2 text-xs text-red-500">Name is required.</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="onboarding-sender-role" className="label">Role</label>
-            <input
-              id="onboarding-sender-role"
-              value={form.senderRole}
-              onChange={e => updateField('senderRole', e.target.value)}
-              placeholder="Founder, GTM Lead, SDR"
-              className="input"
-            />
-          </div>
-        </div>
-
         <div>
-          <label htmlFor="onboarding-sender-company" className="label">Company</label>
+          <label htmlFor="onboarding-sender-name" className="label">Name <span className="text-red-500">*</span></label>
           <div className="relative">
-            <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
-              id="onboarding-sender-company"
-              value={form.senderCompany}
-              onChange={e => updateField('senderCompany', e.target.value)}
-              placeholder="Cornell Generative AI"
-              className="input pl-8"
+              id="onboarding-sender-name"
+              value={form.senderName}
+              onChange={e => updateField('senderName', e.target.value)}
+              placeholder="Maya Chen"
+              className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+              aria-invalid={showNameError}
             />
           </div>
+          {showNameError && (
+            <p className="mt-2 text-xs text-red-500">Name is required.</p>
+          )}
         </div>
 
         <div>

@@ -101,7 +101,6 @@ const USER_ID = "user-draft-test";
 const mockProfile = {
   apiKey: "sk-ant-test",
   senderName: "Alex",
-  senderRole: "SWE Intern",
   resumeText: null,
   ws: {},
 };

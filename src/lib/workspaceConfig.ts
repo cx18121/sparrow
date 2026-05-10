@@ -106,8 +106,6 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     resumePath: '',
     resumeUploadedAt: '',
     senderName: defaultName,
-    senderCompany: '',
-    senderRole: '',
     // Default to 'custom' for fresh users (no existing templates). Without
     // this, syncOnboardingTemplate in App.tsx silently drops the pre-filled
     // customTemplate because its persistence path is gated on

@@ -7,8 +7,6 @@ export interface FileEntry {
 
 export interface WorkspaceConfig {
   senderName?: string | null;
-  senderRole?: string | null;
-  senderCompany?: string | null;
   resumeText?: string | null;
   resumeFileName?: string | null;
   resumePath?: string | null;

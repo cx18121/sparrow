@@ -47,8 +47,6 @@ describe("resolveProfileForGeneration", () => {
         resume_path: "user-1/resume.pdf",
         workspace_config: {
           senderName: "Jane Smith",
-          senderRole: "ML engineer",
-          senderCompany: "ColdFlow",
           resumeFileName: "resume.pdf",
         },
       },
@@ -63,7 +61,6 @@ describe("resolveProfileForGeneration", () => {
     expect(supabase.eq).toHaveBeenCalledWith("user_id", "user-1");
     expect(profile.apiKey).toBe("host-key");
     expect(profile.senderName).toBe("Jane Smith");
-    expect(profile.senderRole).toBe("ML engineer");
     expect(profile.resumeText).toBe("Built an eval harness.");
     expect(profile.ws.resumePath).toBe("user-1/resume.pdf");
   });
@@ -76,7 +73,6 @@ describe("resolveProfileForGeneration", () => {
     expect(profile).toMatchObject({
       apiKey: "host-key",
       senderName: null,
-      senderRole: null,
       resumeText: null,
       ws: {},
     });
@@ -103,16 +99,13 @@ describe("buildSenderContextFromProfile", () => {
   const profile: ResolvedProfile = {
     apiKey: "host-key",
     senderName: "Jane Smith",
-    senderRole: "ML engineer",
     resumeText: "Built a multi-agent evaluation harness.",
     ws: {
       senderName: "Jane Smith",
-      senderRole: "ML engineer",
-      senderCompany: "ColdFlow",
     },
   };
 
-  it("combines workspace identity, role, tone, extra context, and resume instructions", () => {
+  it("combines workspace identity, tone, extra context, and resume instructions", () => {
     const context = buildSenderContextFromProfile(profile, {
       tone: "confident",
       extraContext: "Prefer backend infrastructure examples",
@@ -120,22 +113,20 @@ describe("buildSenderContextFromProfile", () => {
     });
 
     expect(context).toContain("Name: Jane Smith");
-    expect(context).toContain("Organization: ColdFlow");
-    expect(context).toContain("Looking for: ML engineer");
     expect(context).toContain("Tone: confident");
     expect(context).toContain("Use one relevant detail from the sender's resume");
     expect(context).toContain("Prefer backend infrastructure examples");
     expect(context).toContain("Resume excerpt: Built a multi-agent evaluation harness.");
   });
 
-  it("omits optional request extras when they are empty", () => {
+  it("omits the Background line and optional extras when they are empty", () => {
     const context = buildSenderContextFromProfile(profile, {
       tone: "",
       extraContext: null,
       includeResumeBullet: false,
     });
 
-    expect(context).toContain("Background: ML engineer");
+    expect(context).not.toContain("Background:");
     expect(context).not.toContain("Tone:");
     expect(context).not.toContain("Use one relevant detail");
   });
