@@ -14,16 +14,19 @@ describe("server Workspace config", () => {
   });
 
   it("normalizes sending limits to server send bounds", () => {
-    expect(normalizeSendingLimits({ dailyMax: 0, delaySeconds: 4 })).toEqual({
+    expect(normalizeSendingLimits({ dailyMax: 0, monthlyMax: 0, delaySeconds: 4 })).toEqual({
       dailyMax: 1,
+      monthlyMax: 1,
       delaySeconds: 15,
     });
-    expect(normalizeSendingLimits({ dailyMax: 999, delaySeconds: 7200 })).toEqual({
+    expect(normalizeSendingLimits({ dailyMax: 999, monthlyMax: 99999, delaySeconds: 7200 })).toEqual({
       dailyMax: 500,
+      monthlyMax: 10000,
       delaySeconds: 3600,
     });
     expect(normalizeSendingLimits(null)).toEqual({
       dailyMax: 100,
+      monthlyMax: 2000,
       delaySeconds: 15,
     });
   });

@@ -16,6 +16,7 @@ export interface WorkspaceConfig {
   leadsPerGeneration?: number | null;
   sendingLimits?: {
     dailyMax?: number | null;
+    monthlyMax?: number | null;
     delaySeconds?: number | null;
   } | null;
   files?: FileEntry[] | null;
@@ -26,14 +27,16 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
-export function normalizeSendingLimits(value: unknown, bounds = { maxDaily: 500 }) {
+export function normalizeSendingLimits(value: unknown, bounds = { maxDaily: 500, maxMonthly: 10000 }) {
   const limits = value && typeof value === "object" && !Array.isArray(value)
-    ? value as { dailyMax?: unknown; delaySeconds?: unknown }
+    ? value as { dailyMax?: unknown; monthlyMax?: unknown; delaySeconds?: unknown }
     : {};
   const daily = finiteNumber(limits.dailyMax);
+  const monthly = finiteNumber(limits.monthlyMax);
   const delay = finiteNumber(limits.delaySeconds);
   return {
     dailyMax: daily == null ? 100 : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
+    monthlyMax: monthly == null ? 2000 : Math.min(bounds.maxMonthly, Math.max(1, Math.round(monthly))),
     delaySeconds: delay == null ? 15 : Math.min(3600, Math.max(15, Math.round(delay))),
   };
 }

@@ -142,7 +142,7 @@ export async function sendDraft(emailId: string, userId: string) {
   const { email, toEmail } = await readOwnedDraft(emailId, userId);
   const { supabase, refreshToken, workspaceConfig } = await readSenderProfile(userId);
 
-  const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
+  const { dailyMax, monthlyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
   // Build the Gmail client up front so we can fetch the sender's Gmail
   // address before reserving a quota slot. The quota is keyed on the Gmail
@@ -164,7 +164,7 @@ export async function sendDraft(emailId: string, userId: string) {
   // and QuotaError is thrown — no slot consumed.
   let releaseQuota: () => Promise<void>;
   try {
-    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax, monthlyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;
@@ -257,7 +257,7 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
   const email = await readOwnedDraftForTest(emailId, userId);
   const { supabase, refreshToken, workspaceConfig } = await readSenderProfile(userId);
 
-  const { dailyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
+  const { dailyMax, monthlyMax } = normalizeSendingLimits(workspaceConfig.sendingLimits);
 
   // Build Gmail client first — quota is keyed on the Gmail address so we need
   // to resolve it before reserving a slot. See sendDraft for the rationale.
@@ -274,7 +274,7 @@ export async function sendTestDraft(emailId: string, userId: string, recipient: 
   // they can't race past the limit either.
   let releaseQuota: () => Promise<void>;
   try {
-    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax);
+    releaseQuota = await reserveEmailSendQuota(gmailAddress, dailyMax, monthlyMax);
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, err.message);
     throw err;

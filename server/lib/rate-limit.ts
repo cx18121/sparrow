@@ -10,6 +10,12 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// 'YYYY-MM-01' — anchored on the first of the month so all rows for a given
+// month share one composite key (scope+subjectId+action+day). UTC.
+function monthKey(): string {
+  return new Date().toISOString().slice(0, 7) + "-01";
+}
+
 export async function consumeDurableDailyQuota(
   scope: string,
   subjectId: string,
@@ -31,55 +37,88 @@ export async function consumeDurableDailyQuota(
   }
 }
 
-// Atomically reserves one email send slot for today.
+// Atomically reserves one email send slot for both today AND the current
+// month.
 //
 // Keyed on the Gmail address (scope='gmail'), NOT the Sparrow user id. The
 // Gmail account is the thing being rate-limited at the upstream provider,
 // and it persists across Sparrow account deletion + re-signup — so a user
 // can't bypass the limit by deleting their account and recreating it.
 //
-// How it works: atomically upsert-increments the DailyQuota counter for the
-// Gmail address. PostgreSQL serializes concurrent increments on the same row,
-// so each caller gets a distinct count. If the count exceeds the limit, the
-// increment is rolled back and QuotaError is thrown — no slot consumed.
+// How it works: two atomic upsert-increments — one for the daily counter
+// (action='email_send', day='YYYY-MM-DD') and one for the monthly counter
+// (action='email_send_month', day='YYYY-MM-01'). PostgreSQL serializes
+// concurrent increments on the same row, so each caller gets a distinct
+// count. If EITHER count exceeds its limit, the relevant increments are
+// rolled back and QuotaError is thrown — no slot consumed.
 //
 // Returns a `release` function. Call it if the send fails after reservation
-// (Gmail error, claim collision, etc.) to restore the slot so the draft stays
-// retryable. Do NOT call release if Gmail accepted the message — the slot is
-// consumed regardless of whether the DB write that follows succeeds.
+// (Gmail error, claim collision, etc.) to restore both slots so the draft
+// stays retryable. Do NOT call release if Gmail accepted the message — the
+// slots are consumed regardless of whether the DB write that follows succeeds.
 export async function reserveEmailSendQuota(
   gmailEmail: string,
-  limit: number,
+  dailyLimit: number,
+  monthlyLimit: number,
   db: Db = prisma,
 ): Promise<() => Promise<void>> {
-  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
-  const day = todayKey();
-  const key = { scope: "gmail", subjectId: gmailEmail.toLowerCase(), action: "email_send", day };
+  const safeDaily = Number.isFinite(dailyLimit) ? Math.max(1, Math.round(dailyLimit)) : 1;
+  const safeMonthly = Number.isFinite(monthlyLimit) ? Math.max(1, Math.round(monthlyLimit)) : 1;
+  const subjectId = gmailEmail.toLowerCase();
+  const dayK = { scope: "gmail", subjectId, action: "email_send", day: todayKey() };
+  const monthK = { scope: "gmail", subjectId, action: "email_send_month", day: monthKey() };
 
-  const row = await db.dailyQuota.upsert({
-    where: { scope_subjectId_action_day: key },
-    create: { ...key, count: 1 },
+  // 1. Reserve daily slot.
+  const dayRow = await db.dailyQuota.upsert({
+    where: { scope_subjectId_action_day: dayK },
+    create: { ...dayK, count: 1 },
     update: { count: { increment: 1 } },
   });
+  const releaseDay = makeReleaser(db, dayK, "daily");
+  if (dayRow.count > safeDaily) {
+    await releaseDay();
+    throw new QuotaError(`Daily send limit reached (${safeDaily}/${safeDaily}). Try again tomorrow.`);
+  }
 
-  const release = async () => {
+  // 2. Reserve monthly slot. If the upsert itself throws, release the daily
+  // increment we just took so the count stays accurate.
+  let monthRow: { count: number };
+  try {
+    monthRow = await db.dailyQuota.upsert({
+      where: { scope_subjectId_action_day: monthK },
+      create: { ...monthK, count: 1 },
+      update: { count: { increment: 1 } },
+    });
+  } catch (err) {
+    await releaseDay();
+    throw err;
+  }
+  const releaseMonth = makeReleaser(db, monthK, "monthly");
+  if (monthRow.count > safeMonthly) {
+    await Promise.all([releaseDay(), releaseMonth()]);
+    throw new QuotaError(`Monthly send limit reached (${safeMonthly}/${safeMonthly}). Resets on the 1st.`);
+  }
+
+  return async () => {
+    await Promise.all([releaseDay(), releaseMonth()]);
+  };
+}
+
+function makeReleaser(
+  db: Db,
+  key: { scope: string; subjectId: string; action: string; day: string },
+  label: string,
+) {
+  return async () => {
     try {
       await db.dailyQuota.update({
         where: { scope_subjectId_action_day: key },
         data: { count: { decrement: 1 } },
       });
     } catch (err) {
-      // Non-fatal: quota may be slightly over-counted for the rest of the day.
-      console.warn("Failed to release email send quota slot:", err);
+      console.warn(`Failed to release ${label} send quota slot:`, err);
     }
   };
-
-  if (row.count > safeLimit) {
-    await release();
-    throw new QuotaError(`Daily send limit reached (${safeLimit}/${safeLimit}). Try again tomorrow.`);
-  }
-
-  return release;
 }
 
 // Pre-flight check for batch sends. Not the source of truth — reserveEmailSendQuota
