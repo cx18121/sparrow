@@ -172,23 +172,57 @@ export async function sendDraft(emailId: string, userId: string) {
   const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
   const subject = email.subject ?? "(no subject)";
-  const htmlBody = sanitizeHtml(email.body ?? "");
+  const rawBody = email.body ?? "";
+  const bodyWithPixel = injectTrackingPixel(rawBody, emailId);
+  const htmlBody = sanitizeHtml(bodyWithPixel);
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
   const toHeader = encodeAddressHeader(toName, toEmail);
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
   const raw = Buffer.from(message).toString("base64url");
 
+  let gmailResponse: Awaited<ReturnType<typeof gmail.users.messages.send>>;
   try {
-    await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+    gmailResponse = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch {
     await markFailed(emailId);
     throw new HttpError(502, "Gmail send failed");
   }
 
-  const updated = await markSent(emailId);
+  const gmailMessageId = gmailResponse.data.id ?? undefined;
+  const gmailThreadId = gmailResponse.data.threadId ?? undefined;
+  const gmailIds =
+    gmailMessageId && gmailThreadId ? { gmailMessageId, gmailThreadId } : undefined;
+
+  // Gmail accepted the send — the email is delivered regardless of what happens
+  // next. If markSent fails we must not leave the row in `sending` permanently,
+  // so retry once and then fall back to markFailed with a clear error message.
+  let updated: Awaited<ReturnType<typeof markSent>>;
+  try {
+    updated = await markSent(emailId, gmailIds);
+  } catch {
+    try {
+      updated = await markSent(emailId, gmailIds);
+    } catch {
+      await markFailed(emailId);
+      throw new HttpError(
+        500,
+        "Email was sent by Gmail but we could not update its status. Refresh Drafts — it may appear as Failed but was delivered.",
+      );
+    }
+  }
+
   await markRecipientEmailed(email);
   invalidateEmailDashboardCache(userId);
   return updated;
+}
+
+function injectTrackingPixel(body: string, emailId: string): string {
+  const appOrigin = process.env.APP_ORIGIN ?? process.env.PUBLIC_APP_ORIGIN ?? "";
+  if (!appOrigin) return body;
+  const pixel = `<img src="${appOrigin}/api/track/o/${emailId}.png" width="1" height="1" style="display:none" alt="" />`;
+  const idx = body.lastIndexOf("</body>");
+  if (idx !== -1) return body.slice(0, idx) + pixel + body.slice(idx);
+  return body + pixel;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

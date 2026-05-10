@@ -13,12 +13,15 @@ import sendEmail from "./routes/emails/send.js";
 import sendTestEmail from "./routes/emails/send-test.js";
 import googleCallback from "./routes/google/callback.js";
 import googleConnect from "./routes/google/connect.js";
+import googleWatchRenew from "./routes/google/watch-renew.js";
 import health from "./routes/health.js";
 import leads from "./routes/leads.js";
 import account from "./routes/account.js";
 import previewFitAngle from "./routes/preview-fit-angle.js";
 import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
+import track from "./routes/track.js";
+import gmailWebhook from "./routes/webhooks/gmail.js";
 
 export type ApiHandler = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
@@ -35,6 +38,8 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/emails/send-test": sendTestEmail,
   "/api/google/connect": googleConnect,
   "/api/google/callback": googleCallback,
+  "/api/google/watch-renew": googleWatchRenew,
+  "/api/webhooks/gmail": gmailWebhook,
   "/api/templates": templates,
   "/api/campaigns": campaigns,
   "/api/campaign-leads": campaignLeads,
@@ -61,6 +66,14 @@ export function getApiRoutePath(req: VercelRequest): string {
 
 export async function dispatchApiRequest(req: VercelRequest, res: VercelResponse) {
   const routePath = getApiRoutePath(req);
+
+  // Handle dynamic tracking pixel route: /api/track/o/<emailId>.png
+  if (routePath.startsWith("/api/track/o/")) {
+    const emailId = routePath.slice("/api/track/o/".length);
+    req.query = { ...req.query, emailId };
+    return track(req, res);
+  }
+
   const handler = routeHandlers[routePath];
   if (!handler) return res.status(404).json({ error: "Not found" });
 

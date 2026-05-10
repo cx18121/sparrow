@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getSupabaseAdmin, getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { encrypt } from "../lib/crypto.js";
+import { prisma } from "../lib/prisma.js";
 
 type ProfilePayload = {
   workspaceConfig?: unknown;
@@ -57,15 +58,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabaseAdmin();
 
   if (req.method === "GET") {
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .select(
-        "user_id, workspace_config, default_filters, resume_path, resume_text, onboarding_completed, onboarding_completed_at, google_refresh_token_encrypted, updated_at",
-      )
-      .eq("user_id", userId)
-      .maybeSingle();
+    const [profileResult, gmailWatch] = await Promise.all([
+      supabase
+        .from("user_profiles")
+        .select(
+          "user_id, workspace_config, default_filters, resume_path, resume_text, onboarding_completed, onboarding_completed_at, google_refresh_token_encrypted, updated_at",
+        )
+        .eq("user_id", userId)
+        .maybeSingle(),
+      UUID_RE.test(userId)
+        ? prisma.userGmailWatch.findUnique({ where: { userId }, select: { userId: true } })
+        : Promise.resolve(null),
+    ]);
 
-    if (error) return res.status(500).json({ error: "Could not load profile" });
+    if (profileResult.error) return res.status(500).json({ error: "Could not load profile" });
+    const data = profileResult.data;
 
     // Host capabilities should not depend on whether this user already has a
     // user_profiles row. Fresh or partially migrated accounts still need the
@@ -81,6 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // hasClaudeKey reflects deployment-level generation availability.
         hasClaudeKey: !!process.env.ANTHROPIC_API_KEY?.trim(),
         hasGoogleRefreshToken: !!data?.google_refresh_token_encrypted,
+        hasGmailWatch: !!gmailWatch,
         updatedAt: data?.updated_at ?? null,
       },
     });
