@@ -1,4 +1,4 @@
--- Enable RLS on every Prisma-managed table.
+-- Enable RLS on every Prisma-managed table, with an explicit deny-all policy.
 --
 -- Why: by default Supabase exposes every public-schema table via PostgREST,
 -- and the publishable/anon key is embedded in the frontend bundle. Without
@@ -7,29 +7,48 @@
 -- flagged UserGmailWatch as the worst offender; this migration closes the
 -- gap on every other Prisma-managed table at the same time.
 --
--- Why no policies: all data access in this app flows through the API server,
--- which uses the SUPABASE_SERVICE_ROLE_KEY. Service-role traffic bypasses
--- RLS automatically. RLS with zero policies is deny-by-default for every
--- non-service role — exactly the behavior we want. We deliberately do NOT
--- add per-row "auth.uid() = userId" policies because the frontend never
--- talks to these tables directly; adding policies would only widen the
--- attack surface (mistakes in a policy could expose data that's currently
--- inaccessible).
+-- Why deny-all and not per-user policies: all data access in this app flows
+-- through the API server, which uses the SUPABASE_SERVICE_ROLE_KEY. Service-
+-- role traffic bypasses RLS automatically. The frontend never queries these
+-- tables directly with the anon key. A `using (false)` policy makes the
+-- intent explicit ("this table is service-role only"), removes the
+-- "RLS Enabled No Policy" advisor warnings, and has zero risk of accidentally
+-- exposing data via a buggy auth.uid() comparison.
 --
--- Idempotent: re-running ALTER TABLE ... ENABLE ROW LEVEL SECURITY on a
--- table that already has RLS is a no-op.
+-- If you ever start using direct supabase-js .from() queries with the anon
+-- key in the browser, replace these deny-all policies with per-user policies
+-- (auth.uid()::text = "userId") at that point.
+--
+-- Idempotent: ALTER TABLE ... ENABLE ROW LEVEL SECURITY is a no-op when
+-- already enabled. Policies use a fixed name and drop-then-create so re-runs
+-- are safe.
 
-alter table public."Company"               enable row level security;
-alter table public."Contact"               enable row level security;
-alter table public."UserLead"              enable row level security;
-alter table public."CustomContact"         enable row level security;
-alter table public."Email"                 enable row level security;
-alter table public."UserGmailWatch"        enable row level security;
-alter table public."IdempotencyKey"        enable row level security;
-alter table public."Template"              enable row level security;
-alter table public."Campaign"              enable row level security;
-alter table public."CampaignSeenCompany"   enable row level security;
-alter table public."DiscoverySeenCompany"  enable row level security;
-alter table public."CampaignLead"          enable row level security;
-alter table public."CampaignCustomContact" enable row level security;
-alter table public."DailyQuota"            enable row level security;
+do $$
+declare
+  t text;
+  tables text[] := array[
+    'Company',
+    'Contact',
+    'UserLead',
+    'CustomContact',
+    'Email',
+    'UserGmailWatch',
+    'IdempotencyKey',
+    'Template',
+    'Campaign',
+    'CampaignSeenCompany',
+    'DiscoverySeenCompany',
+    'CampaignLead',
+    'CampaignCustomContact',
+    'DailyQuota'
+  ];
+begin
+  foreach t in array tables loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "service_role only" on public.%I', t);
+    execute format(
+      'create policy "service_role only" on public.%I for all using (false) with check (false)',
+      t
+    );
+  end loop;
+end $$;
