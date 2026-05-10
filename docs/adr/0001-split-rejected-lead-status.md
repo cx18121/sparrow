@@ -1,0 +1,3 @@
+# Split REJECTED lead status into NO_RESPONSE and DECLINED
+
+The original `LeadStatus` enum had a single `REJECTED` value that conflated two meaningfully different outcomes: a lead that never replied (can legitimately be followed up with) and a lead that explicitly opted out (must not be contacted again). We split this into `NO_RESPONSE` (emailed, no reply — follow-up appropriate) and `DECLINED` (explicit opt-out — do not contact). Keeping them merged would make it impossible to distinguish re-contactable leads from opt-outs without inspecting email content, and risks contacting people who have asked not to be reached.
