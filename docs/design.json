@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-04-27T03:41:47Z",
+  "title": "Design System: Coldflow",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "canonical": "#1460D0",
+        "tonalRamp": ["#EBF2FE", "#D6E5FD", "#ADCAFB", "#85AFF9", "#5C94F7", "#1B6EF3", "#1058C7", "#0B429B", "#062B6F", "#031543"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "App Surface",
+        "canonical": "#F4F7FB",
+        "tonalRamp": ["#FFFFFF", "#F8FAFC", "#F4F7FB", "#E2E8F0", "#CBD5E1"]
+      },
+      "text-strong": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0B1D33",
+        "tonalRamp": ["#5E7B97", "#334155", "#0B1D33"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page-level and onboarding titles only."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default product UI text, table content, form text, and helper copy."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase metadata, form labels, and table headings."
+      }
+    },
+    "elevation": {
+      "card": "0 18px 50px rgba(15,23,42,0.08)",
+      "modal": "0 32px 90px rgba(15,23,42,0.22)",
+      "activeBlue": "0 10px 24px rgba(27,110,243,0.22)"
+    },
+    "motion": {
+      "fast": "150ms",
+      "medium": "250ms",
+      "preferredEase": "cubic-bezier(0.22, 1, 0.36, 1)",
+      "reducedMotion": "Disable decorative welcome animations when prefers-reduced-motion is set."
+    },
+    "rules": {
+      "northStar": "The Outreach Desk",
+      "register": "product",
+      "do": [
+        "Keep the product clean, fast, useful, and practical.",
+        "Make sent, draft, loading, failed, and connected states explicit.",
+        "Use blue for primary action, current selection, and focus.",
+        "Treat the current UI as a working baseline, not a finished standard. Improve spacing, hierarchy, density, responsiveness, component consistency, and polish when work touches the interface."
+      ],
+      "dont": [
+        "Do not make Coldflow look like generic AI slop.",
+        "Do not use decorative gradients, vague productivity copy, oversized marketing composition inside the app, repetitive icon cards, glassy surfaces, or fake complexity.",
+        "Do not default to dark mode or purple-blue gradient styling."
+      ]
+    }
+  }
+}

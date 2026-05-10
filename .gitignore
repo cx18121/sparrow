@@ -143,23 +143,10 @@ test-results/
 playwright-report/
 playwright/.cache/
 
-CLAUDE.md
 REVIEW.md
-DESIGN.json
-DESIGN.md
-PRODUCT.md
 .vercel
 .handoff-*.md
 
-# Local AI tool config and issue tracker
-AGENTS.md
-CONTEXT.md
-CONTEXT-MAP.md
-docs/agents/
-docs/adr/
+# Local issue tracker (intentionally local-only)
 .scratch/
 sparrow_oauth_logo.png
-
-# Planning docs
-.planning/
-docs/superpowers/
