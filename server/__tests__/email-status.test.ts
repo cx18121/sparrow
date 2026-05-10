@@ -46,7 +46,7 @@ describe("email status helpers", () => {
       },
     };
 
-    await markSent("email-1", db as any);
+    await markSent("email-1", undefined, db as any);
 
     expect(db.email.update).toHaveBeenCalledOnce();
     expect(db.email.update.mock.calls[0][0].where).toEqual({ id: "email-1" });

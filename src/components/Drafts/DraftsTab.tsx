@@ -4,7 +4,7 @@ import {
   Send, X, RefreshCw, ChevronDown, ChevronUp, Pencil, Check, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight, UserRound, Building2, Mail,
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip, MailCheck,
-  Loader2,
+  Loader2, MessageSquare, Eye, XCircle,
 } from 'lucide-react'
 import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
@@ -68,6 +68,7 @@ export default function DraftsTab({
     if (lockedTab && lockedTab !== tab) setTab(lockedTab)
   }, [lockedTab, tab])
   const [reviewFilter, setReviewFilter] = useState('all')
+  const [sentFilter, setSentFilter] = useState('all')
   const [drafts, setDrafts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -265,9 +266,13 @@ export default function DraftsTab({
   )
 
   const sorted = useMemo(() => {
-    if (tab !== 'draft') return sortedAll
-    return filterDrafts(sortedAll, reviewFilter)
-  }, [reviewFilter, sortedAll, tab])
+    if (tab === 'draft') return filterDrafts(sortedAll, reviewFilter)
+    if (tab === 'sent') {
+      if (sentFilter === 'replied') return sortedAll.filter(d => d.repliedAt)
+      if (sentFilter === 'no-reply') return sortedAll.filter(d => !d.repliedAt)
+    }
+    return sortedAll
+  }, [reviewFilter, sentFilter, sortedAll, tab])
 
   const previewIndex = preview ? sorted.findIndex(draft => draft.id === preview.id) : -1
   const hasPreviousDraft = previewIndex > 0
@@ -705,6 +710,28 @@ export default function DraftsTab({
             ))}
           </div>
         )}
+        {tab === 'sent' && drafts.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'replied', label: 'Replied' },
+              { id: 'no-reply', label: 'No reply' },
+            ].map(option => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setSentFilter(option.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  sentFilter === option.id
+                    ? 'bg-primary text-warm-50'
+                    : 'bg-warm-50 text-muted border border-warm-200 hover:bg-warm-50 hover:text-dark'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="table-shell">
           <table className="min-w-[760px] w-full text-sm">
@@ -846,9 +873,7 @@ export default function DraftsTab({
                       </div>
                     )}
                     {tab === 'sent' && (
-                      <span className="inline-flex items-center justify-end gap-1 text-xs font-medium text-emerald-700">
-                        <CheckCircle2 size={12} /> Sent
-                      </span>
+                      <SentStatusPill draft={draft} />
                     )}
                   </td>
                 </tr>
@@ -1148,6 +1173,27 @@ export default function DraftsTab({
                   <span className="text-dark">{formatDate(preview.sentAt)}</span>
                 </div>
               )}
+              {tab === 'sent' && preview.openedAt && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted flex items-center gap-1">
+                    Opened
+                    <span title="Many email clients pre-fetch images — opens are an estimate" className="cursor-help text-muted/60">(?)</span>
+                  </span>
+                  <span className="text-dark">{formatDate(preview.openedAt)}</span>
+                </div>
+              )}
+              {tab === 'sent' && preview.repliedAt && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted">Reply received</span>
+                  <span className="text-dark">{formatDate(preview.repliedAt)}</span>
+                </div>
+              )}
+              {tab === 'sent' && preview.repliedAt && preview.replyFrom && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted">From</span>
+                  <span className="text-dark truncate max-w-[60%]">{preview.replyFrom}</span>
+                </div>
+              )}
             </div>
           </div>
           <ShortcutHint editing={editing} canEdit={tab === 'draft'} canSend={tab === 'draft' && canSendDraft(preview)} />
@@ -1263,4 +1309,37 @@ function ShortcutHint({ editing, canEdit, canSend }) {
 
 function Kbd({ children }) {
   return <kbd className="rounded border border-warm-300 bg-warm-50 px-1 text-[10px] font-medium text-muted">{children}</kbd>
+}
+
+function SentStatusPill({ draft }: { draft: any }) {
+  if (draft.replyClassification === 'BOUNCE') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
+        <XCircle size={11} /> Bounced
+      </span>
+    )
+  }
+  if (draft.repliedAt) {
+    const label = draft.replyClassification === 'AUTO_REPLY' ? 'Auto-reply' : 'Replied'
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+        <MessageSquare size={11} /> {label}
+      </span>
+    )
+  }
+  if (draft.openedAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 cursor-help"
+        title="Many email clients pre-fetch images — opens are an estimate"
+      >
+        <Eye size={11} /> Opened
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+      <CheckCircle2 size={12} /> Sent
+    </span>
+  )
 }

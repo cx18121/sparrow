@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
-import { ArrowRight, KeyRound, Loader2, Mail, PenLine, Send, Users } from 'lucide-react'
+import { ArrowRight, KeyRound, Loader2, Mail, PenLine, Send, Users, MessageSquare } from 'lucide-react'
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
 import LeadDiscoveryTab from '../LeadDiscovery/LeadDiscoveryTab'
@@ -31,11 +31,13 @@ export function OverviewTab() {
   const members = useCampaignMembers(campaign.id)
   const emails = useCampaignEmails(campaign.id)
   const hasCounts = Boolean(members.data || emails.data)
+  const repliesCount = emails.data?.sent?.filter((e: any) => e.repliedAt && e.replyClassification === 'REPLY').length ?? 0
   const counts = hasCounts
     ? {
         leads: members.data?.items?.length ?? 0,
         drafts: emails.data?.drafts?.length ?? 0,
         sent: emails.data?.sent?.length ?? 0,
+        replies: repliesCount,
       }
     : null
   const error = members.error || emails.error
@@ -96,7 +98,7 @@ type NextActionState = {
   icon: React.ComponentType<{ size?: number; className?: string }>
 }
 
-function nextAction(counts: { leads: number; drafts: number; sent: number } | null, status: string): NextActionState | null {
+function nextAction(counts: { leads: number; drafts: number; sent: number; replies: number } | null, status: string): NextActionState | null {
   if (!counts) return null
   if (status === 'completed') {
     return {
@@ -190,20 +192,23 @@ function StatsStrip({
   loading, counts, onJump,
 }: {
   loading: boolean
-  counts: { leads: number; drafts: number; sent: number } | null
+  counts: { leads: number; drafts: number; sent: number; replies: number } | null
   onJump: (tab: 'leads' | 'drafts' | 'sent') => void
 }) {
+  const showReplies = counts !== null && (counts.sent > 0 || counts.replies > 0)
   const items: { key: 'leads' | 'drafts' | 'sent'; label: string; value: number | null; helper: string }[] = [
     { key: 'leads', label: 'Leads', value: counts?.leads ?? null, helper: 'Saved contacts' },
     { key: 'drafts', label: 'Drafts', value: counts?.drafts ?? null, helper: 'Ready to review' },
     { key: 'sent', label: 'Sent', value: counts?.sent ?? null, helper: 'Delivered emails' },
+    ...(showReplies ? [{ key: 'sent' as const, label: 'Replies', value: counts?.replies ?? null, helper: 'Human responses' }] : []),
   ]
+  const cols = showReplies ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
   return (
     <div className="surface-panel overflow-hidden">
-      <div className="grid divide-y divide-warm-200/80 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        {items.map(item => (
+      <div className={`grid divide-y divide-warm-200/80 ${cols} sm:divide-x sm:divide-y-0`}>
+        {items.map((item, i) => (
           <MetricButton
-            key={item.key}
+            key={`${item.key}-${i}`}
             item={item}
             loading={loading}
             onJump={onJump}
@@ -334,19 +339,36 @@ export function SentTab() {
   // gates Send/Edit/Delete/attachment controls on `tab === 'draft'` already, so
   // the sent rows are read-only by construction.
   return (
-    <DraftsTab
-      campaignId={campaign.id}
-      lockedTab="sent"
-      workspaceConfig={workspaceConfig}
-      profile={profile}
-      profileLoading={profileLoading}
-      onRefreshProfile={onRefreshProfile}
-      onNavigate={(target) => {
-        if (target === 'settings') navigate('/settings')
-        else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
-        else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
-      }}
-    />
+    <div className="space-y-4">
+      <ReplyTrackingBanner profile={profile} profileLoading={profileLoading} />
+      <DraftsTab
+        campaignId={campaign.id}
+        lockedTab="sent"
+        workspaceConfig={workspaceConfig}
+        profile={profile}
+        profileLoading={profileLoading}
+        onRefreshProfile={onRefreshProfile}
+        onNavigate={(target) => {
+          if (target === 'settings') navigate('/settings')
+          else if (target === 'contacts' || target === 'leads') navigate(`/campaigns/${campaign.id}/leads`)
+          else if (target === 'drafts') navigate(`/campaigns/${campaign.id}/drafts`)
+        }}
+      />
+    </div>
+  )
+}
+
+function ReplyTrackingBanner({ profile, profileLoading }: { profile: any; profileLoading: boolean }) {
+  if (profileLoading || !profile?.hasGoogleRefreshToken || profile?.hasGmailWatch) return null
+  return (
+    <Banner variant="info" icon={MessageSquare}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <span>Enable reply tracking — reconnect Gmail to see when recipients reply.</span>
+        <Link to="/settings" className="shrink-0 font-semibold underline-offset-2 hover:underline">
+          Reconnect Gmail →
+        </Link>
+      </div>
+    </Banner>
   )
 }
 

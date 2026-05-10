@@ -22,10 +22,21 @@ export async function claimForSending(emailId: string, db: Db = prisma): Promise
   return result.count === 1;
 }
 
-export async function markSent(emailId: string, db: Db = prisma) {
+export async function markSent(
+  emailId: string,
+  gmailIds?: { gmailMessageId: string; gmailThreadId: string },
+  db: Db = prisma,
+) {
   return db.email.update({
     where: { id: emailId },
-    data: { status: "sent", sentAt: new Date() },
+    data: {
+      status: "sent",
+      sentAt: new Date(),
+      ...(gmailIds && {
+        gmailMessageId: gmailIds.gmailMessageId,
+        gmailThreadId: gmailIds.gmailThreadId,
+      }),
+    },
   });
 }
 

@@ -186,7 +186,8 @@ export async function sendDraft(emailId: string, userId: string) {
   const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
   const subject = email.subject ?? "(no subject)";
-  const htmlBody = sanitizeHtml(email.body ?? "");
+  const rawBody = email.body ?? "";
+  const htmlBody = injectTrackingPixel(sanitizeHtml(rawBody), emailId);
   const toName = email.contact?.name ?? email.customContact?.name ?? null;
   const toHeader = encodeAddressHeader(toName, toEmail);
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
@@ -202,21 +203,20 @@ export async function sendDraft(emailId: string, userId: string) {
     throw new HttpError(502, "Gmail send failed");
   }
 
-  // Gmail accepted the message — quota slot is consumed regardless of what
-  // follows. Do NOT release. If markSent fails, retry once then surface as
-  // Failed with a clear message (email was delivered, DB just didn't catch up).
-  const updated = await markSentWithRetry(emailId);
-  await markRecipientEmailed(email);
-  invalidateEmailDashboardCache(userId);
-  return updated;
-}
+  const gmailMessageId = gmailResponse.data.id ?? undefined;
+  const gmailThreadId = gmailResponse.data.threadId ?? undefined;
+  const gmailIds =
+    gmailMessageId && gmailThreadId ? { gmailMessageId, gmailThreadId } : undefined;
 
-async function markSentWithRetry(emailId: string) {
+  // Gmail accepted the send — the email is delivered regardless of what happens
+  // next. If markSent fails we must not leave the row in `sending` permanently,
+  // so retry once and then fall back to markFailed with a clear error message.
+  let updated: Awaited<ReturnType<typeof markSent>>;
   try {
-    return await markSent(emailId);
+    updated = await markSent(emailId, gmailIds);
   } catch {
     try {
-      return await markSent(emailId);
+      updated = await markSent(emailId, gmailIds);
     } catch {
       await markFailed(emailId);
       throw new HttpError(
@@ -225,6 +225,18 @@ async function markSentWithRetry(emailId: string) {
       );
     }
   }
+  await markRecipientEmailed(email);
+  invalidateEmailDashboardCache(userId);
+  return updated;
+}
+
+function injectTrackingPixel(body: string, emailId: string): string {
+  const appOrigin = process.env.APP_ORIGIN ?? process.env.PUBLIC_APP_ORIGIN ?? "";
+  if (!appOrigin) return body;
+  const pixel = `<img src="${appOrigin}/api/track/o/${emailId}.png" width="1" height="1" style="display:none" alt="" />`;
+  const idx = body.lastIndexOf("</body>");
+  if (idx !== -1) return body.slice(0, idx) + pixel + body.slice(idx);
+  return body + pixel;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

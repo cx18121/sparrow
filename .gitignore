@@ -143,6 +143,8 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+CLAUDE.md
+.claude/
 REVIEW.md
 .vercel
 .handoff-*.md

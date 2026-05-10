@@ -19,5 +19,8 @@
   ],
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/google/watch-renew", "schedule": "0 10 * * *" }
   ]
 }

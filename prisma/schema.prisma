@@ -101,6 +101,7 @@ model UserLead {
 enum LeadStatus {
   SAVED
   EMAILED
+  RESPONDED
   NO_RESPONSE
   DECLINED
 
@@ -143,6 +144,15 @@ model Email {
   fitAngle        String?
   generationKind  String?
   sentAt          DateTime?
+  // Reply detection fields — populated at send time and on inbound webhook.
+  gmailMessageId      String?
+  gmailThreadId       String?
+  openedAt            DateTime?
+  openCount           Int                   @default(0)
+  repliedAt           DateTime?
+  replyMessageId      String?
+  replyFrom           String?
+  replyClassification ReplyClassification?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -152,6 +162,28 @@ model Email {
   @@index([status, createdAt])
   @@index([userLeadId, status, createdAt])
   @@index([customContactId, status, createdAt])
+  @@index([gmailThreadId])
+  @@schema("public")
+}
+
+enum ReplyClassification {
+  REPLY
+  AUTO_REPLY
+  BOUNCE
+  OTHER
+
+  @@schema("public")
+}
+
+model UserGmailWatch {
+  userId         String   @id
+  email          String   @unique
+  watchExpiresAt DateTime
+  historyId      String
+  pubsubTopic    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   @@schema("public")
 }
 

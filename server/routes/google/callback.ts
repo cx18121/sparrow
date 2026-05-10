@@ -7,6 +7,7 @@ import {
   getOriginFromRedirectUri,
   withGoogleConnectResult,
 } from "../../lib/google-connect.js";
+import { createOrRenewGmailWatch } from "../../lib/gmail-watch.js";
 
 function redirect(res: VercelResponse, location: string) {
   res.setHeader("Location", location);
@@ -61,6 +62,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error("Google refresh token profile save failed", error);
       return redirectToApp({ google_error: "profile_save_failed" });
     }
+
+    // Create/renew Gmail watch for Pub/Sub push notifications.
+    // Runs best-effort — a watch failure must not block the OAuth flow.
+    try {
+      const idTokenPayload = tokens.id_token
+        ? JSON.parse(Buffer.from(tokens.id_token.split(".")[1], "base64url").toString("utf8"))
+        : null;
+      const email: string | undefined = idTokenPayload?.email;
+
+      if (email) {
+        const watchOauth2 = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+        );
+        watchOauth2.setCredentials({ refresh_token: tokens.refresh_token });
+        await createOrRenewGmailWatch({ userId: state.userId, email, oauth2: watchOauth2 });
+      }
+    } catch (watchErr) {
+      console.warn("Gmail watch creation failed (non-fatal):", watchErr);
+    }
+
     return redirectToApp({ google_connected: "1" });
   } catch (err) {
     console.error("Google connect callback failed", err);
