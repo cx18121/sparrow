@@ -583,9 +583,9 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
                       </div>
                       <div className="text-xs text-muted">{row.title ?? '—'}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted">
+                    <td className="px-4 py-3 text-xs text-muted max-w-[200px]">
                       {row.email
-                        ? <span className="font-mono">{row.email}</span>
+                        ? <span className="font-mono truncate block">{row.email}</span>
                         : <span className="italic text-muted/60">No email</span>
                       }
                     </td>

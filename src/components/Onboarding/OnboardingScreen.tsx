@@ -728,12 +728,18 @@ export default function OnboardingScreen({
       setStepIndex(0)
       return
     }
+    if (index > 1 && form.templateMode !== 'existing' && !form.customTemplate.body.trim()) {
+      setTemplateAttempted(true)
+      setStepIndex(1)
+      return
+    }
     if (stepIndex === 0 && index > 0) runPreviewNowRef.current?.()
     if (stepIndex < steps.length - 1 && index > stepIndex) {
       if (isSaving || resumeUpload.uploading) return
       const saved = await persistCurrentProgress()
       if (!saved) return
     }
+    setTemplateAttempted(false)
     setStepIndex(index)
   }
 
