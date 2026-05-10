@@ -1,6 +1,6 @@
 import type { ReplyClassification } from "@prisma/client";
 
-const BOUNCE_FROM = /^(mailer-daemon|postmaster|Mail Delivery Subsystem)@/i;
+const BOUNCE_FROM = /^(mailer-daemon|postmaster)@|^Mail Delivery Subsystem\b/i;
 const BOUNCE_SUBJECT = /\b(undeliverable|delivery\s+status\s+notification|delivery\s+failure|failed\s+delivery|address\s+not\s+found|mail\s+delivery\s+failed)\b/i;
 
 const OOO_SUBJECT = /\b(out\s+of\s+(?:the\s+)?office|on\s+vacation|on\s+leave|away\s+from\s+(?:the\s+)?office)\b/i;

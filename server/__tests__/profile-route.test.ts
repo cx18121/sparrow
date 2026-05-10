@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const { mockGetUserId, mockGetSupabaseAdmin, mockEncrypt } = vi.hoisted(() => {
+const { mockGetUserId, mockGetSupabaseAdmin, mockEncrypt, mockPrisma } = vi.hoisted(() => {
   const mockGetUserId = vi.fn<[], Promise<string | null>>();
   const mockGetSupabaseAdmin = vi.fn();
   const mockEncrypt = vi.fn((s: string) => `encrypted:${s}`);
-  return { mockGetUserId, mockGetSupabaseAdmin, mockEncrypt };
+  const mockPrisma = {
+    userGmailWatch: { findUnique: vi.fn() },
+  };
+  return { mockGetUserId, mockGetSupabaseAdmin, mockEncrypt, mockPrisma };
 });
 
 vi.mock("../lib/supabaseAdmin.js", () => ({
@@ -16,6 +19,8 @@ vi.mock("../lib/supabaseAdmin.js", () => ({
 vi.mock("../lib/crypto.js", () => ({
   encrypt: mockEncrypt,
 }));
+
+vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
 
 import handler from "../routes/profile.js";
 
@@ -49,6 +54,7 @@ function makeSupabaseChain(selectResult: { data: unknown; error: unknown }, upse
 describe("profile route — GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.userGmailWatch.findUnique.mockResolvedValue(null);
   });
 
   it("returns 401 when no userId", async () => {

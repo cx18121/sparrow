@@ -5,6 +5,7 @@ const {
   mockGetSupabaseAdmin,
   mockDecrypt,
   mockCheckEmailSendQuota,
+  mockReserveEmailSendQuota,
   mockClaimForSending,
   mockMarkSent,
   mockMarkFailed,
@@ -20,6 +21,7 @@ const {
     mockGetSupabaseAdmin: vi.fn(),
     mockDecrypt: vi.fn(),
     mockCheckEmailSendQuota: vi.fn(),
+    mockReserveEmailSendQuota: vi.fn(),
     mockClaimForSending: vi.fn(),
     mockMarkSent: vi.fn(),
     mockMarkFailed: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock("../lib/crypto.js", () => ({
 
 vi.mock("../lib/rate-limit.js", () => ({
   checkEmailSendQuota: mockCheckEmailSendQuota,
+  reserveEmailSendQuota: mockReserveEmailSendQuota,
   QuotaError: class QuotaError extends Error {
     status = 429;
   },
@@ -91,6 +94,7 @@ beforeEach(() => {
   mockProfile();
   mockDecrypt.mockReturnValue("refresh-token");
   mockCheckEmailSendQuota.mockResolvedValue(undefined);
+  mockReserveEmailSendQuota.mockResolvedValue(vi.fn()); // returns a no-op release fn
   mockClaimForSending.mockResolvedValue(true);
   mockGmailSend.mockResolvedValue({ data: { id: "gmail-message" } });
   mockMarkSent.mockResolvedValue({ id: "email-1", status: "sent" });
@@ -113,7 +117,7 @@ describe("sendDraft", () => {
 
     await sendDraft("email-1", USER_ID);
 
-    expect(mockMarkSent).toHaveBeenCalledWith("email-1");
+    expect(mockMarkSent).toHaveBeenCalledWith("email-1", undefined);
     expect(mockPrisma.userLead.update).toHaveBeenCalledWith({
       where: { id: "lead-1" },
       data: { status: "EMAILED" },
@@ -137,7 +141,7 @@ describe("sendDraft", () => {
 
     await sendDraft("email-1", USER_ID);
 
-    expect(mockMarkSent).toHaveBeenCalledWith("email-1");
+    expect(mockMarkSent).toHaveBeenCalledWith("email-1", undefined);
     expect(mockPrisma.customContact.update).toHaveBeenCalledWith({
       where: { id: "cc-1" },
       data: { status: "EMAILED" },
