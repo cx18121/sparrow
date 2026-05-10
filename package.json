@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.reportOnFailure true",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/gen-test-env.js && playwright test",
+    "test:e2e:reset": "SUPABASE_RESET=1 node scripts/gen-test-env.js && SUPABASE_RESET=1 playwright test",
+    "test:e2e:raw": "playwright test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
