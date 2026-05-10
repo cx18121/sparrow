@@ -1,14 +1,23 @@
-import { test, expect, type Page } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect } from '@playwright/test'
+import { mockApi, signInDemo, cleanupTestData } from './fixtures/api-mocks'
+
+let userId: string
 
 test.describe('Mobile navigation UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await signInDemo(page)
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
   })
 
-  test('bottom navigation exposes Home, Templates, and Settings without the desktop sidebar', async ({ page }) => {
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
+  })
+
+  test('bottom navigation exposes Home, Templates, and Settings without the desktop sidebar', async ({
+    page,
+  }) => {
     await page.goto('/dashboard')
     await expect(page.locator('aside').first()).toBeHidden()
 

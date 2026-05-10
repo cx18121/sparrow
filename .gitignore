@@ -152,3 +152,6 @@ REVIEW.md
 # Local issue tracker (intentionally local-only)
 .scratch/
 sparrow_oauth_logo.png
+
+# Supabase local Docker state
+.supabase/

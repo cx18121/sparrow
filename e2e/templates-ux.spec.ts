@@ -1,22 +1,46 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect, type Route } from '@playwright/test'
+import {
+  mockApi,
+  signInDemo,
+  createTestTemplate,
+  cleanupTestData,
+  SAMPLE_TEMPLATE,
+} from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
+let userId: string
+
 test.describe('Templates UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
   })
 
-  test('creates a template, autosaves subject edits, and previews merged variables', async ({ page }) => {
-    const templates = [{ ...SAMPLE_TEMPLATE }]
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
+  })
+
+  test('creates a template, autosaves subject edits, and previews merged variables', async ({
+    page,
+  }) => {
+    // Start with an existing template so the list isn't empty.
+    const existing = await createTestTemplate(page, {
+      name: SAMPLE_TEMPLATE.name,
+      subject: SAMPLE_TEMPLATE.subject,
+      body: SAMPLE_TEMPLATE.body,
+    })
+
+    // Use a stateful in-memory list to track creates + patches without hitting
+    // the real API for this specific shape test.
+    const templates = [{ ...existing }]
     let createdPayload: any = null
     let patchPayload: any = null
 
-    await mockApi(page, { templates })
     await page.route('**/api/templates**', async route => {
       const method = route.request().method()
       if (method === 'GET') return json(route, { items: templates })
@@ -24,7 +48,7 @@ test.describe('Templates UX', () => {
         createdPayload = route.request().postDataJSON()
         const created = {
           id: 'tpl_created',
-          userId: 'demo',
+          userId,
           name: createdPayload.name,
           subject: createdPayload.subject,
           body: createdPayload.body,
@@ -38,14 +62,17 @@ test.describe('Templates UX', () => {
       if (method === 'PATCH') {
         patchPayload = route.request().postDataJSON()
         const idx = templates.findIndex(t => t.id === patchPayload.id)
-        if (idx >= 0) templates[idx] = { ...templates[idx], ...patchPayload, updatedAt: new Date().toISOString() }
+        if (idx >= 0)
+          templates[idx] = { ...templates[idx], ...patchPayload, updatedAt: new Date().toISOString() }
         return json(route, templates[idx])
       }
       return json(route, {}, 204)
     })
 
     await page.goto('/templates')
-    await expect(page.getByRole('heading', { name: /Reusable templates/i })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: /Reusable templates/i })).toBeVisible({
+      timeout: 10_000,
+    })
 
     await page.getByRole('button', { name: /New template/i }).click()
     await expect(page.getByRole('button', { name: /Create template/i })).toBeDisabled()
@@ -72,16 +99,25 @@ test.describe('Templates UX', () => {
     await expect(page.locator('text=/Following up on Anthropic/i').first()).toBeVisible()
   })
 
-  test('search keeps the template list scannable and shows an empty result state', async ({ page }) => {
-    await mockApi(page, {
-      templates: [
-        { ...SAMPLE_TEMPLATE, id: 'tpl_founder', name: 'Founder intro', subject: 'Quick founder note' },
-        { ...SAMPLE_TEMPLATE, id: 'tpl_hiring', name: 'Hiring manager', subject: 'Backend internship' },
-      ],
+  test('search keeps the template list scannable and shows an empty result state', async ({
+    page,
+  }) => {
+    // Create two real templates.
+    await createTestTemplate(page, {
+      name: 'Founder intro',
+      subject: 'Quick founder note',
+      body: '<p>Hi</p>',
+    })
+    await createTestTemplate(page, {
+      name: 'Hiring manager',
+      subject: 'Backend internship',
+      body: '<p>Hi</p>',
     })
 
     await page.goto('/templates')
-    await expect(page.getByRole('heading', { name: /Founder intro/i })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: /Founder intro/i })).toBeVisible({
+      timeout: 10_000,
+    })
 
     await page.getByPlaceholder('Search templates…').fill('hiring')
     await expect(page.getByRole('button', { name: /Hiring manager/i })).toBeVisible()
@@ -92,22 +128,26 @@ test.describe('Templates UX', () => {
   })
 
   test('duplicates, renames, and deletes a template through the overflow menu', async ({ page }) => {
-    const templates = [{ ...SAMPLE_TEMPLATE }]
+    const initial = await createTestTemplate(page, {
+      name: 'Cold intro',
+      subject: SAMPLE_TEMPLATE.subject,
+      body: SAMPLE_TEMPLATE.body,
+    })
+
+    const templates = [{ ...initial }]
     let patchPayload: any = null
     let deletedId: string | null = null
 
-    await mockApi(page, { templates })
-    await page.unroute('**/api/templates')
     await page.route('**/api/templates**', async route => {
       const method = route.request().method()
       if (method === 'GET') return json(route, { items: templates })
       if (method === 'POST') {
         const payload = route.request().postDataJSON()
         const created = {
-          ...SAMPLE_TEMPLATE,
+          ...initial,
           ...payload,
           id: 'tpl_copy',
-          userId: 'demo',
+          userId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }
@@ -130,7 +170,9 @@ test.describe('Templates UX', () => {
     })
 
     await page.goto('/templates')
-    await expect(page.getByRole('heading', { name: /Cold intro/i })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: /Cold intro/i })).toBeVisible({
+      timeout: 10_000,
+    })
 
     await page.getByRole('button', { name: /More options/i }).click()
     await page.getByRole('button', { name: /Duplicate/i }).click()
@@ -138,7 +180,10 @@ test.describe('Templates UX', () => {
 
     await page.getByRole('button', { name: /More options/i }).click()
     await page.getByRole('button', { name: /Rename/i }).click()
-    await page.getByRole('dialog', { name: /Rename template/i }).getByPlaceholder('e.g. Cold Intro - Startup Founder').fill('Investor intro')
+    await page
+      .getByRole('dialog', { name: /Rename template/i })
+      .getByPlaceholder('e.g. Cold Intro - Startup Founder')
+      .fill('Investor intro')
     await page.getByRole('button', { name: /^Rename$/i }).click()
 
     await expect.poll(() => patchPayload?.name).toBe('Investor intro')
@@ -147,7 +192,10 @@ test.describe('Templates UX', () => {
     await page.getByRole('button', { name: /More options/i }).click()
     await page.getByRole('button', { name: /^Delete$/i }).click()
     await expect(page.getByRole('dialog', { name: /Delete template/i })).toBeVisible()
-    await page.getByRole('dialog', { name: /Delete template/i }).getByRole('button', { name: /^Delete$/i }).click()
+    await page
+      .getByRole('dialog', { name: /Delete template/i })
+      .getByRole('button', { name: /^Delete$/i })
+      .click()
 
     await expect.poll(() => deletedId).toBe('tpl_copy')
   })

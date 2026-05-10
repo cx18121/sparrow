@@ -1,34 +1,14 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect, type Route } from '@playwright/test'
+import {
+  mockApi,
+  signInDemo,
+  createTestCampaign,
+  createTestTemplate,
+  cleanupTestData,
+} from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-}
-
-const CAMPAIGN_ID = 'cmp_drafts_ux'
-const CAMPAIGN = {
-  id: CAMPAIGN_ID,
-  userId: 'demo',
-  name: 'Draft review campaign',
-  subject: 'Quick question',
-  status: 'ACTIVE' as const,
-  templateId: SAMPLE_TEMPLATE.id,
-  filterTags: [],
-  filterRegion: null,
-  filterStage: null,
-  filterBatch: null,
-  filterIsHiring: null,
-  filterHeadcountMin: null,
-  filterHeadcountMax: null,
-  batchSize: 10,
-  currentBatch: 0,
-  tone: null,
-  attachmentIds: [],
-  scheduledAt: null,
-  template: { id: SAMPLE_TEMPLATE.id, name: SAMPLE_TEMPLATE.name },
-  includePreviouslySaved: false,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
 }
 
 function draft(overrides: Record<string, unknown> = {}) {
@@ -45,29 +25,63 @@ function draft(overrides: Record<string, unknown> = {}) {
     sentAt: null,
     contact: { id: 'contact_1', name: 'Avery Kim', email: 'avery@acme.test', title: 'Founder' },
     customContact: null,
-    userLead: { id: 'lead_1', status: 'SAVED', company: { id: 'co_1', name: 'Acme Robotics', domain: 'acme.test' } },
+    userLead: {
+      id: 'lead_1',
+      status: 'SAVED',
+      company: { id: 'co_1', name: 'Acme Robotics', domain: 'acme.test' },
+    },
     ...overrides,
   }
 }
 
+let userId: string
+let campaignId: string
+
 test.describe('Drafts UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    const template = await createTestTemplate(page, { name: 'Draft review template' })
+    const campaign = await createTestCampaign(page, {
+      name: 'Draft review campaign',
+      status: 'ACTIVE',
+      templateId: template.id,
+    })
+    campaignId = campaign.id
+    await mockApi(page)
+  })
+
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
   })
 
   test('filters ready and needs-review drafts in the campaign drafts table', async ({ page }) => {
-    await mockApi(page, {
-      campaigns: [CAMPAIGN],
-      templates: [SAMPLE_TEMPLATE],
-      drafts: [
-        draft(),
-        draft({ id: 'email_draft_2', subject: '', body: '', contact: { id: 'contact_2', name: 'Blake Lee', email: 'blake@beta.test', title: 'CTO' } }),
-        draft({ id: 'email_draft_3', contact: { id: 'contact_3', name: 'Casey Noemail', email: null, title: 'COO' } }),
-      ],
-    })
+    await page.route('**/api/emails**', route =>
+      json(route, {
+        items: [
+          draft(),
+          draft({
+            id: 'email_draft_2',
+            subject: '',
+            body: '',
+            contact: { id: 'contact_2', name: 'Blake Lee', email: 'blake@beta.test', title: 'CTO' },
+          }),
+          draft({
+            id: 'email_draft_3',
+            contact: { id: 'contact_3', name: 'Casey Noemail', email: null, title: 'COO' },
+          }),
+        ],
+        drafts: [
+          draft(),
+          draft({ id: 'email_draft_2', subject: '', body: '' }),
+          draft({ id: 'email_draft_3' }),
+        ],
+        sent: [],
+      }),
+    )
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
+    await page.goto(`/campaigns/${campaignId}/drafts`)
     await expect(page.locator('text=/1 ready, 2 need review/i')).toBeVisible({ timeout: 10_000 })
 
     await page.getByRole('button', { name: /^Ready 1$/i }).click()
@@ -81,20 +95,18 @@ test.describe('Drafts UX', () => {
 
   test('edits and saves a draft from the preview panel', async ({ page }) => {
     let patchPayload: any = null
-    await mockApi(page, { campaigns: [CAMPAIGN], templates: [SAMPLE_TEMPLATE], drafts: [draft()] })
     await page.route('**/api/emails**', route => {
       if (route.request().method() === 'PATCH') {
         patchPayload = route.request().postDataJSON()
         return json(route, { ...draft(), ...patchPayload, updatedAt: new Date().toISOString() })
       }
-      return json(route, { items: [draft()] })
+      return json(route, { items: [draft()], drafts: [draft()], sent: [] })
     })
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
+    await page.goto(`/campaigns/${campaignId}/drafts`)
     await page.getByText('Avery Kim').first().click()
     await page.getByRole('button', { name: /Edit/i }).click()
     await page.getByPlaceholder('Subject line').fill('Updated subject')
-    // Body editor is a contentEditable div with aria-label="Draft body".
     const bodyEditor = page.locator('[aria-label="Draft body"][contenteditable]')
     await bodyEditor.click()
     await bodyEditor.fill('Updated body')
@@ -106,60 +118,71 @@ test.describe('Drafts UX', () => {
   })
 
   test('surfaces Gmail connection guidance before sending drafts', async ({ page }) => {
-    await mockApi(page, {
-      campaigns: [CAMPAIGN],
-      templates: [SAMPLE_TEMPLATE],
-      drafts: [draft()],
-      profile: { hasGoogleRefreshToken: false },
-    })
+    await page.route('**/api/emails**', route =>
+      json(route, { items: [draft()], drafts: [draft()], sent: [] }),
+    )
+    // Override profile to report Gmail NOT connected
+    await page.route('**/api/profile**', route =>
+      json(route, {
+        profile: {
+          onboardingCompleted: true,
+          workspaceConfig: { senderName: 'E2E Test User', templateId: null },
+          hasClaudeKey: true,
+          hasGoogleRefreshToken: false,
+        },
+      }),
+    )
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
-
-    await expect(page.locator('text=/Gmail not connected\\. Connect in Settings\\./i').first()).toBeVisible({ timeout: 10_000 })
+    await page.goto(`/campaigns/${campaignId}/drafts`)
+    await expect(
+      page.locator('text=/Gmail not connected\\. Connect in Settings\\./i').first(),
+    ).toBeVisible({ timeout: 10_000 })
     await page.getByRole('button', { name: /Open Settings/i }).click()
     await expect(page).toHaveURL(/\/settings$/)
   })
 
-  test('refreshes Gmail status and hides the disconnected banner when connected', async ({ page }) => {
+  test('refreshes Gmail status and hides the disconnected banner when connected', async ({
+    page,
+  }) => {
+    await page.route('**/api/emails**', route =>
+      json(route, { items: [draft()], drafts: [draft()], sent: [] }),
+    )
     let profileCalls = 0
-    await mockApi(page, {
-      campaigns: [CAMPAIGN],
-      templates: [SAMPLE_TEMPLATE],
-      drafts: [draft()],
-      profile: { hasGoogleRefreshToken: false },
-    })
-    await page.route('**/api/profile', route => {
+    await page.route('**/api/profile**', route => {
       profileCalls += 1
       return json(route, {
         profile: {
           onboardingCompleted: true,
-          workspaceConfig: { senderName: 'Demo User', templateId: null },
+          workspaceConfig: { senderName: 'E2E Test User', templateId: null },
           hasClaudeKey: true,
           hasGoogleRefreshToken: profileCalls > 1,
         },
       })
     })
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
-
-    await expect(page.locator('text=/Gmail not connected\\. Connect in Settings\\./i')).toHaveCount(0, { timeout: 10_000 })
+    await page.goto(`/campaigns/${campaignId}/drafts`)
+    await expect(
+      page.locator('text=/Gmail not connected\\. Connect in Settings\\./i'),
+    ).toHaveCount(0, { timeout: 10_000 })
   })
 
   test('deletes a selected draft and removes it from the queue', async ({ page }) => {
     let deletedIds: string | null = null
-    await mockApi(page, { campaigns: [CAMPAIGN], templates: [SAMPLE_TEMPLATE], drafts: [draft()] })
     await page.route('**/api/emails**', route => {
       if (route.request().method() === 'DELETE') {
         deletedIds = new URL(route.request().url()).searchParams.get('ids')
         return json(route, { deleted: deletedIds?.split(',') ?? [] })
       }
-      return json(route, { items: [draft()] })
+      return json(route, { items: [draft()], drafts: [draft()], sent: [] })
     })
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/drafts`)
+    await page.goto(`/campaigns/${campaignId}/drafts`)
     await page.getByLabel(/Select draft for Avery Kim/i).check()
     await page.getByRole('button', { name: /Delete 1/i }).click()
-    await page.getByRole('dialog', { name: /Delete draft/i }).getByRole('button', { name: /^Delete$/i }).click()
+    await page
+      .getByRole('dialog', { name: /Delete draft/i })
+      .getByRole('button', { name: /^Delete$/i })
+      .click()
 
     await expect.poll(() => deletedIds).toBe('email_draft_1')
     await expect(page.locator('text=/Draft deleted/i')).toBeVisible()
@@ -171,9 +194,11 @@ test.describe('Drafts UX', () => {
       status: 'sent',
       sentAt: new Date().toISOString(),
     })
-    await mockApi(page, { campaigns: [CAMPAIGN], templates: [SAMPLE_TEMPLATE], sent: [sentEmail] })
+    await page.route('**/api/emails**', route =>
+      json(route, { items: [sentEmail], drafts: [], sent: [sentEmail] }),
+    )
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/sent`)
+    await page.goto(`/campaigns/${campaignId}/sent`)
     await page.getByText('Avery Kim').first().click()
 
     await expect(page.locator('text=/^Sent$/').first()).toBeVisible({ timeout: 10_000 })

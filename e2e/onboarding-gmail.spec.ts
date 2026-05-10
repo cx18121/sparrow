@@ -1,129 +1,74 @@
 import { test, expect } from '@playwright/test'
+import {
+  LOCAL_SUPABASE_URL,
+  ANON_KEY,
+  cleanupTestData,
+} from './fixtures/api-mocks'
 
-const ONBOARDING_USER_ID = 'onboarding-gmail-user'
+// The onboarding tests need a user who has NOT completed onboarding.
+// We sign in with a real JWT but deliberately do NOT mark onboarding as
+// complete in localStorage so the app redirects to the wizard.
 
 async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
-  // Mock Supabase auth network endpoints so token-refresh calls don't fail.
-  await page.route('**/auth/v1/**', route => {
-    const url = route.request().url()
-    const method = route.request().method()
+  // Get a real JWT from local Supabase.
+  const resp = await page.request.post(
+    `${LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      data: { email: 'e2e@sparrow.test', password: 'SparrowE2E2024!' },
+    },
+  )
 
-    function b64url(obj: object) {
-      return btoa(JSON.stringify(obj))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '')
-    }
-    const header = b64url({ alg: 'HS256', typ: 'JWT' })
-    const payload = b64url({
-      sub: ONBOARDING_USER_ID,
-      email: 'demo@test.local',
-      role: 'authenticated',
-      aud: 'authenticated',
-      iss: 'supabase',
-      iat: 1000000000,
-      exp: 9999999999,
-    })
-    const token = `${header}.${payload}.fakesig`
+  if (!resp.ok()) {
+    throw new Error(`[signInNeedsOnboarding] Auth failed: ${resp.status()} ${await resp.text()}`)
+  }
 
-    const user = {
-      id: ONBOARDING_USER_ID,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-      app_metadata: {},
-      created_at: '2024-01-01T00:00:00.000Z',
-    }
+  const session = await resp.json()
+  const userId: string = session.user.id
 
-    if (method === 'GET' && url.includes('/user')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) })
-    }
-    if (method === 'POST' && url.includes('/token')) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          access_token: token,
-          token_type: 'bearer',
-          expires_in: 3600,
-          expires_at: 9999999999,
-          refresh_token: 'fake-refresh',
-          user,
-        }),
-      })
-    }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
-  })
-
-  // Mock Supabase Storage so resume uploads succeed without hitting the real bucket.
+  // Mock Supabase storage so resume uploads succeed without a real bucket.
   await page.route('**/storage/v1/**', route =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ Key: 'resumes/fake-path/resume.txt', Id: 'fake-id' }),
-    })
+    }),
   )
 
-  await page.addInitScript((userId: string) => {
-    function b64url(obj: object) {
-      return btoa(JSON.stringify(obj))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '')
-    }
-    const header = b64url({ alg: 'HS256', typ: 'JWT' })
-    const payload = b64url({
-      sub: userId,
-      email: 'demo@test.local',
-      role: 'authenticated',
-      aud: 'authenticated',
-      iss: 'supabase',
-      iat: 1000000000,
-      exp: 9999999999,
-    })
-    const token = `${header}.${payload}.fakesig`
+  // Seed the session but mark onboarding as NOT complete.
+  await page.addInitScript(
+    ({
+      session,
+      userId,
+    }: {
+      session: any
+      userId: string
+    }) => {
+      localStorage.setItem('sb-127.0.0.1-auth-token', JSON.stringify(session))
 
-    const user = {
-      id: userId,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-      app_metadata: {},
-      created_at: '2024-01-01T00:00:00.000Z',
-    }
+      const data = {
+        senderName: 'Demo User',
+        styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
+        customTemplate: { name: 'Intro', subject: '', body: '' },
+        templateMode: 'custom',
+      }
 
-    // Seed Supabase auth session so the app resolves us as authenticated.
-    localStorage.setItem('sb-fivmzkrwnvfyhjbltbmv-auth-token', JSON.stringify({
-      access_token: token,
-      token_type: 'bearer',
-      expires_in: 3600,
-      expires_at: 9999999999,
-      refresh_token: 'fake-refresh',
-      user,
-    }))
+      // Onboarding NOT complete — the onboarding flow should trigger.
+      localStorage.setItem(
+        `cf_onboarding_${userId}`,
+        JSON.stringify({
+          completed: false,
+          completedAt: null,
+          updatedAt: new Date().toISOString(),
+          data,
+        }),
+      )
+      sessionStorage.setItem(`cf_onboarding_${userId}_editing`, 'explicit')
+    },
+    { session, userId },
+  )
 
-    const data = {
-      senderName: 'Demo User',
-      styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
-      customTemplate: {
-        name: 'Intro',
-        subject: '',
-        body: '',
-      },
-      templateMode: 'custom',
-    }
-
-    // Onboarding state: NOT complete — the onboarding flow should trigger.
-    localStorage.setItem(`cf_onboarding_${userId}`, JSON.stringify({
-      completed: false,
-      completedAt: null,
-      updatedAt: new Date().toISOString(),
-      data,
-    }))
-    sessionStorage.setItem(`cf_onboarding_${userId}_editing`, 'explicit')
-  }, ONBOARDING_USER_ID)
+  return { session, userId }
 }
 
 async function mockOnboardingApi(
@@ -149,13 +94,26 @@ async function mockOnboardingApi(
       if (url.searchParams.get('countToday') === 'true') return json({ count: 0 })
       return json({ items: [] })
     }
+    // Pass Google OAuth through to the mockApi google route
+    if (path.startsWith('/api/google/')) return json({ url: null, error: 'OAuth not available in test mode' })
     return json({})
   })
 }
 
-test('onboarding includes an explicit Gmail connection step before dashboard access', async ({ page }) => {
+let userId = ''
+
+test.afterEach(async () => {
+  if (userId) await cleanupTestData(userId)
+  userId = ''
+})
+
+test('onboarding includes an explicit Gmail connection step before dashboard access', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await signInNeedsOnboarding(page)
+  const { userId: uid } = await signInNeedsOnboarding(page)
+  userId = uid
+
   const profilePosts: any[] = []
   const calls: string[] = []
   await mockOnboardingApi(page, async route => {
@@ -173,11 +131,7 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
           workspaceConfig: {
             senderName: 'Demo User',
             styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
-            customTemplate: {
-              name: 'Intro',
-              subject: '',
-              body: '',
-            },
+            customTemplate: { name: 'Intro', subject: '', body: '' },
             templateMode: 'custom',
           },
           hasClaudeKey: true,
@@ -199,14 +153,11 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
     mimeType: 'text/plain',
     buffer: Buffer.from('Built outreach tooling for Cornell GenAI.'),
   })
-  // Wait for the resume upload to finish (status label shows the file name).
   await expect(page.locator('text=resume.txt').first()).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: /^Next$/i }).click()
-  // The resume upload triggers an immediate profile save; Next triggers another.
-  // Wait for at least one save to have occurred, then check the latest.
+
   await expect.poll(() => profilePosts.length).toBeGreaterThanOrEqual(1)
   const firstNextPost = profilePosts.at(-1)
-  // Core workspace config fields (sender identity).
   expect(firstNextPost?.workspaceConfig).toMatchObject({
     senderName: 'Demo User',
     senderRole: 'Student builder',
@@ -214,33 +165,40 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
     resumeFileName: 'resume.txt',
   })
   expect(firstNextPost?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
-  // Resume text is sent at the top level (not inside workspaceConfig.resumeText).
   expect(firstNextPost?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
   expect(firstNextPost?.onboardingCompleted).toBe(false)
 
-  // Step 2: Template — body is required before advancing.
-  await expect(page.getByRole('heading', { name: /Your email template/i })).toBeVisible({ timeout: 5_000 })
-    .catch(() => expect(page.locator('text=/template|template style/i').first()).toBeVisible({ timeout: 5_000 }))
+  // Step 2: Template
+  await expect(page.getByRole('heading', { name: /Your email template/i })).toBeVisible({
+    timeout: 5_000,
+  }).catch(() =>
+    expect(page.locator('text=/template|template style/i').first()).toBeVisible({ timeout: 5_000 }),
+  )
   await page.getByPlaceholder(/Hi \{\{first_name\}\}/).fill('Hi {{first_name}},\n\nWanted to reach out.')
   await page.getByRole('button', { name: /^Next$/i }).click()
 
   // Step 3: Connect Gmail
-  await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible({
+    timeout: 5_000,
+  })
   const card = page.locator('.rounded-2xl').filter({ hasText: /Gmail not connected/ }).first()
   await expect(card.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
   await expect(card.getByRole('button', { name: /^Refresh$/i })).toBeVisible()
   await card.getByRole('button', { name: /^Connect Gmail$/i }).click()
   await expect.poll(() => calls.length).toBeGreaterThanOrEqual(2)
   const finalProfilePost = profilePosts.at(-1)
-  // Resume text is in the extracted text field of workspaceConfig, not in resumeText.
   expect(finalProfilePost?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
   expect(finalProfilePost?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
   expect(finalProfilePost?.onboardingCompleted).toBe(false)
 })
 
-test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', async ({ page }) => {
+test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await signInNeedsOnboarding(page)
+  const { userId: uid } = await signInNeedsOnboarding(page)
+  userId = uid
+
   await mockOnboardingApi(page, route =>
     route.fulfill({
       status: 200,
@@ -262,7 +220,7 @@ test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', 
           hasGoogleRefreshToken: false,
         },
       }),
-    })
+    }),
   )
 
   await page.goto('/dashboard?google_error=callback_failed')
@@ -271,9 +229,13 @@ test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', 
   await expect(page.getByRole('heading', { name: /About you/i })).toBeHidden()
 })
 
-test('continuing without Gmail persists onboarding profile fields and marks onboarding complete', async ({ page }) => {
+test('continuing without Gmail persists onboarding profile fields and marks onboarding complete', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await signInNeedsOnboarding(page)
+  const { userId: uid } = await signInNeedsOnboarding(page)
+  userId = uid
+
   const profilePosts: any[] = []
   await mockOnboardingApi(page, async route => {
     if (route.request().method() === 'POST') {
@@ -304,11 +266,15 @@ test('continuing without Gmail persists onboarding profile fields and marks onbo
   await page.getByPlaceholder('Maya Chen').fill('Taylor Student')
   await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student founder')
   await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
-  await page.getByPlaceholder('Relevant experience, club role, recent work...').fill('Built outbound tooling for student teams.')
+  await page
+    .getByPlaceholder('Relevant experience, club role, recent work...')
+    .fill('Built outbound tooling for student teams.')
   await page.getByRole('button', { name: /^Next$/i }).click()
 
-  // Step 2: Template — body is now required before advancing
-  await page.getByPlaceholder(/Hi \{\{first_name\}\}/).fill('Hi {{first_name}},\n\nWanted to reach out.')
+  // Step 2: Template
+  await page
+    .getByPlaceholder(/Hi \{\{first_name\}\}/)
+    .fill('Hi {{first_name}},\n\nWanted to reach out.')
   await page.getByRole('button', { name: /^Next$/i }).click()
 
   // Step 3: Gmail — "Finish later" removed; use "Continue without Gmail" instead
@@ -321,6 +287,6 @@ test('continuing without Gmail persists onboarding profile fields and marks onbo
     senderRole: 'Student founder',
     senderCompany: 'Cornell GenAI',
   })
-  // finish(false) → onComplete → onboardingCompleted: true (not false like the old skipped path)
+  // finish(false) → onComplete → onboardingCompleted: true
   expect(lastPost?.onboardingCompleted).toBe(true)
 })

@@ -1,156 +1,22 @@
-import type { Page, Route } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
 
-// Centralised API mocks for smoke tests. Each test can override individual
-// routes before navigating; this file provides the empty-but-valid baseline.
+// ─── Local Supabase constants (read from .env.test.local) ────────────────────
 
-export const DEMO_USER_ID = 'demo-user-id'
+export const LOCAL_SUPABASE_URL = process.env.E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321'
 
-/**
- * Seeds a fake but structurally correct Supabase auth session in localStorage
- * so the app's AuthContext resolves the user without hitting real Supabase.
- * Also mocks the Supabase auth network endpoints so token-refresh and /user
- * calls don't fail.
- *
- * Call this BEFORE page.goto() (use it in addInitScript + route mocks).
- */
-export async function signInDemo(page: Page) {
-  // Mock Supabase auth network calls BEFORE the page loads so any eager
-  // token-refresh or /user fetch is intercepted immediately.
-  await page.route('**/auth/v1/**', route => {
-    const url = route.request().url()
-    const method = route.request().method()
+export const ANON_KEY = process.env.E2E_SUPABASE_ANON_KEY ?? ''
 
-    // Build the fake token inline so we can reuse it here too.
-    function b64url(obj: object) {
-      return btoa(JSON.stringify(obj))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '')
-    }
-    const header = b64url({ alg: 'HS256', typ: 'JWT' })
-    const payload = b64url({
-      sub: DEMO_USER_ID,
-      email: 'demo@test.local',
-      role: 'authenticated',
-      aud: 'authenticated',
-      iss: 'supabase',
-      iat: 1000000000,
-      exp: 9999999999,
-    })
-    const token = `${header}.${payload}.fakesig`
+const SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
 
-    const user = {
-      id: DEMO_USER_ID,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-      app_metadata: {},
-      created_at: '2024-01-01T00:00:00.000Z',
-    }
+// localStorage key derived from the Supabase URL hostname
+const STORAGE_KEY = `sb-${new URL(LOCAL_SUPABASE_URL).hostname}-auth-token`
 
-    const session = {
-      access_token: token,
-      token_type: 'bearer',
-      expires_in: 3600,
-      expires_at: 9999999999,
-      refresh_token: 'fake-refresh',
-      user,
-    }
+// Module-level token set by signInDemo — safe with workers:1 (serial tests).
+// createTestCampaign / createTestTemplate read this automatically.
+let _accessToken: string | null = null
 
-    // GET /auth/v1/user — return user object
-    if (method === 'GET' && url.includes('/user')) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(user),
-      })
-    }
-
-    // POST /auth/v1/token (token refresh) — return full session
-    if (method === 'POST' && url.includes('/token')) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      })
-    }
-
-    // POST /auth/v1/authorize — return OAuth error so tests can assert the error UI
-    if (url.includes('/authorize')) {
-      return route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'oauth_error',
-          error_description: 'OAuth provider unavailable in test mode',
-        }),
-      })
-    }
-
-    // Default: pass through with empty 200 for any other auth endpoint
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({}),
-    })
-  })
-
-  // Seed localStorage before the page JS runs.
-  await page.addInitScript((userId: string) => {
-    function b64url(obj: object) {
-      return btoa(JSON.stringify(obj))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '')
-    }
-    const header = b64url({ alg: 'HS256', typ: 'JWT' })
-    const payload = b64url({
-      sub: userId,
-      email: 'demo@test.local',
-      role: 'authenticated',
-      aud: 'authenticated',
-      iss: 'supabase',
-      iat: 1000000000,
-      exp: 9999999999,
-    })
-    const token = `${header}.${payload}.fakesig`
-
-    const user = {
-      id: userId,
-      aud: 'authenticated',
-      role: 'authenticated',
-      email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-      app_metadata: {},
-      created_at: '2024-01-01T00:00:00.000Z',
-    }
-
-    const session = {
-      access_token: token,
-      token_type: 'bearer',
-      expires_in: 3600,
-      expires_at: 9999999999,
-      refresh_token: 'fake-refresh',
-      user,
-    }
-
-    // Supabase stores auth under sb-<project-ref>-auth-token
-    localStorage.setItem('sb-fivmzkrwnvfyhjbltbmv-auth-token', JSON.stringify(session))
-
-    // Onboarding state: mark complete so tests skip the wizard
-    const now = new Date().toISOString()
-    localStorage.setItem(`cf_onboarding_${userId}`, JSON.stringify({
-      completed: true,
-      completedAt: now,
-      updatedAt: now,
-      data: {
-        senderName: 'Demo User',
-        styleProfile: { examples: ['hi'] },
-      },
-    }))
-  }, DEMO_USER_ID)
-}
+// ─── Reference objects for assertions (not for mocking) ──────────────────────
 
 export const SAMPLE_COMPANY = {
   id: 'co_1',
@@ -166,21 +32,6 @@ export const SAMPLE_COMPANY = {
   location: 'San Francisco',
 }
 
-export const SAMPLE_LEAD = {
-  id: 'lead_1',
-  userId: 'demo',
-  companyId: SAMPLE_COMPANY.id,
-  contactId: 'contact_1',
-  apolloPersonId: null,
-  status: 'SAVED',
-  notes: null,
-  addedAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  company: SAMPLE_COMPANY,
-  contact: { id: 'contact_1', name: 'Avery Kim', email: 'avery@acme.test', title: 'Founder', role: 'founder' },
-  emails: [],
-}
-
 export const SAMPLE_TEMPLATE = {
   id: 'tpl_1',
   userId: 'demo',
@@ -192,64 +43,246 @@ export const SAMPLE_TEMPLATE = {
   updatedAt: new Date().toISOString(),
 }
 
-const json = (route: Route, body: unknown, status = 200) =>
-  route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+// ─── Real sign-in ─────────────────────────────────────────────────────────────
 
-interface MockOptions {
-  campaigns?: any[]
-  leads?: any[]
-  customContacts?: any[]
-  templates?: any[]
-  companies?: any[]
-  drafts?: any[]
-  sent?: any[]
-  profile?: Partial<{
-    hasClaudeKey: boolean
-    hasGoogleRefreshToken: boolean
-  }>
+/**
+ * Authenticates as the e2e test user by calling the local Supabase auth
+ * endpoint directly, then seeds the real session into the browser's
+ * localStorage so the Supabase JS client picks it up without a redirect.
+ *
+ * Also marks onboarding as complete so tests start on the dashboard.
+ *
+ * Call this BEFORE page.goto().
+ */
+export async function signInDemo(page: Page): Promise<{ session: any; userId: string }> {
+  // Get a real JWT from local Supabase.
+  const resp = await page.request.post(
+    `${LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      headers: {
+        apikey: ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      data: { email: 'e2e@sparrow.test', password: 'SparrowE2E2024!' },
+    },
+  )
+
+  if (!resp.ok()) {
+    throw new Error(`[signInDemo] Auth failed: ${resp.status()} ${await resp.text()}`)
+  }
+
+  const session = await resp.json()
+  const userId: string = session.user.id
+
+  // Seed session + onboarding flag into localStorage before page JS runs.
+  await page.addInitScript(
+    ({ session, storageKey, userId }: { session: any; storageKey: string; userId: string }) => {
+      localStorage.setItem(storageKey, JSON.stringify(session))
+
+      const now = new Date().toISOString()
+      localStorage.setItem(
+        `cf_onboarding_${userId}`,
+        JSON.stringify({
+          completed: true,
+          completedAt: now,
+          updatedAt: now,
+          data: {
+            senderName: 'E2E Test User',
+            styleProfile: { examples: ['hi'] },
+          },
+        }),
+      )
+    },
+    { session, storageKey: STORAGE_KEY, userId },
+  )
+
+  // Store token for use by createTestCampaign / createTestTemplate.
+  _accessToken = session.access_token
+
+  return { session, userId }
 }
 
-export async function mockApi(page: Page, opts: MockOptions = {}) {
-  const {
-    campaigns = [], leads = [], customContacts = [], templates = [],
-    companies = [], drafts = [], sent = [],
-    profile: profileOverrides = {},
-  } = opts
+// ─── Data helpers ─────────────────────────────────────────────────────────────
 
-  // Profile is needed for App.tsx onboarding gate
-  await page.route('**/api/profile', route =>
-    json(route, {
-      profile: {
-        onboardingCompleted: true,
-        workspaceConfig: { senderName: 'Demo User', templateId: null },
-        hasClaudeKey: true,
-        hasGoogleRefreshToken: true,
-        ...profileOverrides,
-      },
-    })
-  )
-
-  await page.route('**/api/templates', route => json(route, { items: templates }))
-  await page.route('**/api/campaigns**', route => {
-    if (route.request().method() === 'POST') {
-      // Echo back a created campaign
-      return json(route, { id: 'cmp_new', userId: 'demo', name: 'New', status: 'DRAFT', batchSize: 10, currentBatch: 0, filterTags: [], attachmentIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-    }
-    return json(route, { items: campaigns })
+/**
+ * Creates a campaign by POSTing to the real API and returns the created object.
+ */
+export async function createTestCampaign(page: Page, overrides: Record<string, unknown> = {}) {
+  const resp = await page.request.post('/api/campaigns', {
+    headers: { Authorization: `Bearer ${_accessToken}` },
+    data: { name: 'Test Campaign', status: 'ACTIVE', ...overrides },
   })
-  await page.route('**/api/leads**', route => json(route, { items: leads }))
-  await page.route('**/api/custom-contacts**', route => json(route, { items: customContacts }))
+  if (!resp.ok()) {
+    throw new Error(`[createTestCampaign] Failed: ${resp.status()} ${await resp.text()}`)
+  }
+  return resp.json()
+}
+
+/**
+ * Creates a template by POSTing to the real API and returns the created object.
+ */
+export async function createTestTemplate(page: Page, overrides: Record<string, unknown> = {}) {
+  const resp = await page.request.post('/api/templates', {
+    headers: { Authorization: `Bearer ${_accessToken}` },
+    data: {
+      name: 'Test Template',
+      subject: 'Test Subject',
+      body: '<p>Test body</p>',
+      ...overrides,
+    },
+  })
+  if (!resp.ok()) {
+    throw new Error(`[createTestTemplate] Failed: ${resp.status()} ${await resp.text()}`)
+  }
+  return resp.json()
+}
+
+/**
+ * Deletes all data rows owned by the e2e user directly via the Supabase admin
+ * client. Prisma table names (camelCase) map to the DB names used below.
+ *
+ * Dependency order: Email → CampaignLead / CampaignCustomContact → Campaign
+ *                   Email → UserLead → (nothing)
+ *                   CustomContact → CampaignCustomContact (already cascaded)
+ */
+export async function cleanupTestData(userId: string) {
+  const admin = createClient(LOCAL_SUPABASE_URL, SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+
+  // 1. Delete emails attached to this user's leads (via userLeadId join)
+  //    and emails attached to this user's custom contacts.
+  //    Easiest: delete by userId via the UserLead / CustomContact join.
+  //    Since Email has no direct userId, we delete campaigns first to trigger
+  //    cascades where possible, then mop up orphans.
+
+  // Delete CampaignLead rows (cascade from Campaign onDelete:Cascade already
+  // fires in Prisma, but we do it explicitly here for safety).
+  await admin.from('CampaignLead').delete().in(
+    'campaignId',
+    // Sub-select all campaign IDs for this user
+    (await admin.from('Campaign').select('id').eq('userId', userId)).data?.map((r: any) => r.id) ?? [],
+  )
+
+  // Delete CampaignCustomContact rows.
+  await admin.from('CampaignCustomContact').delete().in(
+    'campaignId',
+    (await admin.from('Campaign').select('id').eq('userId', userId)).data?.map((r: any) => r.id) ?? [],
+  )
+
+  // Delete Campaigns (onDelete:Cascade will also remove CampaignLead/
+  // CampaignCustomContact/CampaignSeenCompany children).
+  await admin.from('Campaign').delete().eq('userId', userId)
+
+  // Delete Email rows tied to this user's UserLeads.
+  const userLeadIds =
+    (await admin.from('UserLead').select('id').eq('userId', userId)).data?.map((r: any) => r.id) ?? []
+  if (userLeadIds.length > 0) {
+    await admin.from('Email').delete().in('userLeadId', userLeadIds)
+  }
+
+  // Delete Email rows tied to this user's CustomContacts.
+  const ccIds =
+    (await admin.from('CustomContact').select('id').eq('userId', userId)).data?.map(
+      (r: any) => r.id,
+    ) ?? []
+  if (ccIds.length > 0) {
+    await admin.from('Email').delete().in('customContactId', ccIds)
+  }
+
+  // Delete UserLead rows.
+  await admin.from('UserLead').delete().eq('userId', userId)
+
+  // Delete CustomContact rows.
+  await admin.from('CustomContact').delete().eq('userId', userId)
+
+  // Delete Template rows.
+  await admin.from('Template').delete().eq('userId', userId)
+
+  // Delete DiscoverySeen rows.
+  await admin.from('DiscoverySeenCompany').delete().eq('userId', userId)
+}
+
+// ─── External-service mocks only ─────────────────────────────────────────────
+
+/**
+ * Registers page.route() mocks for external services that we never want to
+ * actually call in e2e tests (Apollo, Claude, Gmail OAuth, Google OAuth).
+ *
+ * Real internal API routes (/api/campaigns, /api/templates, /api/profile,
+ * /api/leads, /api/campaign-leads, /api/custom-contacts, /api/campaign-options)
+ * are NOT mocked — they hit the real local API server and Postgres.
+ */
+export async function mockApi(
+  page: Page,
+  opts: {
+    companiesResponse?: any
+    audienceQueryResponse?: any
+    draftResponse?: any
+  } = {},
+) {
+  // Apollo-powered company discovery
   await page.route('**/api/companies**', route =>
-    json(route, { items: companies, nextCursor: null, seenTotal: 0, usingFallback: false })
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        opts.companiesResponse ?? {
+          items: [],
+          nextCursor: null,
+          seenTotal: 0,
+          usingFallback: false,
+        },
+      ),
+    }),
   )
-  await page.route('**/api/campaign-options', route =>
-    json(route, { industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0 })
+
+  await page.route('**/api/audience-query**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(opts.audienceQueryResponse ?? { count: 0, sample: [] }),
+    }),
   )
-  await page.route('**/api/audience-query', route =>
-    json(route, { count: 84, sample: ['Acme Robotics', 'Helio Labs', 'Latch Systems'] })
+
+  // Claude-powered draft generation
+  await page.route('**/api/emails/generate**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        opts.draftResponse ?? {
+          emailId: 'draft-1',
+          subject: 'Test subject',
+          body: '<p>Test body</p>',
+        },
+      ),
+    }),
   )
-  await page.route('**/api/emails?combined=true**', route => json(route, { drafts, sent }))
-  await page.route('**/api/emails?countToday=true**', route => json(route, { count: 0 }))
-  await page.route('**/api/emails**', route => json(route, { items: [...drafts, ...sent] }))
-  await page.route('**/api/account', route => json(route, { success: true }))
+
+  // Gmail send
+  await page.route('**/api/emails/send**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true }),
+    }),
+  )
+
+  await page.route('**/api/emails/send-test**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true }),
+    }),
+  )
+
+  // Google OAuth
+  await page.route('**/api/google/**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ url: null, error: 'OAuth not available in test mode' }),
+    }),
+  )
 }

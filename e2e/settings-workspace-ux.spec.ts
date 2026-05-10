@@ -1,48 +1,44 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect, type Route } from '@playwright/test'
+import {
+  mockApi,
+  signInDemo,
+  createTestCampaign,
+  createTestTemplate,
+  cleanupTestData,
+} from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-const CAMPAIGN_ID = 'cmp_settings_ux'
-const CAMPAIGN = {
-  id: CAMPAIGN_ID,
-  userId: 'demo',
-  name: 'Settings UX campaign',
-  subject: 'Quick question',
-  status: 'ACTIVE' as const,
-  templateId: SAMPLE_TEMPLATE.id,
-  filterTags: [],
-  filterRegion: null,
-  filterStage: null,
-  filterBatch: null,
-  filterIsHiring: null,
-  filterHeadcountMin: null,
-  filterHeadcountMax: null,
-  tone: null,
-  attachmentIds: [],
-  scheduledAt: null,
-  template: { id: SAMPLE_TEMPLATE.id, name: SAMPLE_TEMPLATE.name },
-  includePreviouslySaved: false,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-}
+let userId: string
 
 test.describe('Settings and workspace UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
+  })
+
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
   })
 
   test('saves workspace profile edits and shows success feedback', async ({ page }) => {
+    // Profile GET returns seed data; POST captures the payload.
     let profilePost: any = null
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/profile')
-    await page.route('**/api/profile', route => {
+    await page.route('**/api/profile**', route => {
       if (route.request().method() === 'POST') {
         profilePost = route.request().postDataJSON()
-        return json(route, { profile: { onboardingCompleted: true, workspaceConfig: profilePost.workspaceConfig, hasClaudeKey: true, hasGoogleRefreshToken: true } })
+        return json(route, {
+          profile: {
+            onboardingCompleted: true,
+            workspaceConfig: profilePost.workspaceConfig,
+            hasClaudeKey: true,
+            hasGoogleRefreshToken: true,
+          },
+        })
       }
       return json(route, {
         profile: {
@@ -52,7 +48,7 @@ test.describe('Settings and workspace UX', () => {
             senderCompany: 'Cornell GenAI',
             senderRole: 'Builder',
             resumeText: 'Built outreach tools.',
-            templateId: SAMPLE_TEMPLATE.id,
+            templateId: null,
           },
           hasClaudeKey: true,
           hasGoogleRefreshToken: true,
@@ -70,12 +66,17 @@ test.describe('Settings and workspace UX', () => {
 
   test('clamps sending limits and saves default sending settings', async ({ page }) => {
     let profilePost: any = null
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/profile')
-    await page.route('**/api/profile', route => {
+    await page.route('**/api/profile**', route => {
       if (route.request().method() === 'POST') {
         profilePost = route.request().postDataJSON()
-        return json(route, { profile: { onboardingCompleted: true, workspaceConfig: profilePost.workspaceConfig, hasClaudeKey: true, hasGoogleRefreshToken: true } })
+        return json(route, {
+          profile: {
+            onboardingCompleted: true,
+            workspaceConfig: profilePost.workspaceConfig,
+            hasClaudeKey: true,
+            hasGoogleRefreshToken: true,
+          },
+        })
       }
       return json(route, {
         profile: {
@@ -93,9 +94,21 @@ test.describe('Settings and workspace UX', () => {
 
     await page.goto('/settings')
     await page.getByRole('tab', { name: /Sending/i }).click()
-    await page.locator('label', { hasText: 'Daily send limit' }).locator('..').getByRole('spinbutton').fill('500')
-    await page.locator('label', { hasText: 'Delay between sends' }).locator('..').getByRole('spinbutton').fill('1')
-    await page.locator('label', { hasText: 'Lead batch size' }).locator('..').getByRole('spinbutton').fill('60')
+    await page
+      .locator('label', { hasText: 'Daily send limit' })
+      .locator('..')
+      .getByRole('spinbutton')
+      .fill('500')
+    await page
+      .locator('label', { hasText: 'Delay between sends' })
+      .locator('..')
+      .getByRole('spinbutton')
+      .fill('1')
+    await page
+      .locator('label', { hasText: 'Lead batch size' })
+      .locator('..')
+      .getByRole('spinbutton')
+      .fill('60')
     await page.getByRole('button', { name: /Save sending settings/i }).click()
 
     await expect.poll(() => profilePost?.workspaceConfig?.sendingLimits?.dailyMax).toBe(100)
@@ -104,36 +117,43 @@ test.describe('Settings and workspace UX', () => {
   })
 
   test('saves campaign settings edits through the workspace editor', async ({ page }) => {
+    const template = await createTestTemplate(page, { name: 'Cold intro' })
+    const campaign = await createTestCampaign(page, {
+      name: 'Settings UX campaign',
+      status: 'ACTIVE',
+      templateId: template.id,
+    })
+
     let patchPayload: any = null
-    await mockApi(page, { campaigns: [CAMPAIGN], templates: [SAMPLE_TEMPLATE] })
-    await page.route('**/api/campaign-options', route => json(route, {
-      industries: [],
-      regions: [],
-      stages: [],
-      batches: [],
-      tags: {
-        signal: [
-          { namespaced: 'signal:yc-backed', name: 'YC-backed', count: 25 },
-          { namespaced: 'signal:recent-funding', name: 'Recently funded', count: 22 },
-        ],
-      },
-      hiringCount: 0,
-    }))
-    await page.unroute('**/api/campaigns**')
+    await page.route('**/api/campaign-options', route =>
+      json(route, {
+        industries: [],
+        regions: [],
+        stages: [],
+        batches: [],
+        tags: {
+          signal: [
+            { namespaced: 'signal:yc-backed', name: 'YC-backed', count: 25 },
+            { namespaced: 'signal:recent-funding', name: 'Recently funded', count: 22 },
+          ],
+        },
+        hiringCount: 0,
+      }),
+    )
     await page.route('**/api/campaigns**', route => {
       if (route.request().method() === 'PATCH') {
         patchPayload = route.request().postDataJSON()
         return json(route, {
-          ...CAMPAIGN,
+          ...campaign,
           ...patchPayload,
-          status: (patchPayload.status || CAMPAIGN.status).toUpperCase(),
+          status: (patchPayload.status || campaign.status).toUpperCase(),
           updatedAt: new Date().toISOString(),
         })
       }
-      return json(route, { items: [CAMPAIGN] })
+      return json(route, { items: [campaign] })
     })
 
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/settings`)
+    await page.goto(`/campaigns/${campaign.id}/settings`)
     await page.locator('input.input').first().fill('Updated campaign settings')
     await page.locator('select.select').nth(1).selectOption('paused')
     await page.getByRole('button', { name: /Hiring only/i }).click()
@@ -147,13 +167,15 @@ test.describe('Settings and workspace UX', () => {
   })
 
   test('requires campaign name before saving workspace settings', async ({ page }) => {
-    await mockApi(page, { campaigns: [CAMPAIGN], templates: [SAMPLE_TEMPLATE] })
-    await page.goto(`/campaigns/${CAMPAIGN_ID}/settings`)
+    const campaign = await createTestCampaign(page, {
+      name: 'Settings UX campaign',
+      status: 'ACTIVE',
+    })
 
+    await page.goto(`/campaigns/${campaign.id}/settings`)
     await page.locator('input.input').first().fill('')
 
     await expect(page.locator('text=/Campaign name is required to save/i')).toBeVisible()
     await expect(page.getByRole('button', { name: /Save changes/i })).toBeDisabled()
   })
-
 })

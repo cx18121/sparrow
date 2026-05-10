@@ -1,45 +1,31 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_LEAD, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import {
+  mockApi,
+  signInDemo,
+  createTestCampaign,
+  createTestTemplate,
+  cleanupTestData,
+} from './fixtures/api-mocks'
 
-// Regression suite for the new Home page (Phase 1 of the campaigns-as-workspaces
-// redesign). Asserts the locked PRD shape:
+// Regression suite for the Home page.
 //   - 0 campaigns → single welcome card, no KPI strip
-//   - 1+ campaigns → greeting + 3 KPI cards (Lead Pool / Drafts / Sent This Week)
-//                  + campaign grid + "+ New campaign" empty cell
-// Replies KPI is intentionally NOT shown — reply tracking is a future phase.
+//   - 1+ campaigns → greeting + 3 KPI cards + campaign grid + "+ New campaign" empty cell
 
-const SAMPLE_CAMPAIGN = {
-  id: 'cmp_1',
-  userId: 'demo',
-  name: 'Series A AI infra hiring',
-  subject: 'Quick question',
-  status: 'ACTIVE' as const,
-  templateId: SAMPLE_TEMPLATE.id,
-  filterTags: ['stage:series-a'],
-  filterRegion: null,
-  filterStage: null,
-  filterBatch: null,
-  filterIsHiring: null,
-  filterHeadcountMin: null,
-  filterHeadcountMax: null,
-  batchSize: 10,
-  currentBatch: 1,
-  tone: null,
-  attachmentIds: [],
-  scheduledAt: null,
-  template: { id: SAMPLE_TEMPLATE.id, name: SAMPLE_TEMPLATE.name },
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-}
+let userId: string
 
 test.describe('Home page', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
+  })
+
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
   })
 
   test('empty state shows a single welcome card and no KPI strip', async ({ page }) => {
-    await mockApi(page) // no campaigns, no leads, no drafts
     await page.goto('/dashboard')
     const welcome = page.locator('text=/Create your first campaign|Welcome/i').first()
     await expect(welcome).toBeVisible({ timeout: 10_000 })
@@ -48,15 +34,17 @@ test.describe('Home page', () => {
   })
 
   test('populated home shows greeting, 3 KPI cards, and campaign grid', async ({ page }) => {
-    await mockApi(page, {
-      campaigns: [SAMPLE_CAMPAIGN],
-      leads: [SAMPLE_LEAD],
-      templates: [SAMPLE_TEMPLATE],
+    const template = await createTestTemplate(page, { name: 'Cold intro' })
+    const campaign = await createTestCampaign(page, {
+      name: 'Series A AI infra hiring',
+      status: 'ACTIVE',
+      templateId: template.id,
     })
+
     await page.goto('/dashboard')
 
-    // Greeting (Outfit display, contains user's first name from the seeded session)
-    await expect(page.locator('text=/Demo/').first()).toBeVisible({ timeout: 10_000 })
+    // Greeting with user's name from the seeded session
+    await expect(page.locator('text=/E2E/').first()).toBeVisible({ timeout: 10_000 })
 
     // 3 KPI labels — must all exist
     await expect(page.locator('text=/^lead pool$/i').first()).toBeVisible()
@@ -66,8 +54,8 @@ test.describe('Home page', () => {
     // Replies must NOT be present — that's a future phase
     await expect(page.locator('text=/^replies$/i').first()).toHaveCount(0)
 
-    // Campaign card with the campaign name
-    await expect(page.locator('text=/Series A AI infra hiring/').first()).toBeVisible()
+    // Campaign card
+    await expect(page.locator(`text=/Series A AI infra hiring/`).first()).toBeVisible()
 
     // "+ New campaign" empty cell
     await expect(page.locator('text=/^new campaign$/i').first()).toBeVisible()

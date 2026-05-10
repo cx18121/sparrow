@@ -1,21 +1,33 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect, type Route } from '@playwright/test'
+import {
+  mockApi,
+  signInDemo,
+  createTestTemplate,
+  cleanupTestData,
+} from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
+let userId: string
+
 test.describe('Create campaign wizard UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await signInDemo(page)
-    // Clear any leftover wizard scratch state from prior tests in the same browser.
-    await page.addInitScript(() => { localStorage.removeItem('sparrow_wizard_v1') })
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await page.addInitScript(() => {
+      localStorage.removeItem('sparrow_wizard_v1')
+    })
+    await mockApi(page, { audienceQueryResponse: { count: 84, sample: [] } })
+  })
+
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
   })
 
   test('requires a campaign name before progressing from the first step', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-
     await page.goto('/dashboard?new=1')
     await expect(page.locator('text=/Name your campaign/i')).toBeVisible({ timeout: 10_000 })
 
@@ -30,42 +42,49 @@ test.describe('Create campaign wizard UX', () => {
     await expect(page.locator('text=/Who should Sparrow find\\?/i')).toBeVisible()
   })
 
-  test('shows YC batch choices only for YC-backed audiences and clears stale batch filters', async ({ page }) => {
+  test('shows YC batch choices only for YC-backed audiences and clears stale batch filters', async ({
+    page,
+  }) => {
+    // Override campaign-options to include batches and tags
+    await page.route('**/api/campaign-options', route =>
+      json(route, {
+        industries: [],
+        regions: [],
+        stages: [],
+        batches: ['W26', 'S25', 'W25'],
+        tags: {
+          signal: [
+            { namespaced: 'signal:yc-backed', name: 'YC-backed', count: 42 },
+            { namespaced: 'signal:recent-funding', name: 'Recently funded', count: 31 },
+            { namespaced: 'signal:multi-source', name: 'Multi-source', count: 50 },
+          ],
+        },
+        hiringCount: 0,
+      }),
+    )
+
     let createdPayload: any = null
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/campaign-options')
-    await page.unroute('**/api/campaigns**')
-    await page.route('**/api/campaign-options', route => json(route, {
-      industries: [],
-      regions: [],
-      stages: [],
-      batches: ['W26', 'S25', 'W25'],
-      tags: {
-        signal: [
-          { namespaced: 'signal:yc-backed', name: 'YC-backed', count: 42 },
-          { namespaced: 'signal:recent-funding', name: 'Recently funded', count: 31 },
-          { namespaced: 'signal:multi-source', name: 'Multi-source', count: 50 },
-        ],
-      },
-      hiringCount: 0,
-    }))
     await page.route('**/api/campaigns**', route => {
       if (route.request().method() === 'POST') {
         createdPayload = route.request().postDataJSON()
-        return json(route, {
-          id: 'cmp_created',
-          userId: 'demo',
-          name: createdPayload.name,
-          status: createdPayload.status,
-          batchSize: 10,
-          currentBatch: 0,
-          filterTags: createdPayload.filterTags ?? [],
-          filterBatch: createdPayload.filterBatch ?? null,
-          attachmentIds: [],
-          includePreviouslySaved: createdPayload.includePreviouslySaved,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }, 201)
+        return json(
+          route,
+          {
+            id: 'cmp_created',
+            userId,
+            name: createdPayload.name,
+            status: createdPayload.status,
+            batchSize: 10,
+            currentBatch: 0,
+            filterTags: createdPayload.filterTags ?? [],
+            filterBatch: createdPayload.filterBatch ?? null,
+            attachmentIds: [],
+            includePreviouslySaved: createdPayload.includePreviouslySaved,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          201,
+        )
       }
       return json(route, { items: [] })
     })
@@ -93,26 +112,30 @@ test.describe('Create campaign wizard UX', () => {
   })
 
   test('can save a campaign as paused with a selected template', async ({ page }) => {
+    const template = await createTestTemplate(page, { name: 'Cold intro' })
+
     let createdPayload: any = null
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/campaigns**')
     await page.route('**/api/campaigns**', route => {
       if (route.request().method() === 'POST') {
         createdPayload = route.request().postDataJSON()
-        return json(route, {
-          id: 'cmp_paused',
-          userId: 'demo',
-          name: createdPayload.name,
-          status: createdPayload.status,
-          templateId: createdPayload.templateId,
-          batchSize: 10,
-          currentBatch: 0,
-          filterTags: [],
-          attachmentIds: [],
-          includePreviouslySaved: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }, 201)
+        return json(
+          route,
+          {
+            id: 'cmp_paused',
+            userId,
+            name: createdPayload.name,
+            status: createdPayload.status,
+            templateId: createdPayload.templateId,
+            batchSize: 10,
+            currentBatch: 0,
+            filterTags: [],
+            attachmentIds: [],
+            includePreviouslySaved: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          201,
+        )
       }
       return json(route, { items: [] })
     })
@@ -121,18 +144,18 @@ test.describe('Create campaign wizard UX', () => {
     await page.getByLabel('Campaign name').fill('Paused launch candidate')
     await page.getByRole('button', { name: /Continue/i }).click()
     await page.getByRole('button', { name: /Continue/i }).click()
-    await page.getByRole('button', { name: new RegExp(SAMPLE_TEMPLATE.name) }).click()
+    await page.getByRole('button', { name: new RegExp(template.name) }).click()
     await page.getByRole('button', { name: /Continue/i }).click()
     await page.getByRole('button', { name: /Save as Paused/i }).click()
 
     await expect.poll(() => createdPayload?.status).toBe('PAUSED')
-    expect(createdPayload.templateId).toBe(SAMPLE_TEMPLATE.id)
+    expect(createdPayload.templateId).toBe(template.id)
   })
 
   test('shows an audience preview failure without blocking wizard progress', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-    await page.unroute('**/api/audience-query')
-    await page.route('**/api/audience-query', route => json(route, { error: 'preview failed' }, 500))
+    await page.route('**/api/audience-query**', route =>
+      json(route, { error: 'preview failed' }, 500),
+    )
 
     await page.goto('/dashboard?new=1')
     await page.getByLabel('Campaign name').fill('Preview failure still works')

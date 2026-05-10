@@ -1,48 +1,43 @@
-import { test, expect } from '@playwright/test'
-import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { test, expect, type Route } from '@playwright/test'
+import { mockApi, signInDemo, createTestTemplate, cleanupTestData } from './fixtures/api-mocks'
+
+function json(route: Route, body: unknown, status = 200) {
+  return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+}
 
 // Regression suite for Bug 07: Gmail connect surface.
-//
-// User-reported: "Gmail connect button doesn't work."
-// Most plausible failure modes are SILENT — the button fires, the redirect
-// happens, the callback fails, the user lands back on the app with
-// ?google_error=... in the URL but no visible feedback. These tests assert:
-// 1. The button is visible and labelled correctly when not connected.
-// 2. Clicking the button POSTs to /api/google/connect (the redirect target).
-// 3. When the callback redirects back with ?google_error=..., a banner shows.
-// 4. When the callback redirects back with ?google_connected=1, a success
-//    banner shows.
 
-async function mockApiWithoutGoogle(page: import('@playwright/test').Page) {
-  await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
-  // Override profile to report Gmail NOT connected so the button shows.
-  await page.route('**/api/profile', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        profile: {
-          onboardingCompleted: true,
-          workspaceConfig: { senderName: 'Demo User', templateId: null },
-          hasClaudeKey: true,
-          hasGoogleRefreshToken: false,
-        },
-      }),
-    })
+let userId: string
+
+async function mockProfileGmailDisconnected(page: import('@playwright/test').Page) {
+  await page.route('**/api/profile**', route =>
+    json(route, {
+      profile: {
+        onboardingCompleted: true,
+        workspaceConfig: { senderName: 'E2E Test User', templateId: null },
+        hasClaudeKey: true,
+        hasGoogleRefreshToken: false,
+      },
+    }),
   )
 }
 
 test.describe('Gmail connect button', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
+    await mockProfileGmailDisconnected(page)
+  })
+
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
   })
 
   test('shows Connect button (not Reconnect) when Gmail is not yet connected', async ({ page }) => {
-    await mockApiWithoutGoogle(page)
     await page.goto('/settings')
     await page.getByRole('tab', { name: /Account/ }).click()
-    // The button should say Connect, not Reconnect — this user has never connected.
     const reconnect = page.getByRole('button', { name: /^reconnect$/i })
     await expect(reconnect, 'Reconnect label is wrong when user has never connected').toHaveCount(0)
     const connect = page.getByRole('button', { name: /^connect$/i })
@@ -50,15 +45,12 @@ test.describe('Gmail connect button', () => {
   })
 
   test('clicking Connect surfaces a banner when the connect API call fails', async ({ page }) => {
-    // Mock the Google connect API to return an error so connectGoogle() throws
-    // and the SettingsPage surfaces it as a banner (not a silent failure).
-    await mockApiWithoutGoogle(page)
     await page.route('**/api/google/connect', route =>
       route.fulfill({
         status: 500,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'Could not connect Gmail — server error in test mode' }),
-      })
+      }),
     )
     await page.goto('/settings')
     await page.getByRole('tab', { name: /Account/ }).click()
@@ -70,64 +62,70 @@ test.describe('Gmail connect button', () => {
   })
 
   test('surfaces error banner when callback redirects back with ?google_error', async ({ page }) => {
-    await mockApiWithoutGoogle(page)
     await page.goto('/settings?google_error=callback_failed')
     const banner = page.locator('text=/Could not connect Gmail|Gmail connection failed/i').first()
     await expect(banner).toBeVisible({ timeout: 5000 })
   })
 
-  test('surfaces success banner when callback redirects back with ?google_connected=1', async ({ page }) => {
+  test('surfaces success banner when callback redirects back with ?google_connected=1', async ({
+    page,
+  }) => {
     let profileCalls = 0
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE], profile: { hasGoogleRefreshToken: false } })
-    await page.route('**/api/profile', route => {
+    await page.route('**/api/profile**', route => {
       profileCalls += 1
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          profile: {
-            onboardingCompleted: true,
-            workspaceConfig: { senderName: 'Demo User', templateId: null },
-            hasClaudeKey: true,
-            hasGoogleRefreshToken: profileCalls > 1,
-          },
-        }),
+      return json(route, {
+        profile: {
+          onboardingCompleted: true,
+          workspaceConfig: { senderName: 'E2E Test User', templateId: null },
+          hasClaudeKey: true,
+          hasGoogleRefreshToken: profileCalls > 1,
+        },
       })
     })
     await page.goto('/settings?google_connected=1')
     const banner = page.locator('text=/Gmail connected/i').first()
     await expect(banner).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('tab', { name: /Account/ })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.locator('text=/Ready to send drafts/i').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('tab', { name: /Account/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(page.locator('text=/Ready to send drafts/i').first()).toBeVisible({
+      timeout: 5000,
+    })
   })
 })
 
 test.describe('Settings tab structure', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
-    await signInDemo(page)
+    const { userId: uid } = await signInDemo(page)
+    userId = uid
+    await mockApi(page)
   })
 
-  test('renders the three Settings tabs and switching tabs swaps the panel content', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
+  test.afterEach(async () => {
+    await cleanupTestData(userId)
+  })
+
+  test('renders the three Settings tabs and switching tabs swaps the panel content', async ({
+    page,
+  }) => {
     await page.goto('/settings')
 
-    // All settings tabs are visible by name.
     for (const label of ['Profile', 'Sending', 'Account']) {
-      await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({ timeout: 5000 })
+      await expect(page.getByRole('tab', { name: new RegExp(label) })).toBeVisible({
+        timeout: 5000,
+      })
     }
     await expect(page.getByRole('tab', { name: /Style/ })).toHaveCount(0)
     await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
-    // Profile tab is the default landing — Sender identity panel is visible.
     await expect(page.locator('text=/Sender identity/i').first()).toBeVisible()
 
-    // Switching to Sending shows its panels and hides Profile-only content.
     await page.getByRole('tab', { name: /Sending/ }).click()
     await expect(page.locator('text=/Send rate/i').first()).toBeVisible()
     await expect(page.locator('text=/Sender identity/i')).toHaveCount(0)
 
-    // Account tab exposes Gmail, Sign out, and Delete account.
     await page.getByRole('tab', { name: /Account/ }).click()
     await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
     await expect(page.getByRole('button', { name: /Sign out/i })).toBeVisible()
@@ -135,7 +133,6 @@ test.describe('Settings tab structure', () => {
   })
 
   test('delete account confirms, calls the account endpoint, and signs out', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     let deleteCalled = false
     await page.route('**/api/account', route => {
       deleteCalled = route.request().method() === 'DELETE'
@@ -156,11 +153,12 @@ test.describe('Settings tab structure', () => {
   })
 
   test('delete account waits for the server deletion before signing out', async ({ page }) => {
-    await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
     let finishDelete: (() => void) | null = null
     await page.route('**/api/account', async route => {
       if (route.request().method() === 'DELETE') {
-        await new Promise<void>(resolve => { finishDelete = resolve })
+        await new Promise<void>(resolve => {
+          finishDelete = resolve
+        })
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
