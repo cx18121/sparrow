@@ -144,6 +144,7 @@ playwright-report/
 playwright/.cache/
 
 CLAUDE.md
+.claude/
 REVIEW.md
 DESIGN.json
 DESIGN.md
