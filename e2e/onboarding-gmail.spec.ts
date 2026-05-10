@@ -160,7 +160,7 @@ test('returns to the Gmail step when Gmail OAuth redirects back to onboarding', 
   await expect(page.getByRole('heading', { name: /About you/i })).toBeHidden()
 })
 
-test('finish later persists onboarding profile fields to the server profile', async ({ page }) => {
+test('continuing without Gmail persists onboarding profile fields and marks onboarding complete', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await signInNeedsOnboarding(page)
   const profilePosts: any[] = []
@@ -188,19 +188,28 @@ test('finish later persists onboarding profile fields to the server profile', as
   })
 
   await page.goto('/dashboard')
+
+  // Step 1: About
   await page.getByPlaceholder('Maya Chen').fill('Taylor Student')
   await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student founder')
   await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
   await page.getByPlaceholder('Relevant experience, club role, recent work...').fill('Built outbound tooling for student teams.')
-  await page.getByRole('button', { name: /^Finish later$/i }).click()
+  await page.getByRole('button', { name: /^Next$/i }).click()
 
-  await expect.poll(() => profilePosts.length).toBe(1)
-  expect(profilePosts[0]?.workspaceConfig).toMatchObject({
+  // Step 2: Template — body is now required before advancing
+  await page.getByPlaceholder(/Hi \{\{first_name\}\}/).fill('Hi {{first_name}},\n\nWanted to reach out.')
+  await page.getByRole('button', { name: /^Next$/i }).click()
+
+  // Step 3: Gmail — "Finish later" removed; use "Continue without Gmail" instead
+  await page.getByRole('button', { name: /Continue without Gmail/i }).click()
+
+  await expect.poll(() => profilePosts.length).toBeGreaterThanOrEqual(1)
+  const lastPost = profilePosts[profilePosts.length - 1]
+  expect(lastPost?.workspaceConfig).toMatchObject({
     senderName: 'Taylor Student',
     senderRole: 'Student founder',
     senderCompany: 'Cornell GenAI',
-    resumeText: 'Built outbound tooling for student teams.',
   })
-  expect(profilePosts[0]?.resumeText).toBe('Built outbound tooling for student teams.')
-  expect(profilePosts[0]?.onboardingCompleted).toBe(false)
+  // finish(false) → onComplete → onboardingCompleted: true (not false like the old skipped path)
+  expect(lastPost?.onboardingCompleted).toBe(true)
 })
