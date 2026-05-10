@@ -191,7 +191,11 @@ function AppShell() {
         previousOnboardingKeyRef.current = null
       }
       setWorkspaceConfig(createWorkspaceConfig({ user: null, templates: templatesRef.current }))
-      setOnboardingState({ loaded: true, completed: false, data: null })
+      // loaded:false here — we render AuthScreen when !user so the value is
+      // unused, but starting the next signed-in render from loaded:false
+      // forces a spinner instead of flashing OnboardingScreen while the new
+      // user's localStorage / server profile is being read.
+      setOnboardingState({ loaded: false, completed: false, data: null })
       setServerProfile(null)
       setProfileLoading(true)
       return
@@ -233,13 +237,17 @@ function AppShell() {
           : hasLocalCompletionSignal || localRecoverableSetup
     const canUseLocalGate = googleConnectReturn || forceOnboarding || hasLocalCompletionSignal || localRecoverableSetup
     setWorkspaceConfig(localConfig)
-    // Never regress loaded from true→false on re-runs (e.g. token refresh causes user ref
-    // to change). Once the app is visible, keep it visible while the profile re-fetches.
-    setOnboardingState(prev => ({
-      loaded: canUseLocalGate || prev.loaded,
+    // loaded gates whether we render AppSpinner vs OnboardingScreen/main app.
+    // Only flip it true when we have a local signal we trust (localStorage
+    // completion, recoverable setup, force-onboarding, or an OAuth callback).
+    // Otherwise stay at false so the spinner shows until fetchProfile lands —
+    // prevents OnboardingScreen from flashing on cross-device / fresh-browser
+    // sign-in where localStorage doesn't yet have this user's completion flag.
+    setOnboardingState({
+      loaded: canUseLocalGate,
       completed: localCompleted,
       data: localConfig,
-    }))
+    })
 
     let cancelled = false
     const profileFetchStartedAt = Date.now()
