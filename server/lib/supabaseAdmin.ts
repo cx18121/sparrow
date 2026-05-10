@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isAuthRetryableFetchError } from "@supabase/auth-js";
 import type { VercelRequest } from "@vercel/node";
 
 let cached: SupabaseClient | null = null;
@@ -18,13 +19,21 @@ export function getSupabaseAdmin(): SupabaseClient {
 
 // Verifies the Authorization: Bearer <jwt> header against Supabase Auth and
 // returns the user id, or null if the token is missing/invalid/expired.
-// auth.getUser(jwt) is the officially supported server-side verification path
-// and works for all Supabase signing algorithms (HS256 and RS256).
+//
+// Throws (rather than returning null) on transient network failures so the
+// calling route returns 5xx instead of 401 — prevents the client from
+// treating a Supabase Auth outage as "sign in again".
 export async function getUserIdFromRequest(req: VercelRequest): Promise<string | null> {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice("Bearer ".length);
   const { data, error } = await getSupabaseAdmin().auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
+  if (error) {
+    if (isAuthRetryableFetchError(error)) {
+      // Network blip or Supabase Auth outage — let the route return 5xx.
+      throw error;
+    }
+    return null;
+  }
+  return data.user?.id ?? null;
 }
