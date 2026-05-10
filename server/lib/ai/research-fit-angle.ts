@@ -60,7 +60,11 @@ Output ONLY valid JSON with this exact shape (no prose, no code fences):
   "technicalAreas": ["<2-5 technical areas the company works on — short noun phrases>"]
 }
 
-Be specific. "the agent eval harness" is good. "their AI features" is bad. Never name the entire company in a list item. If the search results don't reveal concrete product detail, return empty arrays and an empty summary.`
+Be specific. "the agent eval harness" is good. "their AI features" is bad. Never name the entire company in a list item. If the search results don't reveal concrete product detail, return empty arrays and an empty summary.
+
+IMPORTANT — keep surfaces and recentLaunches strictly separate:
+- surfaces: the company's stable, established core product capabilities that have existed for months or years. Do NOT include anything that also appears in recentLaunches.
+- recentLaunches: only things announced or shipped in the last ~12 months. If a feature is both recent and core, put it in recentLaunches only — not both.`
 
 const PICK_SYSTEM = `You pick the single best (feature, fit) PAIR for a cold-email candidate.
 
@@ -71,6 +75,8 @@ Inputs:
 This is ONE coupled decision, not two independent ones. Search the cross-product of dossier surfaces × resume projects and return the strongest matching pair:
 - FIT is the specific named project from the resume that opens the conversation
 - FEATURE is the dossier surface that THAT project most directly bridges to — i.e. the surface where this specific project is the strongest credential, not the most prominent surface overall
+
+Prefer FEATURE from surfaces (core product) over recentLaunches. A candidate cannot credibly claim experience with something that just launched — so a stable core surface is almost always a stronger bridge than a recent one. Only pick from recentLaunches when no surfaces or technicalAreas are a plausible match for the chosen FIT.
 
 If two surfaces tie, prefer the one that is more specific to the chosen project. A resume project about LLM training should pair with a model/research surface, not a generic "code" surface — even if both are plausible. A resume project about UI work should pair with a design/frontend surface. A resume project about agent infrastructure should pair with an agentic/tooling surface. Only fall back to a generic surface like "code" or "developer tools" when the chosen project genuinely has no more specific match.
 
