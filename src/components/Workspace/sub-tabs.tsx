@@ -363,7 +363,7 @@ function ReplyTrackingBanner({ profile, profileLoading }: { profile: any; profil
   return (
     <Banner variant="info" icon={MessageSquare}>
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <span>Enable reply tracking — reconnect Gmail to see when recipients reply.</span>
+        <span>Reply tracking is off — Sparrow can send drafts, but won&apos;t flag replies. Reconnect Gmail to enable it.</span>
         <Link to="/settings" className="shrink-0 font-semibold underline-offset-2 hover:underline">
           Reconnect Gmail →
         </Link>

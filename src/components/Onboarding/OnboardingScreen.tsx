@@ -383,6 +383,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
 
 function GmailStep({
   hasGoogle,
+  hasReplyTracking,
   profileLoading,
   isConnecting,
   connectError,
@@ -395,7 +396,7 @@ function GmailStep({
         step={3}
         total={TOTAL_STEPS}
         title="Connect Gmail"
-        description="Grant send permission so Sparrow can send approved drafts from your account."
+        description="Grant send + inbox-read permission so Sparrow can send approved drafts and tell you when replies land."
       />
 
       <div className="rounded-2xl border border-warm-200 bg-warm-50/70 px-5 py-5">
@@ -407,7 +408,11 @@ function GmailStep({
             <div className="min-w-0">
               <p className="text-sm font-medium text-dark">{hasGoogle ? 'Gmail connected' : 'Gmail not connected'}</p>
               <p className="mt-0.5 text-xs leading-5 text-muted">
-                {hasGoogle ? 'You can send drafts after reviewing them.' : 'You will review drafts before anything is sent.'}
+                {hasGoogle
+                  ? (hasReplyTracking
+                      ? 'You can send drafts after reviewing them, and Sparrow will flag replies as they arrive.'
+                      : 'Sending is ready, but reply tracking is not active. Reconnect to enable it.')
+                  : 'You will review drafts before anything is sent. Connecting also enables reply tracking.'}
               </p>
             </div>
           </div>
@@ -420,6 +425,16 @@ function GmailStep({
                 className="btn-primary text-xs"
               >
                 {isConnecting ? 'Connecting...' : 'Connect Gmail'}
+              </button>
+            )}
+            {hasGoogle && !hasReplyTracking && (
+              <button
+                type="button"
+                onClick={onConnectGoogle}
+                disabled={isConnecting}
+                className="btn-primary text-xs"
+              >
+                {isConnecting ? 'Reconnecting...' : 'Reconnect for replies'}
               </button>
             )}
             <button
@@ -812,6 +827,7 @@ export default function OnboardingScreen({
     <GmailStep
       key="gmail"
       hasGoogle={!!profile?.hasGoogleRefreshToken}
+      hasReplyTracking={!!profile?.hasGmailWatch}
       profileLoading={profileLoading}
       isConnecting={isConnecting}
       connectError={connectError}

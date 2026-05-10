@@ -170,6 +170,7 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
 
   const hasClaude = !!profile?.hasClaudeKey
   const hasGoogle = !!profile?.hasGoogleRefreshToken
+  const hasReplyTracking = !!profile?.hasGmailWatch
   const hasResume = !!workspaceConfig?.resumeText?.trim() || !!workspaceConfig?.resumeFileName || !!profile?.resumeText
   const hasSender = !!workspaceConfig?.senderName?.trim()
   // Setup item asks "have you picked a default template?" - the library
@@ -192,9 +193,13 @@ export default function DashboardTab({ workspaceConfig, profile = null, profileL
   const setupItems = [
     {
       label: 'Google connected',
-      detail: hasGoogle ? 'Connected.' : 'Connect Google to enable Gmail sending.',
+      detail: hasGoogle
+        ? (hasReplyTracking ? 'Sending and reply tracking active.' : 'Sending active — reconnect to enable reply tracking.')
+        : 'Connect Google to enable Gmail sending and reply tracking.',
       done: hasGoogle,
-      action: onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null,
+      action: hasGoogle && !hasReplyTracking
+        ? (onConnectGoogle ? { label: 'Reconnect', onClick: onConnectGoogle } : null)
+        : (onConnectGoogle ? { label: 'Connect', onClick: onConnectGoogle } : null),
     },
     {
       label: 'AI generation',

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check, X, Building2, Briefcase, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
-  LogOut, Mail, Trash2,
+  LogOut, Mail, Trash2, MessageSquare, Send as SendIcon,
 } from 'lucide-react'
 import { deleteAccount } from '../../lib/api'
 import Banner from '../ui/Banner'
@@ -31,6 +31,24 @@ function SaveBar({ dirty, saving, onSave, onDiscard, label = 'Save changes' }: {
       <button type="button" onClick={onSave} disabled={saving} className="btn-primary text-xs">
         {saving ? <><Loader2 size={13} className="animate-spin" /> Saving</> : <><Check size={13} /> {label}</>}
       </button>
+    </div>
+  )
+}
+
+function CapabilityRow({ icon: Icon, label, enabled, disabledHint }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  label: string
+  enabled: boolean
+  disabledHint?: string
+}) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <Icon size={12} className={enabled ? 'text-emerald-600' : 'text-amber-600'} />
+      <span className="font-medium text-dark">{label}</span>
+      <span className={`ml-auto inline-flex items-center gap-1 ${enabled ? 'text-emerald-700' : 'text-amber-700'}`}>
+        {enabled ? <Check size={11} /> : <AlertCircle size={11} />}
+        {enabled ? 'Active' : (disabledHint ?? 'Off')}
+      </span>
     </div>
   )
 }
@@ -484,6 +502,11 @@ function AccountTab({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const hasGoogle = !!profile?.hasGoogleRefreshToken
+  // Reply tracking depends on a separate Pub/Sub watch set up during the
+  // OAuth callback. Users who connected before the gmail.readonly scope
+  // shipped (or who hit a watch creation failure) have hasGoogle but no
+  // watch — surface that explicitly so they know to reconnect.
+  const hasReplyTracking = !!profile?.hasGmailWatch
 
   const handleDelete = async () => {
     setLoading(true); setError('')
@@ -508,34 +531,49 @@ function AccountTab({
       )}
 
       <FieldGroup title="Gmail">
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
-              <Mail size={16} />
+        <div className="rounded-2xl border border-warm-200 bg-warm-50/60 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${hasGoogle ? 'bg-emerald-50 text-emerald-600' : 'bg-warm-100 text-muted'}`}>
+                <Mail size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {hasGoogle
+                    ? 'Sparrow can send drafts and detect replies.'
+                    : 'Connect to send drafts and detect replies.'}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-dark">{hasGoogle ? 'Connected' : 'Not connected'}</p>
-              <p className="mt-0.5 text-xs text-muted">
-                {hasGoogle ? 'Ready to send drafts.' : 'Connect before sending.'}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={onRefreshProfile}
-              disabled={profileLoading}
-              className="btn-ghost text-xs"
-              title="Refresh Gmail status"
-            >
-              <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
-            </button>
-            {onConnectGoogle && (
-              <button type="button" onClick={onConnectGoogle} className="btn-primary text-xs">
-                {hasGoogle ? 'Reconnect' : 'Connect'}
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={onRefreshProfile}
+                disabled={profileLoading}
+                className="btn-ghost text-xs"
+                title="Refresh Gmail status"
+              >
+                <RefreshCw size={12} className={profileLoading ? 'animate-spin' : ''} /> Refresh
               </button>
-            )}
+              {onConnectGoogle && (
+                <button type="button" onClick={onConnectGoogle} className="btn-primary text-xs">
+                  {hasGoogle ? 'Reconnect' : 'Connect'}
+                </button>
+              )}
+            </div>
           </div>
+          {hasGoogle && (
+            <div className="mt-3 grid gap-2 border-t border-warm-200 pt-3 sm:grid-cols-2">
+              <CapabilityRow icon={SendIcon} label="Sending" enabled />
+              <CapabilityRow
+                icon={MessageSquare}
+                label="Reply tracking"
+                enabled={hasReplyTracking}
+                disabledHint="Reconnect to enable"
+              />
+            </div>
+          )}
         </div>
       </FieldGroup>
 
@@ -671,7 +709,15 @@ export default function SettingsPage({
       </header>
 
       {oauthResult?.kind === 'success' && (
-        <Banner variant="success" icon={Check}>Gmail connected. You can now send emails from Drafts.</Banner>
+        profile?.hasGmailWatch ? (
+          <Banner variant="success" icon={Check}>
+            Gmail connected. Sending and reply tracking are both active.
+          </Banner>
+        ) : (
+          <Banner variant="warning" icon={AlertCircle}>
+            Gmail connected for sending. Reply tracking did not enable — try reconnecting.
+          </Banner>
+        )
       )}
       {oauthResult?.kind === 'error' && (
         <Banner variant="danger" icon={AlertCircle}>{oauthResult.message}</Banner>
