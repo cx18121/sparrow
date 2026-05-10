@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_LEAD, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { mockApi, signInDemo, SAMPLE_LEAD, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 // Regression suite for the new Home page (Phase 1 of the campaigns-as-workspaces
 // redesign). Asserts the locked PRD shape:
@@ -7,23 +7,6 @@ import { mockApi, SAMPLE_LEAD, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 //   - 1+ campaigns → greeting + 3 KPI cards (Lead Pool / Drafts / Sent This Week)
 //                  + campaign grid + "+ New campaign" empty cell
 // Replies KPI is intentionally NOT shown — reply tracking is a future phase.
-
-async function signInDemo(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
-    }))
-  })
-}
 
 const SAMPLE_CAMPAIGN = {
   id: 'cmp_1',
@@ -72,8 +55,8 @@ test.describe('Home page', () => {
     })
     await page.goto('/dashboard')
 
-    // Greeting (Outfit display, contains user's first name)
-    await expect(page.locator('text=/Alex/').first()).toBeVisible({ timeout: 10_000 })
+    // Greeting (Outfit display, contains user's first name from the seeded session)
+    await expect(page.locator('text=/Demo/').first()).toBeVisible({ timeout: 10_000 })
 
     // 3 KPI labels — must all exist
     await expect(page.locator('text=/^lead pool$/i').first()).toBeVisible()

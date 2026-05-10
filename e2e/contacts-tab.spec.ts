@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_COMPANY, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { mockApi, signInDemo, SAMPLE_COMPANY, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 // Contacts sub-tab — Phase F2
 //   - New /campaigns/:id/contacts route exists
@@ -7,23 +7,6 @@ import { mockApi, SAMPLE_COMPANY, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 //   - Lists saved leads with status pills
 //   - "Generate draft" button calls /api/emails/generate and re-renders
 //     with status flipped from "No draft" to "Draft ready"
-
-async function signInDemo(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
-    }))
-  })
-}
 
 const CAMPAIGN_ID = 'cmp_contacts_1'
 const SAMPLE_CAMPAIGN = {

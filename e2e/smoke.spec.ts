@@ -1,25 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE, SAMPLE_COMPANY } from './fixtures/api-mocks'
-
-// In demo mode (VITE_SUPABASE_URL unset) the AuthContext seeds a localStorage demo
-// user when sign-in runs. We pre-seed it here so tests can skip the auth screen.
-async function signInDemo(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-    }))
-    // Mark onboarding complete so we skip the wizard.
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Demo User', styleProfile: { examples: ['hi'] } },
-    }))
-  })
-}
+import { mockApi, signInDemo, SAMPLE_TEMPLATE, SAMPLE_COMPANY } from './fixtures/api-mocks'
 
 test.describe('Sparrow smoke tests', () => {
   test.beforeEach(async ({ page }) => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 // Regression suite for Bug 07: Gmail connect surface.
 //
@@ -12,23 +12,6 @@ import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 // 3. When the callback redirects back with ?google_error=..., a banner shows.
 // 4. When the callback redirects back with ?google_connected=1, a success
 //    banner shows.
-
-async function signInDemo(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Demo User', styleProfile: { examples: ['hi'] } },
-    }))
-  })
-}
 
 async function mockApiWithoutGoogle(page: import('@playwright/test').Page) {
   await mockApi(page, { templates: [SAMPLE_TEMPLATE] })
@@ -66,17 +49,23 @@ test.describe('Gmail connect button', () => {
     await expect(connect).toBeVisible()
   })
 
-  test('clicking Connect in demo mode surfaces a banner (not silent failure)', async ({ page }) => {
-    // Demo mode short-circuits in connectGoogle and returns an error message.
-    // The previous behavior dropped that message; the button "did nothing"
-    // visually. Now the SettingsPage must render the message as a banner.
+  test('clicking Connect surfaces a banner when the connect API call fails', async ({ page }) => {
+    // Mock the Google connect API to return an error so connectGoogle() throws
+    // and the SettingsPage surfaces it as a banner (not a silent failure).
     await mockApiWithoutGoogle(page)
+    await page.route('**/api/google/connect', route =>
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Could not connect Gmail — server error in test mode' }),
+      })
+    )
     await page.goto('/settings')
     await page.getByRole('tab', { name: /Account/ }).click()
     const button = page.getByRole('button', { name: /^connect$/i })
     await expect(button).toBeVisible()
     await button.click()
-    const banner = page.locator('text=/Google OAuth requires Supabase|Could not connect Gmail/i').first()
+    const banner = page.locator('text=/Could not connect Gmail/i').first()
     await expect(banner).toBeVisible({ timeout: 5000 })
   })
 

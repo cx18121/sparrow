@@ -1,23 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
-
-async function signInDemo(page: Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
-    }))
-    localStorage.removeItem('sparrow_wizard_v1')
-  })
-}
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -27,6 +9,8 @@ test.describe('Create campaign wizard UX', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await signInDemo(page)
+    // Clear any leftover wizard scratch state from prior tests in the same browser.
+    await page.addInitScript(() => { localStorage.removeItem('sparrow_wizard_v1') })
   })
 
   test('requires a campaign name before progressing from the first step', async ({ page }) => {

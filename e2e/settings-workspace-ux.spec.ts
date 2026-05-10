@@ -1,30 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
-
-async function signInDemo(page: Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: {
-        senderName: 'Alex Tester',
-        senderCompany: 'Cornell GenAI',
-        senderRole: 'Builder',
-        resumeText: 'Built outreach tools.',
-        templateId: SAMPLE_TEMPLATE.id,
-        sendingLimits: { dailyMax: 25, delaySeconds: 30 },
-        styleProfile: { prompt: 'Be concise.' },
-      },
-    }))
-  })
-}
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })

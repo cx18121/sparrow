@@ -1,26 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
-
-async function signInDemo(page: Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: {
-        senderName: 'Alex Tester',
-        styleProfile: { examples: ['hi'] },
-        files: [{ id: 'file_resume', fileName: 'resume.pdf', size: 12345, uploadedAt: new Date().toISOString() }],
-      },
-    }))
-  })
-}
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -115,7 +94,10 @@ test.describe('Drafts UX', () => {
     await page.getByText('Avery Kim').first().click()
     await page.getByRole('button', { name: /Edit/i }).click()
     await page.getByPlaceholder('Subject line').fill('Updated subject')
-    await page.getByPlaceholder('Email body…').fill('Updated body')
+    // Body editor is a contentEditable div with aria-label="Draft body".
+    const bodyEditor = page.locator('[aria-label="Draft body"][contenteditable]')
+    await bodyEditor.click()
+    await bodyEditor.fill('Updated body')
     await page.getByRole('button', { name: /^Save$/i }).click()
 
     await expect.poll(() => patchPayload?.subject).toBe('Updated subject')

@@ -1,22 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
-
-async function signInDemo(page: Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
-    }))
-  })
-}
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 test.describe('Mobile navigation UX', () => {
   test.beforeEach(async ({ page }) => {

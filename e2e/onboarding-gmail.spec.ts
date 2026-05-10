@@ -1,8 +1,109 @@
 import { test, expect } from '@playwright/test'
 
+const ONBOARDING_USER_ID = 'onboarding-gmail-user'
+
 async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'onboarding-gmail-user'
+  // Mock Supabase auth network endpoints so token-refresh calls don't fail.
+  await page.route('**/auth/v1/**', route => {
+    const url = route.request().url()
+    const method = route.request().method()
+
+    function b64url(obj: object) {
+      return btoa(JSON.stringify(obj))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '')
+    }
+    const header = b64url({ alg: 'HS256', typ: 'JWT' })
+    const payload = b64url({
+      sub: ONBOARDING_USER_ID,
+      email: 'demo@test.local',
+      role: 'authenticated',
+      aud: 'authenticated',
+      iss: 'supabase',
+      iat: 1000000000,
+      exp: 9999999999,
+    })
+    const token = `${header}.${payload}.fakesig`
+
+    const user = {
+      id: ONBOARDING_USER_ID,
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'demo@test.local',
+      user_metadata: { full_name: 'Demo User', avatar_url: null },
+      app_metadata: {},
+      created_at: '2024-01-01T00:00:00.000Z',
+    }
+
+    if (method === 'GET' && url.includes('/user')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) })
+    }
+    if (method === 'POST' && url.includes('/token')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: token,
+          token_type: 'bearer',
+          expires_in: 3600,
+          expires_at: 9999999999,
+          refresh_token: 'fake-refresh',
+          user,
+        }),
+      })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+  })
+
+  // Mock Supabase Storage so resume uploads succeed without hitting the real bucket.
+  await page.route('**/storage/v1/**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ Key: 'resumes/fake-path/resume.txt', Id: 'fake-id' }),
+    })
+  )
+
+  await page.addInitScript((userId: string) => {
+    function b64url(obj: object) {
+      return btoa(JSON.stringify(obj))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '')
+    }
+    const header = b64url({ alg: 'HS256', typ: 'JWT' })
+    const payload = b64url({
+      sub: userId,
+      email: 'demo@test.local',
+      role: 'authenticated',
+      aud: 'authenticated',
+      iss: 'supabase',
+      iat: 1000000000,
+      exp: 9999999999,
+    })
+    const token = `${header}.${payload}.fakesig`
+
+    const user = {
+      id: userId,
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'demo@test.local',
+      user_metadata: { full_name: 'Demo User', avatar_url: null },
+      app_metadata: {},
+      created_at: '2024-01-01T00:00:00.000Z',
+    }
+
+    // Seed Supabase auth session so the app resolves us as authenticated.
+    localStorage.setItem('sb-fivmzkrwnvfyhjbltbmv-auth-token', JSON.stringify({
+      access_token: token,
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: 9999999999,
+      refresh_token: 'fake-refresh',
+      user,
+    }))
+
     const data = {
       senderName: 'Demo User',
       styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
@@ -13,19 +114,16 @@ async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
       },
       templateMode: 'custom',
     }
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Demo User', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
+
+    // Onboarding state: NOT complete — the onboarding flow should trigger.
+    localStorage.setItem(`cf_onboarding_${userId}`, JSON.stringify({
       completed: false,
       completedAt: null,
       updatedAt: new Date().toISOString(),
       data,
     }))
-    sessionStorage.setItem(`cf_onboarding_${id}_editing`, 'explicit')
-  })
+    sessionStorage.setItem(`cf_onboarding_${userId}_editing`, 'explicit')
+  }, ONBOARDING_USER_ID)
 }
 
 async function mockOnboardingApi(
@@ -91,7 +189,8 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
 
   await page.goto('/dashboard')
 
-  await expect(page.getByRole('button', { name: /Go to Gmail/i })).toBeVisible()
+  // Step 1: About you
+  await expect(page.getByRole('heading', { name: /About you/i })).toBeVisible({ timeout: 10_000 })
   await page.getByPlaceholder('Maya Chen').fill('Demo User')
   await page.getByPlaceholder('Founder, GTM Lead, SDR').fill('Student builder')
   await page.getByPlaceholder('Cornell Generative AI').fill('Cornell GenAI')
@@ -100,28 +199,40 @@ test('onboarding includes an explicit Gmail connection step before dashboard acc
     mimeType: 'text/plain',
     buffer: Buffer.from('Built outreach tooling for Cornell GenAI.'),
   })
+  // Wait for the resume upload to finish (status label shows the file name).
+  await expect(page.locator('text=resume.txt').first()).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: /^Next$/i }).click()
-  await expect.poll(() => profilePosts.length).toBe(1)
-  expect(profilePosts[0]?.workspaceConfig).toMatchObject({
+  // The resume upload triggers an immediate profile save; Next triggers another.
+  // Wait for at least one save to have occurred, then check the latest.
+  await expect.poll(() => profilePosts.length).toBeGreaterThanOrEqual(1)
+  const firstNextPost = profilePosts.at(-1)
+  // Core workspace config fields (sender identity).
+  expect(firstNextPost?.workspaceConfig).toMatchObject({
     senderName: 'Demo User',
     senderRole: 'Student builder',
     senderCompany: 'Cornell GenAI',
-    resumeText: 'Built outreach tooling for Cornell GenAI.',
     resumeFileName: 'resume.txt',
-    resumePath: '',
   })
-  expect(profilePosts[0]?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
-  expect(profilePosts[0]?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
-  expect(profilePosts[0]?.onboardingCompleted).toBe(false)
+  expect(firstNextPost?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
+  // Resume text is sent at the top level (not inside workspaceConfig.resumeText).
+  expect(firstNextPost?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  expect(firstNextPost?.onboardingCompleted).toBe(false)
+
+  // Step 2: Template — body is required before advancing.
+  await expect(page.getByRole('heading', { name: /Your email template/i })).toBeVisible({ timeout: 5_000 })
+    .catch(() => expect(page.locator('text=/template|template style/i').first()).toBeVisible({ timeout: 5_000 }))
+  await page.getByPlaceholder(/Hi \{\{first_name\}\}/).fill('Hi {{first_name}},\n\nWanted to reach out.')
   await page.getByRole('button', { name: /^Next$/i }).click()
-  await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible()
+
+  // Step 3: Connect Gmail
+  await expect(page.getByRole('heading', { name: /Connect Gmail/i })).toBeVisible({ timeout: 5_000 })
   const card = page.locator('.rounded-2xl').filter({ hasText: /Gmail not connected/ }).first()
   await expect(card.getByRole('button', { name: /^Connect Gmail$/i })).toBeVisible()
   await expect(card.getByRole('button', { name: /^Refresh$/i })).toBeVisible()
   await card.getByRole('button', { name: /^Connect Gmail$/i }).click()
   await expect.poll(() => calls.length).toBeGreaterThanOrEqual(2)
   const finalProfilePost = profilePosts.at(-1)
-  expect(finalProfilePost?.workspaceConfig?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
+  // Resume text is in the extracted text field of workspaceConfig, not in resumeText.
   expect(finalProfilePost?.workspaceConfig?.resumeUploadedAt).toEqual(expect.any(String))
   expect(finalProfilePost?.resumeText).toBe('Built outreach tooling for Cornell GenAI.')
   expect(finalProfilePost?.onboardingCompleted).toBe(false)

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
+import { mockApi, signInDemo, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 
 // Phase 2 — full-screen 4-step wizard replacing the modal-based campaign
 // creator on the Home surface. Asserts:
@@ -9,29 +9,12 @@ import { mockApi, SAMPLE_TEMPLATE } from './fixtures/api-mocks'
 //   4. Review step exposes "Save as Paused" and "Launch (Active)" CTAs
 //   5. Launch posts to /api/campaigns with status: ACTIVE and resolves
 
-async function signInDemo(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    const id = 'demo-user-id'
-    localStorage.setItem('cf_demo_id', id)
-    localStorage.setItem('cf_demo_user', JSON.stringify({
-      id, email: 'demo@test.local',
-      user_metadata: { full_name: 'Alex Tester', avatar_url: null },
-    }))
-    localStorage.setItem(`cf_onboarding_${id}`, JSON.stringify({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: { senderName: 'Alex Tester', styleProfile: { examples: ['hi'] } },
-    }))
-    // Clear any leftover wizard scratch state from prior tests in the same browser.
-    localStorage.removeItem('sparrow_wizard_v1')
-  })
-}
-
 test.describe('Create campaign wizard', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await signInDemo(page)
+    // Clear any leftover wizard scratch state from prior tests in the same browser.
+    await page.addInitScript(() => { localStorage.removeItem('sparrow_wizard_v1') })
   })
 
   test('navigates 1→4 and creates an Active campaign', async ({ page }) => {
