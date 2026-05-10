@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
-import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
+import { getUserIdFromRequest, respondUnauthorized } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
 import { searchContacts, revealPerson, normalizeDomain } from "../lib/apollo.js";
 import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
@@ -50,7 +50,7 @@ async function requireSearchableCompany(companyId: unknown, domain: unknown) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return respondUnauthorized(req, res);
 
     if (req.method === "GET") return await searchCompanies(req, res);
     if (req.method === "POST") return await apolloSearch(req, res, userId);

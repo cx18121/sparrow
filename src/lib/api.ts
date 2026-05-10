@@ -20,83 +20,140 @@ function uiToWire<T extends { status?: string }>(data: T): T {
   return { ...data, status: data.status.toUpperCase() as Campaign['status'] }
 }
 
-let currentUserId = null
-let currentAccessToken = null
+let currentUserId: string | null = null
+let currentAccessToken: string | null = null
 let explicitlySignedOut = false
 
-export function setApiUserId(id) {
+export function setApiUserId(id: string | null) {
   currentUserId = id
-  if (id === null) explicitlySignedOut = true
-  else explicitlySignedOut = false
+  explicitlySignedOut = id === null
 }
-export function setApiAccessToken(token) { currentAccessToken = token }
+export function setApiAccessToken(token: string | null) { currentAccessToken = token }
 
 export function apiGetAuth() {
   return { userId: currentUserId, accessToken: currentAccessToken }
 }
 
 // Decode a JWT's payload without verifying the signature — used only to
-// check the `exp` claim so we can proactively refresh before sending a
-// request that would otherwise bounce with 401.
+// check the `exp` claim so we can refresh before the server bounces a 401.
+// 30s leeway covers minor clock skew and tokens that expire mid-flight
+// between our check and the server's verification.
+const EXPIRY_LEEWAY_MS = 30_000
 function jwtExpired(token: string): boolean {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now() + EXPIRY_LEEWAY_MS
   } catch {
-    return false // don't block on parse failure
+    return false // unparseable (e.g. test tokens) — assume valid
   }
 }
 
-async function ensureApiAuth() {
-  if (explicitlySignedOut) return
-  // Proactively refresh if the stored token is expired rather than waiting
-  // for the server to bounce it with 401 — avoids the extra round-trip.
-  if (currentAccessToken && !jwtExpired(currentAccessToken)) return
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return
-  currentUserId = session.user?.id ?? currentUserId
-  currentAccessToken = session.access_token ?? currentAccessToken
+// Diagnostic state for the most recent refresh attempt — surfaced in 401
+// error messages so the user can see WHY auth failed (refresh expired vs
+// refresh succeeded but server still rejected vs network error).
+type RefreshOutcome = {
+  at: number
+  ok: boolean
+  source: 'storage' | 'refresh' | 'thrown' | 'no-session'
+  errorCode?: string
+  errorMessage?: string
+  errorStatus?: number
 }
+let lastRefreshOutcome: RefreshOutcome | null = null
 
-async function refreshApiAuth() {
+// Single-flight refresh: many parallel callers share one network refresh,
+// avoiding the rotating-refresh-token race where the first call rotates the
+// token and the rest get rejected.
+let refreshPromise: Promise<string | null> | null = null
+
+async function doRefresh(): Promise<string | null> {
   try {
-    // Supabase's auto-refresh timer may have already renewed the session.
-    // Check the stored session first to avoid racing with the internal refresh
-    // (rotating refresh tokens: if Supabase rotated the token a moment ago, a
-    // manual refreshSession() with the old token would fail).
+    // Another tab may have already refreshed — check storage first so we
+    // don't waste our refresh token on a redundant call.
     const { data: { session: stored } } = await supabase.auth.getSession()
     if (stored?.access_token && !jwtExpired(stored.access_token)) {
-      currentUserId = stored.user?.id ?? null
+      currentUserId = stored.user?.id ?? currentUserId
       currentAccessToken = stored.access_token
-      return true
+      lastRefreshOutcome = { at: Date.now(), ok: true, source: 'storage' }
+      return currentAccessToken
     }
-
-    // Token still stale — do a hard network refresh.
     const { data, error } = await supabase.auth.refreshSession()
-    const session = error ? null : data?.session
-    if (!session) {
-      currentUserId = null
+    if (error || !data.session) {
       currentAccessToken = null
-      // A non-zero HTTP status means Supabase Auth rejected the refresh
-      // (expired or revoked token) — this is a genuine auth failure, not a
-      // transient network blip. Sign out so the auth screen surfaces.
-      // AuthRetryableFetchError has no status; that case stays in the catch.
-      if (error?.status) supabase.auth.signOut().catch(() => {})
-      return false
+      lastRefreshOutcome = {
+        at: Date.now(),
+        ok: false,
+        source: error ? 'refresh' : 'no-session',
+        errorCode: (error as any)?.code,
+        errorMessage: error?.message,
+        errorStatus: (error as any)?.status,
+      }
+      return null
     }
-    currentUserId = session.user?.id ?? null
-    currentAccessToken = session.access_token ?? null
-    return Boolean(currentAccessToken)
-  } catch {
-    // Network error during refresh — don't sign out, just report failure.
-    return false
+    currentUserId = data.session.user?.id ?? currentUserId
+    currentAccessToken = data.session.access_token
+    lastRefreshOutcome = { at: Date.now(), ok: true, source: 'refresh' }
+    return currentAccessToken
+  } catch (err: any) {
+    lastRefreshOutcome = {
+      at: Date.now(),
+      ok: false,
+      source: 'thrown',
+      errorMessage: err?.message ?? String(err),
+    }
+    return null
   }
+}
+
+async function getAuthToken(): Promise<string | null> {
+  if (explicitlySignedOut) return null
+  if (currentAccessToken && !jwtExpired(currentAccessToken)) return currentAccessToken
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => { refreshPromise = null })
+  }
+  return refreshPromise
+}
+
+// Dev diagnostic — call from console: window.__sparrowAuth()
+export function getAuthDebug() {
+  const expClaim = currentAccessToken ? jwtExpiryMs(currentAccessToken) : null
+  return {
+    userId: currentUserId,
+    hasToken: !!currentAccessToken,
+    tokenPreview: currentAccessToken ? `${currentAccessToken.slice(0, 24)}...` : null,
+    tokenExpiresAt: expClaim ? new Date(expClaim).toISOString() : null,
+    tokenExpiresInSec: expClaim ? Math.round((expClaim - Date.now()) / 1000) : null,
+    explicitlySignedOut,
+    refreshInFlight: !!refreshPromise,
+    lastRefreshOutcome,
+  }
+}
+
+function jwtExpiryMs(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null
+  } catch { return null }
+}
+
+// Expose on window for browser-console diagnostics (no-op in SSR/tests).
+if (typeof window !== 'undefined') {
+  (window as any).__sparrowAuth = getAuthDebug
 }
 
 function extractServerError(text) {
   if (!text) return ''
   try {
     const parsed = JSON.parse(text)
+    // Auth-failure response from respondUnauthorized() — surface the rich
+    // detail so the user sees "expired_token" or "user_not_found" instead of
+    // just "Unauthorized".
+    if (parsed?.error === 'Unauthorized' && parsed?.reason) {
+      const parts = [`auth=${parsed.reason}`]
+      if (parsed.supabaseCode) parts.push(`code=${parsed.supabaseCode}`)
+      if (parsed.detail) parts.push(parsed.detail)
+      return parts.join(' ')
+    }
     return parsed?.error || parsed?.message || text
   } catch {
     return text
@@ -111,6 +168,33 @@ const GENERIC_SERVER_MESSAGES = new Set([
   'something went wrong',
 ])
 
+// Builds a specific 401 message from refresh state + server error body so the
+// user can tell apart "your refresh token actually expired" from "server
+// rejected a token we just refreshed successfully" — very different root causes.
+function diagnose401(serverError: string): string {
+  const last = lastRefreshOutcome
+  const serverPart = serverError ? ` Server: "${serverError}".` : ''
+  if (explicitlySignedOut) return 'You are signed out. Sign in to continue.' + serverPart
+  if (!currentAccessToken && !last) {
+    return 'No session. Sign in to continue.' + serverPart
+  }
+  if (last && !last.ok) {
+    const detail = last.errorMessage ? `: ${last.errorMessage}` : ''
+    const code = last.errorCode ? ` [${last.errorCode}]` : ''
+    return `Session refresh failed${code}${detail}. Sign in again.` + serverPart
+  }
+  if (last && last.ok && last.source === 'refresh') {
+    return 'Refreshed your session, but the server still rejected it. ' +
+      'Likely the API server points at a different Supabase project ' +
+      '(check SUPABASE_URL vs VITE_SUPABASE_URL).' + serverPart
+  }
+  if (last && last.ok && last.source === 'storage') {
+    return 'Token from local storage was rejected by the server. ' +
+      'Sign in again — your session may have been revoked.' + serverPart
+  }
+  return 'Sign in again to continue. Your session may have expired.' + serverPart
+}
+
 function friendlyApiMessage({ status, path, method, serverError }) {
   const normalized = `${serverError || ''}`.trim()
   const lower = normalized.toLowerCase()
@@ -119,7 +203,7 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   // the message is one of the known generic fallbacks below.
   const serverMessageIsSpecific = normalized && !GENERIC_SERVER_MESSAGES.has(lower)
 
-  if (status === 401) return 'Sign in again to continue. Your session may have expired.'
+  if (status === 401) return diagnose401(serverError)
   if (status === 403) return 'You do not have access to this item.'
 
   if (path === '/emails/send') {
@@ -184,20 +268,17 @@ function friendlyApiMessage({ status, path, method, serverError }) {
   return `Request failed${method ? ` while trying to ${method.toLowerCase()}` : ''}. Try again.`
 }
 
-async function request<T = unknown>(path: string, opts: RequestInit = {}, retrying = false): Promise<T> {
-  await ensureApiAuth()
+async function request<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
+  const token = await getAuthToken()
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',
-      ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(opts.headers || {}),
     },
   })
   if (res.status === 204) return null
-  if (res.status === 401 && !retrying && await refreshApiAuth()) {
-    return request(path, opts, true)
-  }
   if (!res.ok) {
     const text = await res.text()
     const method = opts.method || 'GET'
@@ -344,10 +425,10 @@ export const removeCampaignCustomContact = (campaignCustomContactId: string) =>
   request<void>(`/campaign-leads${qs({ id: campaignCustomContactId, kind: 'custom-contact' })}`, { method: 'DELETE' })
 
 export function deleteAccount() {
-  const tokenAtClick = currentAccessToken
   return (async () => {
-    if (!tokenAtClick) await ensureApiAuth()
-    const authToken = tokenAtClick ?? currentAccessToken
+    // Always go through getAuthToken — using the cached currentAccessToken
+    // directly would send an expired token and silently fail with 401.
+    const authToken = await getAuthToken()
     const res = await fetch(`${BASE}/account`, {
       method: 'DELETE',
       headers: {
