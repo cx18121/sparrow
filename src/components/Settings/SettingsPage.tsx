@@ -149,11 +149,23 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
   return (
     <div className="space-y-5">
+      <p className="text-xs text-muted leading-5">
+        These are the same fields you filled in during onboarding. Changes here are reflected in all future AI-generated drafts.
+      </p>
       <FieldGroup title="Sender identity" hint="Used in generated drafts.">
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label htmlFor="settings-sender-name" className="label">Sender name</label>
-            <input id="settings-sender-name" value={form.senderName || ''} onChange={e => field('senderName', e.target.value)} placeholder="Jordan Lee" className="input" />
+            <label htmlFor="settings-sender-name" className="label">
+              Sender name
+              {!form.senderName?.trim() && <span className="ml-1 text-amber-500 text-[10px] font-semibold">Required</span>}
+            </label>
+            <input
+              id="settings-sender-name"
+              value={form.senderName || ''}
+              onChange={e => field('senderName', e.target.value)}
+              placeholder="Jordan Lee"
+              className={`input ${!form.senderName?.trim() ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100' : ''}`}
+            />
           </div>
           <div>
             <label htmlFor="settings-sender-company" className="label">Organization</label>
@@ -173,7 +185,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
       </FieldGroup>
 
-      <FieldGroup title="Background" hint="Add context the draft should know.">
+      <FieldGroup title="Background" hint={!form.resumeText?.trim() && !form.resumeFileName ? "⚠ Add your background so drafts can personalize around your experience." : "Add context the draft should know."}>
         <div>
           <label htmlFor="settings-resume-text" className="label">Pitch / experience</label>
           <textarea

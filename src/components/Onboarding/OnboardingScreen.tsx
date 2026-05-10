@@ -198,7 +198,7 @@ const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
   { tag: '{{fit_angle}}',   label: 'fit angle' },
 ]
 
-function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode, aiPreview, isLoadingPreview }) {
+function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode, aiPreview, isLoadingPreview, showBodyError }) {
   const hasTemplates = templates.length > 0
   const writingMode = !hasTemplates || form.templateMode !== 'existing'
   const subjectRef = useRef<HTMLInputElement>(null)
@@ -296,16 +296,19 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
               onChange={e => updateCustomTemplate('body', e.target.value)}
               onFocus={() => setActiveField('body')}
               placeholder={"Hi {{first_name}},\n\nI noticed {{company}} and wanted to reach out because...\n\nBest,\n{{sender_name}}"}
-              className="input min-h-[220px] resize-y font-mono text-[13px] leading-relaxed"
+              className={`input min-h-[220px] resize-y font-mono text-[13px] leading-relaxed ${showBodyError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+              aria-invalid={showBodyError}
             />
+            {showBodyError && (
+              <p className="mt-1.5 text-xs text-red-500">Please add an email body before continuing.</p>
+            )}
           </div>
 
           {(form.customTemplate.subject || form.customTemplate.body) && (
-            <details className="group rounded-xl border border-warm-200 bg-warm-50/60 open:bg-warm-50">
-              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted hover:text-dark">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Preview</span>
-                <span className="text-muted/70">filled with sample lead</span>
-              </summary>
+            <div className="rounded-xl border border-warm-200 bg-warm-50/60">
+              <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/70">
+                Preview <span className="normal-case tracking-normal font-normal">— filled with sample lead</span>
+              </p>
               <div className="border-t border-warm-200 px-4 py-3">
                 {form.customTemplate.subject && (
                   <p className="text-sm font-medium text-dark">
@@ -318,7 +321,7 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
                   </p>
                 )}
               </div>
-            </details>
+            </div>
           )}
 
           {hasTemplates && (
@@ -461,6 +464,7 @@ export default function OnboardingScreen({
 }) {
   const [stepIndex, setStepIndex] = useState(() => normalizeStepIndex(initialStepIndex))
   const [senderNameAttempted, setSenderNameAttempted] = useState(false)
+  const [templateAttempted, setTemplateAttempted] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -702,6 +706,10 @@ export default function OnboardingScreen({
       setSenderNameAttempted(true)
       return
     }
+    if (stepIndex === 1 && form.templateMode !== 'existing' && !form.customTemplate.body.trim()) {
+      setTemplateAttempted(true)
+      return
+    }
     // Skip the remaining debounce — start the Claude call now so it's in-flight
     // while the user reads step 2 instead of starting after they arrive.
     if (stepIndex === 0) runPreviewNowRef.current?.()
@@ -710,6 +718,7 @@ export default function OnboardingScreen({
       const saved = await persistCurrentProgress()
       if (!saved) return
     }
+    setTemplateAttempted(false)
     setStepIndex(index => Math.min(index + 1, steps.length - 1))
   }
   const prevStep = () => setStepIndex(index => Math.max(index - 1, 0))
@@ -792,6 +801,7 @@ export default function OnboardingScreen({
       setTemplateMode={setTemplateMode}
       aiPreview={aiPreview}
       isLoadingPreview={isLoadingPreview}
+      showBodyError={templateAttempted && form.templateMode !== 'existing' && !form.customTemplate.body.trim()}
     />,
     <GmailStep
       key="gmail"
@@ -829,14 +839,6 @@ export default function OnboardingScreen({
             className="-ml-2 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark disabled:cursor-not-allowed disabled:opacity-50 sm:-ml-5 lg:-ml-8"
           >
             {isSigningOut ? 'Signing out...' : 'Sign out'}
-          </button>
-          <button
-            type="button"
-            onClick={() => finish(true)}
-            disabled={isSaving || resumeUpload.uploading}
-            className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted transition-all duration-150 hover:-translate-y-0.5 hover:text-dark"
-          >
-            {isSaving ? 'Saving...' : 'Finish later'}
           </button>
         </div>
 
@@ -888,17 +890,29 @@ export default function OnboardingScreen({
             </button>
 
             {isLastStep ? (
-              <button
-                type="button"
-                onClick={profile?.hasGoogleRefreshToken ? () => finish(false) : finishAndConnectGoogle}
-                disabled={isSaving || isConnecting || resumeUpload.uploading}
-                className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-warm-50 transition-all duration-150 hover:brightness-110"
-              >
-                {isSaving || isConnecting ? 'Saving...' : profile?.hasGoogleRefreshToken ? 'Open dashboard' : 'Connect Gmail'}
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-50/18 text-warm-50">
-                  <ArrowRight size={14} />
-                </span>
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  type="button"
+                  onClick={profile?.hasGoogleRefreshToken ? () => finish(false) : finishAndConnectGoogle}
+                  disabled={isSaving || isConnecting || resumeUpload.uploading}
+                  className="inline-flex min-w-[152px] items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-warm-50 transition-all duration-150 hover:brightness-110"
+                >
+                  {isSaving || isConnecting ? 'Saving...' : profile?.hasGoogleRefreshToken ? 'Open dashboard' : 'Connect Gmail'}
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-50/18 text-warm-50">
+                    <ArrowRight size={14} />
+                  </span>
+                </button>
+                {!profile?.hasGoogleRefreshToken && (
+                  <button
+                    type="button"
+                    onClick={() => finish(false)}
+                    disabled={isSaving}
+                    className="text-xs text-muted hover:text-dark transition-colors disabled:opacity-50"
+                  >
+                    Continue without Gmail →
+                  </button>
+                )}
+              </div>
             ) : (
               <button
                 type="button"
