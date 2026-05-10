@@ -203,7 +203,7 @@ create policy "Owners can manage invites" on team_invites
 -- storage path, and the workspace config JSON so onboarding hydrates
 -- across devices.
 create table user_profiles (
-  user_id                       uuid primary key references auth.users(id) on delete cascade,
+  user_id                       uuid primary key,
   google_refresh_token_encrypted text,
   resume_path                    text,
   resume_text                    text,

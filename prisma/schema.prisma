@@ -308,3 +308,24 @@ enum CampaignStatus {
 
   @@schema("public")
 }
+
+/// Managed by Supabase Auth via supabase/schema.sql — not tracked by Prisma migrations.
+model UserProfile {
+  userId                      String    @id @map("user_id") @db.Uuid
+  googleRefreshTokenEncrypted String?   @map("google_refresh_token_encrypted")
+  resumePath                  String?   @map("resume_path")
+  resumeText                  String?   @map("resume_text")
+  workspaceConfig             Json      @default("{}") @map("workspace_config")
+  defaultFilters              Json      @default("{}") @map("default_filters")
+  fullName                    String?   @map("full_name")
+  bio                         String?
+  targetRole                  String?   @map("target_role")
+  onboardingCompleted         Boolean   @default(false) @map("onboarding_completed")
+  onboardingCompletedAt       DateTime? @map("onboarding_completed_at") @db.Timestamptz(6)
+  createdAt                   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@ignore
+  @@map("user_profiles")
+  @@schema("public")
+}
