@@ -64,7 +64,7 @@ Polling looks simpler but its weakest point is *quota*. `users.history.list` per
 
 ### 2. Watch renewal
 
-Gmail Watch expires after 7 days. Need a daily cron (Vercel Cron) that renews any watch whose `gmailWatchExpiry < now() + 24h`. Skip users who never connected.
+Gmail Watch expires after 7 days. Need a daily cron (Vercel Cron) that renews any watch whose `watchExpiresAt < now() + 48h`. Using a 48h buffer gives one full missed-cron cycle of headroom. Skip users who never connected.
 
 ### 3. Capturing messageId + threadId at send time
 
@@ -74,16 +74,16 @@ This is a small, prerequisite change that ships first.
 
 ### 4. Reply classification
 
-When a new message arrives in a thread we sent, fetch it, classify with Haiku. Categories:
+When a new message arrives in a thread we sent, fetch it and classify via regex. Categories:
 
-- `REPLY` — meaningful human response (positive, scheduling, soft-no, hard-no — all count as replies for the dashboard, sub-classification deferred)
+- `REPLY` — meaningful human response (all count; sub-classification deferred)
 - `AUTO_REPLY` — vacation, OOO, "I'm out until X", auto-responders
 - `BOUNCE` — delivery failure (`mailer-daemon@`, "Address not found")
 - `OTHER` — re-routes, non-substantive forwards
 
 Sub-classification of REPLY (positive / soft-no / hard-no) is a separate v2 feature that the workspace inbox triage uses — out of scope here.
 
-Why Haiku and not regex: bounces are easy to regex-match (sender domain, common phrases), but the OOO vs real-reply line is fuzzy in practice (real reply sometimes opens with "I'm OOO until Friday but…"). Haiku gets it right ~99%.
+**Classification strategy — regex-based:** Check headers first (`X-Autoreply`, `Auto-Submitted: auto-replied`) for bounces and OOO — Gmail sets these consistently. Fall back to subject/body pattern matching for edge cases. No LLM calls; if regex misclassifies an edge case the user still sees the email with the wrong badge, which is acceptable for v2.
 
 ### 5. Schema additions
 
@@ -97,14 +97,21 @@ model Email {
   repliedAt            DateTime?
   replyMessageId       String?     // Gmail message ID of the reply
   replyFrom            String?     // sender of the reply
-  replyClassification  String?     // REPLY | AUTO_REPLY | BOUNCE | OTHER
+  replyClassification  ReplyClassification?
 
   @@index([gmailThreadId])         // hot path: webhook lookups by threadId
 }
 
+enum ReplyClassification {
+  REPLY
+  AUTO_REPLY
+  BOUNCE
+  OTHER
+}
+
 model UserGmailWatch {              // new — one row per connected user
   userId           String   @id
-  watchExpiry      DateTime
+  watchExpiresAt   DateTime
   historyId        String              // last processed historyId
   pubsubTopic      String              // for renewal
   createdAt        DateTime @default(now())
@@ -142,7 +149,7 @@ Route: `/api/webhooks/gmail` (POST).
 6. If yes:
      a. Fetch the message
      b. Skip if From is the user themselves (own send shows up here too)
-     c. Classify with Haiku
+     c. Classify with regex
      d. Update the Email row
 7. Update UserGmailWatch.historyId.
 ```
