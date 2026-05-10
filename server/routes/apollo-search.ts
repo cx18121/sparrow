@@ -183,7 +183,20 @@ async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: str
           error: "Apollo rate limit reached. Please wait a moment and try again.",
         });
       }
-      return res.status(status ?? 500).json({ error: "Apollo API error" });
+      // 401/403 from Apollo mean *Apollo's* credentials are bad (our API key
+      // is invalid/expired), NOT that the end user's session is bad. Returning
+      // 401 here would make the client show "Sign in again" — wrong root cause.
+      // Map upstream auth/4xx failures to 502 Bad Gateway and surface the
+      // actual upstream message so the user can see "Apollo API key invalid"
+      // instead of being told to re-authenticate to Supabase.
+      if (status === 401 || status === 403) {
+        return res.status(502).json({
+          error: `Apollo credentials rejected (HTTP ${status}). Check that APOLLO_API_KEY is set and current.`,
+        });
+      }
+      // Other upstream errors (5xx, bad gateway, etc.) → 502 with passthrough.
+      const upstreamMsg = (err.response?.data as any)?.error ?? err.message ?? "Apollo upstream error";
+      return res.status(502).json({ error: `Apollo upstream error: ${upstreamMsg}` });
     }
     if (err instanceof HttpError) throw err;
     return res.status(500).json({ error: "Apollo API error" });
