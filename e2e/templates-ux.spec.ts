@@ -115,7 +115,7 @@ test.describe('Templates UX', () => {
     })
 
     await page.goto('/templates')
-    await expect(page.getByRole('heading', { name: /Founder intro/i })).toBeVisible({
+    await expect(page.getByRole('button', { name: /Founder intro/i }).first()).toBeVisible({
       timeout: 10_000,
     })
 

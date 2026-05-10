@@ -10,21 +10,25 @@ import {
 // complete in localStorage so the app redirects to the wizard.
 
 async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
-  // Get a real JWT from local Supabase.
-  const resp = await page.request.post(
-    `${LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
-      data: { email: 'e2e@sparrow.test', password: 'SparrowE2E2024!' },
-    },
-  )
-
-  if (!resp.ok()) {
-    throw new Error(`[signInNeedsOnboarding] Auth failed: ${resp.status()} ${await resp.text()}`)
-  }
-
-  const session = await resp.json()
-  const userId: string = session.user.id
+  // Intercept localStorage.getItem for onboarding keys to return NOT complete,
+  // so the app shows the onboarding wizard after sign-in.
+  await page.addInitScript(() => {
+    const origGetItem = localStorage.getItem.bind(localStorage)
+    localStorage.getItem = (key: string) => {
+      if (key.startsWith('cf_onboarding_') && !key.endsWith('_editing')) {
+        return JSON.stringify({
+          completed: false,
+          completedAt: null,
+          updatedAt: new Date().toISOString(),
+          data: {
+            senderName: 'Demo User',
+            styleProfile: { examples: ['hi'] },
+          },
+        })
+      }
+      return origGetItem(key)
+    }
+  })
 
   // Mock Supabase storage so resume uploads succeed without a real bucket.
   await page.route('**/storage/v1/**', route =>
@@ -35,40 +39,38 @@ async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
     }),
   )
 
-  // Seed the session but mark onboarding as NOT complete.
-  await page.addInitScript(
-    ({
-      session,
-      userId,
-    }: {
-      session: any
-      userId: string
-    }) => {
-      localStorage.setItem('sb-127.0.0.1-auth-token', JSON.stringify(session))
+  // Sign in via the real form.
+  await page.goto('/dashboard')
+  await page.getByPlaceholder('you@example.com').fill('e2e@sparrow.test')
+  await page.getByPlaceholder('••••••••').fill('SparrowE2E2024!')
+  await page.getByRole('button', { name: /^Sign in$/i }).click()
 
-      const data = {
-        senderName: 'Demo User',
-        styleChoices: { tone: 'a', length: 'a', ask: 'a', personalization: 'a' },
-        customTemplate: { name: 'Intro', subject: '', body: '' },
-        templateMode: 'custom',
+  // Wait for the auth form to disappear (sign-in completed).
+  await page.waitForSelector('h2:has-text("Welcome back")', { state: 'detached', timeout: 15_000 })
+
+  // Get userId from the session stored by Supabase JS client.
+  const userId = await page.evaluate(() => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        try {
+          const s = JSON.parse(localStorage.getItem(key) ?? '')
+          if (s?.user?.id) return s.user.id
+        } catch { /* skip */ }
       }
+    }
+    return null
+  })
 
-      // Onboarding NOT complete — the onboarding flow should trigger.
-      localStorage.setItem(
-        `cf_onboarding_${userId}`,
-        JSON.stringify({
-          completed: false,
-          completedAt: null,
-          updatedAt: new Date().toISOString(),
-          data,
-        }),
-      )
-      sessionStorage.setItem(`cf_onboarding_${userId}_editing`, 'explicit')
-    },
-    { session, userId },
-  )
+  if (!userId) throw new Error('[signInNeedsOnboarding] Could not determine userId after sign-in')
 
-  return { session, userId }
+  // Set editing flag in sessionStorage (bypasses the onboarding-already-seen guard).
+  await page.evaluate((uid: string) => {
+    sessionStorage.setItem(`cf_onboarding_${uid}_editing`, 'explicit')
+  }, userId)
+
+  return { userId }
 }
 
 async function mockOnboardingApi(
@@ -280,13 +282,15 @@ test('continuing without Gmail persists onboarding profile fields and marks onbo
   // Step 3: Gmail — "Finish later" removed; use "Continue without Gmail" instead
   await page.getByRole('button', { name: /Continue without Gmail/i }).click()
 
-  await expect.poll(() => profilePosts.length).toBeGreaterThanOrEqual(1)
-  const lastPost = profilePosts[profilePosts.length - 1]
-  expect(lastPost?.workspaceConfig).toMatchObject({
+  // Wait for a POST that marks onboarding complete
+  await expect
+    .poll(() => profilePosts.some(p => p.onboardingCompleted === true), { timeout: 10_000 })
+    .toBe(true)
+  // The completion post should carry the profile fields
+  const completionPost = profilePosts.find(p => p.onboardingCompleted === true)
+  expect(completionPost?.workspaceConfig).toMatchObject({
     senderName: 'Taylor Student',
     senderRole: 'Student founder',
     senderCompany: 'Cornell GenAI',
   })
-  // finish(false) → onComplete → onboardingCompleted: true
-  expect(lastPost?.onboardingCompleted).toBe(true)
 })

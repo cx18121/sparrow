@@ -61,7 +61,7 @@ export default defineConfig({
         `DIRECT_URL=${DB_URL}`,
         'ANTHROPIC_API_KEY=fake-e2e',
         'APOLLO_API_KEY=fake-e2e',
-        'npm run dev:api:local',
+        'npx prisma generate && npm run dev:api:local',
       ].join(' '),
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: true,

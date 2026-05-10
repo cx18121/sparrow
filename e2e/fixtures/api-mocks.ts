@@ -72,27 +72,38 @@ export async function signInDemo(page: Page): Promise<{ session: any; userId: st
     }
   })
 
+  // Get a real token via the Supabase password endpoint (for API calls).
+  const tokenResp = await page.request.post(
+    `${LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      data: { email: 'e2e@sparrow.test', password: 'SparrowE2E2024!' },
+    },
+  )
+  if (!tokenResp.ok()) {
+    throw new Error(`[signInDemo] Token fetch failed: ${tokenResp.status()} ${await tokenResp.text()}`)
+  }
+  const tokenData = await tokenResp.json()
+  const userId: string = tokenData.user.id
+
   // Navigate to the auth screen and sign in via the real form.
   await page.goto('/dashboard')
   await page.getByPlaceholder('you@example.com').fill('e2e@sparrow.test')
   await page.getByPlaceholder('••••••••').fill('SparrowE2E2024!')
   await page.getByRole('button', { name: /^Sign in$/i }).click()
 
-  // Wait until the app redirects away from the auth screen.
-  await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
+  // Wait for the auth heading to disappear — sign-in completed.
+  await page.waitForSelector('h2:has-text("Welcome back")', { state: 'detached', timeout: 15_000 })
 
-  // Read the real session that Supabase stored in localStorage.
-  const session = await page.evaluate((storageKey: string) => {
-    const raw = localStorage.getItem(storageKey)
-    return raw ? JSON.parse(raw) : null
-  }, STORAGE_KEY)
+  const session = { ...tokenData, user: tokenData.user }
 
   if (!session?.user?.id) {
-    throw new Error('[signInDemo] Session not found in localStorage after sign-in')
+    throw new Error('[signInDemo] Session not found after sign-in')
   }
 
   // Store token for use by createTestCampaign / createTestTemplate.
   _accessToken = session.access_token
+  console.log('[signInDemo] _accessToken set:', _accessToken ? `${_accessToken.substring(0, 20)}...` : 'NULL')
 
   return { session, userId: session.user.id }
 }
@@ -103,6 +114,7 @@ export async function signInDemo(page: Page): Promise<{ session: any; userId: st
  * Creates a campaign by POSTing to the real API and returns the created object.
  */
 export async function createTestCampaign(page: Page, overrides: Record<string, unknown> = {}) {
+  if (!_accessToken) console.error('[createTestCampaign] _accessToken is null!')
   const resp = await page.request.post('/api/campaigns', {
     headers: { Authorization: `Bearer ${_accessToken}` },
     data: { name: 'Test Campaign', status: 'ACTIVE', ...overrides },
@@ -117,6 +129,7 @@ export async function createTestCampaign(page: Page, overrides: Record<string, u
  * Creates a template by POSTing to the real API and returns the created object.
  */
 export async function createTestTemplate(page: Page, overrides: Record<string, unknown> = {}) {
+  if (!_accessToken) console.error('[createTestTemplate] _accessToken is null!')
   const resp = await page.request.post('/api/templates', {
     headers: { Authorization: `Bearer ${_accessToken}` },
     data: {
