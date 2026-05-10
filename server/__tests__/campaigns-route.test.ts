@@ -6,12 +6,14 @@ const { mockGetUserId, mockPrisma } = vi.hoisted(() => {
   const mockPrisma = {
     campaign: {
       findMany: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
     template: {
+      findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn(),
     },
     // listCampaignDefinitions runs a $queryRaw aggregate for draft/sent

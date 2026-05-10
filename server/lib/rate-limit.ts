@@ -76,3 +76,29 @@ export async function reserveEmailSendQuota(
 
   return release;
 }
+
+// Checks how many emails the user has already sent today (across both lead
+// and custom-contact recipients) and throws if they are at or over the limit.
+// Used as a pre-flight before reserveEmailSendQuota to give a cleaner error
+// message when the user has clearly exhausted their quota.
+export async function checkEmailSendQuota(
+  userId: string,
+  limit: number,
+  db: Db = prisma,
+): Promise<void> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.round(limit)) : 1;
+  const midnight = new Date();
+  midnight.setUTCHours(0, 0, 0, 0);
+
+  const count = await db.email.count({
+    where: {
+      status: "sent",
+      sentAt: { gte: midnight },
+      OR: [{ userLead: { userId } }, { customContact: { userId } }],
+    },
+  });
+
+  if (count >= safeLimit) {
+    throw new QuotaError(`Daily send limit reached (${safeLimit}/${safeLimit}). Try again tomorrow.`);
+  }
+}

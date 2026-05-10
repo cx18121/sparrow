@@ -6,6 +6,7 @@ const { mockGetUserId, mockPrisma } = vi.hoisted(() => {
   const mockPrisma = {
     template: {
       findMany: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -63,7 +64,7 @@ describe("templates route — GET", () => {
     await expect(handler(req, res)).resolves.not.toThrow();
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: "Internal server error" });
+    expect(res.json).toHaveBeenCalledWith({ error: "An unexpected error occurred" });
   });
 
   it("returns only the user's templates", async () => {
