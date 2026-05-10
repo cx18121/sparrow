@@ -17,7 +17,6 @@ import {
   getCompanyName,
   getRecipient,
   getRecipientName,
-  htmlToEditableText,
   nextReviewDraft,
   sortDrafts,
   stripDraftHtml,
@@ -86,7 +85,7 @@ export default function DraftsTab({
   // Edit state
   const [editing, setEditing] = useState(false)
   const [subjectValue, setSubjectValue] = useState('')
-  const [editBody, setEditBody] = useState('')
+  const editBodyRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [focusMode, setFocusMode] = useState(false)
@@ -197,30 +196,39 @@ export default function DraftsTab({
 
   const startEdit = () => {
     setSubjectValue(preview.subject || '')
-    setEditBody(htmlToEditableText(preview.body))
     setEditing(true)
     setSaveError(null)
+    // Set contentEditable body after it mounts
+    requestAnimationFrame(() => {
+      if (editBodyRef.current) {
+        editBodyRef.current.innerHTML = DOMPurify.sanitize(preview.body || '')
+        editBodyRef.current.focus()
+      }
+    })
   }
 
   const cancelEdit = () => {
     setSubjectValue(preview?.subject || '')
-    setEditBody(htmlToEditableText(preview?.body))
+    if (editBodyRef.current) {
+      editBodyRef.current.innerHTML = DOMPurify.sanitize(preview?.body || '')
+    }
     setEditing(false)
     setSaveError(null)
   }
 
   const saveEdit = async () => {
+    const body = DOMPurify.sanitize(editBodyRef.current?.innerHTML ?? '')
     setSaving(true)
     setSaveError(null)
     const originalDrafts = drafts
     const originalPreview = preview
-    const optimisticDrafts = drafts.map(d => d.id === preview.id ? { ...d, subject: subjectValue, body: editBody } : d)
+    const optimisticDrafts = drafts.map(d => d.id === preview.id ? { ...d, subject: subjectValue, body } : d)
     setDrafts(optimisticDrafts)
-    setPreview({ ...preview, subject: subjectValue, body: editBody })
+    setPreview({ ...preview, subject: subjectValue, body })
     draftQueue.mutate({ items: optimisticDrafts, nextCursor }, { revalidate: false })
     try {
-      const updated = await runExclusive(actionKey('draft-edit', preview.id), () => updateEmail({ id: preview.id, subject: subjectValue, body: editBody }))
-      const merged = { ...preview, subject: updated.subject ?? subjectValue, body: updated.body ?? editBody }
+      const updated = await runExclusive(actionKey('draft-edit', preview.id), () => updateEmail({ id: preview.id, subject: subjectValue, body }))
+      const merged = { ...preview, subject: updated.subject ?? subjectValue, body: updated.body ?? body }
       setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: merged.subject, body: merged.body } : d))
       setPreview(merged)
       setEditing(false)
@@ -1053,13 +1061,25 @@ export default function DraftsTab({
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Body</p>
               {editing ? (
-                <textarea
+                <div
+                  ref={editBodyRef}
+                  contentEditable
+                  suppressContentEditableWarning
                   aria-label="Draft body"
-                  value={editBody}
-                  onChange={e => setEditBody(e.target.value)}
-                  rows={16}
-                  className="input w-full resize-y text-sm leading-relaxed"
-                  placeholder="Email body…"
+                  className="input w-full min-h-[280px] text-sm leading-7 focus:outline-none overflow-auto"
+                  onPaste={e => {
+                    // Strip HTML from paste — keeps plain text, avoids injecting
+                    // arbitrary markup from rich-text sources.
+                    e.preventDefault()
+                    const text = e.clipboardData.getData('text/plain')
+                    document.execCommand('insertText', false, text)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      saveEdit()
+                    }
+                  }}
                 />
               ) : (
                 <div

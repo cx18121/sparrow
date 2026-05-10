@@ -56,12 +56,17 @@ interface KpiCardProps {
   helper?: string
   icon: React.ComponentType<{ size?: number; className?: string }>
   loading?: boolean
+  onClick?: () => void
 }
 
-function KpiCard({ label, value, helper, icon: Icon, loading }: KpiCardProps) {
+function KpiCard({ label, value, helper, icon: Icon, loading, onClick }: KpiCardProps) {
   const display = loading && (value === 0 || value === '') ? '-' : value
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className="surface-panel px-5 py-4">
+    <Tag
+      {...(onClick ? { type: 'button' as const, onClick } : {})}
+      className={`surface-panel px-5 py-4 text-left w-full ${onClick ? 'transition-colors hover:bg-warm-50 active:translate-y-px cursor-pointer' : ''}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
         <Icon size={14} className="text-muted/60" />
@@ -72,7 +77,7 @@ function KpiCard({ label, value, helper, icon: Icon, loading }: KpiCardProps) {
         </span>
         {helper && <span className="text-xs text-muted">{helper}</span>}
       </div>
-    </div>
+    </Tag>
   )
 }
 
@@ -278,6 +283,16 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
     return [...campaigns].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   }, [campaigns])
 
+  // Most recently updated active campaign — used as the KPI card navigation target.
+  const mostRecentActiveCampaign = useMemo(
+    () => sortedCampaigns.find(c => c.status === 'active') ?? sortedCampaigns[0] ?? null,
+    [sortedCampaigns]
+  )
+  const goToCampaignTab = (tab: string) => {
+    if (!mostRecentActiveCampaign || mostRecentActiveCampaign.id.startsWith('temp-')) return
+    navigate(`/campaigns/${mostRecentActiveCampaign.id}/${tab}`)
+  }
+
   const openCreate = () => setWizardOpen(true)
 
   const handleWizardSubmit = async (submission: WizardSubmission) => {
@@ -353,23 +368,26 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
         <KpiCard
           label="Lead Pool"
           value={totalLeadPool}
-          helper={totalLeadPool === 1 ? 'across all campaigns' : 'across all campaigns'}
+          helper="across all campaigns"
           icon={Users}
           loading={dataLoading}
+          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('leads') : undefined}
         />
         <KpiCard
           label="Drafts"
           value={drafts.length}
-          helper={drafts.length === 1 ? 'waiting review' : 'waiting review'}
+          helper="waiting review"
           icon={FileText}
           loading={emailsLoading}
+          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('drafts') : undefined}
         />
         <KpiCard
           label="Sent this week"
           value={sentThisWeek}
-          helper={sentThisWeek === 1 ? 'across all campaigns' : 'across all campaigns'}
+          helper="across all campaigns"
           icon={Send}
           loading={emailsLoading}
+          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('sent') : undefined}
         />
       </section>
 

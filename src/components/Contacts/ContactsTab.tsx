@@ -31,6 +31,7 @@ interface Row {
   rowId: string                        // campaignLeadId or campaignCustomContactId
   name: string
   title: string | null
+  email: string | null
   companyName: string | null
   hasEmail: boolean
   draftStatus: DraftPillStatus
@@ -51,6 +52,7 @@ function leadToRow(lead: UserLead): Row {
     rowId: lead.campaignLeadId ?? lead.id,
     name: lead.contact?.name ?? 'Unknown',
     title: lead.contact?.title ?? null,
+    email: lead.contact?.email ?? null,
     companyName: lead.company?.name ?? null,
     hasEmail: Boolean(lead.contact?.email),
     draftStatus: emailsToStatus(lead.emails),
@@ -65,6 +67,7 @@ function customToRow(cc: CustomMember): Row {
     rowId: cc.campaignCustomContactId,
     name: cc.name || cc.email || 'Unnamed contact',
     title: cc.title ?? null,
+    email: cc.email ?? null,
     companyName: cc.companyName ?? null,
     hasEmail: Boolean(cc.email),
     draftStatus: emailsToStatus(cc.emails),
@@ -548,6 +551,7 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
                   />
                 </th>
                 <th className="px-4 py-3 text-left">Contact</th>
+                <th className="px-4 py-3 text-left">Email</th>
                 <th className="px-4 py-3 text-left">Company</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-right">Action</th>
@@ -578,6 +582,12 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
                         )}
                       </div>
                       <div className="text-xs text-muted">{row.title ?? '—'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted max-w-[200px]">
+                      {row.email
+                        ? <span className="font-mono truncate block">{row.email}</span>
+                        : <span className="italic text-muted/60">No email</span>
+                      }
                     </td>
                     <td className="px-4 py-3 text-sm text-dark">{row.companyName ?? '—'}</td>
                     <td className="px-4 py-3">
