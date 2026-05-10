@@ -508,17 +508,28 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     }
   }
 
+  const batchTokenRef = useRef(0)
+
   const handleBatch = useCallback(async (mode: 'contacts' | 'emails') => {
     const toProcess = companies.filter(c => selectedCompanyIds.has(c.id))
     if (!toProcess.length) return
     setSelectedCompanyIds(new Set())
+
+    // Cancellation token: incrementing this before the loop starts means any
+    // concurrent batch (e.g. triggered before this one finished) is stale.
+    const myToken = ++batchTokenRef.current
     setBatchStatus({ mode, total: toProcess.length, done: 0, failed: 0, active: true })
 
     let done = 0
     let failed = 0
+    // Local seen set so within-batch duplicates (same Apollo ID on two
+    // selected companies) don't get saved twice without waiting for refreshLeads.
+    const seenApolloIds = new Set(persistedSavedApolloIds)
 
     for (const company of toProcess) {
-      if (!mountedRef.current) break
+      // Abort if component unmounted or a newer batch was started (e.g. user
+      // triggered a new search that fires another batch before this one ended).
+      if (!mountedRef.current || batchTokenRef.current !== myToken) break
       try {
         const data = await apolloSearch(company.domain, company.id)
         const previews = data.previews || []
@@ -526,12 +537,12 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
         const top = previews[0]
 
-        // Skip if already saved as a lead
-        if (persistedSavedApolloIds.has(top.id)) {
+        if (seenApolloIds.has(top.id)) {
           done++
-          if (mountedRef.current) setBatchStatus(s => s ? { ...s, done } : s)
+          if (mountedRef.current && batchTokenRef.current === myToken) setBatchStatus(s => s ? { ...s, done } : s)
           continue
         }
+        seenApolloIds.add(top.id)
 
         if (top.hasEmail) {
           try { await revealApolloContact(top.id, company.id, company.domain) } catch {}
@@ -557,14 +568,22 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         }
 
         done++
-      } catch {
+      } catch (err: any) {
         failed++
+        // Surface rate-limit errors immediately rather than silently folding
+        // them into the skipped count at the end.
+        if (err?.status === 429 && mountedRef.current) {
+          setToast({ type: 'error', title: 'Apollo rate limit hit', message: 'Batch paused. Wait a moment, then try again with the remaining companies.' })
+          break
+        }
       }
-      if (mountedRef.current) setBatchStatus(s => s ? { ...s, done, failed } : s)
+      if (mountedRef.current && batchTokenRef.current === myToken) {
+        setBatchStatus(s => s ? { ...s, done, failed } : s)
+      }
     }
 
-    refreshLeads()
-    if (mountedRef.current) {
+    if (mountedRef.current) refreshLeads()
+    if (mountedRef.current && batchTokenRef.current === myToken) {
       setBatchStatus(s => s ? { ...s, active: false } : s)
       setTimeout(() => { if (mountedRef.current) setBatchStatus(null) }, 4000)
     }
