@@ -17,35 +17,26 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
 import { defaultAttachmentIds, getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
-
-const sampleContactData = {
-  first_name: 'Alex',
-  last_name: 'Chen',
-  company: 'Momentum AI',
-  role: 'Co-founder & CEO',
-  sender_name: 'Your Name',
-  feature_line: 'the new agent eval harness you launched last week',
-  fit_angle: 'my multi-agent eval project at the GenAI club',
-}
+import { PREVIEW_SAMPLE } from '../../lib/previewSample'
 
 const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}', '{{feature_line}}', '{{fit_angle}}']
 
 function fillVariables(html, data) {
   if (!html) return ''
   return html
-    .replace(/\{\{first_name\}\}/g, data.first_name || 'Alex')
-    .replace(/\{\{firstName\}\}/g, data.first_name || 'Alex')
-    .replace(/\{\{last_name\}\}/g, data.last_name || 'Chen')
-    .replace(/\{\{company\}\}/g, data.company || 'Momentum AI')
-    .replace(/\{\{company_name\}\}/g, data.company || 'Momentum AI')
-    .replace(/\{\{companyName\}\}/g, data.company || 'Momentum AI')
-    .replace(/\{\{role\}\}/g, data.role || 'CEO')
-    .replace(/\{\{sender_name\}\}/g, data.sender_name || 'Your Name')
-    .replace(/\{\{senderName\}\}/g, data.sender_name || 'Your Name')
-    .replace(/\{\{feature_line\}\}/g, data.feature_line || '<span class="italic text-muted">[the company surface AI picks at send time]</span>')
-    .replace(/\{\{featureLine\}\}/g, data.feature_line || '<span class="italic text-muted">[the company surface AI picks at send time]</span>')
-    .replace(/\{\{fit_angle\}\}/g, data.fit_angle || '<span class="italic text-muted">[your matching resume project]</span>')
-    .replace(/\{\{fitAngle\}\}/g, data.fit_angle || '<span class="italic text-muted">[your matching resume project]</span>')
+    .replace(/\{\{first_name\}\}/g, data.first_name || PREVIEW_SAMPLE.first_name)
+    .replace(/\{\{firstName\}\}/g, data.first_name || PREVIEW_SAMPLE.first_name)
+    .replace(/\{\{last_name\}\}/g, data.last_name || PREVIEW_SAMPLE.last_name)
+    .replace(/\{\{company\}\}/g, data.company || PREVIEW_SAMPLE.company)
+    .replace(/\{\{company_name\}\}/g, data.company || PREVIEW_SAMPLE.company)
+    .replace(/\{\{companyName\}\}/g, data.company || PREVIEW_SAMPLE.company)
+    .replace(/\{\{role\}\}/g, data.role || PREVIEW_SAMPLE.role)
+    .replace(/\{\{sender_name\}\}/g, data.sender_name || PREVIEW_SAMPLE.sender_name)
+    .replace(/\{\{senderName\}\}/g, data.sender_name || PREVIEW_SAMPLE.sender_name)
+    .replace(/\{\{feature_line\}\}/g, data.feature_line || PREVIEW_SAMPLE.feature_line)
+    .replace(/\{\{featureLine\}\}/g, data.feature_line || PREVIEW_SAMPLE.feature_line)
+    .replace(/\{\{fit_angle\}\}/g, data.fit_angle || PREVIEW_SAMPLE.fit_angle)
+    .replace(/\{\{fitAngle\}\}/g, data.fit_angle || PREVIEW_SAMPLE.fit_angle)
 }
 
 function normalizeSafeLinkUrl(value) {
@@ -224,8 +215,8 @@ export default function TemplatesTab({ workspaceConfig }) {
   const moreRef = useRef(null)
 
   const previewData = useMemo(() => ({
-    ...sampleContactData,
-    sender_name: workspaceConfig?.senderName || sampleContactData.sender_name,
+    ...PREVIEW_SAMPLE,
+    sender_name: workspaceConfig?.senderName || PREVIEW_SAMPLE.sender_name,
   }), [workspaceConfig?.senderName])
   const attachmentLibrary = useMemo(() => getAttachmentLibrary(workspaceConfig), [workspaceConfig])
 

@@ -50,10 +50,17 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
     return res.status(400).json({ error: "Template fields are too large" });
   }
 
+  const trimmedName = trimLimited(name, 120)
+  const nameClash = await prisma.template.findFirst({
+    where: { userId, name: { equals: trimmedName, mode: 'insensitive' } },
+    select: { id: true },
+  })
+  if (nameClash) return res.status(409).json({ error: 'A template with that name already exists.' })
+
   const template = await prisma.template.create({
     data: {
       userId,
-      name: trimLimited(name, 120),
+      name: trimmedName,
       subject: trimLimited(subject, 300),
       body: content.slice(0, 50_000),
       isShared: false,
@@ -93,6 +100,14 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const existing = await prisma.template.findUnique({ where: { id } });
   if (!existing || existing.userId !== userId) {
     return res.status(404).json({ error: "Template not found" });
+  }
+
+  if (typeof name === "string") {
+    const nameClash = await prisma.template.findFirst({
+      where: { userId, name: { equals: name.trim(), mode: 'insensitive' }, NOT: { id } },
+      select: { id: true },
+    })
+    if (nameClash) return res.status(409).json({ error: 'A template with that name already exists.' })
   }
 
   const template = await prisma.template.update({

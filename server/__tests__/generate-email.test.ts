@@ -31,6 +31,19 @@ function makeAnthropicMock(text: string) {
   });
 }
 
+function makeAnthropicSequenceMock(...texts: string[]) {
+  let index = 0;
+  return vi.fn().mockImplementation(() => {
+    const text = texts[Math.min(index, texts.length - 1)];
+    index += 1;
+    return Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve(""),
+      json: () => Promise.resolve({ content: [{ type: "text", text }] }),
+    });
+  });
+}
+
 beforeEach(() => {
   vi.unstubAllGlobals();
 });
@@ -238,6 +251,40 @@ describe("generateEmailDraft — Template mode (AI-personalized skeleton)", () =
     expect(draft.body).toBe("Personalized body");
   });
 
+  it("preserves template paragraph spacing when AI returns single line breaks", async () => {
+    const collapsed = [
+      "Hi Sarah,",
+      "I'm Alex, a student studying CS and Stats at Cornell.",
+      "I saw that Acme AI just shipped the agent eval harness.",
+      "Would you be open to a quick call?",
+      "Best,",
+      "Alex",
+    ].join("\n");
+    const fetchMock = makeAnthropicSequenceMock(collapsed, collapsed);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const draft = await generateEmailDraft({
+      ...baseTemplate,
+      body: [
+        "<p>Hi {{first_name}},</p>",
+        "<p>I'm {{sender_name}}, a student studying CS and Stats at Cornell.</p>",
+        "<p>I saw that {{company}} just shipped {{feature_line}}.</p>",
+        "<p>Would you be open to a quick call?</p>",
+        "<p>Best,<br>{{sender_name}}</p>",
+      ].join(""),
+      featureLine: "the agent eval harness",
+      fitAngle: null,
+    });
+
+    expect(draft.body).toBe([
+      "Hi Sarah,",
+      "I'm Alex, a student studying CS and Stats at Cornell.",
+      "I saw that Acme AI just shipped the agent eval harness.",
+      "Would you be open to a quick call?",
+      "Best,\nAlex",
+    ].join("\n\n"));
+  });
+
   it("forwards featureLine and fitAngle into the template personalization prompt", async () => {
     const fetchMock = makeAnthropicMock("Hi Sarah, …");
     vi.stubGlobal("fetch", fetchMock);
@@ -335,7 +382,7 @@ describe("generateEmailDraft — Verbatim mode", () => {
 
 describe("substituteVariables — merge tags", () => {
   const contact = { name: "Sarah Chen", title: "Head of Engineering" };
-  const company = { name: "Momentum AI" };
+  const company = { name: "Anthropic" };
 
   it("fills snake_case and camelCase contact/sender/company tags", () => {
     const out = substituteVariables(
@@ -344,7 +391,7 @@ describe("substituteVariables — merge tags", () => {
       "Alex Morgan",
       company,
     );
-    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Momentum AI / Momentum AI, from Alex Morgan (Alex Morgan)");
+    expect(out).toBe("Hi Sarah Chen, role: Head of Engineering, co: Anthropic / Anthropic, from Alex Morgan (Alex Morgan)");
   });
 
   it("fills feature_line and fit_angle when AI metadata is provided", () => {
@@ -356,7 +403,7 @@ describe("substituteVariables — merge tags", () => {
       { featureLine: "the agent eval harness", fitAngle: "My multi-agent eval project" },
     );
     expect(out).toBe(
-      "I noticed Momentum AI just shipped the agent eval harness. My multi-agent eval project feels like a fit.",
+      "I noticed Anthropic just shipped the agent eval harness. My multi-agent eval project feels like a fit.",
     );
   });
 

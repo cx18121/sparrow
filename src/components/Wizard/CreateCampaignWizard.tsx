@@ -10,6 +10,7 @@ import {
 } from '../../types/audience'
 import type { CampaignOptions, Template } from '../../types/api'
 import type { UiCampaign } from '../../contexts/AppDataContext'
+import { PREVIEW_SAMPLE } from '../../lib/previewSample'
 
 // CreateCampaignWizard - full-screen 4-step takeover replacing the modal-based
 // CampaignFormModal on the Home surface. The other modal callsite
@@ -27,22 +28,6 @@ const NAME_SUGGESTIONS = [
   'Series A AI infra',
   'Climate-tech founders',
 ]
-
-// Sample values used to populate merge tags in the wizard's template preview.
-// The wizard runs before any contact is selected, so the preview can't use
-// real lead data. Mirrors the onboarding Step-2 preview (Anthropic / Dario)
-// so users see consistent sample values across both surfaces. feature_line
-// and fit_angle use the same fallbacks as the onboarding preview when the
-// pickFitAngle path isn't running here.
-const PREVIEW_SAMPLE = {
-  first_name: 'Dario',
-  last_name: 'Amodei',
-  company: 'Anthropic',
-  role: 'CEO',
-  sender_name: 'Your Name',
-  feature_line: 'claude code agentic coding',
-  fit_angle: 'your background',
-} as const
 
 function fillTemplateTags(content: string) {
   if (!content) return ''
@@ -517,6 +502,20 @@ function StepFilters({
               Currently hiring
             </FilterChip>
           </FilterRow>
+
+          {(options.stages || []).length > 0 && (
+            <FilterRow label="Stage">
+              {(options.stages || []).map(stage => (
+                <FilterChip
+                  key={stage}
+                  active={audience.stage === stage}
+                  onClick={() => onAudienceChange({ ...audience, stage: audience.stage === stage ? null : stage })}
+                >
+                  {stage}
+                </FilterChip>
+              ))}
+            </FilterRow>
+          )}
 
           {SECTOR_NAMESPACES.map(ns => {
             const tags = (options.tags?.[ns] || [])

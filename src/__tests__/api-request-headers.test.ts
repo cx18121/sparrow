@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/supabase", () => ({
-  isDemo: false,
   supabase: {
     auth: {
       getSession: async () => ({ data: { session: null } }),

@@ -28,6 +28,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     region,
     regionType,
     batch,
+    stage,
     industry,
     industries,
     isHiring,
@@ -57,7 +58,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const audienceWhere = audienceToPrismaWhere({
     tags: tagsList,
     region: regionFromQuery(regionType, region),
-    stage: null, // Discover does not expose a stage filter
+    stage: stage ?? null,
     batch: batch ?? null,
     isHiring: isHiring === "true" ? true : isHiring === "false" ? false : null,
   });

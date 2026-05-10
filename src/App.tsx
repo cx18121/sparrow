@@ -7,7 +7,7 @@ import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
 
 import { AppDataProvider } from './contexts/AppDataContext'
-import { createWorkspaceConfig } from './lib/workspaceConfig'
+import { createWorkspaceConfig, profileResumeTextFromWorkspace } from './lib/workspaceConfig'
 import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
 import { hasRecoverableCompletedSetup } from './lib/profileSetup'
@@ -281,7 +281,9 @@ function AppShell() {
           data: {
             ...(res.profile.workspaceConfig || {}),
             resumePath: res.profile.resumePath || res.profile.workspaceConfig?.resumePath || '',
-            resumeText: res.profile.resumeText || '',
+            resumeExtractedText: res.profile.workspaceConfig?.resumeExtractedText || (
+              res.profile.workspaceConfig?.resumeText ? '' : res.profile.resumeText || ''
+            ),
           },
         })
         setWorkspaceConfig(serverConfig)
@@ -344,7 +346,7 @@ function AppShell() {
       workspaceConfig: sanitizedConfig,
       defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
       resumePath: normalized.resumePath || null,
-      resumeText: normalized.resumeText || null,
+      resumeText: profileResumeTextFromWorkspace(normalized) || null,
       onboardingCompleted: completed,
     })
 
@@ -367,7 +369,7 @@ function AppShell() {
         workspaceConfig: sanitizedConfig,
         defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
         resumePath: normalized.resumePath || null,
-        resumeText: normalized.resumeText || null,
+        resumeText: profileResumeTextFromWorkspace(normalized) || null,
         onboardingCompleted: false,
       }).catch(err => console.warn('Failed to persist onboarding draft', err))
     }, 800)
@@ -398,7 +400,7 @@ function AppShell() {
 
     if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next))
     const resumePersistSig = normalized.resumePath
-      ? `${normalized.resumePath}:${normalized.resumeText || ''}`
+      ? `${normalized.resumePath}:${profileResumeTextFromWorkspace(normalized) || ''}`
       : ''
     if (resumePersistSig && resumePersistSig !== lastOnboardingResumePersistRef.current) {
       lastOnboardingResumePersistRef.current = resumePersistSig
@@ -410,7 +412,7 @@ function AppShell() {
         workspaceConfig: sanitizedConfig,
         defaultFilters: { leadsPerGeneration: normalized.leadsPerGeneration },
         resumePath: normalized.resumePath || null,
-        resumeText: normalized.resumeText || null,
+        resumeText: profileResumeTextFromWorkspace(normalized) || null,
         onboardingCompleted: false,
       }).catch(err => console.warn('Failed to persist onboarding resume draft', err))
     } else {

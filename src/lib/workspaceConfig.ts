@@ -26,46 +26,65 @@ const DEFAULT_CUSTOM_TEMPLATE = {
 };
 
 export type WorkspaceFile = {
-  id: string
-  path?: string
-  fileName: string
-  mimeType?: string | null
-  size?: number | null
-  uploadedAt?: string | null
-}
+  id: string;
+  path?: string;
+  fileName: string;
+  mimeType?: string | null;
+  size?: number | null;
+  uploadedAt?: string | null;
+};
 
 export type AttachmentFile = WorkspaceFile & {
-  source?: 'resume' | 'library'
-}
+  source?: 'resume' | 'library';
+};
 
 function finiteNumber(value: unknown) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : null
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 export function normalizeSendingLimits(value: any, bounds = { maxDaily: 100 }) {
-  const daily = finiteNumber(value?.dailyMax)
-  const delay = finiteNumber(value?.delaySeconds)
+  const daily = finiteNumber(value?.dailyMax);
+  const delay = finiteNumber(value?.delaySeconds);
   return {
-    dailyMax: daily == null ? 100 : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
-    delaySeconds: delay == null ? 15 : Math.min(3600, Math.max(15, Math.round(delay))),
-  }
+    dailyMax:
+      daily == null
+        ? 100
+        : Math.min(bounds.maxDaily, Math.max(1, Math.round(daily))),
+    delaySeconds:
+      delay == null ? 15 : Math.min(3600, Math.max(15, Math.round(delay))),
+  };
 }
 
 export function getAttachmentLibrary(workspaceConfig: any): AttachmentFile[] {
-  const files = Array.isArray(workspaceConfig?.files) ? workspaceConfig.files : []
-  const resume = workspaceConfig?.resumePath && workspaceConfig?.resumeFileName
-    ? [{
-        id: 'resume',
-        path: workspaceConfig.resumePath,
-        fileName: workspaceConfig.resumeFileName,
-        mimeType: workspaceConfig.resumeFileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : undefined,
-        size: null,
-        uploadedAt: workspaceConfig.resumeUploadedAt || null,
-        source: 'resume' as const,
-      }]
-    : []
-  return [...resume, ...files.map((file: AttachmentFile) => ({ ...file, source: 'library' as const }))]
+  const files = Array.isArray(workspaceConfig?.files)
+    ? workspaceConfig.files
+    : [];
+  const resume =
+    workspaceConfig?.resumePath && workspaceConfig?.resumeFileName
+      ? [
+          {
+            id: 'resume',
+            path: workspaceConfig.resumePath,
+            fileName: workspaceConfig.resumeFileName,
+            mimeType: workspaceConfig.resumeFileName
+              .toLowerCase()
+              .endsWith('.pdf')
+              ? 'application/pdf'
+              : undefined,
+            size: null,
+            uploadedAt: workspaceConfig.resumeUploadedAt || null,
+            source: 'resume' as const,
+          },
+        ]
+      : [];
+  return [
+    ...resume,
+    ...files.map((file: AttachmentFile) => ({
+      ...file,
+      source: 'library' as const,
+    })),
+  ];
 }
 
 export function createWorkspaceConfig({ user, templates = [], data = null }) {
@@ -79,6 +98,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
 
   const baseConfig = {
     resumeText: '',
+    resumeExtractedText: '',
     resumeFileName: '',
     resumePath: '',
     resumeUploadedAt: '',
@@ -117,7 +137,9 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       ...baseConfig.customTemplate,
       ...(data?.customTemplate || {}),
     },
-    sendingLimits: normalizeSendingLimits(data?.sendingLimits || baseConfig.sendingLimits),
+    sendingLimits: normalizeSendingLimits(
+      data?.sendingLimits || baseConfig.sendingLimits
+    ),
     files: Array.isArray(data?.files) ? data.files : baseConfig.files,
   };
 
@@ -129,4 +151,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     ...merged,
     templateId: templateExists ? merged.templateId : defaultTemplateId,
   };
+}
+
+export function profileResumeTextFromWorkspace(workspaceConfig: any): string {
+  const typed = workspaceConfig?.resumeText?.trim?.() || '';
+  const extracted = workspaceConfig?.resumeExtractedText?.trim?.() || '';
+  return [typed, extracted].filter(Boolean).join('\n\n');
 }

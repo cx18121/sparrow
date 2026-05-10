@@ -434,25 +434,38 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
     <div className="space-y-3">
       {error && <Banner variant="warning" size="sm">{error}</Banner>}
 
-      <div className="flex items-center justify-end">
-        {!addOpen && (
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="btn-secondary inline-flex items-center gap-1.5 text-xs py-1 px-2.5"
-          >
-            <Plus size={11} /> Add contact
-          </button>
-        )}
-        {addOpen && (
-          <button
-            type="button"
-            onClick={() => setAddOpen(false)}
-            className="text-xs font-medium text-muted hover:text-dark inline-flex items-center gap-1"
-          >
-            <X size={11} /> Close
-          </button>
-        )}
+      <div className="flex items-center justify-between">
+        <div>
+          {!isEmpty && (
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="btn-ghost text-xs text-muted hover:text-dark"
+            >
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+          )}
+        </div>
+        <div>
+          {!addOpen && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="btn-secondary inline-flex items-center gap-1.5 text-xs py-1 px-2.5"
+            >
+              <Plus size={11} /> Add contact
+            </button>
+          )}
+          {addOpen && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              className="text-xs font-medium text-muted hover:text-dark inline-flex items-center gap-1"
+            >
+              <X size={11} /> Close
+            </button>
+          )}
+        </div>
       </div>
 
       {addOpen && (

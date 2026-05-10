@@ -21,8 +21,8 @@ export function getSupabaseAdmin(): SupabaseClient {
 // returns the user id, or null if the token is missing/invalid/expired.
 //
 // Throws (rather than returning null) on transient network failures so the
-// calling route can return 5xx instead of 401 — prevents the client from
-// interpreting a Supabase Auth outage as "sign in again".
+// calling route returns 5xx instead of 401 — prevents the client from
+// treating a Supabase Auth outage as "sign in again".
 export async function getUserIdFromRequest(req: VercelRequest): Promise<string | null> {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;

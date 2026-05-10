@@ -53,6 +53,12 @@ describe("Draft queue helpers", () => {
     expect(textToDraftHtml("Hello\nthere\n\nBye")).toBe("<p style=\"margin:0 0 0.75em\">Hello<br>there</p><p style=\"margin:0 0 0.75em\">Bye</p>");
   });
 
+  it("renders line-oriented email drafts with paragraph spacing", () => {
+    expect(textToDraftHtml("Hi Sarah,\nIntro sentence.\nCompany sentence.\nAsk sentence.\nBest,\nAlex")).toBe(
+      "<p style=\"margin:0 0 0.75em\">Hi Sarah,</p><p style=\"margin:0 0 0.75em\">Intro sentence.</p><p style=\"margin:0 0 0.75em\">Company sentence.</p><p style=\"margin:0 0 0.75em\">Ask sentence.</p><p style=\"margin:0 0 0.75em\">Best,<br>Alex</p>",
+    );
+  });
+
   it("classifies Draft readiness and sendability", () => {
     expect(draftReadiness(leadDraft).label).toBe("Ready");
     expect(canSendDraft(leadDraft)).toBe(true);

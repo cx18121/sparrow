@@ -131,8 +131,7 @@ function buildTemplateSkeleton(input: TemplateDraftInput): string {
   ))
 }
 
-function buildTemplatePrompt(input: TemplateDraftInput): string {
-  const skeleton = buildTemplateSkeleton(input)
+function buildTemplatePrompt(input: TemplateDraftInput, skeleton = buildTemplateSkeleton(input)): string {
   const basePrompt = buildPrompt({
     kind: 'ai',
     contact: input.contact,
@@ -152,20 +151,79 @@ function buildTemplatePrompt(input: TemplateDraftInput): string {
     'Template skeleton:',
     skeleton,
     '',
-    'Use the template skeleton as the structure and intent, but personalize the wording with the contact, company, and sender context. Do not leave merge tags or bracketed placeholders in the output.',
+    'Use the template skeleton as the structure and intent, but personalize the wording with the contact, company, and sender context. Preserve the template paragraph breaks exactly, separating paragraphs with one blank line. Do not leave merge tags or bracketed placeholders in the output.',
   ].join('\n')
 }
 
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function templateParagraphs(skeleton: string): string[] {
+  if (/<p\b/i.test(skeleton)) {
+    const paragraphs = [...skeleton.matchAll(/<p\b[^>]*>[\s\S]*?<\/p>/gi)]
+      .map(match => htmlToPlainText(match[0]))
+      .filter(Boolean)
+    if (paragraphs.length > 0) return paragraphs
+  }
+
+  return htmlToPlainText(skeleton)
+    .split(/\n\s*\n/)
+    .map(para => para.trim())
+    .filter(Boolean)
+}
+
+function signoffLine(line: string): boolean {
+  return /^(best|thanks|thank you|regards|sincerely|cheers),?$/i.test(line.trim())
+}
+
+function restoreTemplateParagraphSpacing(body: string, skeleton: string): string {
+  const trimmed = body.trim()
+  if (!trimmed || /\n\s*\n/.test(trimmed)) return trimmed
+
+  const paragraphs = templateParagraphs(skeleton)
+  if (paragraphs.length < 2) return trimmed
+
+  const lines = trimmed
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  if (lines.length < 2) return trimmed
+
+  const lastTemplateParagraph = paragraphs[paragraphs.length - 1] ?? ''
+  const shouldMergeSignoff =
+    lines.length === paragraphs.length + 1 &&
+    signoffLine(lines[lines.length - 2] ?? '') &&
+    (lastTemplateParagraph.includes('\n') || signoffLine(lastTemplateParagraph.split('\n')[0] ?? ''))
+
+  const blocks = shouldMergeSignoff
+    ? [...lines.slice(0, -2), `${lines[lines.length - 2]}\n${lines[lines.length - 1]}`]
+    : lines
+
+  return blocks.length === paragraphs.length ? blocks.join('\n\n') : trimmed
+}
+
 async function draftFromTemplate(input: TemplateDraftInput): Promise<EmailDraft> {
+  const skeleton = buildTemplateSkeleton(input)
   const rawBody = await callClaude({
     apiKey: input.apiKey,
     model: GENERATION_MODEL,
     system: EMAIL_GENERATION_SYSTEM_PROMPT,
-    userContent: buildTemplatePrompt(input),
+    userContent: buildTemplatePrompt(input, skeleton),
     maxTokens: 1024,
   })
 
-  const body = await humanizeEmailBody(rawBody, input.apiKey)
+  const humanized = await humanizeEmailBody(rawBody, input.apiKey)
+  const body = restoreTemplateParagraphSpacing(humanized, skeleton)
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company)
   return { subject, body }
 }

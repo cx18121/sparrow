@@ -109,6 +109,13 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
   } = body ?? {};
 
   if (!name) throw new HttpError(400, "name is required");
+
+  const nameClash = await prisma.campaign.findFirst({
+    where: { userId, name: { equals: (name as string).trim(), mode: 'insensitive' } },
+    select: { id: true },
+  })
+  if (nameClash) throw new HttpError(409, "A campaign with that name already exists.")
+
   const writeStatus = requireWriteStatus(status) ?? "ACTIVE";
   const ownedTemplateId = await resolveTemplateId(templateId, userId);
 
@@ -145,6 +152,14 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
   if (!id) throw new HttpError(400, "id is required");
   const existing = await prisma.campaign.findUnique({ where: { id: id as string } });
   if (!existing || existing.userId !== userId) throw new HttpError(404, "Campaign not found");
+
+  if (name !== undefined) {
+    const nameClash = await prisma.campaign.findFirst({
+      where: { userId, name: { equals: (name as string).trim(), mode: 'insensitive' }, NOT: { id: id as string } },
+      select: { id: true },
+    })
+    if (nameClash) throw new HttpError(409, "A campaign with that name already exists.")
+  }
 
   const writeStatus = requireWriteStatus(status);
   const ownedTemplateId = templateId !== undefined

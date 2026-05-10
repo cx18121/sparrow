@@ -3,6 +3,7 @@ import {
   createWorkspaceConfig,
   getAttachmentLibrary,
   normalizeSendingLimits,
+  profileResumeTextFromWorkspace,
 } from "../../src/lib/workspaceConfig.js";
 
 describe("createWorkspaceConfig", () => {
@@ -79,5 +80,20 @@ describe("createWorkspaceConfig", () => {
         source: "library",
       },
     ]);
+  });
+
+  it("keeps typed pitch separate from extracted resume text while building profile context", () => {
+    const config = createWorkspaceConfig({
+      user: { email: "cx267@cornell.edu", user_metadata: {} },
+      templates: [],
+      data: {
+        resumeText: "Typed pitch for outreach.",
+        resumeExtractedText: "Extracted resume content.",
+      },
+    });
+
+    expect(config.resumeText).toBe("Typed pitch for outreach.");
+    expect(config.resumeExtractedText).toBe("Extracted resume content.");
+    expect(profileResumeTextFromWorkspace(config)).toBe("Typed pitch for outreach.\n\nExtracted resume content.");
   });
 });

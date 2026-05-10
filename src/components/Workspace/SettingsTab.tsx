@@ -17,7 +17,7 @@ import { getAttachmentLibrary } from '../../lib/attachments'
 // campaign). Save is gated on dirty state; a danger-zone Delete sits at the
 // bottom and pushes back to /dashboard on success.
 
-const CAMPAIGN_NS = ['stage', 'vertical', 'tech', 'model', 'investor', 'signal'] as const
+const CAMPAIGN_NS = ['vertical', 'tech', 'model', 'investor', 'signal'] as const
 const NS_LABELS: Record<string, string> = {
   stage: 'Stage', vertical: 'Sector', tech: 'Tech',
   model: 'Model', investor: 'Investor', signal: 'Signal',
@@ -238,6 +238,27 @@ export default function SettingsTab() {
           </div>
 
           <div className="space-y-2.5 pt-0.5">
+            {(options.stages || []).length > 0 && (
+              <div className="flex items-start gap-3">
+                <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/50">Stage</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(options.stages || []).map(stage => (
+                    <button
+                      key={stage}
+                      type="button"
+                      onClick={() => field('filterStage', form.filterStage === stage ? '' : stage)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                        form.filterStage === stage
+                          ? 'border-primary bg-primary text-warm-50'
+                          : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
+                      }`}
+                    >
+                      {stage}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {CAMPAIGN_NS.map(ns => {
               const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
               if (tags.length < 2) return null

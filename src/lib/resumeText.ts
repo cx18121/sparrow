@@ -17,7 +17,15 @@ export function canExtractResumeText(file: File) {
 }
 
 export function normalizeExtractedText(text: string) {
-  return text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_EXTRACTED_RESUME_CHARS)
+  return text
+    .normalize('NFKC')
+    .replace(/\r/g, '')
+    .replace(/(^|[\s|,;])(?:[§€£¥¢©®™†‡¶•◦▪▫■□●○◆◇★☆✓✔✕✗ïı])(?=[\s|,;]|$)/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, MAX_EXTRACTED_RESUME_CHARS)
 }
 
 export async function extractResumeTextFromFile(file: File): Promise<string> {

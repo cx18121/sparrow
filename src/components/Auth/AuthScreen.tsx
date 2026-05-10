@@ -4,7 +4,7 @@ import Banner from '../ui/Banner'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function AuthScreen() {
-  const { signIn, signUp, signInWithGoogle, isDemo } = useAuth()
+  const { signIn, signUp, signInWithGoogle } = useAuth()
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -93,12 +93,6 @@ export default function AuthScreen() {
               {mode === 'signin' ? 'Sign in to your Sparrow workspace.' : 'Start reaching the right people today.'}
             </p>
           </div>
-
-          {isDemo && (
-            <Banner variant="warning" icon={AlertCircle} size="sm" className="mb-5">
-              Demo mode: enter any email and password to continue.
-            </Banner>
-          )}
 
           {/* Google */}
           <button

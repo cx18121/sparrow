@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Building2, FileText, Mail, RefreshCw, Upload, User } from 'lucide-react'
 import Banner from '../ui/Banner'
-import { createWorkspaceConfig } from '../../lib/workspaceConfig'
+import { createWorkspaceConfig, profileResumeTextFromWorkspace } from '../../lib/workspaceConfig'
 import { fetchPreviewFitAngle } from '../../lib/api'
-import { supabase, isDemo } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
+import { PREVIEW_FALLBACK, PREVIEW_SAMPLE } from '../../lib/previewSample'
 
 const TOTAL_STEPS = 3
 const STEP_LABELS = ['About', 'Template', 'Gmail']
@@ -39,14 +40,19 @@ function fillVariables(content, data) {
 // that Step 2 reflects their resume by the time they navigate to it.
 const PREVIEW_DEBOUNCE_MS = 700
 
-// Static fallback used when the preview API hasn't returned yet or returns no
-// result. feature_line gets a real dossier surface. fit_angle gets a domain-
-// neutral phrase so the paragraph is always visible — "your background" reads
-// naturally in the template sentence without implying a specific skill set.
-const PREVIEW_FALLBACK = {
-  feature_line: 'claude code agentic coding',
-  fit_angle: 'your background' as string | null,
-} as const
+// Bump when ANTHROPIC_PREVIEW_DOSSIER changes server-side so cached results
+// against the old dossier are invalidated automatically.
+const PREVIEW_CACHE_VERSION = 'v1'
+
+// djb2 — small, dependency-free, good enough as a cache discriminator.
+// Collisions just mean a refetch, which is harmless.
+function previewCacheKey(resumeText: string): string {
+  let h = 5381
+  for (let i = 0; i < resumeText.length; i++) {
+    h = ((h << 5) + h + resumeText.charCodeAt(i)) | 0
+  }
+  return `cf_preview_fit_angle_${PREVIEW_CACHE_VERSION}_${h}`
+}
 
 function stripHtml(content) {
   if (!content) return ''
@@ -200,11 +206,11 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body')
 
   const previewData = {
-    first_name: 'Dario',
-    last_name: 'Amodei',
-    company: 'Anthropic',
-    role: 'CEO',
-    sender_name: form.senderName || 'Your Name',
+    first_name: PREVIEW_SAMPLE.first_name,
+    last_name: PREVIEW_SAMPLE.last_name,
+    company: PREVIEW_SAMPLE.company,
+    role: PREVIEW_SAMPLE.role,
+    sender_name: form.senderName || PREVIEW_SAMPLE.sender_name,
     feature_line: aiPreview.featureLine ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.feature_line),
     fit_angle: aiPreview.fitAngle ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.fit_angle),
   }
@@ -484,33 +490,69 @@ export default function OnboardingScreen({
     fitAngle: null,
   })
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  // Exposed by the preview effect so nextStep/goToStep can fire the fetch
+  // immediately instead of waiting out the remaining debounce window.
+  const runPreviewNowRef = useRef<(() => void) | null>(null)
+  const previewInflightRef = useRef(false)
 
   useEffect(() => {
-    const text = (form.resumeText || '').trim()
+    const text = profileResumeTextFromWorkspace(form).trim()
     if (text.length === 0) {
+      previewInflightRef.current = false
       setAiPreview({ featureLine: null, fitAngle: null })
       setIsLoadingPreview(false)
       return
     }
+
+    const cacheKey = previewCacheKey(text)
+    try {
+      const raw = sessionStorage.getItem(cacheKey)
+      if (raw) {
+        const cached = JSON.parse(raw) as { featureLine: string | null; fitAngle: string | null }
+        setAiPreview(cached)
+        setIsLoadingPreview(false)
+        return
+      }
+    } catch {}
+
+    if (previewInflightRef.current) return
+
     setIsLoadingPreview(true)
     let cancelled = false
-    const timer = setTimeout(() => {
+    let fired = false
+
+    const doFetch = () => {
+      if (fired || previewInflightRef.current) return
+      fired = true
+      previewInflightRef.current = true
       fetchPreviewFitAngle(text)
         .then(res => {
+          previewInflightRef.current = false
           if (cancelled) return
-          setAiPreview({ featureLine: res?.featureLine ?? null, fitAngle: res?.fitAngle ?? null })
+          const result = { featureLine: res?.featureLine ?? null, fitAngle: res?.fitAngle ?? null }
+          setAiPreview(result)
           setIsLoadingPreview(false)
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(result)) } catch {}
         })
-        .catch((err) => {
+        .catch(err => {
+          previewInflightRef.current = false
           console.error('[preview] fetchPreviewFitAngle failed:', err)
           if (!cancelled) {
             setAiPreview({ featureLine: null, fitAngle: null })
             setIsLoadingPreview(false)
           }
         })
-    }, PREVIEW_DEBOUNCE_MS)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [form.resumeText])
+    }
+
+    runPreviewNowRef.current = doFetch
+    const timer = setTimeout(doFetch, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      runPreviewNowRef.current = null
+      if (!fired) previewInflightRef.current = false
+    }
+  }, [form.resumeText, form.resumeExtractedText])
 
   const saveDraftMounted = useRef(false)
   useEffect(() => {
@@ -576,16 +618,16 @@ export default function OnboardingScreen({
     } catch {
       extractedResumeText = ''
     }
-    if (!extractedResumeText && !form.resumeText?.trim()) {
+    if (!extractedResumeText && !profileResumeTextFromWorkspace(form).trim()) {
       setResumeUpload({ uploading: false, error: 'Could not read text from this resume. Try a text-based PDF, DOCX, or TXT file.' })
       return
     }
 
-    if (isDemo || !user?.id) {
+    if (!user?.id) {
       markUserEdited()
       setForm(current => ({
         ...current,
-        resumeText: current.resumeText?.trim() ? current.resumeText : extractedResumeText,
+        resumeExtractedText: extractedResumeText || current.resumeExtractedText || '',
         resumeFileName: file.name,
         resumePath: '',
         resumeUploadedAt: new Date().toISOString(),
@@ -607,7 +649,7 @@ export default function OnboardingScreen({
     markUserEdited()
     setForm(current => ({
       ...current,
-      resumeText: current.resumeText?.trim() ? current.resumeText : extractedResumeText,
+      resumeExtractedText: extractedResumeText || current.resumeExtractedText || '',
       resumeFileName: file.name,
       resumePath: path,
       resumeUploadedAt: new Date().toISOString(),
@@ -660,6 +702,9 @@ export default function OnboardingScreen({
       setSenderNameAttempted(true)
       return
     }
+    // Skip the remaining debounce — start the Claude call now so it's in-flight
+    // while the user reads step 2 instead of starting after they arrive.
+    if (stepIndex === 0) runPreviewNowRef.current?.()
     if (stepIndex < steps.length - 1) {
       if (isSaving || resumeUpload.uploading) return
       const saved = await persistCurrentProgress()
@@ -674,6 +719,7 @@ export default function OnboardingScreen({
       setStepIndex(0)
       return
     }
+    if (stepIndex === 0 && index > 0) runPreviewNowRef.current?.()
     if (stepIndex < steps.length - 1 && index > stepIndex) {
       if (isSaving || resumeUpload.uploading) return
       const saved = await persistCurrentProgress()

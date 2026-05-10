@@ -7,7 +7,7 @@ import { deleteAccount } from '../../lib/api'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Toast from '../ui/Toast'
-import { supabase, isDemo } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
@@ -47,6 +47,41 @@ function FieldGroup({ title, hint, children }: { title: string; hint?: string; c
   )
 }
 
+// Number input that clamps on blur, not on every keystroke — so users can
+// clear and retype without the value snapping back to min mid-edit.
+type ClampedNumberInputProps = {
+  value: number
+  onChange: (next: number) => void
+  min: number
+  max: number
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'min' | 'max' | 'type'>
+
+function ClampedNumberInput({ value, onChange, min, max, ...rest }: ClampedNumberInputProps) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => { setText(String(value)) }, [value])
+  return (
+    <input
+      {...rest}
+      type="number"
+      min={min}
+      max={max}
+      value={text}
+      onChange={e => {
+        const raw = e.target.value
+        setText(raw)
+        const n = parseInt(raw, 10)
+        if (!Number.isNaN(n)) onChange(n)
+      }}
+      onBlur={() => {
+        const n = parseInt(text, 10)
+        const clamped = Number.isNaN(n) ? min : Math.min(max, Math.max(min, n))
+        setText(String(clamped))
+        if (clamped !== value) onChange(clamped)
+      }}
+    />
+  )
+}
+
 // Per-tab forms ---------------------------------------------------------------
 
 function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave: (u: any) => Promise<boolean> }) {
@@ -80,8 +115,8 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       setUploadState({ uploading: false, error: err?.message || 'Could not read that file.' })
       return
     }
-    if (isDemo || !user?.id) {
-      const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeText: extractedResumeText || form.resumeText || '' }
+    if (!user?.id) {
+      const nextForm = { ...form, resumeFileName: file.name, resumePath: '', resumeUploadedAt: new Date().toISOString(), resumeExtractedText: extractedResumeText || form.resumeExtractedText || '' }
       setForm(nextForm)
       setUploadState({ uploading: false, error: null })
       return
@@ -94,10 +129,10 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
       resumeFileName: file.name,
       resumePath: path,
       resumeUploadedAt: new Date().toISOString(),
-      resumeText: extractedResumeText || form.resumeText || '',
+      resumeExtractedText: extractedResumeText || form.resumeExtractedText || '',
     }
-    setForm(nextForm)
     const saved = await onSave((current: any) => ({ ...current, ...pickProfileFields(nextForm) }))
+    if (!saved) setForm(nextForm)
     setUploadState({ uploading: false, error: saved ? null : 'Uploaded, but profile save failed. Click Save to retry.' })
   }
 
@@ -212,6 +247,7 @@ function pickProfileFields(c: any) {
     senderCompany: c?.senderCompany || '',
     senderRole: c?.senderRole || '',
     resumeText: c?.resumeText || '',
+    resumeExtractedText: c?.resumeExtractedText || '',
     resumeFileName: c?.resumeFileName || '',
     resumePath: c?.resumePath || '',
     resumeUploadedAt: c?.resumeUploadedAt || '',
@@ -247,10 +283,10 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="settings-daily-send-limit" className="label">Daily send limit</label>
-            <input
+            <ClampedNumberInput
               id="settings-daily-send-limit"
-              type="number" min={1} max={100} value={limits.dailyMax}
-              onChange={e => setLimit('dailyMax', Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))}
+              min={1} max={100} value={limits.dailyMax}
+              onChange={n => setLimit('dailyMax', n)}
               className="input"
             />
             <p className="mt-1 text-xs text-muted">Hard cap: 100 per day.</p>
@@ -258,10 +294,10 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
           <div>
             <label htmlFor="settings-send-delay" className="label">Delay between sends</label>
             <div className="relative">
-              <input
+              <ClampedNumberInput
                 id="settings-send-delay"
-                type="number" min={15} max={3600} value={limits.delaySeconds}
-                onChange={e => setLimit('delaySeconds', Math.max(15, parseInt(e.target.value) || 15))}
+                min={15} max={3600} value={limits.delaySeconds}
+                onChange={n => setLimit('delaySeconds', n)}
                 className="input pr-16"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">seconds</span>
@@ -277,11 +313,11 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
             <label htmlFor="settings-lead-batch-size" className="label">Lead batch size</label>
             <div className="relative">
               <Target size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input
+              <ClampedNumberInput
                 id="settings-lead-batch-size"
-                type="number" min={1} max={50}
+                min={1} max={50}
                 value={form.leadsPerGeneration || 25}
-                onChange={e => setForm((c: any) => ({ ...c, leadsPerGeneration: Math.min(50, Math.max(1, Number(e.target.value) || 1)) }))}
+                onChange={n => setForm((c: any) => ({ ...c, leadsPerGeneration: n }))}
                 className="input pl-8"
               />
             </div>
@@ -347,8 +383,8 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
     if (file.size > 10 * 1024 * 1024) { setUploadError('File must be under 10 MB.'); return }
     setUploading(true); setUploadError(null)
     const fileId = crypto.randomUUID()
-    const path = `files/${user?.id ?? 'demo'}/${fileId}`
-    if (!isDemo && user?.id) {
+    const path = `files/${user?.id ?? 'anonymous'}/${fileId}`
+    if (user?.id) {
       const { error } = await supabase.storage.from('resumes').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' })
       if (error) { setUploadError(error.message); setUploading(false); return }
     }
@@ -363,7 +399,7 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
 
   const removeFile = async (fileId: string) => {
     const meta = files.find(f => f.id === fileId)
-    if (meta && !isDemo && user?.id) await supabase.storage.from('resumes').remove([meta.path])
+    if (meta && user?.id) await supabase.storage.from('resumes').remove([meta.path])
     setForm((c: any) => ({ ...c, files: (c.files || []).filter((f: WorkspaceFile) => f.id !== fileId) }))
   }
 
