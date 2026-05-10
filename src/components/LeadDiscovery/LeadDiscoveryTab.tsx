@@ -8,7 +8,7 @@ import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import Toast from '../ui/Toast'
-import { apolloSearch, saveLead, revealApolloContact, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
+import { apolloSearch, saveLead, revealApolloContact, generateEmail, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../hooks/useToast'
@@ -38,9 +38,18 @@ const NS_LABELS = {
   signal: 'Signal',
 }
 
-function CompanyRow({ company, onSelect }) {
+function CompanyRow({ company, onSelect, checked, onToggle }) {
   return (
     <div className="dense-list-row flex items-start justify-between gap-4">
+      <div className="flex items-start gap-3 min-w-0 flex-1">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onToggle}
+          onClick={e => e.stopPropagation()}
+          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary"
+          aria-label={`Select ${company.name}`}
+        />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-dark text-sm">{company.name}</span>
@@ -65,6 +74,7 @@ function CompanyRow({ company, onSelect }) {
         {company.oneLiner && (
           <p className="mt-1.5 text-xs text-muted/80 line-clamp-2">{company.oneLiner}</p>
         )}
+      </div>
       </div>
       <div className="shrink-0">
         <button
@@ -218,6 +228,17 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       return next
     })
   }, [])
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<Set<string>>(new Set())
+  const [batchStatus, setBatchStatus] = useState<{
+    mode: 'contacts' | 'emails'
+    total: number
+    done: number
+    failed: number
+    active: boolean
+  } | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => { return () => { mountedRef.current = false } }, [])
+
   const fetchGenRef = useRef(0)
 
   const fetchCompanies = useCallback(async (cursor = null, overrides: any = {}) => {
@@ -271,6 +292,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     setPage(1)
     setCompanies([])
     setNextCursor(null)
+    setSelectedCompanyIds(new Set())
     fetchCompanies(null)
   }, [fetchCompanies])
 
@@ -370,6 +392,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       await resetDiscoverySeen()
       setCompanies([])
       setNextCursor(null)
+      setSelectedCompanyIds(new Set())
       setDiscoveryMeta({ seenTotal: 0, usingFallback: false })
       await fetchCompanies(null, { append: false })
     } catch (err) {
@@ -484,6 +507,68 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       })
     }
   }
+
+  const handleBatch = useCallback(async (mode: 'contacts' | 'emails') => {
+    const toProcess = companies.filter(c => selectedCompanyIds.has(c.id))
+    if (!toProcess.length) return
+    setSelectedCompanyIds(new Set())
+    setBatchStatus({ mode, total: toProcess.length, done: 0, failed: 0, active: true })
+
+    let done = 0
+    let failed = 0
+
+    for (const company of toProcess) {
+      if (!mountedRef.current) break
+      try {
+        const data = await apolloSearch(company.domain, company.id)
+        const previews = data.previews || []
+        if (!previews.length) throw new Error('no contacts')
+
+        const top = previews[0]
+
+        // Skip if already saved as a lead
+        if (persistedSavedApolloIds.has(top.id)) {
+          done++
+          if (mountedRef.current) setBatchStatus(s => s ? { ...s, done } : s)
+          continue
+        }
+
+        if (top.hasEmail) {
+          try { await revealApolloContact(top.id, company.id, company.domain) } catch {}
+        }
+
+        const savedLead = await saveLead({
+          companyId: company.id,
+          contactId: null,
+          apolloPersonId: top.id,
+          notes: `Apollo contact: ${top.firstName} ${top.lastNameObfuscated} - ${top.title || 'unknown title'}`,
+        })
+
+        if (activeCampaign?.id && savedLead?.id) {
+          await addCampaignLead(activeCampaign.id, savedLead.id)
+        }
+
+        if (mode === 'emails' && savedLead?.id) {
+          await generateEmail({
+            userLeadId: savedLead.id,
+            templateId: workspaceConfig?.templateId ?? null,
+            save: true,
+          }, `batch-${company.id}-${savedLead.id}`)
+        }
+
+        done++
+      } catch {
+        failed++
+      }
+      if (mountedRef.current) setBatchStatus(s => s ? { ...s, done, failed } : s)
+    }
+
+    refreshLeads()
+    if (mountedRef.current) {
+      setBatchStatus(s => s ? { ...s, active: false } : s)
+      setTimeout(() => { if (mountedRef.current) setBatchStatus(null) }, 4000)
+    }
+  }, [companies, selectedCompanyIds, activeCampaign, workspaceConfig, persistedSavedApolloIds, refreshLeads])
 
   const hasActiveFilters = search || selectedTags.size > 0 || isHiring || regionFilter || stageFilter
 
@@ -687,14 +772,76 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         </div>
       )}
 
+      {/* Batch progress banner */}
+      {batchStatus && (
+        <div className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm ${batchStatus.active ? 'bg-primary/10 text-primary' : batchStatus.failed > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {batchStatus.active && <Loader2 size={14} className="animate-spin shrink-0" />}
+          {batchStatus.active
+            ? <>{batchStatus.mode === 'emails' ? 'Generating emails' : 'Saving contacts'}: {batchStatus.done} / {batchStatus.total}… You can keep browsing.</>
+            : <>{batchStatus.done} {batchStatus.mode === 'emails' ? 'email draft' : 'contact'}{batchStatus.done !== 1 ? 's' : ''} {batchStatus.mode === 'emails' ? 'generated' : 'saved'}{batchStatus.failed > 0 ? ` · ${batchStatus.failed} skipped` : ' successfully'}.</>
+          }
+        </div>
+      )}
+
       {/* Results */}
       {companies.length > 0 && (
         <div className="space-y-2 animate-fade-in">
+          {/* Select-all row + batch action bar */}
+          <div className="flex items-center gap-3 px-1">
+            <input
+              type="checkbox"
+              checked={selectedCompanyIds.size === companies.length}
+              ref={el => { if (el) el.indeterminate = selectedCompanyIds.size > 0 && selectedCompanyIds.size < companies.length }}
+              onChange={() => setSelectedCompanyIds(
+                selectedCompanyIds.size === companies.length
+                  ? new Set()
+                  : new Set(companies.map(c => c.id))
+              )}
+              className="h-4 w-4 cursor-pointer accent-primary"
+              aria-label="Select all companies"
+            />
+            {selectedCompanyIds.size > 0 ? (
+              <div className="flex flex-1 items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-dark">{selectedCompanyIds.size} selected</span>
+                <button
+                  onClick={() => handleBatch('contacts')}
+                  disabled={batchStatus?.active}
+                  className="btn-secondary text-xs py-1 px-3 disabled:opacity-50"
+                >
+                  Save contacts
+                </button>
+                <button
+                  onClick={() => handleBatch('emails')}
+                  disabled={batchStatus?.active || !activeCampaign || !workspaceConfig?.templateId}
+                  title={!activeCampaign ? 'Requires an active campaign' : !workspaceConfig?.templateId ? 'No template set — pick one in Settings' : undefined}
+                  className="btn-primary text-xs py-1 px-3 disabled:opacity-50"
+                >
+                  Generate emails
+                </button>
+                <button
+                  onClick={() => setSelectedCompanyIds(new Set())}
+                  className="ml-auto text-xs text-muted hover:text-dark"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs text-muted">{companies.length} companies</span>
+            )}
+          </div>
+
           {companies.map(company => (
             <CompanyRow
               key={company.id}
               company={company}
               onSelect={handleCompanySelect}
+              checked={selectedCompanyIds.has(company.id)}
+              onToggle={() => setSelectedCompanyIds(prev => {
+                const next = new Set(prev)
+                if (next.has(company.id)) next.delete(company.id)
+                else next.add(company.id)
+                return next
+              })}
             />
           ))}
 
