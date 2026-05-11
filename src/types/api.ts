@@ -213,9 +213,18 @@ export interface SendEmailResponse {
   email: Email
 }
 
+export interface DashboardSendStats {
+  sentToday: number
+  sentLast7Days: number
+  sentThisMonth: number
+  sentTotal: number
+  repliedCount: number
+}
+
 export interface DashboardEmailsResponse {
   drafts: Email[]
   sent: Email[]
+  stats: DashboardSendStats
 }
 
 export interface SentTodayCountResponse {

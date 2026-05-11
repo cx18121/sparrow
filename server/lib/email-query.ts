@@ -52,6 +52,50 @@ export async function countEmailsSentToday(userId: string, db: Db = prisma) {
   return { count: fromLeads + fromContacts };
 }
 
+export interface DashboardSendStats {
+  sentToday: number;
+  sentLast7Days: number;
+  sentThisMonth: number;
+  sentTotal: number;
+  repliedCount: number;
+}
+
+// Aggregate send counts for the dashboard Send activity panel. Run as a
+// batch of count queries (no row reads) so this stays cheap even for
+// users with thousands of sends. Time windows are UTC-anchored to match
+// the rate-limit bookkeeping in server/lib/rate-limit.ts:
+//   - sentToday: since UTC midnight today (matches daily quota window).
+//   - sentThisMonth: since UTC YYYY-MM-01 (matches monthly quota window).
+//   - sentLast7Days: rolling 7-day window from now.
+// repliedCount counts only ReplyClassification.REPLY — bounces and
+// auto-replies don't count toward "real" replies.
+export async function readDashboardSendStats(userId: string, db: Db = prisma): Promise<DashboardSendStats> {
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setUTCHours(0, 0, 0, 0);
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const ownership = { OR: [{ userLead: { userId } }, { customContact: { userId } }] } as const;
+  const sentBase = { status: "sent", ...ownership } as const;
+
+  const [
+    sentToday,
+    sentLast7Days,
+    sentThisMonth,
+    sentTotal,
+    repliedCount,
+  ] = await Promise.all([
+    db.email.count({ where: { ...sentBase, sentAt: { gte: startOfToday } } }),
+    db.email.count({ where: { ...sentBase, sentAt: { gte: sevenDaysAgo } } }),
+    db.email.count({ where: { ...sentBase, sentAt: { gte: startOfMonth } } }),
+    db.email.count({ where: sentBase }),
+    db.email.count({ where: { ...sentBase, replyClassification: "REPLY" } }),
+  ]);
+
+  return { sentToday, sentLast7Days, sentThisMonth, sentTotal, repliedCount };
+}
+
 export async function readDashboardEmailQueue(
   userId: string,
   params: { campaignId?: string } = {},
@@ -60,32 +104,44 @@ export async function readDashboardEmailQueue(
   const { campaignId } = params;
   const cacheKey = emailDashboardCacheKey(userId, campaignId);
   const cached = getEmailDashboardCache(cacheKey);
-  if (cached) return cached as { drafts: unknown[]; sent: unknown[] };
+  // Old cache entries from before stats were added are missing the field —
+  // treat them as a miss so the new dashboard renders correctly.
+  if (cached && (cached as { stats?: unknown }).stats) {
+    return cached as { drafts: unknown[]; sent: unknown[]; stats: DashboardSendStats };
+  }
+
+  // Stats are unscoped to campaignId — they reflect the user's overall
+  // sending workload, which is what the dashboard panel cares about.
+  const statsPromise = readDashboardSendStats(userId, db);
 
   if (campaignId) {
     const where = { userLead: { userId, campaignLeads: { some: { campaignId } } } } as const;
-    const [draftItems, sentItems] = await Promise.all([
+    const [draftItems, sentItems, stats] = await Promise.all([
       db.email.findMany({ where: { ...where, status: "draft" }, take: 9, orderBy: { createdAt: "desc" }, include: emailInclude }),
       db.email.findMany({ where: { ...where, status: "sent" }, take: 21, orderBy: { createdAt: "desc" }, include: emailInclude }),
+      statsPromise,
     ]);
     const result = {
       drafts: draftItems.slice(0, 8),
       sent: sentItems.slice(0, 20),
+      stats,
     };
     setEmailDashboardCache(cacheKey, result);
     return result;
   }
 
   const branchWhere = (relation: "userLead" | "customContact", s: string) => ({ [relation]: { userId }, status: s });
-  const [draftLeads, draftContacts, sentLeads, sentContacts] = await Promise.all([
+  const [draftLeads, draftContacts, sentLeads, sentContacts, stats] = await Promise.all([
     db.email.findMany({ where: branchWhere("userLead", "draft"), take: 9, orderBy: { createdAt: "desc" }, include: emailInclude }),
     db.email.findMany({ where: branchWhere("customContact", "draft"), take: 9, orderBy: { createdAt: "desc" }, include: emailInclude }),
     db.email.findMany({ where: branchWhere("userLead", "sent"), take: 21, orderBy: { createdAt: "desc" }, include: emailInclude }),
     db.email.findMany({ where: branchWhere("customContact", "sent"), take: 21, orderBy: { createdAt: "desc" }, include: emailInclude }),
+    statsPromise,
   ]);
   const result = {
     drafts: sortNewestFirst([...draftLeads, ...draftContacts]).slice(0, 8),
     sent: sortNewestFirst([...sentLeads, ...sentContacts]).slice(0, 20),
+    stats,
   };
   setEmailDashboardCache(cacheKey, result);
   return result;

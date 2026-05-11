@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  ArrowRight, FileText, Plus, Send, Users,
+  ArrowRight, FileText, Plus, Users,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
@@ -11,7 +11,8 @@ import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
 import CreateCampaignWizard, { submissionToCampaignPayload, type WizardSubmission } from '../Wizard/CreateCampaignWizard'
 import { defaultAttachmentIds } from '../../lib/attachments'
-import type { CampaignOptions } from '../../types/api'
+import type { CampaignOptions, DashboardSendStats } from '../../types/api'
+import SendActivity from './SendActivity'
 
 // Phase 1 stood up the new campaigns-first surface; Phase 2 replaces the
 // modal-based campaign creator with the full-screen 4-step wizard. Phase 4e
@@ -203,6 +204,10 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
 
   const [drafts, setDrafts] = useState<any[]>([])
   const [sent, setSent] = useState<any[]>([])
+  // Server-side aggregate send counts. The `sent` array is capped at 20
+  // by readDashboardEmailQueue, so any window count derived from it would
+  // silently cap at 20 — these come from server COUNTs instead.
+  const [stats, setStats] = useState<DashboardSendStats | null>(null)
   const [emailsLoading, setEmailsLoading] = useState(true)
   const [emailsError, setEmailsError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -230,6 +235,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
         if (cancelled) return
         setDrafts(res?.drafts || [])
         setSent(res?.sent || [])
+        setStats(res?.stats || null)
         setEmailsLoading(false)
       })
       .catch(err => {
@@ -252,13 +258,10 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
     return () => { cancelled = true }
   }, [wizardOpen])
 
-  const sentThisWeek = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-    return sent.filter(e => {
-      const d = new Date(e.sentAt || e.updatedAt || '')
-      return !isNaN(d.getTime()) && d.getTime() >= weekAgo
-    }).length
-  }, [sent])
+  // `sent` is capped at 20 by the dashboard query, so the previous
+  // client-side filter silently capped this number too. The server-side
+  // sentLast7Days count is the truthful version.
+  const sentThisWeek = stats?.sentLast7Days ?? 0
 
   const totalLeadPool = leads.length + customContacts.length
   const activeCount = campaigns.filter(c => c.status === 'active').length
@@ -363,8 +366,9 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
         <Banner variant="warning">{emailsError}</Banner>
       )}
 
-      {/* KPI cards - Lead Pool / Drafts / Sent This Week */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* KPI cards. Send-related counts live in the SendActivity panel
+          below to avoid duplicating "X this week" in two places. */}
+      <section className="grid gap-4 sm:grid-cols-2">
         <KpiCard
           label="Lead Pool"
           value={totalLeadPool}
@@ -381,15 +385,14 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
           loading={emailsLoading}
           onClick={mostRecentActiveCampaign ? () => goToCampaignTab('drafts') : undefined}
         />
-        <KpiCard
-          label="Sent this week"
-          value={sentThisWeek}
-          helper="across all campaigns"
-          icon={Send}
-          loading={emailsLoading}
-          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('sent') : undefined}
-        />
       </section>
+
+      <SendActivity
+        stats={stats}
+        loading={emailsLoading || stats == null}
+        dailyMax={workspaceConfig?.sendingLimits?.dailyMax ?? 250}
+        monthlyMax={workspaceConfig?.sendingLimits?.monthlyMax ?? 2000}
+      />
 
       {/* Campaign grid */}
       <section>

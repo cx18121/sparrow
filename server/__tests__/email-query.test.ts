@@ -43,14 +43,26 @@ describe("countEmailsSentToday", () => {
 });
 
 describe("readDashboardEmailQueue", () => {
+  const emptyStats = {
+    sentToday: 0,
+    sentLast7Days: 0,
+    sentThisMonth: 0,
+    sentTotal: 0,
+    repliedCount: 0,
+  };
+
   it("reads campaign-scoped Drafts and Sent from Lead emails only", async () => {
     const draft = { id: "draft-1", createdAt: new Date("2026-01-02") };
     const sent = { id: "sent-1", createdAt: new Date("2026-01-01") };
     mockPrisma.email.findMany.mockResolvedValueOnce([draft]).mockResolvedValueOnce([sent]);
+    // 5 count calls for readDashboardSendStats (sentToday, sentLast7Days,
+    // sentThisMonth, sentTotal, repliedCount).
+    mockPrisma.email.count.mockResolvedValue(0);
 
     await expect(readDashboardEmailQueue(USER_ID, { campaignId: "campaign-1" })).resolves.toEqual({
       drafts: [draft],
       sent: [sent],
+      stats: emptyStats,
     });
 
     expect(mockPrisma.email.findMany).toHaveBeenCalledTimes(2);
@@ -71,21 +83,40 @@ describe("readDashboardEmailQueue", () => {
       .mockResolvedValueOnce([newerDraft])
       .mockResolvedValueOnce([newerSent])
       .mockResolvedValueOnce([olderSent]);
+    mockPrisma.email.count.mockResolvedValue(0);
 
     await expect(readDashboardEmailQueue(USER_ID, {})).resolves.toEqual({
       drafts: [newerDraft, olderDraft],
       sent: [newerSent, olderSent],
+      stats: emptyStats,
     });
   });
 
-  it("serves warm dashboard reads from cache", async () => {
-    const cached = { drafts: [{ id: "cached-draft" }], sent: [] };
+  it("serves warm dashboard reads from cache when stats are present", async () => {
+    const cached = { drafts: [{ id: "cached-draft" }], sent: [], stats: emptyStats };
     (globalThis as typeof globalThis & {
       __dashCache?: Map<string, { data: unknown; ts: number }>;
     }).__dashCache!.set(`${USER_ID}:global`, { data: cached, ts: Date.now() });
 
     await expect(readDashboardEmailQueue(USER_ID, {})).resolves.toEqual(cached);
     expect(mockPrisma.email.findMany).not.toHaveBeenCalled();
+  });
+
+  it("treats legacy cache entries without stats as a miss and refetches", async () => {
+    const stale = { drafts: [{ id: "legacy" }], sent: [] };
+    (globalThis as typeof globalThis & {
+      __dashCache?: Map<string, { data: unknown; ts: number }>;
+    }).__dashCache!.set(`${USER_ID}:global`, { data: stale, ts: Date.now() });
+    mockPrisma.email.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mockPrisma.email.count.mockResolvedValue(0);
+
+    const result = await readDashboardEmailQueue(USER_ID, {});
+    expect(result).toEqual({ drafts: [], sent: [], stats: emptyStats });
+    expect(mockPrisma.email.findMany).toHaveBeenCalled();
   });
 });
 
