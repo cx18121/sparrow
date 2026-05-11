@@ -5,6 +5,7 @@
 // form, display pills, and this query builder can never disagree.
 
 import { US_REGIONS } from "../../scripts/_lib/region-map.js";
+import { expandStageFilter } from "../../scripts/_lib/stages.js";
 import {
   REGION_INTL, REGION_REMOTE, REGION_US, type Audience,
 } from "../../src/types/audience.js";
@@ -57,11 +58,23 @@ export function audienceToPrismaWhere(a: Audience) {
     regionWhere = { region: a.region };
   }
 
+  // Stage filter is ordinal-aware: a "+"-suffix value (e.g. "Series C+")
+  // expands to the set of stages at or beyond that ordinal so granular
+  // Series C / D / E rows surface alongside the legacy C+ aggregation
+  // bucket. Exact-stage filters (no "+") fall through as single-value
+  // matches. See scripts/_lib/stages.ts for the expansion rules.
+  const stageWhere = a.stage
+    ? (() => {
+        const expanded = expandStageFilter(a.stage);
+        return { stage: expanded.length === 1 ? expanded[0] : { in: expanded } };
+      })()
+    : {};
+
   return {
     isVerified: true,
     ...(andConditions.length > 0 && { AND: andConditions }),
     ...regionWhere,
-    ...(a.stage && { stage: a.stage }),
+    ...stageWhere,
     ...(a.batch && { batch: a.batch }),
     ...(a.isHiring != null && { isHiring: a.isHiring }),
   };

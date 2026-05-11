@@ -36,6 +36,42 @@ export function stageSortKey(stage: string | null | undefined): number {
   return idx ?? Number.MAX_SAFE_INTEGER - 1;
 }
 
+// Ordinal for filter expansion — a position in the funding-progression
+// continuum. Series C and Series C+ share an ordinal because "C+" means
+// "C or later" with an unknown ceiling: a row tagged "Series C+" might
+// actually be C, D, or anything beyond, so the ordinal floor is C.
+//
+// Series A-Z is computed from the letter to future-proof against new
+// growth-stage sources (Series F, G, …) without a code edit.
+function stageOrdinal(stage: string): number | null {
+  switch (stage) {
+    case "Pre-Seed": return 0;
+    case "Seed": return 1;
+    case "Series C+": return 4;
+  }
+  const m = stage.match(/^Series ([A-Z])$/);
+  if (m) return 2 + (m[1].charCodeAt(0) - "A".charCodeAt(0));
+  return null;
+}
+
+// Expand a filter value into the set of stage strings that should match.
+// `Series C+` becomes everything ≥ Series C; exact-stage filters return
+// only themselves. Used by audienceToPrismaWhere so picking "Series C+"
+// in the wizard surfaces granular Series C/D/E rows from sources like
+// Pear alongside the C+ legacy bucket from a16z and Accel.
+export function expandStageFilter(filterValue: string): string[] {
+  if (!filterValue.endsWith("+")) return [filterValue];
+  const base = filterValue.slice(0, -1).trim();
+  const baseOrdinal = stageOrdinal(base);
+  if (baseOrdinal == null) return [filterValue];
+  const matches = new Set<string>([filterValue]);
+  for (const s of CANONICAL_STAGES) {
+    const ord = stageOrdinal(s);
+    if (ord != null && ord >= baseOrdinal) matches.add(s);
+  }
+  return [...matches];
+}
+
 // Merge realized DB stages with the canonical list, deduped and sorted by
 // canonical order. Realized-only stages (e.g. legacy values from older
 // scrapers) keep their alphabetical order and append after the canonical
