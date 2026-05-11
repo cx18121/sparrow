@@ -1,0 +1,21 @@
+{
+  "$schema": "./_schema.json",
+  "source": "wave",
+  "name": "Wave Ventures",
+  "investors": ["wave"],
+  "isVerified": true,
+
+  "fetch": {
+    "type": "html",
+    "url": "https://www.wave.ventures/founders"
+  },
+
+  "list": {
+    "itemSelector": ".sqs-block-image"
+  },
+
+  "extract": {
+    "name": { "selector": "img", "attr": "alt" },
+    "website": { "selector": "a", "attr": "href" }
+  }
+}

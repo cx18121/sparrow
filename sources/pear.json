@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.json",
+  "source": "pear",
+  "name": "Pear VC",
+  "investors": ["pear"],
+  "isVerified": true,
+
+  "fetch": {
+    "type": "wp-rest",
+    "base": "https://pear.vc/wp-json/wp/v2",
+    "postType": "pear_vc_company",
+    "perPage": 100,
+    "delayMs": 300,
+    "fields": "id,slug,title,link,meta,company_group,class_list"
+  },
+
+  "extract": {
+    "name": "title.rendered",
+    "website": {
+      "paths": ["meta.website_url", "link"],
+      "rejectHosts": ["pear.vc"]
+    },
+    "sourceId": "slug"
+  }
+}
