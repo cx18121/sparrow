@@ -120,64 +120,38 @@ Full table is in `.scratch/scraping-research-exa.md`; the actionable subset:
 
 ---
 
-## Part 3 — Phase 2 framework recommendation
+## Part 3 — Implementation pattern
 
-**No runtime LLM extractor.** Author cost is paid once at adapter-creation time (the LLM is *me*, not a per-page API call). Runtime is deterministic.
+Every new source is a hand-coded adapter under `scripts/ingest-<source>.ts` implementing `IngestorAdapter` and calling `runIngestor(adapter)`. The shared runner handles domain extraction, dedupe, free-hosting filter, tag/quality assembly, concurrency, and retry. Author cost is paid once at adapter-creation time; runtime is deterministic.
 
-Two adapter classes:
+A short-lived JSON manifest framework (`scripts/_lib/manifest-ingestor.ts` + `sources/<slug>.json`) was tried for Pear and Wave, then removed. Every interesting next source (Lightspeed needs a detail-page hop, Coatue needs Load-more pagination, IVP needs a detail-page hop, Insight needs JS rendering) required a framework extension before the manifest could express it. The break-even — ~10 mechanically-similar sources — never arrived because each VC's portfolio is custom-shaped. Hand-coded adapters at ~70–160 lines each ship faster and stay easier to debug than extending a generic schema.
 
-### A) Manifest-driven (for static HTML list portfolios)
-
-A `sources/<slug>.json` file plus one shared runner. New source = JSON edit:
-
-```json
-{
-  "source": "lightspeed",
-  "name": "Lightspeed",
-  "listUrl": "https://lsvp.com/portfolio/",
-  "selectors": {
-    "item": ".portfolio-card",
-    "name": ".card-title",
-    "website": "a.company-link@href",
-    "stage": ".card-stage",
-    "description": ".card-description"
-  },
-  "pagination": { "type": "none" },
-  "investors": ["lightspeed"],
-  "isVerified": true
-}
-```
-
-Single `scripts/ingest-from-manifest.ts` reads the JSON, runs cheerio/CSS-selector extraction, hands `CompanyRecord[]` to existing `runIngestor()`. Reuses dedupe / tags / quality / retry infra.
-
-**Fits:** Lightspeed, IVP, Pear, Wave, likely Sequoia detail pages.
-**Doesn't fit:** Coatue (Load-more pagination), Insight (JS-rendered), General Catalyst (JS), any site where pagination needs JS execution.
-
-### B) Hand-coded adapters (for everything else)
-
-Same pattern as today. I author each one once. For Tier-2 JS-rendered sites we add a Playwright dependency to `scripts/_lib/` and a `withBrowser(fn)` helper so Coatue/Insight/GC can share browser setup.
-
-### Discovery helper
-
-`scripts/discover-vcs.ts` — operator runs `tsx scripts/discover-vcs.ts "European seed VCs robotics"` → Exa returns candidate portfolio URLs → operator decides whether to write a manifest or skip. Surface-only; no auto-ingestion.
+**Conventions for new adapters:**
+- One file per source: `scripts/ingest-<source>.ts`
+- Export an `IngestorAdapter` with `name` (log label), `source` (canonical slug), and `fetchAndParse()` returning `CompanyRecord[]`
+- Set `investors: [<slug>]` so the investor namespace tag fires
+- Set `signals: ["vc-backed"]` for VC-portfolio sources
+- Set `isVerified: true` for named-VC sources, `false` for scratchpad sources (hn-hiring, gregslist, startups-gallery)
+- Stage normalization: prefer the source's own labels when granular (Pear emits `Seed`/`Series A`/`Series D` directly); collapse to `Series C+` when the source only knows "growth fund" (a16z, Accel)
+- Filter exits at the source — skip rows tagged Acquired/IPO before they reach upsert. Their domains usually redirect to the acquirer and pollute the pool.
 
 ---
 
 ## Part 4 — Phase 3 priority order
 
-Recommended sequence, assuming we want pilot-quality results fast and to validate the manifest framework before bigger lifts:
+Sequence the remaining work by row count and source difficulty:
 
-1. **Phase 1.5 fixes** (no new sources) — patch the 3 lossy mappers, populate the 6 silent ones. Surfaces existing post-B today.
-2. **Build the manifest framework** + one pilot manifest: `Pear VC`. Confirms the runner works end-to-end.
-3. **Wave Ventures** via manifest. Second smoke test.
-4. **Lightspeed** via manifest. First high-value scrape.
-5. **IVP** via manifest (may need a per-detail-page hop for website URLs — handled by manifest schema if we add an optional `detailFollow: { urlSelector, websiteSelector }` block).
-6. **Coatue** as a hand-coded adapter (Load-more pagination).
-7. Re-run `audit-stages.ts`. The post-B counts should jump materially. Audit coverage gaps that remain.
-8. **Tier-2 (separate decision):** invest in a Playwright helper to unlock Insight Partners + General Catalyst. Insight alone is +800 growth-stage rows.
-9. **Benchmark + Khosla** as direct manifest adapters (next-pass research first to confirm portfolio page shape).
+1. **Phase 1.5 fixes** ✅ — three lossy stage mappers patched (YC, a16z, Accel); a16z Venture/seed recovery added (+263 rows). See commits `2e35907` and `fb7332f`.
+2. **Pear VC** ✅ — hand-coded adapter at `scripts/ingest-pear.ts`. ~211 companies, granular Pre-Seed → Series E. Filters Acquired/IPO.
+3. **Wave Ventures** ✅ — hand-coded adapter at `scripts/ingest-wave.ts`. 12 companies.
+4. **Lightspeed (LSVP)** — ~664 companies. List view has stage / founded year / status; external website needs a per-company detail-page fetch. Hand-code with a small concurrency limit and request delay.
+5. **IVP** — ~150 companies. Static grid; website lives on the per-company detail page. Same pattern as Lightspeed.
+6. **Coatue** — ~300 companies. Load-more pagination; either probe the underlying XHR or paginate via query param.
+7. Re-run `audit-stages.ts`. The post-B counts should jump materially. Audit remaining coverage gaps.
+8. **Tier-2 (separate decision):** Insight Partners is ~800 growth-stage rows but is JS-rendered — needs Playwright. Worth the lift if growth-stage volume is the priority.
+9. **Benchmark + Khosla** as direct adapters (one-pass research first to confirm portfolio page shape).
 
-Estimated effort: 1.5–2 days for steps 1–7, assuming Phase 1.5 patches are accepted and the manifest schema is well-shaped.
+Estimated effort: ~1 day for steps 4–6 (Lightspeed, IVP, Coatue) as standalone adapters.
 
 ---
 
