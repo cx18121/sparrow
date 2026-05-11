@@ -52,17 +52,21 @@ In practice, the normalizers are lossy on the post-B end and most sources don't 
 - **Five truly silent sources** (`sequoia`, `greylock`, `bessemer`, `foundersfund`, `gv`) have `stage: null` on every row. Surveyed each — none is a one-line fix; each requires per-source investigation (see below).
 - **Stage semantics leak.** For VC scrapers, `stage` is the round-the-VC-participated-in, not the company's current stage. A Sequoia "Series A" alum is probably now Series D. Honest fix: enrich post-ingest from a freshness source (Crunchbase open data, recent-funding-round feed) — out of Phase 1 scope, but should sit in Phase 4.
 
-### Silent-source survey (Phase 1.5, deferred work)
+### Silent-source survey results
 
-| Source | Stage on source data? | Effort to populate |
+Live probes against each source's public surface (committed under
+`scripts/_probe-*.ts` for reproducibility):
+
+| Source | Probe outcome | Verdict |
 |---|---|---|
-| `sequoia` | Possibly — detail pages have a stage section but it's currently only used to detect exits (`li.clist__item` parsing) | Detail-page HTML re-inspection; the scraper already fetches each detail page so adding stage extraction is cheap if the markup is consistent |
-| `greylock` | No — only `portfolio_status` (current vs exited) is exposed in the inline portfolio JSON | Would need to scrape detail pages — much higher cost |
-| `bessemer` | No — list-only markup with name / description / sector | Would need to scrape detail pages |
-| `foundersfund` | Possibly — `class_list` already exposes `company_industry-*`; a `company_stage-*` pattern likely exists in the same WP taxonomy | Low cost: probe live data, extend `extractIndustry` pattern |
-| `gv` | Possibly — Sanity GROQ query only asks for `name, website, sector`; the schema may have `stage` available | Low cost: schema introspection + query update |
+| `a16z` | Live data carries Seed / Venture / Growth tags. The previous mapper handled Seed and Growth but never Venture (275 of 835 rows). **+263 rows recovered.** Probe: `_probe-a16z-stages.ts` | ✅ **Patched in fb7332f** |
+| `foundersfund` | `class_list` exposes only `company_industry-*`. The `acf` (Advanced Custom Fields) block is empty `[]` across every sampled doc. No stage data on public site. Probe: `_probe-ff-classlist.ts`, `_probe-ff-acf.ts` | ❌ Skip — needs Phase 4 enrichment |
+| `gv` | Sanity schema for `company` has only `_id, _type, name, website, sector, secondarySector, investors`. No funding-stage or round field exists. Probe: `_probe-gv-schema.ts` | ❌ Skip — data doesn't exist |
+| `sequoia` | Detail pages render `Founded YYYY` / `Partnered YYYY` / founders / partners / jobs in `li.clist__item`. No "Series X" / "Stage" markup. Probe: `_probe-sequoia-detail.ts` (Stripe, Klarna, Linear) | ❌ Skip — data not on page |
+| `greylock` | Inline `var data_portfolio_*` JSON has `portfolio_status` (current/exited) but no round info. Already established in pre-probe inspection. | ❌ Skip — detail-page scrape too costly without a Playwright helper |
+| `bessemer` | List-page markup is name / description / sector only. Detail pages exist but require a second-pass scrape. | ❌ Skip — detail-page scrape needs Playwright helper |
 
-Recommended sequence when we revisit: probe FoundersFund's `class_list` first (highest signal-to-effort), then GV's Sanity schema, then Sequoia detail pages. Greylock and Bessemer can wait until we add a Playwright helper for detail-page batching.
+**Conclusion:** a16z is the only silent source whose stage data is recoverable from the current scrape surface. For the remaining five, the canonical fix is *enrichment*: cross-reference Crunchbase open data (or another recent-funding-round feed) post-ingest and write the latest round back to `Company.stage`. That's Phase 4 work, scoped separately from this milestone.
 
 ### Ground-truth audit script
 
