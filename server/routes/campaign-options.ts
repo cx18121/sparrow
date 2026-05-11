@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { CANONICAL_TAG_GROUPS, TAG_NAMESPACES } from "../../scripts/_lib/tags.js";
+import { mergeStages } from "../../scripts/_lib/stages.js";
 import { US_REGIONS } from "../../scripts/_lib/region-map.js";
 
 interface TagFacet {
@@ -85,7 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({
       industries: industries.map(c => c.industry).filter(Boolean) as string[],
       regions: regions.map(c => c.region).filter(Boolean) as string[],
-      stages: stages.map(c => c.stage).filter(Boolean) as string[],
+      // Union DB-realized stages with the canonical vocabulary so the wizard
+      // surfaces Series C / D / E etc. as filter chips even before the DB
+      // accumulates rows in those buckets.
+      stages: mergeStages(stages.map(c => c.stage).filter(Boolean) as string[]),
       batches: batches.map(c => c.batch).filter(Boolean) as string[],
       sources: sources.map(c => c.source),
       tags: realized,
