@@ -59,11 +59,16 @@ function extractJsonArray(html: string, varName: string): any[] | null {
   }
 }
 
+// a16z's funds are tagged Seed / Early / Growth / Late on each portfolio
+// company. The previous mapping collapsed both `growth` and `late` into
+// "Series B", which lost the post-Series-B signal — a16z's Growth Fund
+// invests at Series C+ specifically, so "Series C+" is the correct floor
+// for both tags. See docs/scraping-research.md.
 function mapStage(stages: string[] | undefined, stage: string | undefined): string | null {
   const all = [...(stages ?? []), stage ?? ""]
     .filter((s): s is string => typeof s === "string")
     .map((s) => s.toLowerCase());
-  if (all.includes("growth") || all.includes("late")) return "Series B";
+  if (all.includes("growth") || all.includes("late")) return "Series C+";
   if (all.includes("early")) return "Seed";
   if (all.includes("seed")) return "Pre-Seed";
   return null;

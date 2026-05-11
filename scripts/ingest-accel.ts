@@ -31,6 +31,11 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
 }
 
+// Accel tags each company with the initial-investment-type from their CMS:
+// values include "Seed", "Series A", … "Series C", "Early", "Growth". The
+// previous mapping sent "Growth" to "Series B" even though "Series C+" is
+// the actual bucket for Accel's growth-fund investments. See
+// docs/scraping-research.md.
 function mapStage(investmentType: string | undefined): string | null {
   if (!investmentType) return null;
   const s = investmentType.toLowerCase();
@@ -39,7 +44,7 @@ function mapStage(investmentType: string | undefined): string | null {
   if (s.includes("series b")) return "Series B";
   if (s.includes("series c")) return "Series C+";
   if (s.includes("early")) return "Seed";
-  if (s.includes("growth")) return "Series B";
+  if (s.includes("growth")) return "Series C+";
   return investmentType;
 }
 

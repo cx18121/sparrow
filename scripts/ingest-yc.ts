@@ -41,12 +41,18 @@ function locationFromRegions(regions: string[] | undefined): string | null {
   return null;
 }
 
+// YC's growth_stage taxonomy is Early / Growth / Late. The previous mapping
+// flagged "Growth" companies as "Series A" — which dropped a Stripe-era YC
+// alumnus into the same bucket as a freshly graduated batch and collapsed
+// the post-A signal we filter on. YC describes "Growth" as roughly 6-50
+// employees / post-A maturity, so Series B is the more honest midpoint.
+// See docs/scraping-research.md.
 function mapYCStage(ycStage: string): string {
   switch (ycStage) {
     case "Early":
       return "Seed";
     case "Growth":
-      return "Series A";
+      return "Series B";
     case "Late":
       return "Series C+";
     default:
