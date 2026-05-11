@@ -59,18 +59,25 @@ function extractJsonArray(html: string, varName: string): any[] | null {
   }
 }
 
-// a16z's funds are tagged Seed / Early / Growth / Late on each portfolio
-// company. The previous mapping collapsed both `growth` and `late` into
-// "Series B", which lost the post-Series-B signal — a16z's Growth Fund
-// invests at Series C+ specifically, so "Series C+" is the correct floor
-// for both tags. See docs/scraping-research.md.
+// Stage tags reflect which a16z fund led the initial round:
+//   Seed → Seed Fund (real seed-stage at time of investment)
+//   Venture → core fund (Series A-ish entry)
+//   Growth → Growth Fund (Series C+ entry)
+// Active a16z portfolio companies in window.a16z_portfolio_companies only
+// carry these three tags (plus exit markers M&A/IPO/SPAC/DPO/EXIT, which
+// the ingestor filters via ticker_symbol/acquirer). Roughly 25% of rows
+// have no stage tag at all and stay null.
+//
+// When multiple tags appear (e.g. ["seed","venture"] = follow-on into
+// Series A), pick the latest fund. See docs/scraping-research.md and
+// scripts/_probe-a16z-stages.ts for the underlying distribution.
 function mapStage(stages: string[] | undefined, stage: string | undefined): string | null {
   const all = [...(stages ?? []), stage ?? ""]
     .filter((s): s is string => typeof s === "string")
     .map((s) => s.toLowerCase());
-  if (all.includes("growth") || all.includes("late")) return "Series C+";
-  if (all.includes("early")) return "Seed";
-  if (all.includes("seed")) return "Pre-Seed";
+  if (all.includes("growth")) return "Series C+";
+  if (all.includes("venture")) return "Series A";
+  if (all.includes("seed")) return "Seed";
   return null;
 }
 
