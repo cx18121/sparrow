@@ -31,13 +31,13 @@ In practice, the normalizers are lossy on the post-B end and most sources don't 
 
 | Source | Sets `stage`? | Strategy | Lossy on post-B? |
 |---|---|---|---|
-| `yc` | yes | `mapYCStage()` | **YES** — `Growth` → `Series A` (mislabels Stripe-era cos as Series A); `Late` → `Series C+` |
-| `a16z` | yes | `mapStage()` | **YES** — `growth`/`late` → `Series B` |
-| `accel` | yes | `mapStage()` | **YES** — `growth` → `Series B` even though `Series C+` bucket exists for explicit "series c" |
+| `yc` | yes | `mapYCStage()` | **was lossy** — `Growth` → `Series A`; **patched** in commit 2e35907 to `Series B` |
+| `a16z` | yes | `mapStage()` | **was lossy** — `growth`/`late` → `Series B`; **patched** in commit 2e35907 to `Series C+` |
+| `accel` | yes | `mapStage()` | **was lossy** — `growth` → `Series B`; **patched** in commit 2e35907 to `Series C+` |
 | `firstround` | yes | passthrough of `initialPartnership` | unknown — raw text from FR's Sanity CMS, no normalization |
 | `thehub` | yes | `mapFundingStage()` | OK — `series c`/`late` → `Series C+` |
+| `kleinerperkins` | yes | KP CMS taxonomy (ID → string) | KP itself only tags Seed / Series B — no finer granularity available from their CMS |
 | `sequoia` | **no** | – | – (every row has `stage: null`) |
-| `kleinerperkins` | **no** | – | – |
 | `greylock` | **no** | – | – |
 | `bessemer` | **no** | – | – |
 | `foundersfund` | **no** | – | – |
@@ -48,9 +48,21 @@ In practice, the normalizers are lossy on the post-B end and most sources don't 
 
 ### Implications
 
-- **Three lossy mappers** (`yc`, `a16z`, `accel`) silently strip the post-Series-B signal. Their later-stage portfolio companies are labeled `Series A` (YC) or `Series B` (a16z, Accel) in the DB.
-- **Six silent sources** (`sequoia`, `kleinerperkins`, `greylock`, `bessemer`, `foundersfund`, `gv`) have `stage: null` on every row. Any stage filter in the wizard excludes them entirely. Many of these scrape pages that *do* expose stage — the data's just not being pulled.
+- **Three lossy mappers** (`yc`, `a16z`, `accel`) silently stripped the post-B signal. **Patched** in commit 2e35907 — re-run `audit-stages.ts` after the next ingest cycle to verify the `Series C+` bucket fills out and Stripe-era YC alumni leave `Series A`.
+- **Five truly silent sources** (`sequoia`, `greylock`, `bessemer`, `foundersfund`, `gv`) have `stage: null` on every row. Surveyed each — none is a one-line fix; each requires per-source investigation (see below).
 - **Stage semantics leak.** For VC scrapers, `stage` is the round-the-VC-participated-in, not the company's current stage. A Sequoia "Series A" alum is probably now Series D. Honest fix: enrich post-ingest from a freshness source (Crunchbase open data, recent-funding-round feed) — out of Phase 1 scope, but should sit in Phase 4.
+
+### Silent-source survey (Phase 1.5, deferred work)
+
+| Source | Stage on source data? | Effort to populate |
+|---|---|---|
+| `sequoia` | Possibly — detail pages have a stage section but it's currently only used to detect exits (`li.clist__item` parsing) | Detail-page HTML re-inspection; the scraper already fetches each detail page so adding stage extraction is cheap if the markup is consistent |
+| `greylock` | No — only `portfolio_status` (current vs exited) is exposed in the inline portfolio JSON | Would need to scrape detail pages — much higher cost |
+| `bessemer` | No — list-only markup with name / description / sector | Would need to scrape detail pages |
+| `foundersfund` | Possibly — `class_list` already exposes `company_industry-*`; a `company_stage-*` pattern likely exists in the same WP taxonomy | Low cost: probe live data, extend `extractIndustry` pattern |
+| `gv` | Possibly — Sanity GROQ query only asks for `name, website, sector`; the schema may have `stage` available | Low cost: schema introspection + query update |
+
+Recommended sequence when we revisit: probe FoundersFund's `class_list` first (highest signal-to-effort), then GV's Sanity schema, then Sequoia detail pages. Greylock and Bessemer can wait until we add a Playwright helper for detail-page batching.
 
 ### Ground-truth audit script
 
@@ -67,13 +79,13 @@ This shows the actual shape of the data — whether `Series C+` is suspiciously 
 
 Before adding any new source:
 
-1. **`yc.ts`** — `Growth` → `"Series B+"` (was `"Series A"`); keep `Late` → `"Series C+"`.
-2. **`a16z.ts`** — `growth`/`late` → `"Series C+"` (was `"Series B"`); add bucketed handling if the source page distinguishes them.
-3. **`accel.ts`** — `growth` → `"Series C+"` (was `"Series B"`).
-4. **`firstround.ts`** — wrap `c.initialPartnership` in a passthrough normalizer with a small canonical set so it joins cleanly with the wizard filter values.
-5. **Six silent sources** — review each scraper for an unused `stage` field on the source page (Sequoia exposes funding info, Greylock has portfolio company badges, etc.). Pull what's there even if it's only stage-when-invested.
+1. **`yc.ts`** — `Growth` → `Series B` (was `Series A`); keep `Late` → `Series C+`. ✅ commit 2e35907
+2. **`a16z.ts`** — `growth`/`late` → `Series C+` (was `Series B`). ✅ commit 2e35907
+3. **`accel.ts`** — `growth` → `Series C+` (was `Series B`). ✅ commit 2e35907
+4. **`firstround.ts`** — wrap `c.initialPartnership` in a passthrough normalizer with a small canonical set so it joins cleanly with the wizard filter values. (Deferred — survey shows the FR field is already mostly canonical; recheck once we have audit-stages output.)
+5. **Five silent sources** — see the survey table below. None is a one-line fix; deferred to alongside the Phase 2 manifest framework work.
 
-These five PRs should each be small (≤30 lines) and don't require new data sources. They will surface existing post-B rows immediately.
+The mapper patches (1–3) are landed. Re-run `audit-stages.ts` after the next ingest cycle to see the `Series C+` bucket fill out.
 
 ---
 
