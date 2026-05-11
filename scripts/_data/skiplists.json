@@ -1,0 +1,42 @@
+{
+  "_schema": {
+    "description": "Per-source curated skiplists used by ingest adapters. Keyed by source slug, then by skiplist purpose. Values are slug → reason mappings; reasons exist for future-audit context and are not consumed by code. See docs/scraping-research.md Part 4 for the rationale (centralized exit data, pending Phase 4 Crunchbase enrichment).",
+    "lastUpdated": "2026-05-11"
+  },
+  "ivp": {
+    "preexistingPublics": {
+      "netflix": "IPO 2002 (pre-IVP investment 2006)",
+      "twitter": "IPO 2013, taken private by Musk 2022",
+      "yext": "IPO 2017",
+      "uipath": "IPO 2021",
+      "sofi": "IPO 2021",
+      "the-honest-company": "IPO 2021",
+      "wise": "IPO 2021 (LSE)",
+      "robinhood": "IPO 2021",
+      "uber": "IPO 2019",
+      "oportun": "IPO 2019",
+      "github": "Acquired by Microsoft 2018",
+      "slack": "Acquired by Salesforce 2021",
+      "zendesk": "Taken private by Permira PE 2022",
+      "zerto": "Acquired by HPE 2021",
+      "buddy-media": "Acquired by Salesforce 2012",
+      "business-insider": "Acquired by Axel Springer 2015",
+      "cyence": "Acquired by Guidewire 2017",
+      "datalogix": "Acquired by Oracle 2014",
+      "dataai": "App Annie, acquired by Sensor Tower 2024",
+      "giphy": "Meta 2020, sold to Shutterstock 2023",
+      "ondeck-capital": "IPO then acquired by Enova 2020",
+      "sumo-logic": "IPO 2020, then Francisco PE 2023",
+      "soundcloud": "Acquired by Sirius XM 2024",
+      "voxer": "Acquired by Walmart 2022",
+      "zenefits": "Merged into TriNet",
+      "the-players-tribune": "Acquired by Minute Media 2019",
+      "humu": "Acquired by Perceptyx 2023",
+      "niantic": "Gaming division sold to Scopely 2025",
+      "zynga": "Acquired by Take-Two 2022",
+      "nextroll": "AdRoll, private-equity owned",
+      "prosper": "Mixed public/private history",
+      "paper": "Edu tutoring, shut down 2024"
+    }
+  }
+}

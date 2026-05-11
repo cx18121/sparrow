@@ -4,6 +4,7 @@ import * as cheerio from "cheerio";
 import { pathToFileURL } from "node:url";
 import { prisma } from "./_lib/prisma.js";
 import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
+import skiplists from "./_data/skiplists.json" with { type: "json" };
 
 // Institutional Venture Partners portfolio at https://www.ivp.com/portfolio/.
 // Two-step scrape: the list page exposes 153 portfolio anchors as
@@ -22,13 +23,13 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 //      "Acquired <ProperNoun> <year>" as the acquirer pattern.
 //   2. Unparseable summary (defensive). Two rows trip this: steelbrick
 //      and pure-storage — both happen to be exits anyway.
-//   3. PREEXISTING_PUBLICS hardcoded list. IVP only flags exits that
-//      happened during their investment window; companies that were
-//      already public when IVP came in (or quietly exited later without
-//      a summary update) aren't caught by the IPO line. List is a
-//      best-effort curation as of the adapter-writing date and will
-//      drift over time — easier to maintain by hand than via a stale
-//      heuristic.
+//   3. PREEXISTING_PUBLICS skiplist (loaded from
+//      scripts/_data/skiplists.json). IVP only flags exits that happened
+//      during their investment window; companies that were already public
+//      when IVP came in (or quietly exited later without a summary update)
+//      aren't caught by the IPO line. List is a best-effort curation as of
+//      the adapter-writing date and will drift over time — easier to
+//      maintain by hand than via a stale heuristic.
 //
 // IVP exposes no stage data on either the list or detail surface, so every
 // surviving row ingests with stage=null.
@@ -65,46 +66,11 @@ const SOCIAL_HOSTS = new Set([
 // post-exit or near-exit, or because IVP's per-company page hasn't been
 // updated to reflect a more recent exit). Outreach to these is wasted
 // effort — they're either in big-co integration mode or trading publicly.
-// Curated by hand from an audit of all 152 detail-page summaries as of the
-// adapter-writing date; drift is the cost of dropping the noisy founded-
-// vs-partnered gap heuristic.
-const PREEXISTING_PUBLICS = new Set([
-  // Public companies (IPO before or after IVP investment).
-  "netflix",            // IPO 2002 (pre-IVP)
-  "twitter",            // IPO 2013, taken private by Musk 2022
-  "yext",               // IPO 2017
-  "uipath",             // IPO 2021
-  "sofi",               // IPO 2021
-  "the-honest-company", // IPO 2021
-  "wise",               // IPO 2021 (LSE)
-  "robinhood",          // IPO 2021
-  "uber",               // IPO 2019
-  "oportun",            // IPO 2019
-  // Acquired or rolled up into other entities.
-  "github",             // Microsoft 2018
-  "slack",              // Salesforce 2021
-  "zendesk",            // Permira PE 2022
-  "zerto",              // HPE 2021
-  "buddy-media",        // Salesforce 2012
-  "business-insider",   // Axel Springer 2015
-  "cyence",             // Guidewire 2017
-  "datalogix",          // Oracle 2014
-  "dataai",             // App Annie → Sensor Tower 2024
-  "giphy",              // Meta 2020 → Shutterstock 2023
-  "ondeck-capital",     // IPO'd then Enova 2020
-  "sumo-logic",         // IPO 2020 then Francisco PE
-  "soundcloud",         // Sirius XM 2024
-  "voxer",              // Walmart 2022
-  "zenefits",           // Merged into TriNet
-  "the-players-tribune",// Minute Media 2019
-  "humu",               // Perceptyx 2023
-  "niantic",            // Gaming division → Scopely 2025
-  "zynga",              // Take-Two 2022
-  // PE-owned or wound-down.
-  "nextroll",           // AdRoll, PE-owned
-  "prosper",            // Mixed public/private history
-  "paper",              // Edu tutoring, shut down 2024
-]);
+// The list lives in scripts/_data/skiplists.json so a non-engineer can
+// update it without touching code; reasons are stored alongside each entry
+// for future-audit context. Long-term, Crunchbase open-data enrichment
+// should subsume this (see docs/scraping-research.md Part 4).
+const PREEXISTING_PUBLICS = new Set(Object.keys(skiplists.ivp.preexistingPublics));
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
