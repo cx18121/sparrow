@@ -11,6 +11,10 @@ export interface ToastInput {
   // 0 / null pins the toast until dismissed. Undefined uses the default.
   duration?: number | null
   action?: { label: string; onClick: () => void } | null
+  // Marks the toast as critical so the stack-overflow eviction skips it.
+  // Use for messages whose disappearance would lose a user-facing
+  // affordance (e.g. an Undo button for a 5s deferred destructive action).
+  pinned?: boolean
 }
 
 export interface ToastItem extends ToastInput {

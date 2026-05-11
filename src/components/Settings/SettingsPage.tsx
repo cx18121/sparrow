@@ -98,10 +98,18 @@ function ClampedNumberInput({ value, onChange, min, max, onClamp, ...rest }: Cla
       }}
       onBlur={() => {
         const n = parseInt(text, 10)
-        const clamped = Number.isNaN(n) ? min : Math.min(max, Math.max(min, n))
+        // Empty / non-numeric on blur: revert to the last good value
+        // instead of silently snapping to min. An accidental clear used to
+        // wipe the user's setting to `min` with no feedback — preserving
+        // the prior value matches what most form libraries do.
+        if (Number.isNaN(n)) {
+          setText(String(value))
+          return
+        }
+        const clamped = Math.min(max, Math.max(min, n))
         setText(String(clamped))
         if (clamped !== value) onChange(clamped)
-        if (!Number.isNaN(n) && n !== clamped) onClamp?.({ raw: n, clamped })
+        if (n !== clamped) onClamp?.({ raw: n, clamped })
       }}
     />
   )

@@ -38,7 +38,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const item: ToastItem = { ...toast, id }
     setToasts((prev) => {
       const next = [...prev, item]
-      return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
+      // Cap stack size by dropping the oldest *non-pinned* toast. Pinned
+      // toasts (e.g. a deferred-send Undo) are never auto-evicted — losing
+      // them would silently strip a user-facing cancel affordance.
+      if (next.length <= MAX_TOASTS) return next
+      const overflow = next.length - MAX_TOASTS
+      const trimmed: ToastItem[] = []
+      let dropped = 0
+      for (const t of next) {
+        if (dropped < overflow && !t.pinned) { dropped++; continue }
+        trimmed.push(t)
+      }
+      return trimmed
     })
     return id
   }, [])

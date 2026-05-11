@@ -490,6 +490,10 @@ export default function DraftsTab({
       title: label ? `Sending to ${label} in 5 seconds…` : `Sending ${ids.length} emails in 5 seconds…`,
       message: '',
       duration: 5500,
+      // Pin: this toast carries the only Undo affordance for the deferred
+      // send. If three other toasts arrive during the 5s window, eviction
+      // would otherwise drop this one and strand the user.
+      pinned: true,
       action: { label: 'Undo', onClick: cancelPendingSend },
     })
     pendingSendTimerRef.current = setTimeout(() => {
