@@ -144,14 +144,16 @@ Sequence the remaining work by row count and source difficulty:
 1. **Phase 1.5 fixes** ✅ — three lossy stage mappers patched (YC, a16z, Accel); a16z Venture/seed recovery added (+263 rows). See commits `2e35907` and `fb7332f`.
 2. **Pear VC** ✅ — hand-coded adapter at `scripts/ingest-pear.ts`. ~211 companies, granular Pre-Seed → Series E. Filters Acquired/IPO.
 3. **Wave Ventures** ✅ — hand-coded adapter at `scripts/ingest-wave.ts`. 12 companies.
-4. **Lightspeed (LSVP)** — ~664 companies. List view has stage / founded year / status; external website needs a per-company detail-page fetch. Hand-code with a small concurrency limit and request delay.
+4. **Lightspeed (LSVP)** ✅ — hand-coded adapter at `scripts/ingest-lightspeed.ts`. 503 ingested (from ~536 reachable after filtering 124 exits). Granular Seed → Series H. Filters Status of Public / IPO / Acquired (Lightspeed labels post-IPO companies as `Public`, not `IPO` — both indicate an exit). Stage normalizer folds sub-rounds (Seed-1/2 → Seed, A-1 / Early → Series A) and drops ambiguous labels (Common, Ordinary → null). Card layouts vary: compact `<h5>` name, founder-card `<h6>` "Role, Company", and a spotlight `<h4>` for the lead card — adapter tries all three. Detail-page hop is needed because the company URL only appears wrapped in `.banner-logo` / `.company-logo` on `lsvp.com/company/<slug>/`.
 5. **IVP** — ~150 companies. Static grid; website lives on the per-company detail page. Same pattern as Lightspeed.
 6. **Coatue** — ~300 companies. Load-more pagination; either probe the underlying XHR or paginate via query param.
 7. Re-run `audit-stages.ts`. The post-B counts should jump materially. Audit remaining coverage gaps.
 8. **Tier-2 (separate decision):** Insight Partners is ~800 growth-stage rows but is JS-rendered — needs Playwright. Worth the lift if growth-stage volume is the priority.
 9. **Benchmark + Khosla** as direct adapters (one-pass research first to confirm portfolio page shape).
 
-Estimated effort: ~1 day for steps 4–6 (Lightspeed, IVP, Coatue) as standalone adapters.
+**Pacing lesson from Lightspeed.** First run with concurrency 5, 300ms delay, and `Mozilla/5.0 (compatible; SparrowBot/1.0)` UA tripped lsvp.com's WAF cumulative quota partway through and lost ~190 detail pages to alphabetical-from-mid-run 503s. Same script with concurrency 3, 600ms delay, and a plain Chrome UA captured 503/515 cleanly with zero 503s. The throttle is **per-session/IP-cumulative**, not per-second — so retry-with-backoff would have stayed inside the same lockout window. For IVP and Coatue, default to the conservative knobs and only loosen if the source proves resilient.
+
+Estimated effort: ~1 day for steps 5–6 (IVP, Coatue) as standalone adapters.
 
 ---
 
