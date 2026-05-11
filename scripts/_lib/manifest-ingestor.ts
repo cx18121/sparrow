@@ -9,7 +9,11 @@ import type {
   WpRestFieldExtractor,
   WpRestManifest,
   WpRestSkipRule,
+  WpTaxonomyConfig,
 } from "./manifest-types.js";
+
+// taxonomyName → (term ID → label string). Built once per ingest run.
+type TaxonomyMaps = Map<string, Map<string | number, string>>;
 
 const USER_AGENT = "Mozilla/5.0 (compatible; SparrowBot/1.0)";
 
@@ -47,20 +51,93 @@ function rejectedByHost(value: string | null, rejectHosts: string[] | undefined)
   return rejectHosts.some((h) => host === h.toLowerCase() || host.endsWith(`.${h.toLowerCase()}`));
 }
 
+// Resolve an array of WP taxonomy term IDs through the prebuilt id→label
+// map. Unknown IDs are dropped. Returns null when no labels resolve.
+function resolveTermIds(values: unknown, termMap: Map<string | number, string>): string[] {
+  const list = Array.isArray(values) ? values : [values];
+  const out: string[] = [];
+  for (const v of list) {
+    if (v == null) continue;
+    const label = termMap.get(v as string | number) ?? termMap.get(String(v));
+    if (label) out.push(label);
+  }
+  return out;
+}
+
 // Tries each path in `expr` and returns the first value that is non-empty and
-// not rejected by `rejectHosts` (URL-typed fields only). Null when nothing
-// qualifies.
-function readWpExtractor(record: unknown, expr: WpRestFieldExtractor): string | null {
-  if (typeof expr === "string") return coerceString(readPath(record, expr));
+// not rejected by `rejectHosts`. When the value at a path is a WP taxonomy
+// term-ID array AND that path is a registered taxonomy, IDs are first
+// resolved through the term map; the result is the labels joined with ", "
+// (most callers want a single string — use `readWpExtractorMulti` to keep
+// the resolved labels as an array, e.g. for the topics field).
+function readWpExtractor(
+  record: unknown,
+  expr: WpRestFieldExtractor,
+  taxonomies: TaxonomyMaps,
+): string | null {
+  const labels = readWpExtractorMulti(record, expr, taxonomies);
+  if (labels.length === 0) return null;
+  return labels.join(", ");
+}
+
+function readWpExtractorMulti(
+  record: unknown,
+  expr: WpRestFieldExtractor,
+  taxonomies: TaxonomyMaps,
+): string[] {
+  if (typeof expr === "string") return readWpPathResolved(record, expr, taxonomies);
   const paths = Array.isArray(expr) ? expr : expr.paths;
   const rejectHosts = Array.isArray(expr) ? undefined : expr.rejectHosts;
   for (const path of paths) {
-    const v = coerceString(readPath(record, path));
-    if (!v) continue;
-    if (rejectedByHost(v, rejectHosts)) continue;
-    return v;
+    const labels = readWpPathResolved(record, path, taxonomies);
+    const filtered = labels.filter((v) => !rejectedByHost(v, rejectHosts));
+    if (filtered.length > 0) return filtered;
   }
-  return null;
+  return [];
+}
+
+function readWpPathResolved(
+  record: unknown,
+  path: string,
+  taxonomies: TaxonomyMaps,
+): string[] {
+  const raw = readPath(record, path);
+  if (raw == null) return [];
+  const termMap = taxonomies.get(path);
+  if (termMap) {
+    return resolveTermIds(raw, termMap);
+  }
+  const coerced = coerceString(raw);
+  return coerced ? [coerced] : [];
+}
+
+async function fetchTaxonomyMap(
+  base: string,
+  config: WpTaxonomyConfig,
+  delayMs: number,
+): Promise<Map<string | number, string>> {
+  const url = `${base.replace(/\/$/, "")}/${config.endpoint}`;
+  const labelField = config.labelField ?? "name";
+  const map = new Map<string | number, string>();
+  let page = 1;
+  let totalPages = 1;
+  while (page <= totalPages) {
+    const { data, headers } = await axios.get(url, {
+      params: { per_page: 100, page },
+      headers: { "User-Agent": USER_AGENT },
+      timeout: 15_000,
+    });
+    if (page === 1) totalPages = parseInt(headers["x-wp-totalpages"] ?? "1", 10);
+    for (const t of data as any[]) {
+      const label = String(t[labelField] ?? t.name ?? t.slug ?? "");
+      if (!label) continue;
+      map.set(t.id, label);
+      map.set(String(t.id), label);
+    }
+    page++;
+    if (page <= totalPages) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return map;
 }
 
 // ── HTML strategy ──────────────────────────────────────────────────────────
@@ -138,14 +215,31 @@ function buildHtmlAdapter(manifest: HtmlManifest): IngestorAdapter {
 
 // ── WP REST strategy ───────────────────────────────────────────────────────
 
-function shouldSkipWpRest(record: unknown, rules: WpRestSkipRule[] | undefined): boolean {
+function shouldSkipWpRest(
+  record: unknown,
+  rules: WpRestSkipRule[] | undefined,
+  taxonomies: TaxonomyMaps,
+): boolean {
   if (!rules || rules.length === 0) return false;
   for (const rule of rules) {
-    const v = readPath(record, rule.path);
-    if (v == null) continue;
-    const haystack = Array.isArray(v) ? v.map(coerceString) : [coerceString(v)];
+    const raw = readPath(record, rule.path);
+    if (raw == null) continue;
+    // Collect both the raw value(s) and any resolved taxonomy labels so a
+    // rule against current_stage matches against the resolved "Acquired"
+    // / "IPO" labels rather than requiring callers to remember term IDs.
+    const haystack: string[] = [];
+    const termMap = taxonomies.get(rule.path);
+    if (termMap) haystack.push(...resolveTermIds(raw, termMap));
+    if (Array.isArray(raw)) {
+      for (const v of raw) {
+        const c = coerceString(v);
+        if (c) haystack.push(c);
+      }
+    } else {
+      const c = coerceString(raw);
+      if (c) haystack.push(c);
+    }
     for (const item of haystack) {
-      if (!item) continue;
       if (rule.values.some((val) => item.toLowerCase().includes(val.toLowerCase()))) return true;
     }
   }
@@ -159,6 +253,20 @@ function buildWpRestAdapter(manifest: WpRestManifest): IngestorAdapter {
     name: manifest.name,
     source: manifest.source,
     async fetchAndParse(): Promise<CompanyRecord[]> {
+      // Build the taxonomy maps up front. One fetch per declared taxonomy,
+      // each typically a single page — cheap compared to the post fetch.
+      const taxonomies: TaxonomyMaps = new Map();
+      const taxonomyConfigs = manifest.fetch.taxonomies ?? {};
+      for (const [name, config] of Object.entries(taxonomyConfigs)) {
+        try {
+          const map = await fetchTaxonomyMap(manifest.fetch.base, config, delayMs);
+          taxonomies.set(name, map);
+          console.log(`[${manifest.name}] taxonomy ${name}: ${map.size / 2} terms`);
+        } catch (err: any) {
+          console.error(`[${manifest.name}] taxonomy ${name} failed: ${err.message}`);
+        }
+      }
+
       const url = `${manifest.fetch.base.replace(/\/$/, "")}/${manifest.fetch.postType}`;
       const records: any[] = [];
       let page = 1;
@@ -191,19 +299,23 @@ function buildWpRestAdapter(manifest: WpRestManifest): IngestorAdapter {
         s == null ? null : s.replace(/<[^>]+>/g, "").trim() || null;
 
       for (const r of records) {
-        if (shouldSkipWpRest(r, manifest.skip)) continue;
-        const name = stripHtml(readWpExtractor(r, manifest.extract.name));
-        const website = readWpExtractor(r, manifest.extract.website);
+        if (shouldSkipWpRest(r, manifest.skip, taxonomies)) continue;
+        const name = stripHtml(readWpExtractor(r, manifest.extract.name, taxonomies));
+        const website = readWpExtractor(r, manifest.extract.website, taxonomies);
         if (!name || !website) continue;
+        const topics = manifest.extract.topics
+          ? readWpExtractorMulti(r, manifest.extract.topics, taxonomies)
+          : undefined;
         out.push({
           name,
           website,
-          description: manifest.extract.description ? stripHtml(readWpExtractor(r, manifest.extract.description)) : null,
-          oneLiner: manifest.extract.oneLiner ? stripHtml(readWpExtractor(r, manifest.extract.oneLiner)) : null,
-          stage: manifest.extract.stage ? readWpExtractor(r, manifest.extract.stage) : null,
-          industry: manifest.extract.industry ? readWpExtractor(r, manifest.extract.industry) : null,
-          location: manifest.extract.location ? readWpExtractor(r, manifest.extract.location) : null,
-          sourceId: manifest.extract.sourceId ? readWpExtractor(r, manifest.extract.sourceId) : coerceString(r.slug) ?? coerceString(r.id),
+          description: manifest.extract.description ? stripHtml(readWpExtractor(r, manifest.extract.description, taxonomies)) : null,
+          oneLiner: manifest.extract.oneLiner ? stripHtml(readWpExtractor(r, manifest.extract.oneLiner, taxonomies)) : null,
+          stage: manifest.extract.stage ? readWpExtractor(r, manifest.extract.stage, taxonomies) : null,
+          industry: manifest.extract.industry ? readWpExtractor(r, manifest.extract.industry, taxonomies) : null,
+          location: manifest.extract.location ? readWpExtractor(r, manifest.extract.location, taxonomies) : null,
+          sourceId: manifest.extract.sourceId ? readWpExtractor(r, manifest.extract.sourceId, taxonomies) : coerceString(r.slug) ?? coerceString(r.id),
+          ...(topics && topics.length > 0 ? { topics } : {}),
           investors: manifest.investors,
           signals,
           isVerified,
@@ -225,4 +337,13 @@ export async function runManifest(manifest: Manifest): Promise<void> {
 }
 
 // Re-exported for tests so we can unit-test extraction without a network hop.
-export const _internal = { readPath, readWpExtractor, extractFromHtml, shouldSkipHtml, shouldSkipWpRest, rejectedByHost };
+export const _internal = {
+  readPath,
+  readWpExtractor,
+  readWpExtractorMulti,
+  resolveTermIds,
+  extractFromHtml,
+  shouldSkipHtml,
+  shouldSkipWpRest,
+  rejectedByHost,
+};

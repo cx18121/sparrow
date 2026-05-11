@@ -8,7 +8,19 @@ vi.mock("../_lib/prisma.js", () => ({ prisma: {} }));
 
 import { _internal } from "../_lib/manifest-ingestor.js";
 
-const { readPath, readWpExtractor, extractFromHtml, rejectedByHost, shouldSkipWpRest, shouldSkipHtml } = _internal;
+const {
+  readPath,
+  readWpExtractor,
+  readWpExtractorMulti,
+  resolveTermIds,
+  extractFromHtml,
+  rejectedByHost,
+  shouldSkipWpRest,
+  shouldSkipHtml,
+} = _internal;
+
+// Most extractor tests don't need taxonomy resolution; pass an empty map.
+const NO_TAXONOMIES = new Map<string, Map<string | number, string>>();
 
 describe("manifest-ingestor extractors", () => {
   describe("readPath", () => {
@@ -52,47 +64,111 @@ describe("manifest-ingestor extractors", () => {
     };
 
     it("supports string-path extractor", () => {
-      expect(readWpExtractor(record, "title.rendered")).toBe("Gravis Robotics");
+      expect(readWpExtractor(record, "title.rendered", NO_TAXONOMIES)).toBe("Gravis Robotics");
     });
 
     it("returns null when the path is missing", () => {
-      expect(readWpExtractor(record, "title.missing")).toBeNull();
+      expect(readWpExtractor(record, "title.missing", NO_TAXONOMIES)).toBeNull();
     });
 
     it("supports array-of-paths fallback", () => {
-      expect(readWpExtractor({ a: "", b: "yes" }, ["a", "b"])).toBe("yes");
+      expect(readWpExtractor({ a: "", b: "yes" }, ["a", "b"], NO_TAXONOMIES)).toBe("yes");
     });
 
     it("walks paths and rejects self-host URLs", () => {
       const blogPost = { link: "https://pear.vc/announcement", meta: { website_url: "https://piston.example/" } };
       expect(
-        readWpExtractor(blogPost, { paths: ["link", "meta.website_url"], rejectHosts: ["pear.vc"] })
+        readWpExtractor(blogPost, { paths: ["link", "meta.website_url"], rejectHosts: ["pear.vc"] }, NO_TAXONOMIES)
       ).toBe("https://piston.example/");
     });
 
     it("returns null if every path is rejected or empty", () => {
       const allBad = { link: "https://pear.vc/x", meta: {} };
       expect(
-        readWpExtractor(allBad, { paths: ["link", "meta.website_url"], rejectHosts: ["pear.vc"] })
+        readWpExtractor(allBad, { paths: ["link", "meta.website_url"], rejectHosts: ["pear.vc"] }, NO_TAXONOMIES)
       ).toBeNull();
+    });
+  });
+
+  describe("taxonomy resolution", () => {
+    const stageMap = new Map<string | number, string>([
+      [664, "Series A"], ["664", "Series A"],
+      [665, "Seed"],     ["665", "Seed"],
+      [666, "Pre-Seed"], ["666", "Pre-Seed"],
+      [667, "Acquired"], ["667", "Acquired"],
+      [669, "IPO"],      ["669", "IPO"],
+    ]);
+    const sectorMap = new Map<string | number, string>([
+      [73, "AI"],        ["73", "AI"],
+      [36, "SaaS"],      ["36", "SaaS"],
+      [7,  "B2B"],       ["7",  "B2B"],
+    ]);
+    const taxonomies = new Map([
+      ["current_stage", stageMap],
+      ["pear_vc_company_sector", sectorMap],
+    ]);
+
+    it("resolves a single term ID to its label", () => {
+      const record = { current_stage: [665] };
+      expect(readWpExtractor(record, "current_stage", taxonomies)).toBe("Seed");
+    });
+
+    it("joins multiple term IDs with comma-space for single-string consumers", () => {
+      const record = { pear_vc_company_sector: [73, 36, 7] };
+      expect(readWpExtractor(record, "pear_vc_company_sector", taxonomies)).toBe("AI, SaaS, B2B");
+    });
+
+    it("preserves the full array for topics via readWpExtractorMulti", () => {
+      const record = { pear_vc_company_sector: [73, 36, 7] };
+      expect(readWpExtractorMulti(record, "pear_vc_company_sector", taxonomies)).toEqual(["AI", "SaaS", "B2B"]);
+    });
+
+    it("drops unknown IDs silently", () => {
+      const record = { current_stage: [665, 9999] };
+      expect(readWpExtractor(record, "current_stage", taxonomies)).toBe("Seed");
+    });
+
+    it("returns null when no IDs resolve", () => {
+      const record = { current_stage: [9999] };
+      expect(readWpExtractor(record, "current_stage", taxonomies)).toBeNull();
+    });
+
+    it("does not resolve when the path is not a registered taxonomy", () => {
+      const record = { other_field: [665] };
+      // Without registration, the array reaches coerceString which returns null
+      // (array can't be string-coerced); the extractor returns null.
+      expect(readWpExtractor(record, "other_field", taxonomies)).toBeNull();
+    });
+
+    it("resolveTermIds handles single-value (non-array) inputs", () => {
+      expect(resolveTermIds(665, stageMap)).toEqual(["Seed"]);
     });
   });
 
   describe("shouldSkipWpRest", () => {
     it("skips when a single-value path matches a value", () => {
       const r = { company_group: "acquired" };
-      expect(shouldSkipWpRest(r, [{ path: "company_group", values: ["acquired", "ipo"] }])).toBe(true);
+      expect(shouldSkipWpRest(r, [{ path: "company_group", values: ["acquired", "ipo"] }], NO_TAXONOMIES)).toBe(true);
     });
     it("does substring-style matching (lowercased)", () => {
       const r = { status: "Exited (IPO)" };
-      expect(shouldSkipWpRest(r, [{ path: "status", values: ["ipo"] }])).toBe(true);
+      expect(shouldSkipWpRest(r, [{ path: "status", values: ["ipo"] }], NO_TAXONOMIES)).toBe(true);
     });
     it("scans array values", () => {
       const r = { tags: ["active", "growth"] };
-      expect(shouldSkipWpRest(r, [{ path: "tags", values: ["growth"] }])).toBe(true);
+      expect(shouldSkipWpRest(r, [{ path: "tags", values: ["growth"] }], NO_TAXONOMIES)).toBe(true);
     });
     it("returns false when no rule applies", () => {
-      expect(shouldSkipWpRest({ status: "Active" }, [{ path: "status", values: ["dead"] }])).toBe(false);
+      expect(shouldSkipWpRest({ status: "Active" }, [{ path: "status", values: ["dead"] }], NO_TAXONOMIES)).toBe(false);
+    });
+    it("matches taxonomy-resolved labels so rules can use slugs/names directly", () => {
+      // current_stage holds [667] = Acquired. The rule says "skip Acquired" using
+      // the human-readable label — the runner resolves IDs through the taxonomy
+      // map before checking, so callers don't have to remember IDs.
+      const stageMap = new Map<string | number, string>([[667, "Acquired"], ["667", "Acquired"]]);
+      const taxonomies = new Map([["current_stage", stageMap]]);
+      const r = { current_stage: [667] };
+      expect(shouldSkipWpRest(r, [{ path: "current_stage", values: ["acquired", "ipo"] }], taxonomies)).toBe(true);
     });
   });
 

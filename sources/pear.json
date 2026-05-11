@@ -11,7 +11,11 @@
     "postType": "pear_vc_company",
     "perPage": 100,
     "delayMs": 300,
-    "fields": "id,slug,title,link,meta,company_group,class_list"
+    "fields": "id,slug,title,link,meta,current_stage,pear_vc_company_sector,class_list",
+    "taxonomies": {
+      "current_stage": { "endpoint": "current_stage", "labelField": "name" },
+      "pear_vc_company_sector": { "endpoint": "pear_vc_company_sector", "labelField": "name" }
+    }
   },
 
   "extract": {
@@ -20,6 +24,13 @@
       "paths": ["meta.website_url", "link"],
       "rejectHosts": ["pear.vc"]
     },
+    "stage": "current_stage",
+    "industry": "pear_vc_company_sector",
+    "topics": "pear_vc_company_sector",
     "sourceId": "slug"
-  }
+  },
+
+  "skip": [
+    { "path": "current_stage", "values": ["acquired", "ipo"] }
+  ]
 }

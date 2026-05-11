@@ -17,8 +17,28 @@
 // it can populate and the extractor expression for each. Unset fields stay
 // undefined and runIngestor handles the rest.
 
+// WP REST attaches taxonomy fields to a post as arrays of term IDs
+// (e.g. `current_stage: [665, 667]`). Resolving those IDs to labels needs a
+// one-time fetch against the taxonomy endpoint. Declare the taxonomies a
+// post type uses here; the runner builds an id→label map per taxonomy and
+// applies it during extraction whenever a field's path matches a
+// registered taxonomy name. `labelField` picks between the term's `name`
+// (human-readable, e.g. "Series A") and `slug` (URL-safe, e.g. "series-a").
+export interface WpTaxonomyConfig {
+  endpoint: string;            // path under base, e.g. "current_stage"
+  labelField?: "name" | "slug"; // default "name"
+}
+
 export type ManifestFetch =
-  | { type: "wp-rest"; base: string; postType: string; perPage?: number; delayMs?: number; fields?: string }
+  | {
+      type: "wp-rest";
+      base: string;
+      postType: string;
+      perPage?: number;
+      delayMs?: number;
+      fields?: string;
+      taxonomies?: Record<string, WpTaxonomyConfig>;
+    }
   | { type: "html"; url: string };
 
 // For wp-rest, extractors are dot-paths into the WP record:
@@ -73,7 +93,15 @@ export interface WpRestManifest extends ManifestBase {
     oneLiner?: WpRestFieldExtractor;
     location?: WpRestFieldExtractor;
     sourceId?: WpRestFieldExtractor;
+    // Multi-value field for non-primary tags. When taxonomy resolution
+    // applies, all resolved labels are returned (not just the first).
+    topics?: WpRestFieldExtractor;
   };
+  // Skip rules accept both raw values and resolved-taxonomy labels.
+  // A taxonomy-typed field's value is checked both as the raw IDs and as
+  // each resolved label, so a rule like
+  // `{ path: "current_stage", values: ["acquired", "ipo"] }` works even
+  // though current_stage stores IDs.
   skip?: WpRestSkipRule[];
 }
 
