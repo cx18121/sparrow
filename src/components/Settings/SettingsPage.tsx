@@ -279,45 +279,13 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
     const ok = await onSave((current: any) => ({
       ...current,
       ...pickSendingFields(form),
-      sendingLimits: { ...current.sendingLimits, ...form.sendingLimits },
     }))
     setSaving(false)
     return ok
   }
 
-  const limits = form.sendingLimits || { dailyMax: 250, delaySeconds: 15 }
-  const setLimit = (k: string, v: number) => setForm((c: any) => ({ ...c, sendingLimits: { ...(c.sendingLimits || {}), [k]: v } }))
-
   return (
     <div className="space-y-5">
-      <FieldGroup title="Send rate" hint="Limits for outbound email.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="settings-daily-send-limit" className="label">Daily send limit</label>
-            <ClampedNumberInput
-              id="settings-daily-send-limit"
-              min={1} max={100} value={limits.dailyMax}
-              onChange={n => setLimit('dailyMax', n)}
-              className="input"
-            />
-            <p className="mt-1 text-xs text-muted">Hard cap: 100 per day.</p>
-          </div>
-          <div>
-            <label htmlFor="settings-send-delay" className="label">Delay between sends</label>
-            <div className="relative">
-              <ClampedNumberInput
-                id="settings-send-delay"
-                min={15} max={3600} value={limits.delaySeconds}
-                onChange={n => setLimit('delaySeconds', n)}
-                className="input pr-16"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">seconds</span>
-            </div>
-            <p className="mt-1 text-xs text-muted">Minimum 15 seconds between sends.</p>
-          </div>
-        </div>
-      </FieldGroup>
-
       <FieldGroup title="Defaults for new campaigns" hint="Pre-filled when you create a campaign.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -370,7 +338,6 @@ function pickSendingFields(c: any) {
   return {
     leadsPerGeneration: c?.leadsPerGeneration ?? 25,
     templateId: c?.templateId ?? '',
-    sendingLimits: c?.sendingLimits || { dailyMax: 250, delaySeconds: 15 },
     files: c?.files || [],
   }
 }
