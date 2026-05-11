@@ -38,6 +38,14 @@ export type AttachmentFile = WorkspaceFile & {
   source?: 'resume' | 'library';
 };
 
+// Bounds for the per-campaign lead batch size. The number ends up driving how
+// many companies one campaign run will ingest at once, so it needs a ceiling to
+// avoid runaway Apollo cost / draft-generation latency. Kept here because it
+// pairs with the leadsPerGeneration default below and lets the UI surface a
+// single source of truth in labels, hints, and validation toasts.
+export const LEAD_BATCH_MIN = 1;
+export const LEAD_BATCH_MAX = 50;
+
 function finiteNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;

@@ -78,6 +78,7 @@ export const BADGE_TONES: Record<string, StatusTone> = {
 export const TOAST_TONES: Record<string, StatusTone> = {
   success: 'success',
   error: 'danger',
+  warning: 'warning',
   info: 'info',
 }
 

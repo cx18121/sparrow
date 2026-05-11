@@ -3,8 +3,8 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import { Filter, Trash2 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import Toast from '../ui/Toast'
 import { fetchCampaignOptions } from '../../lib/api'
+import { useToast } from '../../contexts/ToastContext'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { REGION_INTL, REGION_REMOTE, REGION_US } from '../../types/audience'
 import type { CampaignOptions } from '../../types/api'
@@ -68,7 +68,7 @@ export default function SettingsTab() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [toast, setToast] = useState<{ type: 'error' | 'success'; title: string; message?: string } | null>(null)
+  const { showToast } = useToast()
 
   // Re-sync form when the underlying campaign mutates from elsewhere (e.g. a
   // status toggle from the header). Keeps the inline editor consistent with
@@ -119,9 +119,9 @@ export default function SettingsTab() {
         attachmentIds: form.attachmentIds || [],
         includePreviouslySaved: form.includePreviouslySaved,
       })
-      setToast({ type: 'success', title: 'Saved' })
+      showToast({ type: 'success', title: 'Saved' })
     } catch (err) {
-      setToast({ type: 'error', title: 'Could not save', message: (err as Error)?.message })
+      showToast({ type: 'error', title: 'Could not save', message: (err as Error)?.message })
     } finally {
       setSaving(false)
     }
@@ -135,7 +135,7 @@ export default function SettingsTab() {
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setDeleting(false)
-      setToast({ type: 'error', title: 'Could not delete campaign', message: (err as Error)?.message })
+      showToast({ type: 'error', title: 'Could not delete campaign', message: (err as Error)?.message })
     }
   }
 
@@ -143,8 +143,6 @@ export default function SettingsTab() {
 
   return (
     <div className="space-y-6">
-      <Toast toast={toast} onClose={() => setToast(null)} />
-
       {/* Header row - title + Save bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

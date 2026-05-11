@@ -7,7 +7,6 @@ import Banner from '../ui/Banner'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
-import Toast from '../ui/Toast'
 import { apolloSearch, saveLead, revealApolloContact, generateEmail, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
 import {
@@ -17,7 +16,7 @@ import {
   type DiscoveryRegionFilter,
 } from '../../lib/leadDiscoveryPrefetch'
 import { useAppData } from '../../contexts/AppDataContext'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['vertical', 'tech', 'model', 'investor', 'signal']
@@ -178,7 +177,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     }
     return set
   }, [leads])
-  const { toast, setToast } = useToast()
+  const { showToast } = useToast()
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState(() => new Set(campaignSeed.selectedTags))
   const selectedTagsRef = useRef(new Set(campaignSeed.selectedTags))
@@ -515,11 +514,11 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         try {
           await addCampaignLead(activeCampaign.id, savedLead.id)
         } catch (campaignErr) {
-          setToast({ type: 'error', title: 'Saved, but not added to campaign', message: campaignErr?.message || 'Please try again.' })
+          showToast({ type: 'error', title: 'Saved, but not added to campaign', message: campaignErr?.message || 'Please try again.' })
           return
         }
       }
-      setToast({
+      showToast({
         type: 'success',
         title: activeCampaign
           ? `${preview.firstName} added to ${activeCampaign.name}`
@@ -530,7 +529,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
       })
     } catch (err) {
       setSavedIds(prev => { const n = new Set(prev); n.delete(preview.id); return n })
-      setToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
+      showToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
     } finally {
       setSavingIds(prev => {
         const n = new Set(prev)
@@ -565,7 +564,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         done++
       } catch (err: any) {
         failed++
-        if (err?.status === 429 && mountedRef.current) { setToast({ type: 'error', title: 'Apollo rate limit hit', message: 'Batch paused. Wait a moment, then try again.' }); break }
+        if (err?.status === 429 && mountedRef.current) { showToast({ type: 'error', title: 'Apollo rate limit hit', message: 'Batch paused. Wait a moment, then try again.' }); break }
       }
       if (mountedRef.current && batchTokenRef.current === myToken) setBatchStatus(s => s ? { ...s, done, failed } : s)
     }
@@ -580,7 +579,6 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
   return (
     <div className="space-y-5">
-      <Toast toast={toast} onClose={() => setToast(null)} />
       <header className="flex flex-col gap-1">
         <p className="page-eyebrow">Leads</p>
         <p className="text-sm leading-6 text-muted">Browse companies and save contacts into this campaign.</p>

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../contexts/ToastContext'
 import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 import {
   canSendDraft,
@@ -31,7 +31,6 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
-import Toast from '../ui/Toast'
 
 function formatDate(iso) {
   if (!iso) return '-'
@@ -75,7 +74,12 @@ export default function DraftsTab({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
-  const { toast, setToast } = useToast()
+  const { showToast, dismissToast } = useToast()
+  // Tracks the in-flight "Sending in 5s… (Undo)" toast so cancelPendingSend
+  // can dismiss it explicitly when a new send replaces or aborts the pending
+  // one. Action-click already auto-dismisses, so this is only needed for the
+  // programmatic-cancel path.
+  const pendingToastIdRef = useRef<string | null>(null)
   const attachmentLibrary = useMemo(() => getAttachmentLibrary(workspaceConfig), [workspaceConfig])
   const [gmailStatus, setGmailStatus] = useState(() =>
     profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
@@ -373,22 +377,22 @@ export default function DraftsTab({
     const skippedCount = ids.length - sendableIds.length
 
     if (sendableIds.length === 0) {
-      setToast({ type: 'info', title: 'Review needed before sending', message: 'Add a recipient, subject, and body first.' })
+      showToast({ type: 'info', title: 'Review needed before sending', message: 'Add a recipient, subject, and body first.' })
       return
     }
 
     if (gmailDisconnected) {
-      setToast({
+      showToast({
         type: 'error',
         title: 'Gmail not connected',
         message: 'Connect Gmail in Settings first.',
-        action: onNavigate ? { label: 'Open Settings', onClick: () => { onNavigate('settings'); setToast(null) } } : null,
+        action: onNavigate ? { label: 'Open Settings', onClick: () => onNavigate('settings') } : null,
       })
       return
     }
 
     if (skippedCount > 0) {
-      setToast({ type: 'info', title: `${skippedCount} draft${skippedCount !== 1 ? 's' : ''} skipped`, message: 'Only drafts marked Ready were sent.' })
+      showToast({ type: 'info', title: `${skippedCount} draft${skippedCount !== 1 ? 's' : ''} skipped`, message: 'Only drafts marked Ready were sent.' })
     }
 
     const delayMs = Math.max(15, workspaceConfig?.sendingLimits?.delaySeconds ?? 15) * 1000
@@ -445,19 +449,19 @@ export default function DraftsTab({
     if (failures.length > 0) {
       const names = failures.slice(0, 2).map(f => f.name).join(', ')
       const overflow = failures.length > 2 ? ` and ${failures.length - 2} more` : ''
-      setToast({ type: 'error', title: `${failures.length} email${failures.length !== 1 ? 's' : ''} failed to send`, message: `${names}${overflow}: ${failures[0].reason}` })
+      showToast({ type: 'error', title: `${failures.length} email${failures.length !== 1 ? 's' : ''} failed to send`, message: `${names}${overflow}: ${failures[0].reason}` })
     } else if (wasCancelled) {
-      setToast({ type: 'info', title: succeeded.length > 0 ? `Sent ${succeeded.length} of ${sendableIds.length} - cancelled` : 'Cancelled - no emails sent', message: '' })
+      showToast({ type: 'info', title: succeeded.length > 0 ? `Sent ${succeeded.length} of ${sendableIds.length} - cancelled` : 'Cancelled - no emails sent', message: '' })
     } else if (hitDailyLimit) {
-      setToast({ type: 'error', title: `Daily limit reached - ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
+      showToast({ type: 'error', title: `Daily limit reached - ${succeeded.length} of ${sendableIds.length} sent`, message: 'Remaining emails were not sent. Limit resets tomorrow.' })
     } else if (succeeded.length > 0) {
       const previewWasSent = currentPreview?.id ? succeeded.includes(currentPreview.id) : false
       const nextReviewDraft = previewWasSent ? findNextReviewDraft(succeeded) : null
-      setToast({
+      showToast({
         type: 'success',
         title: succeeded.length === 1 ? 'Email sent' : `${succeeded.length} emails sent`,
         message: nextReviewDraft ? 'The next ready draft is open.' : 'Moved to Sent.',
-        action: { label: 'View sent', onClick: () => { setTab('sent'); setToast(null) } },
+        action: { label: 'View sent', onClick: () => setTab('sent') },
       })
     }
   }
@@ -471,14 +475,17 @@ export default function DraftsTab({
       clearTimeout(pendingSendTimerRef.current)
       pendingSendTimerRef.current = null
     }
-    setToast(null)
+    if (pendingToastIdRef.current) {
+      dismissToast(pendingToastIdRef.current)
+      pendingToastIdRef.current = null
+    }
   }
 
   const scheduleSend = (ids: string[]) => {
     cancelPendingSend()
     const targetDraft = ids.length === 1 ? draftsRef.current.find(d => d.id === ids[0]) : null
     const label = targetDraft ? getRecipientName(targetDraft) : null
-    setToast({
+    pendingToastIdRef.current = showToast({
       type: 'info',
       title: label ? `Sending to ${label} in 5 seconds…` : `Sending ${ids.length} emails in 5 seconds…`,
       message: '',
@@ -487,7 +494,14 @@ export default function DraftsTab({
     })
     pendingSendTimerRef.current = setTimeout(() => {
       pendingSendTimerRef.current = null
-      setToast(null)
+      // Dismiss the "Sending in 5s… (Undo)" toast as the send fires so the
+      // Undo button can't outlive the cancel window — hover-pause means the
+      // toast might otherwise stay visible past the 5s timer with a button
+      // that no longer cancels anything.
+      if (pendingToastIdRef.current) {
+        dismissToast(pendingToastIdRef.current)
+        pendingToastIdRef.current = null
+      }
       // Re-derive against current drafts at fire time - markSent already uses
       // the ref, but filtering ids here drops any that were deleted during
       // the undo window so we don't even attempt the network call.
@@ -523,14 +537,14 @@ export default function DraftsTab({
         actionKey('test-send-email', testSendOpen, testSendRecipient.trim().toLowerCase()),
         () => sendTestEmail(testSendOpen, testSendRecipient),
       )
-      setToast({
+      showToast({
         type: 'success',
         title: 'Test email sent',
         message: `Delivered to ${testSendRecipient.trim().toLowerCase()}`,
       })
       setTestSendOpen(null)
     } catch (err) {
-      setToast({
+      showToast({
         type: 'error',
         title: 'Test send failed',
         message: (err as Error)?.message || 'Try again.',
@@ -556,7 +570,7 @@ export default function DraftsTab({
     try {
       await runExclusive(actionKey('draft-delete', ids.join(',')), () => deleteEmails(ids))
       void draftQueue.mutate()
-      setToast({
+      showToast({
         type: 'success',
         title: ids.length === 1 ? 'Draft deleted' : `${ids.length} drafts deleted`,
         message: '',
@@ -565,7 +579,7 @@ export default function DraftsTab({
       setDrafts(originalDrafts)
       setPreview(originalPreview)
       draftQueue.mutate({ items: originalDrafts, nextCursor }, { revalidate: false })
-      setToast({ type: 'error', title: 'Could not delete', message: err?.message || 'Please try again.' })
+      showToast({ type: 'error', title: 'Could not delete', message: err?.message || 'Please try again.' })
     } finally {
       setDeleting(false)
       setDeleteConfirm(null)
@@ -591,7 +605,6 @@ export default function DraftsTab({
 
   return (
     <div className="surface-panel flex min-h-[560px] flex-col overflow-hidden lg:flex-row">
-      <Toast toast={toast} onClose={() => setToast(null)} />
       {/* Main list */}
       <div className={`flex min-w-0 flex-1 flex-col p-4 sm:p-5 lg:p-6 ${preview ? 'lg:pr-4' : ''} ${focusMode ? 'hidden' : ''}`}>
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
@@ -1209,7 +1222,7 @@ export default function DraftsTab({
           setBatchSendConfirm(null)
           setBatchDailyInfo(null)
           if (capped.length > 0) markSent(capped)
-          else setToast({ type: 'error', title: 'Daily send limit already reached', message: 'No emails sent. Limit resets tomorrow.' })
+          else showToast({ type: 'error', title: 'Daily send limit already reached', message: 'No emails sent. Limit resets tomorrow.' })
         }}
         confirmLabel="Send"
         danger={false}

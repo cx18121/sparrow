@@ -6,10 +6,11 @@ import {
 import { deleteAccount } from '../../lib/api'
 import Banner from '../ui/Banner'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import Toast from '../ui/Toast'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
+import { LEAD_BATCH_MAX, LEAD_BATCH_MIN } from '../../lib/workspaceConfig'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
 
 const TABS = SETTINGS_TABS
@@ -66,15 +67,20 @@ function FieldGroup({ title, hint, children }: { title: string; hint?: string; c
 }
 
 // Number input that clamps on blur, not on every keystroke — so users can
-// clear and retype without the value snapping back to min mid-edit.
+// clear and retype without the value snapping back to min mid-edit. When the
+// typed value lands outside [min, max] on blur, `onClamp` fires with the raw
+// typed value and the clamped result so the parent can surface a toast or
+// inline message (otherwise the silent clamp confuses users who think their
+// number was accepted).
 type ClampedNumberInputProps = {
   value: number
   onChange: (next: number) => void
   min: number
   max: number
+  onClamp?: (info: { raw: number; clamped: number }) => void
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'min' | 'max' | 'type'>
 
-function ClampedNumberInput({ value, onChange, min, max, ...rest }: ClampedNumberInputProps) {
+function ClampedNumberInput({ value, onChange, min, max, onClamp, ...rest }: ClampedNumberInputProps) {
   const [text, setText] = useState(String(value))
   useEffect(() => { setText(String(value)) }, [value])
   return (
@@ -95,6 +101,7 @@ function ClampedNumberInput({ value, onChange, min, max, ...rest }: ClampedNumbe
         const clamped = Number.isNaN(n) ? min : Math.min(max, Math.max(min, n))
         setText(String(clamped))
         if (clamped !== value) onChange(clamped)
+        if (!Number.isNaN(n) && n !== clamped) onClamp?.({ raw: n, clamped })
       }}
     />
   )
@@ -267,6 +274,7 @@ function pickProfileFields(c: any) {
 
 function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: any; templates: any[]; onSave: (u: any) => Promise<boolean> }) {
   const { user } = useAuth()
+  const { showToast } = useToast()
   const [form, setForm] = useState(workspaceConfig)
   const [saving, setSaving] = useState(false)
   const initial = useMemo(() => JSON.stringify(pickSendingFields(workspaceConfig)), [workspaceConfig])
@@ -294,13 +302,28 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
               <Target size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <ClampedNumberInput
                 id="settings-lead-batch-size"
-                min={1} max={50}
+                min={LEAD_BATCH_MIN} max={LEAD_BATCH_MAX}
                 value={form.leadsPerGeneration || 25}
                 onChange={n => setForm((c: any) => ({ ...c, leadsPerGeneration: n }))}
+                onClamp={({ raw, clamped }) => {
+                  if (raw > LEAD_BATCH_MAX) {
+                    showToast({
+                      type: 'warning',
+                      title: `Lead batch size is capped at ${LEAD_BATCH_MAX}`,
+                      message: `${raw} is above the limit — using ${clamped} instead.`,
+                    })
+                  } else if (raw < LEAD_BATCH_MIN) {
+                    showToast({
+                      type: 'warning',
+                      title: `Lead batch size must be at least ${LEAD_BATCH_MIN}`,
+                      message: `Using ${clamped} instead.`,
+                    })
+                  }
+                }}
                 className="input pl-8"
               />
             </div>
-            <p className="mt-1 text-xs text-muted">Contacts per batch.</p>
+            <p className="mt-1 text-xs text-muted">Contacts per batch. Up to {LEAD_BATCH_MAX}.</p>
           </div>
           <div>
             <label htmlFor="settings-default-template" className="label">Default template</label>
@@ -601,7 +624,7 @@ export default function SettingsPage({
   workspaceConfig, onSaveWorkspaceConfig, templates,
   profile, profileLoading, onRefreshProfile, onConnectGoogle,
 }: any) {
-  const [toast, setToast] = useState<any>(null)
+  const { showToast } = useToast()
   const [oauthResult, setOauthResult] = useState<{ kind: 'success' } | { kind: 'error'; message: string } | null>(null)
   const [active, setActive] = useState<TabKey>('profile')
 
@@ -628,10 +651,10 @@ export default function SettingsPage({
   const saveWorkspace = async (updater: any, label = 'Settings saved') => {
     try {
       await onSaveWorkspaceConfig(updater)
-      setToast({ type: 'success', title: label })
+      showToast({ type: 'success', title: label })
       return true
     } catch (err: any) {
-      setToast({ type: 'error', title: 'Settings could not be saved', message: err?.message || 'Try again.' })
+      showToast({ type: 'error', title: 'Settings could not be saved', message: err?.message || 'Try again.' })
       return false
     }
   }
@@ -648,8 +671,6 @@ export default function SettingsPage({
 
   return (
     <div className="page-shell max-w-5xl">
-      <Toast toast={toast} onClose={() => setToast(null)} />
-
       <header className="flex flex-col gap-1">
         <p className="page-eyebrow">Settings</p>
         <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Workspace settings</h1>

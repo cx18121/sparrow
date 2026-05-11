@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import Banner from '../ui/Banner'
 import Pill from '../ui/Pill'
-import Toast from '../ui/Toast'
+import { useToast } from '../../contexts/ToastContext'
 import { fetchCampaignOptions, fetchEmailsCombined } from '../../lib/api'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
 import { audienceFromCampaign, audienceToDisplayPills } from '../../types/audience'
@@ -213,7 +213,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [options, setOptions] = useState<CampaignOptions>(EMPTY_OPTIONS)
-  const [toast, setToast] = useState<{ type: string; title: string; message?: string } | null>(null)
+  const { showToast } = useToast()
 
   // Sidebar's "+" next to Campaigns navigates to /dashboard?new=1 to open
   // the wizard from anywhere. Honour that param once and strip it from the
@@ -313,7 +313,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
       enterCampaign({ id: created.id, name: created.name })
       return created
     } catch (err: any) {
-      setToast({ type: 'error', title: 'Could not create campaign', message: err?.message || 'Try again.' })
+      showToast({ type: 'error', title: 'Could not create campaign', message: err?.message || 'Try again.' })
       throw err
     } finally {
       setSaving(false)
@@ -328,7 +328,6 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
   if (campaigns.length === 0) {
     return (
       <div className="page-shell">
-        <Toast toast={toast} onClose={() => setToast(null)} />
         <WelcomeCard name={firstName} onCreate={openCreate} />
         <CreateCampaignWizard
           open={wizardOpen}
@@ -344,8 +343,6 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
 
   return (
     <div className="page-shell">
-      <Toast toast={toast} onClose={() => setToast(null)} />
-
       {/* Greeting strip */}
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>

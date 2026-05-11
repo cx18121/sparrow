@@ -15,7 +15,7 @@ import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import Toast from '../ui/Toast'
+import { useToast } from '../../contexts/ToastContext'
 import { defaultAttachmentIds, getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 import { PREVIEW_SAMPLE } from '../../lib/previewSample'
 
@@ -207,7 +207,7 @@ export default function TemplatesTab({ workspaceConfig }) {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [saved, setSaved] = useState(false)
   const [draft, setDraft] = useState({ id: null, subject: '', body: '' })
-  const [toast, setToast] = useState(null)
+  const { showToast } = useToast()
   const [moreOpen, setMoreOpen] = useState(false)
   const flushTimerRef = useRef(null)
   const draftRef = useRef(draft)
@@ -274,7 +274,7 @@ export default function TemplatesTab({ workspaceConfig }) {
         setTimeout(() => setSaved(false), 1500)
       })
       .catch(err => {
-        setToast({ type: 'error', title: 'Could not save template', message: err?.message || 'Please try again.' })
+        showToast({ type: 'error', title: 'Could not save template', message: err?.message || 'Please try again.' })
       })
   }
 
@@ -332,7 +332,7 @@ export default function TemplatesTab({ workspaceConfig }) {
       }
       setEditModal(false)
     } catch (err: any) {
-      setToast({ type: 'error', title: editingId ? 'Could not rename template' : 'Could not create template', message: err?.message || 'Please try again.' })
+      showToast({ type: 'error', title: editingId ? 'Could not rename template' : 'Could not create template', message: err?.message || 'Please try again.' })
     }
   }
 
@@ -347,13 +347,12 @@ export default function TemplatesTab({ workspaceConfig }) {
       })
       if (created?.id) setSelectedId(created.id)
     } catch (err: any) {
-      setToast({ type: 'error', title: 'Could not duplicate template', message: err?.message || 'Please try again.' })
+      showToast({ type: 'error', title: 'Could not duplicate template', message: err?.message || 'Please try again.' })
     }
   }
 
   return (
     <div className="page-shell space-y-6">
-      <Toast toast={toast} onClose={() => setToast(null)} />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="page-eyebrow">Templates</p>
@@ -562,7 +561,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                       type="checkbox"
                       checked={Boolean(selected.verbatim)}
                       onChange={e => onUpdate({ id: selected.id, verbatim: e.target.checked }).catch((err: any) => {
-                        setToast({ type: 'error', title: 'Could not update template', message: err?.message || 'Please try again.' })
+                        showToast({ type: 'error', title: 'Could not update template', message: err?.message || 'Please try again.' })
                       })}
                       className="mt-0.5 cursor-pointer"
                     />
@@ -596,7 +595,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                                     ? selectedIds.filter(id => id !== file.id)
                                     : [...selectedIds, file.id],
                                 }).catch((err: any) => {
-                                  setToast({ type: 'error', title: 'Could not update attachments', message: err?.message || 'Please try again.' })
+                                  showToast({ type: 'error', title: 'Could not update attachments', message: err?.message || 'Please try again.' })
                                 })}
                                 className="rounded border-warm-300"
                               />
@@ -677,7 +676,7 @@ export default function TemplatesTab({ workspaceConfig }) {
             await onDelete(victim)
             setSelectedId(templates.find(t => t.id !== victim)?.id || null)
           } catch (err) {
-            setToast({ type: 'error', title: 'Could not delete template', message: err?.message || 'Please try again.' })
+            showToast({ type: 'error', title: 'Could not delete template', message: err?.message || 'Please try again.' })
           }
         }}
         title="Delete template"

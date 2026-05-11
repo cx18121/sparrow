@@ -7,6 +7,7 @@ import AuthScreen from './components/Auth/AuthScreen'
 import Sidebar from './components/Layout/Sidebar'
 
 import { AppDataProvider } from './contexts/AppDataContext'
+import { ToastProvider } from './contexts/ToastContext'
 import { createWorkspaceConfig, profileResumeTextFromWorkspace } from './lib/workspaceConfig'
 import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
@@ -710,7 +711,9 @@ export default function App() {
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="*" element={
         <AuthProvider>
-          <AppShell />
+          <ToastProvider>
+            <AppShell />
+          </ToastProvider>
         </AuthProvider>
       } />
     </Routes>
