@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11i"
+last_updated: "2026-05-11j"
 ---
 
 # Project State
@@ -58,9 +58,16 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 Transient session-handoff notes. Clear after the next manual refresh or push.
 
-- **Local main is in sync with `origin/main`** (last push `fbb57ae..e1d5d71` landed the 2026-05-11 ingest batch — Insight, Khosla, 5 Easy wins, Exa-discovery, 5 Tier-1 mediums, 9 Tier 2/3 — totalling ~3,790 new companies across 6 ingest commits this session).
-- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Tier-1 mediums) + steps 21–29 (Tier 2/3) + Part 6 Exa-discovery — **all 2026-05-11 survey adapter candidates shipped.** Outstanding follow-ups:
-  - **Step 7** — re-run `audit-stages.ts` to verify post-B counts moved with the new data.
+- **Local main is 2 commits ahead of `origin/main`** — `960a434` STATE refresh + audit-stages.ts result, `5dfa2ff` INVESTOR_TAGS canonical-list expansion. The prior push (`fbb57ae..e1d5d71`, 11 commits) landed the 2026-05-11 ingest batch — Insight, Khosla, 5 Easy wins, Exa-discovery, 5 Tier-1 mediums, 9 Tier 2/3 — totalling ~3,790 new companies across 6 ingest commits this session.
+- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Tier-1 mediums) + steps 21–29 (Tier 2/3) + Part 6 Exa-discovery — **all 2026-05-11 survey adapter candidates shipped.**
+- **Next-session pickup — 53.3% `stage=null` reduction (user-requested 2026-05-11).** Post-audit, 6,330 of 11,875 rows lack a stage label. Roots: 17 of the new adapters publish no stage on their page surface. Candidate fixes (ranked by effort × payoff):
+  1. **Investor-based default-stage inference** — small surgical change. Add a `defaultStageByInvestor` map for VCs with a narrow stage thesis: `insight` / `general-atlantic` / `summit` → Series C+; `battery` → Series B; `boxgroup` / `initialized` → Seed; etc. Apply only when `Company.stage` is null AND the row has the matching investor tag. Probably -10–15% of the null rate. Documented heuristic with known false positives (Coatue's venture fund does seed; Khosla holds post-IPO publics).
+  2. **Re-scrape stage from missed surfaces** — Spark Capital cards have "Series A in 2016" style labels I didn't extract; same pattern on Balderton (which I did extract). Felicis JSON has `"stage":"$5a"` references that resolve in a separate streaming chunk — could decode if worth it. Costanoa Prismic has more fields than I extracted. Medium effort, recovers data that's actually on the page.
+  3. **YC defaulting** — every row with `signal:yc-backed` and null stage → Seed. Cheap, high-confidence (YC is seed-stage by definition; even YC W21 Growth Track is structurally still seed-stage at YC entry).
+  4. **Crunchbase / external enrichment** — **explicitly de-scoped** per the "no Crunchbase" decision (line 48). Don't reach for it.
+- **Next-session pickup — chip list "see more" (user-requested 2026-05-11).** INVESTOR_TAGS is now 35 entries; rendering all as flat chips in `src/components/Wizard/CreateCampaignWizard.tsx` and `src/components/LeadDiscovery/LeadDiscoveryTab.tsx` is too long. User wants: show the 10 most prominent up-front + "see more" expander for the rest. "Prominent" most plausibly means **by realized count in the live DB** (top-10 investors by `investor:*` tag occurrence). API can compute that from the same `realized` distribution served via `/api/campaign-options`. Frontend change in the chip-rendering loop. Both wizard and LeadDiscovery share the `SECTOR_NAMESPACES` array — likely refactor into a shared `<SectorChipGroup>` component that knows how to collapse-after-N for namespaces with many entries.
+- **Older follow-ups still on the list:**
+  - **Step 7** — re-ran above; result captured in 2026-05-11h.
   - **Exa-discovery breadth runs** — additional topical queries at ~1 Exa credit per 18–28 net-new rows.
   - **Balderton FacetWP unlock** (low priority) — partial-coverage adapter ships only ~30 of 200 cards because FacetWP's incremental-load AJAX is gated by a per-session nonce that doesn't reconstruct from a clean POST. Playwright path would unlock the remaining ~170.
 - **Exa-discovery is operational.** `scripts/ingest-exa-discovery.ts` takes `--query "..." --topic <slug> --limit N` and ingests Exa `category=company` results. Seed run hit 8 topical queries → 179 net-new companies for 8 Exa credits. **Caveat:** company-category index doesn't support `startPublishedDate` (semantic-only) and returns some public-traded mega-caps — exit filter must happen at campaign time.
