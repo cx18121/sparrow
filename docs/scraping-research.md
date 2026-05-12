@@ -156,7 +156,36 @@ Sequence the remaining work by row count and source difficulty:
 
 **Lesson from Insight (re: framing).** "JS-rendered, needs Playwright" was a Vue-shell artifact; the underlying CMS exposed a public REST API that surfaced everything Playwright would have rendered. For any future Tier-2 source flagged "needs Playwright," check first for `/wp-json/`, a Next.js `/_next/data/<build>/<page>.json`, a Sanity GraphQL endpoint, or an `__NEXT_DATA__` blob before reaching for a browser. The REST path is dramatically cheaper to run, easier to debug, and more durable across CMS theme upgrades.
 
-Steps 1–6, 8, and 9 (Khosla portion) shipped; step 10 confirms Benchmark is unreachable. Remaining: step 7 (re-audit) and any net-new firms surfaced by the survey under `.scratch/vc-survey-2026-05-11.md`.
+Steps 1–6, 8, and 9 (Khosla portion) shipped; step 10 confirms Benchmark is unreachable. Remaining: step 7 (re-audit) and the Tier-1 mediums from Part 5 (General Catalyst, Summit, General Atlantic, Index, Battery).
+
+---
+
+## Part 5 — Net-new firms from the 2026-05-11 survey
+
+Triage run logged at `.scratch/vc-survey-2026-05-11.md` — probed 30+ candidate VCs with Chrome-UA HTTP fetches and ranked by `count × ease × growth-stage-priority`. The five Easy single-fetch wins shipped in this pass:
+
+11. **Sapphire Ventures** ✅ — `scripts/ingest-sapphire.ts`. **91 ingested** (180 cards → 89 exits filtered via FacetWP `filter__ipo`/`filter__ma` classes, 3 no-status structural matches dropped). WP + Yoast; the FacetWP grid renders all cards statically inside `<li class="filter__... filter__private">`. Per-card extraction: anchor inside `.companies-v2-list-items-back` → website, `<h3>` under `.companies-v2-list-items-title` → name, `.companies-v2-list-items-text` → tagline. Sapphire's roster is half-exits (31 IPO + 58 M&A + 2 both of 180 cards) — the FacetWP classes are authoritative so no skiplist is needed. SaaS growth focus; survives a single 329 KB HTML fetch with no JS execution.
+
+12. **ICONIQ Growth** ✅ — `scripts/ingest-iconiq.ts`. **100 ingested** of 103 unique (206 `w-dyn-item` cards → 103 unique after deduping the modal-reveal twin per card → 3 missing-data). Webflow + Finsweet CMS Filter; the grid renders all entries statically with structured metadata: `a.companies-list_grid-item-reveal-wrap[href]` → website, `h2.heading-style-h3` → name, `.text-size-medium` → tagline. Pure Series B+ roster per the survey; no status field exposed, so all rows ingest as active. Dedupe by URL host happens in the adapter before runIngestor's per-domain dedupe so the candidate-count log reflects the unique set.
+
+13. **Spark Capital** ✅ — `scripts/ingest-spark.ts`. **43 ingested** (56 unique cards → 13 exits filtered). Webflow CMS; per-card: `a.company-link[href]` → website, `h3.h3` → name, `.company-specs` → tagline, **`div.acquisition-spec` non-empty → exit marker** ("NYSE: TWTR in 2013" or "Acquired by Facebook in 2014" — Spark provides exit info inline, the only source so far that publishes both IPO and M&A markers as structured fields). Small but late-stage roster (Anthropic, Discord, Affirm, Slack).
+
+14. **Initialized Capital** ✅ — `scripts/ingest-initialized.ts`. **181 ingested** (181 startups in payload → 0 missing fields). Next.js page; the full company list ships inside the SSR'd `__NEXT_DATA__` script at `props.pageProps.startups.data[*].attributes`. The cleanest metadata of any source so far — `{name, description, websiteUrl, isUnicorn, tags}` is structured JSON rather than scraped HTML. `isUnicorn=true` is appended to `signals` (the only stage-adjacent signal Initialized publishes, useful for filtering down to growth-stage rows in the wizard even though `stage` itself is null). No status field; cross-source dedupe absorbs overlap with later-stage sources that DO mark exits. Seed-stage focused — lowest growth-stage priority in the survey but ranked #4 by ease so it shipped early.
+
+15. **Costanoa Ventures** ✅ — `scripts/ingest-costanoa.ts`. **91 ingested** of 97 docs (6 no-url). The /portfolio page is Nuxt fed by a publicly-readable Prismic CMS at `costanoa.cdn.prismic.io/api/v2` — bypass the HTML entirely with two HTTP calls: `/api/v2` for the master ref, then `/api/v2/documents/search?ref=<master>&q=[[at(document.type,"company")]]&pageSize=100`. Returns the richest per-company payload of any source: `{name, slogan, external_link.url, filter_category, leadership, social_*}`. Type-guard `filter_category` — Prismic returns it as a string for most company docs but as `null`/`undefined` or empty object for ~6, and naive `.trim()` will crash the whole run.
+
+**Sub-total from steps 11–15 — 506 net-new companies in five single-fetch adapters.**
+
+Still to ship from the survey (Tier-1 mediums, sitemap/REST + detail-page hop):
+- **General Catalyst** (578) — Webflow + sitemap.xml; ~Tier-2 dismissal reversed.
+- **Summit Partners** (407) — Pure growth equity; sitemap-driven crawl.
+- **General Atlantic** (398) — WP REST `wp/v2/investment` + detail hop. Premier growth-equity catch.
+- **Index Ventures** (372) — Static HTML list + 1+372 detail hops; European growth.
+- **Battery Ventures** (341) — `company-sitemap.xml` (WP REST does NOT expose `company` CPT). Series A–D growth.
+
+Lower-priority remaining (Tier 2/3, mostly Easy/Medium): Felicis (~290, Coatue-pattern `__next_f.push`), Balderton (200, FacetWP URL-param iteration), 8VC (169), TCV (150), Notion (106), Craft (104), Hoxton (94, WP REST), Mosaic (62), BoxGroup (50).
+
+Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico (JS-rendered with no JSON escape hatch / anti-bot); Ribbit, Susa, Slow (no public portfolio page).
 
 ---
 
