@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11e"
+last_updated: "2026-05-11f"
 ---
 
 # Project State
@@ -58,11 +58,13 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 Transient session-handoff notes. Clear after the next manual refresh or push.
 
-- **9+ commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue, Insight + AGENTS.md, Khosla + Benchmark dead-end, 5 Easy-win adapters from the survey, Exa-discovery) — pending push approval.
-- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + Part 6 Exa-discovery shipped. Remaining:
+- **10+ commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue, Insight + AGENTS.md, Khosla + Benchmark dead-end, 5 Easy-win adapters, Exa-discovery, 5 Tier-1 mediums batch) — pending push approval.
+- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Part 5 Tier-1 mediums) + Part 6 Exa-discovery shipped. Remaining:
   - **Step 7** — re-run `audit-stages.ts` to verify post-B counts moved.
-  - **Part 5 Tier-1 mediums** — General Catalyst (578), Summit Partners (407), General Atlantic (398), Index Ventures (372), Battery Ventures (341). Sitemap/REST + detail-page hop pattern.
-- **Exa-discovery is operational.** `scripts/ingest-exa-discovery.ts` takes `--query "..." --topic <slug> --limit N` and ingests Exa `category=company` results. Seed run hit 8 topical queries (ai-infra-b, ai-agents-b, devtools-b, security-b, fintech-b, health-ai-b, data-b, saas-b) → 179 net-new companies for 8 Exa credits. Cross-query dedup rate <2%. **Caveat:** company-category index doesn't support `startPublishedDate` (semantic-only) and returns some public-traded mega-caps — exit filter must happen at campaign time.
+  - **Tier 2/3 adapter candidates** — Felicis (~290), Balderton (200), 8VC (169), TCV (150), Notion (106), Craft (104), Hoxton (94), Mosaic (62), BoxGroup (50). Each is Easy/Medium per the survey.
+  - **Exa-discovery breadth runs** — run additional topical queries (different stages, different industries, geography filters via different query phrasings) to widen the discovery corpus. ~1 Exa credit per 18–28 net-new rows.
+- **Exa-discovery is operational.** `scripts/ingest-exa-discovery.ts` takes `--query "..." --topic <slug> --limit N` and ingests Exa `category=company` results. Seed run hit 8 topical queries → 179 net-new companies for 8 Exa credits. **Caveat:** company-category index doesn't support `startPublishedDate` (semantic-only) and returns some public-traded mega-caps — exit filter must happen at campaign time.
+- **Battery website-extraction lesson** — `google.com/chrome` and `g2.com` are now in the chrome blocklist after the first Battery run returned google.com for 171 of 172 detail pages (browser-upgrade banner appears before the actual company link). Pattern lesson: when a "first external link" rule yields near-100% dedupe, the bug is in the blocklist, not the data. Documented in `docs/scraping-research.md` Part 5 step 20.
 - **Insight Partners "needs Playwright" framing was wrong.** The `/portfolio` page is a Vue shell, but Insight is WordPress underneath — `/wp-json/wp/v2/sfcompany` (paginated list) + `/wp-json/insight/v1/get-company-content?id=<id>` (custom endpoint, double-encoded JSON wrapper around per-company rendered HTML) surface everything. Recorded as a generalizable lesson in `docs/scraping-research.md` Part 4: before reaching for Playwright, probe for `/wp-json/`, `__NEXT_DATA__`, `/_next/data/...`, or a CMS GraphQL endpoint.
 - **Benchmark.com is intentionally a wall page.** Root serves 2.3 KB of HTML with office addresses + a Twitter handle; every probed sub-path 404s. Documented as step 10 (skip).
 
@@ -79,3 +81,5 @@ Transient session-handoff notes. Clear after the next manual refresh or push.
 2026-05-11d: 2026-05-11 VC survey shipped (Part 5 steps 11–15 — 5 Easy single-fetch adapters): Sapphire (91), ICONIQ (100), Spark (43, with inline acquisition-spec exit filter), Initialized (181, via `__NEXT_DATA__`), Costanoa (91, via public Prismic API). **506 net-new companies in this pass.** Tier-1 mediums (~2,000 more companies) and Exa-discovery script still to ship.
 
 2026-05-11e: Part 6 Exa-discovery shipped — `scripts/ingest-exa-discovery.ts` ingests Exa `category=company` results by topical query. Seed run: 8 topics × ~24 results = **179 net-new companies in 8 Exa credits.** Includes `category` param extension to `server/lib/ai/exa-search.ts`. Constraint discovered: company-category index doesn't support `startPublishedDate`.
+
+2026-05-11f: 5 Tier-1 medium adapters shipped (Part 5 steps 16–20): General Catalyst (576, 100% success), Summit Partners (277, 32% no-website acts as soft exit filter), General Atlantic (393, WP REST `wp/v2/investment` + `<a class="view-site">`), Index Ventures (296, 75 IPO exits filtered via `ticker-symbol` span), Battery Ventures (171, 169 status-marked exits filtered, post-fix for google.com chrome leak). **1,713 net-new companies in this pass.** Session-wide total: **3,038 new companies across 11 commits.**

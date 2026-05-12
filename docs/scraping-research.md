@@ -176,14 +176,21 @@ Triage run logged at `.scratch/vc-survey-2026-05-11.md` — probed 30+ candidate
 
 **Sub-total from steps 11–15 — 506 net-new companies in five single-fetch adapters.**
 
-Still to ship from the survey (Tier-1 mediums, sitemap/REST + detail-page hop):
-- **General Catalyst** (578) — Webflow + sitemap.xml; ~Tier-2 dismissal reversed.
-- **Summit Partners** (407) — Pure growth equity; sitemap-driven crawl.
-- **General Atlantic** (398) — WP REST `wp/v2/investment` + detail hop. Premier growth-equity catch.
-- **Index Ventures** (372) — Static HTML list + 1+372 detail hops; European growth.
-- **Battery Ventures** (341) — `company-sitemap.xml` (WP REST does NOT expose `company` CPT). Series A–D growth.
+Tier-1 mediums (sitemap/REST + detail-page hop) — all five shipped:
 
-Lower-priority remaining (Tier 2/3, mostly Easy/Medium): Felicis (~290, Coatue-pattern `__next_f.push`), Balderton (200, FacetWP URL-param iteration), 8VC (169), TCV (150), Notion (106), Craft (104), Hoxton (94, WP REST), Mosaic (62), BoxGroup (50).
+16. **General Catalyst** ✅ — `scripts/ingest-generalcatalyst.ts`. **576 ingested** (578 sitemap entries → 1 free-hosting domain → 1 cross-source duplicate). Reverses the Part 4 Tier-2 dismissal: the marquee `/portfolio` carousel hides the full corpus, but `sitemap.xml` enumerates every `/companies/<slug>` (578) — no Playwright. Per detail: `<h1 class="c-page-header__heading">` → name, first non-chrome external href → website. 100% detail-fetch success rate (0 no-name, 0 no-website).
+
+17. **Summit Partners** ✅ — `scripts/ingest-summit.ts`. **277 ingested** (407 sitemap entries → 130 no-website). Same shape as GeneralCatalyst (`sitemap.xml` → 407 `/companies/<slug>` → detail-page hop), but with a higher no-website rate (32%) — older/exited Summit portfolio entries don't have a working external link on their detail page, which acts as a soft exit filter without explicit status markup. `<h1 class="heading-m">` → name. Note the FIS Cloud Services investor-portal subdomain (`fiscloudservices.com`) is hardcoded in the chrome blocklist — it appears on every Summit detail page and would otherwise win the "first external link" race.
+
+18. **General Atlantic** ✅ — `scripts/ingest-generalatlantic.ts`. **393 ingested** (398 REST entries → 4 no-website, 1 free-hosting). Cleanest adapter of the five: WP REST exposes `wp/v2/investment?per_page=100` (4 calls × 100 = 398) returning `{id, slug, title.rendered, link}`, so the name comes for free without a detail-page scrape. Detail hop only fetches the website — an explicit `<a class="view-site">` anchor inside the detail HTML, with a fallback to first-non-chrome-external for the handful of entries without it. URL shape note: WordPress CPT slug is `investment` (singular). 1+398 fetches; ~7 min walltime.
+
+19. **Index Ventures** ✅ — `scripts/ingest-indexventures.ts`. **296 ingested** (372 list cards → 75 IPO exits filtered → 297 detail fetches → 1 free-hosting). The static `/companies/` list page renders all 372 `<li class="companies__relationships__list__item">` cards inline with `<span class="ticker-symbol">NASDAQ: DIBS</span>` on the 75 that have IPO'd — clean source-side exit filter. Detail-page hop pulls the first non-chrome external href; Index's own founders-community site `notoptional.eu` is hardcoded in the chrome blocklist because it appears on every detail page. Some active-listed slugs 404 (stale internal anchors) but the Index adapter's was 100% success after the sitemap-validated dedup. European growth-stage.
+
+20. **Battery Ventures** ✅ — `scripts/ingest-battery.ts`. **171 ingested** (341 sitemap entries → 169 exits filtered → 172 candidates → 1 cross-source duplicate). `company-sitemap.xml` enumerates all 341 — `/portfolio` 404s and WP REST does NOT expose the `company` CPT publicly, so the sitemap is the only enumeration path. Per detail: `og:title` → name (split on " - Battery Ventures"), `<div class="comp-det-sub">STATUS</div><div>...</div>` → status (Battery is one of only a few sources publishing explicit status — same caliber as Sapphire/Spark/Insight; values like "Acquired by ...", "IPO", and "Active"), first non-chrome external href → website. **Bug found on first run:** Battery's theme has a "browser-upgrade" banner with `https://www.google.com/chrome/` as the FIRST external link on every page, in DOM order before the actual company link. Initial run returned `google.com/chrome` for 171 of 172 companies and the runner's domain-dedupe collapsed them all into one row. Fix: add `google.com` (and `g2.com`, a review aggregator that occasionally appears in description text) to the chrome blocklist. Pattern lesson — when a "first external link" rule gives near-100% dedupe, the bug is in the blocklist, not the data.
+
+**Sub-total from steps 16–20 — 1,713 net-new companies in five detail-page-hop adapters.**
+
+Remaining adapter candidates from the survey (Tier 2/3, mostly Easy/Medium): Felicis (~290, Coatue-pattern `__next_f.push`), Balderton (200, FacetWP URL-param iteration), 8VC (169), TCV (150), Notion (106), Craft (104), Hoxton (94, WP REST), Mosaic (62), BoxGroup (50). Plus Exa-discovery (Part 6) can be re-run with additional topical queries for breadth at ~1 Exa credit per 18–28 new rows.
 
 Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico (JS-rendered with no JSON escape hatch / anti-bot); Ribbit, Susa, Slow (no public portfolio page).
 
