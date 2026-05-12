@@ -445,6 +445,12 @@ function sortBatchesNewestFirst(batches: string[]): string[] {
   return [...batches].sort((a, b) => score(b) - score(a))
 }
 
+// Per-namespace chip cap before the "+N more" expander shows. Set so the
+// investor namespace (35 canonical slugs as of 2026-05-11) doesn't bury
+// non-top-10 firms behind nothing — without an expander, .slice(0, N) makes
+// investors past N unreachable from the wizard.
+const CHIP_VISIBLE_CAP = 10
+
 function StepFilters({
   audience, includePreviouslySaved, options,
   onAudienceChange, onTogglePrev,
@@ -456,6 +462,7 @@ function StepFilters({
   onTogglePrev: (v: boolean) => void
 }) {
   const [showAllBatches, setShowAllBatches] = useState(false)
+  const [expandedNs, setExpandedNs] = useState<Set<string>>(() => new Set())
 
   const setRegion = (r: RegionFilter | null) =>
     onAudienceChange({ ...audience, region: audience.region === r ? null : r })
@@ -518,10 +525,25 @@ function StepFilters({
           )}
 
           {SECTOR_NAMESPACES.map(ns => {
-            const tags = (options.tags?.[ns] || [])
+            const allTags = (options.tags?.[ns] || [])
               .filter(t => t.count >= 15 && !HIDDEN_SIGNAL_TAGS.has(t.namespaced))
-              .slice(0, 8)
-            if (tags.length < 2) return null
+            if (allTags.length < 2) return null
+            const expanded = expandedNs.has(ns)
+            const selected = new Set(audience.tags)
+            // Pin selected tags into the visible set so a chip the user has
+            // checked never disappears when its namespace is collapsed.
+            // The "+ N more" count reflects truly hidden (unselected) tags.
+            const visibleByCap = expanded ? allTags : allTags.slice(0, CHIP_VISIBLE_CAP)
+            const extraSelected = expanded
+              ? []
+              : allTags.slice(CHIP_VISIBLE_CAP).filter(t => selected.has(t.namespaced))
+            const tags = [...visibleByCap, ...extraSelected]
+            const hidden = allTags.length - tags.length
+            const toggleExpanded = () => setExpandedNs(prev => {
+              const next = new Set(prev)
+              if (next.has(ns)) next.delete(ns); else next.add(ns)
+              return next
+            })
             const showBatchPicker = ns === 'signal' && ycSelected && sortedBatches.length > 0
             return (
               <div key={ns}>
@@ -535,6 +557,16 @@ function StepFilters({
                       {t.name}
                     </FilterChip>
                   ))}
+                  {(hidden > 0 || expanded) && allTags.length > CHIP_VISIBLE_CAP && (
+                    <button
+                      type="button"
+                      onClick={toggleExpanded}
+                      className="text-[11px] font-medium text-muted hover:text-dark"
+                      aria-expanded={expanded}
+                    >
+                      {expanded ? 'Show less' : `+ ${hidden} more`}
+                    </button>
+                  )}
                 </FilterRow>
                 {showBatchPicker && (
                   <div className="mt-2 ml-[76px] flex flex-wrap items-center gap-1.5">

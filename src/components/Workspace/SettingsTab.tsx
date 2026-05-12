@@ -22,6 +22,10 @@ const NS_LABELS: Record<string, string> = {
   stage: 'Stage', vertical: 'Sector', tech: 'Tech',
   model: 'Model', investor: 'Investor', signal: 'Signal',
 }
+// Per-namespace chip cap before the "+ N more" expander shows. Mirrors
+// CHIP_VISIBLE_CAP in CreateCampaignWizard.tsx and LeadDiscoveryTab.tsx —
+// these three surfaces share the chip filter contract.
+const CHIP_VISIBLE_CAP = 10
 
 interface FormValue {
   name: string
@@ -68,6 +72,7 @@ export default function SettingsTab() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [expandedNs, setExpandedNs] = useState<Set<string>>(() => new Set())
   const { showToast } = useToast()
 
   // Re-sync form when the underlying campaign mutates from elsewhere (e.g. a
@@ -258,8 +263,24 @@ export default function SettingsTab() {
               </div>
             )}
             {CAMPAIGN_NS.map(ns => {
-              const tags = (options.tags?.[ns] || []).filter(t => t.count >= 15).slice(0, 8)
-              if (tags.length < 2) return null
+              const allTags = (options.tags?.[ns] || []).filter(t => t.count >= 15)
+              if (allTags.length < 2) return null
+              const expanded = expandedNs.has(ns)
+              const selected = new Set(form.filterTags || [])
+              // Pin selected tags into the visible set so a chip the user has
+              // checked never disappears when its namespace is collapsed.
+              // The "+ N more" count reflects truly hidden (unselected) tags.
+              const visibleByCap = expanded ? allTags : allTags.slice(0, CHIP_VISIBLE_CAP)
+              const extraSelected = expanded
+                ? []
+                : allTags.slice(CHIP_VISIBLE_CAP).filter(t => selected.has(t.namespaced))
+              const tags = [...visibleByCap, ...extraSelected]
+              const hidden = allTags.length - tags.length
+              const toggleExpanded = () => setExpandedNs(prev => {
+                const next = new Set(prev)
+                if (next.has(ns)) next.delete(ns); else next.add(ns)
+                return next
+              })
               return (
                 <div key={ns} className="flex items-start gap-3">
                   <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/50">
@@ -272,7 +293,7 @@ export default function SettingsTab() {
                         type="button"
                         onClick={() => toggleFilterTag(namespaced)}
                         className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
-                          (form.filterTags || []).includes(namespaced)
+                          selected.has(namespaced)
                             ? 'border-primary bg-primary text-warm-50'
                             : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
                         }`}
@@ -280,6 +301,16 @@ export default function SettingsTab() {
                         {name}
                       </button>
                     ))}
+                    {(hidden > 0 || expanded) && allTags.length > CHIP_VISIBLE_CAP && (
+                      <button
+                        type="button"
+                        onClick={toggleExpanded}
+                        className="text-[11px] font-medium text-muted hover:text-dark"
+                        aria-expanded={expanded}
+                      >
+                        {expanded ? 'Show less' : `+ ${hidden} more`}
+                      </button>
+                    )}
                   </div>
                 </div>
               )

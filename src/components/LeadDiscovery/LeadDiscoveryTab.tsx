@@ -20,6 +20,10 @@ import { useToast } from '../../contexts/ToastContext'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['vertical', 'tech', 'model', 'investor', 'signal']
+// Per-namespace chip cap before the "+N more" expander shows. Mirrors
+// CHIP_VISIBLE_CAP in CreateCampaignWizard.tsx — the wizard and the
+// in-campaign Leads tab share the chip filter contract.
+const CHIP_VISIBLE_CAP = 10
 
 const DISCOVER_CACHE_KEY = 'cf_discover_state'
 function discoverCacheKey(campaignId?: string | null) {
@@ -197,6 +201,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [tagsOpen, setTagsOpen] = useState(campaignSeed.selectedTags.length > 0)
+  const [expandedNs, setExpandedNs] = useState<Set<string>>(() => new Set())
   const [page, setPage] = useState(1)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
@@ -693,8 +698,23 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
 
           {/* Tag filters - collapsed by default */}
           {tagsOpen && DISCOVERY_NS.map(ns => {
-            const tags = (tagOptions[ns] || []).filter(t => t.count >= 15).slice(0, 8)
-            if (tags.length < 2) return null
+            const allTags = (tagOptions[ns] || []).filter(t => t.count >= 15)
+            if (allTags.length < 2) return null
+            const expanded = expandedNs.has(ns)
+            // Pin selected tags into the visible set so a chip the user has
+            // checked never disappears when its namespace is collapsed.
+            // The "+ N more" count reflects truly hidden (unselected) tags.
+            const visibleByCap = expanded ? allTags : allTags.slice(0, CHIP_VISIBLE_CAP)
+            const extraSelected = expanded
+              ? []
+              : allTags.slice(CHIP_VISIBLE_CAP).filter(t => selectedTags.has(t.namespaced))
+            const tags = [...visibleByCap, ...extraSelected]
+            const hidden = allTags.length - tags.length
+            const toggleExpanded = () => setExpandedNs(prev => {
+              const next = new Set(prev)
+              if (next.has(ns)) next.delete(ns); else next.add(ns)
+              return next
+            })
             return (
               <div key={ns} className="flex flex-wrap items-center gap-2">
                 <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/60">
@@ -713,6 +733,16 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
                     {name}{count != null ? ` (${count})` : ''}
                   </button>
                 ))}
+                {(hidden > 0 || expanded) && allTags.length > CHIP_VISIBLE_CAP && (
+                  <button
+                    type="button"
+                    onClick={toggleExpanded}
+                    className="text-[11px] font-medium text-muted hover:text-dark"
+                    aria-expanded={expanded}
+                  >
+                    {expanded ? 'Show less' : `+ ${hidden} more`}
+                  </button>
+                )}
               </div>
             )
           })}
