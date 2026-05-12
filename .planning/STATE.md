@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11b"
+last_updated: "2026-05-11c"
 ---
 
 # Project State
@@ -58,10 +58,12 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 Transient session-handoff notes. Clear after the next manual refresh or push.
 
-- **6+ commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue, Insight, AGENTS.md adapter enumeration) — pending push approval.
-- **Phase 3 VC-scraper work**: steps 1–8 of `docs/scraping-research.md` Part 4 shipped. Remaining:
-  - **Step 9** — Benchmark + Khosla. Need one-pass research first to confirm portfolio-page shape.
+- **7+ commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue, Insight + AGENTS.md, Khosla + Benchmark dead-end) — pending push approval.
+- **Phase 3 VC-scraper work**: steps 1–9 of `docs/scraping-research.md` Part 4 shipped (Khosla portion; Benchmark documented as unreachable). Remaining:
+  - **Step 7** — re-run `audit-stages.ts` to verify the post-B counts moved.
+  - **Net-new firm survey** — agent invocation in flight; output lands at `.scratch/vc-survey-2026-05-11.md`. Will produce a triage table of 10–15 candidate VCs (verified portfolio-page shape, count, ease) for ranked follow-up adapters.
 - **Insight Partners "needs Playwright" framing was wrong.** The `/portfolio` page is a Vue shell, but Insight is WordPress underneath — `/wp-json/wp/v2/sfcompany` (paginated list) + `/wp-json/insight/v1/get-company-content?id=<id>` (custom endpoint, double-encoded JSON wrapper around per-company rendered HTML) surface everything. Recorded as a generalizable lesson in `docs/scraping-research.md` Part 4: before reaching for Playwright, probe for `/wp-json/`, `__NEXT_DATA__`, `/_next/data/...`, or a CMS GraphQL endpoint.
+- **Benchmark.com is intentionally a wall page.** Root serves 2.3 KB of HTML with office addresses + a Twitter handle; every probed sub-path 404s. Documented as step 10 (skip).
 
 ## Last Manual Refresh
 
@@ -70,3 +72,5 @@ Transient session-handoff notes. Clear after the next manual refresh or push.
 2026-05-11: Phase 3 VC-scraper adapters shipped (Lightspeed, IVP, Coatue) + IVP skiplist externalized to `scripts/_data/skiplists.json`. `docs/scraping-research.md` Part 4 reflects status. AGENTS.md ingest-pipeline enumeration still doesn't list `lightspeed`/`ivp`/`coatue` — small follow-up.
 
 2026-05-11b: Phase 3 step 8 shipped — Insight Partners adapter via WP REST (509 ingested of 845 portfolio entries; 289 Prior-Investment exits filtered). `docs/scraping-research.md` Part 4 reflects status; AGENTS.md adapter enumeration updated to include `lightspeed`/`ivp`/`coatue`/`insight`.
+
+2026-05-11c: Phase 3 step 9 shipped (Khosla — 131 ingested of 132 cards, single-page Webflow static scrape) + step 10 documented (Benchmark unreachable — no public portfolio, all probed paths 404). Net-new firm survey agent in flight (output → `.scratch/vc-survey-2026-05-11.md`) to identify the next batch of adapter candidates.
