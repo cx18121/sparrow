@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11l"
+last_updated: "2026-05-12"
 ---
 
 # Project State
@@ -58,8 +58,7 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 Transient session-handoff notes. Clear after the next manual refresh or push.
 
-- **Local main is 3 commits ahead of `origin/main`** — `bfa79a2` next-session pickups, `960a434` STATE refresh + audit-stages.ts result, `5dfa2ff` INVESTOR_TAGS canonical-list expansion. The prior push (`fbb57ae..e1d5d71`, 11 commits) landed the 2026-05-11 ingest batch — Insight, Khosla, 5 Easy wins, Exa-discovery, 5 Tier-1 mediums, 9 Tier 2/3 — totalling ~3,790 new companies across 6 ingest commits this session.
-- **Uncommitted working-tree changes** (chip see-more, see 2026-05-11k+l below) — `src/components/Wizard/CreateCampaignWizard.tsx`, `src/components/LeadDiscovery/LeadDiscoveryTab.tsx`, `src/components/Workspace/SettingsTab.tsx`. Not yet staged or committed; tsc clean. All three chip surfaces now consistent.
+- **Local main is in sync with `origin/main`** as of 2026-05-12 push (`e1d5d71..7e41943`, 4 commits) — `bfa79a2` next-session pickups, `960a434` STATE refresh + audit-stages.ts result, `5dfa2ff` INVESTOR_TAGS canonical-list expansion, `7e41943` chip see-more expander across 3 surfaces. The prior push (`fbb57ae..e1d5d71`, 11 commits) landed the 2026-05-11 ingest batch — Insight, Khosla, 5 Easy wins, Exa-discovery, 5 Tier-1 mediums, 9 Tier 2/3 — totalling ~3,790 new companies across 6 ingest commits.
 - **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Tier-1 mediums) + steps 21–29 (Tier 2/3) + Part 6 Exa-discovery — **all 2026-05-11 survey adapter candidates shipped.**
 - **Next-session pickup — 53.3% `stage=null` reduction (user-requested 2026-05-11).** Post-audit, 6,330 of 11,875 rows lack a stage label. Roots: 17 of the new adapters publish no stage on their page surface. Candidate fixes (ranked by effort × payoff):
   1. **Investor-based default-stage inference** — small surgical change. Add a `defaultStageByInvestor` map for VCs with a narrow stage thesis: `insight` / `general-atlantic` / `summit` → Series C+; `battery` → Series B; `boxgroup` / `initialized` → Seed; etc. Apply only when `Company.stage` is null AND the row has the matching investor tag. Probably -10–15% of the null rate. Documented heuristic with known false positives (Coatue's venture fund does seed; Khosla holds post-IPO publics).
@@ -102,3 +101,5 @@ Transient session-handoff notes. Clear after the next manual refresh or push.
 2026-05-11k: Chip "see more" expander shipped in 2 of 3 surfaces — `CreateCampaignWizard.tsx` (StepFilters) and `LeadDiscoveryTab.tsx`. New `CHIP_VISIBLE_CAP = 10` const per file, `expandedNs: Set<string>` state, "+ N more" / "Show less" toggle button rendered when `allTags.length > CHIP_VISIBLE_CAP`. Applied generically across SECTOR_NAMESPACES, not just `investor`. tsc clean. **Not yet browser-verified.** Codex review surfaced three follow-ups (see Resume hints): SettingsTab third surface still has `.slice(0, 8)`; selected hidden chips become visually invisible after collapse (filter still applies); browser sanity-check pending. Did NOT extract the shared `<SectorChipGroup>` component STATE.md previously suggested — two callsites with diverging chip styles (count suffix differs) doesn't justify the abstraction yet.
 
 2026-05-11l: Closed two of the three Codex follow-ups from 11k. (1) `SettingsTab.tsx` (third chip surface) now uses the same `CHIP_VISIBLE_CAP = 10` + `expandedNs` Set pattern. (2) Pin-selected behavior added across all three surfaces: when a namespace is collapsed, any selected tag past rank 10 is appended to the visible chip list (after the top-10 by count) so a checked filter never visually disappears. The "+ N more" hidden count correctly excludes pinned items. Implementation: `visibleByCap = expanded ? allTags : allTags.slice(0, CHIP_VISIBLE_CAP); extraSelected = expanded ? [] : allTags.slice(CHIP_VISIBLE_CAP).filter(t => selected.has(t.namespaced)); tags = [...visibleByCap, ...extraSelected]`. tsc clean. Browser sanity-check still pending; nothing committed.
+
+2026-05-12: Pushed `e1d5d71..7e41943` (4 commits) to `origin/main` — local now in sync. Final commit `7e41943` bundled the wizard, LeadDiscovery, and SettingsTab chip see-more changes + STATE 11k+l together. Prior 3 local-only commits (next-session pickups, STATE refresh, INVESTOR_TAGS expansion) shipped at the same time. Browser sanity-check on the chip surfaces still pending — only `tsc -b` has run against the chip work.
