@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11g"
+last_updated: "2026-05-11h"
 ---
 
 # Project State
@@ -58,9 +58,9 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 Transient session-handoff notes. Clear after the next manual refresh or push.
 
-- **11+ commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue, Insight + AGENTS.md, Khosla + Benchmark dead-end, 5 Easy-win adapters, Exa-discovery, 5 Tier-1 mediums batch, 9 Tier 2/3 batch) — pending push approval.
-- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Tier-1 mediums) + steps 21–29 (Tier 2/3) + Part 6 Exa-discovery — **all survey adapter candidates shipped.** Remaining:
-  - **Step 7** — re-run `audit-stages.ts` to verify post-B counts moved.
+- **Local main is in sync with `origin/main`** (last push `fbb57ae..e1d5d71` landed the 2026-05-11 ingest batch — Insight, Khosla, 5 Easy wins, Exa-discovery, 5 Tier-1 mediums, 9 Tier 2/3 — totalling ~3,790 new companies across 6 ingest commits this session).
+- **Phase 3 VC-scraper work**: steps 1–10 (Part 4) + steps 11–15 (Part 5 Easy wins) + steps 16–20 (Tier-1 mediums) + steps 21–29 (Tier 2/3) + Part 6 Exa-discovery — **all 2026-05-11 survey adapter candidates shipped.** Outstanding follow-ups:
+  - **Step 7** — re-run `audit-stages.ts` to verify post-B counts moved with the new data.
   - **Exa-discovery breadth runs** — additional topical queries at ~1 Exa credit per 18–28 net-new rows.
   - **Balderton FacetWP unlock** (low priority) — partial-coverage adapter ships only ~30 of 200 cards because FacetWP's incremental-load AJAX is gated by a per-session nonce that doesn't reconstruct from a clean POST. Playwright path would unlock the remaining ~170.
 - **Exa-discovery is operational.** `scripts/ingest-exa-discovery.ts` takes `--query "..." --topic <slug> --limit N` and ingests Exa `category=company` results. Seed run hit 8 topical queries → 179 net-new companies for 8 Exa credits. **Caveat:** company-category index doesn't support `startPublishedDate` (semantic-only) and returns some public-traded mega-caps — exit filter must happen at campaign time.
@@ -85,3 +85,5 @@ Transient session-handoff notes. Clear after the next manual refresh or push.
 2026-05-11f: 5 Tier-1 medium adapters shipped (Part 5 steps 16–20): General Catalyst (576, 100% success), Summit Partners (277, 32% no-website acts as soft exit filter), General Atlantic (393, WP REST `wp/v2/investment` + `<a class="view-site">`), Index Ventures (296, 75 IPO exits filtered via `ticker-symbol` span), Battery Ventures (171, 169 status-marked exits filtered, post-fix for google.com chrome leak). **1,713 net-new companies in this pass.** Session-wide total: **3,038 new companies across 11 commits.**
 
 2026-05-11g: 9 Tier 2/3 adapters shipped (Part 5 steps 21–29) — Mosaic (35), BoxGroup (42), Hoxton (88), Notion Capital (64), Craft (75, **first source with stage data on list page** via fs-cmsfilter), 8VC (166), TCV (91), Felicis (171, via `\"websiteUrl\":...` regex over Next.js streaming chunks), Balderton (20, partial). **752 more companies, session total now 3,790 across 12+ commits.** All 2026-05-11 survey adapter candidates shipped.
+
+2026-05-11h: Pushed `fbb57ae..e1d5d71` (11 commits) to `origin/main` — local is now in sync. Ran `audit-stages.ts` post-merge: DB at **11,875 verified rows**, 53.3% `stage=null`. Roll-up: Seed 4,037 / Series A 717 / Series B 528 / **Series C+ 134** / Pre-Seed 78 / Series C–I 50. The Phase 1.5 lossy-mapper patches (yc/a16z/accel) are holding cleanly. Only Craft and Balderton among the new adapters expose stage on the source — every other new growth-stage adapter (Insight 391, GC 390, GA 336, Summit 263, Battery 123) lands as `stage=null` because the page surface doesn't publish it. Notable cross-source overlap on `source` attribution (Craft 75 ingested → 43 still attributed; Initialized 181 → 99; Insight 509 → 391) — this is documented `last-write-wins` per `upsertCompany`, not an anomaly.
