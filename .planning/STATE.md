@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-11h"
+last_updated: "2026-05-11i"
 ---
 
 # Project State
@@ -87,3 +87,5 @@ Transient session-handoff notes. Clear after the next manual refresh or push.
 2026-05-11g: 9 Tier 2/3 adapters shipped (Part 5 steps 21–29) — Mosaic (35), BoxGroup (42), Hoxton (88), Notion Capital (64), Craft (75, **first source with stage data on list page** via fs-cmsfilter), 8VC (166), TCV (91), Felicis (171, via `\"websiteUrl\":...` regex over Next.js streaming chunks), Balderton (20, partial). **752 more companies, session total now 3,790 across 12+ commits.** All 2026-05-11 survey adapter candidates shipped.
 
 2026-05-11h: Pushed `fbb57ae..e1d5d71` (11 commits) to `origin/main` — local is now in sync. Ran `audit-stages.ts` post-merge: DB at **11,875 verified rows**, 53.3% `stage=null`. Roll-up: Seed 4,037 / Series A 717 / Series B 528 / **Series C+ 134** / Pre-Seed 78 / Series C–I 50. The Phase 1.5 lossy-mapper patches (yc/a16z/accel) are holding cleanly. Only Craft and Balderton among the new adapters expose stage on the source — every other new growth-stage adapter (Insight 391, GC 390, GA 336, Summit 263, Battery 123) lands as `stage=null` because the page surface doesn't publish it. Notable cross-source overlap on `source` attribution (Craft 75 ingested → 43 still attributed; Initialized 181 → 99; Insight 509 → 391) — this is documented `last-write-wins` per `upsertCompany`, not an anomaly.
+
+2026-05-11i: Expanded `INVESTOR_TAGS` in `scripts/_lib/tags.ts` from 10 to 35 slugs so the wizard's investor filter chip surface includes every adapter shipped this milestone. Confirmed via `scripts/_probe-tag-accumulation.ts` that `investor:*` tags were already accumulating cleanly on cross-source upserts (Anthropic carries 13 investor tags, Ramp 10, OpenAI/Stripe 7 each) — the data path through `mergeTags` → `reconcileCompany` was already correct; the only thing missing was the canonical-list surfacing. **The `Company.source` overwrite is metadata-only — investor signal is preserved via `tags` and queryable through the wizard.** DB-wide: of 9,912 verified rows, 998 carry ≥2 investor tags (max 13).

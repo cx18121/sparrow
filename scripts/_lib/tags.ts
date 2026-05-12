@@ -263,7 +263,55 @@ const STAGE_TAG_MAP: Record<string, string> = {
 };
 
 const STAGE_TAGS = ["pre-seed", "seed", "series-a", "series-b", "series-c-plus", "growth"] as const;
-const INVESTOR_TAGS = ["accel", "kleinerperkins", "firstround", "initialized", "a16z", "gv", "bessemer", "greylock", "foundersfund", "sequoia"] as const;
+// Canonical investor slugs — the wizard's investor filter renders one chip per
+// entry. Each slug here MUST match the value an `ingest-<source>.ts` adapter
+// emits in its `investors: [...]` array (the runner formats those as
+// `investor:<slug>` tags on Company.tags). Adapters layer onto the same row
+// via `mergeTags` so a single company can carry multiple `investor:*` tags;
+// the wizard ORs across them so filtering by one investor surfaces every
+// row that investor has touched, not just rows where their adapter ran last.
+//
+// To add a new adapter: write `scripts/ingest-<slug>.ts`, then add `<slug>`
+// here. yc is intentionally NOT in this list — the yc adapter emits
+// `signal:yc-backed` instead, so YC alumni are filterable via the signal
+// namespace, not the investor namespace.
+const INVESTOR_TAGS = [
+  "8vc",
+  "a16z",
+  "accel",
+  "balderton",
+  "battery",
+  "bessemer",
+  "boxgroup",
+  "coatue",
+  "costanoa",
+  "craft",
+  "felicis",
+  "firstround",
+  "foundersfund",
+  "general-atlantic",
+  "general-catalyst",
+  "greylock",
+  "gv",
+  "hoxton",
+  "iconiq",
+  "index-ventures",
+  "initialized",
+  "insight",
+  "ivp",
+  "khosla",
+  "kleinerperkins",
+  "lightspeed",
+  "mosaic",
+  "notion-capital",
+  "pear",
+  "sapphire",
+  "sequoia",
+  "spark",
+  "summit",
+  "tcv",
+  "wave",
+] as const;
 const SIZE_TAGS = ["solo-founder", "small-team", "mid-team", "big-team", "mega-team"] as const;
 const SIGNAL_TAGS = ["multi-source", "yc-backed", "ph-launched", "curated", "hn-hiring", "vc-backed", "unicorn"] as const;
 
