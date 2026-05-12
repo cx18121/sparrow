@@ -3,6 +3,10 @@ import { prisma } from "./prisma.js";
 import { normalizeRegion } from "./region-map.js";
 import { normalizeRole } from "./role-normalizer.js";
 import { reconcileCompany } from "./reconcile-company.js";
+import {
+  STAGE_INFERRED_SIGNAL,
+  defaultStageFromTags,
+} from "./stage-defaults.js";
 
 export interface CompanyInput {
   domain: string;
@@ -48,7 +52,7 @@ export async function upsertCompany(input: CompanyInput): Promise<Company> {
 
   const existing = await prisma.company.findUnique({
     where: { domain: data.domain },
-    select: { id: true, tags: true, isVerified: true, qualityScore: true, source: true },
+    select: { id: true, tags: true, isVerified: true, qualityScore: true, source: true, stage: true },
   });
 
   const reconciled = reconcileCompany(
@@ -68,8 +72,30 @@ export async function upsertCompany(input: CompanyInput): Promise<Company> {
     }
   );
 
+  // Stage inference. The invariant: signal:stage-inferred is on the row iff
+  // its current stage was inferred from tags at write time. Source-of-truth
+  // stages from adapters strip the marker; a sparse update that doesn't
+  // touch stage leaves the marker as the prior write left it.
+  let finalTags = reconciled.tags;
+  let stageToWrite: string | null | undefined;
+  if (data.stage != null) {
+    stageToWrite = data.stage;
+    finalTags = finalTags.filter(t => t !== STAGE_INFERRED_SIGNAL);
+  } else if (existing?.stage == null) {
+    const inferred = defaultStageFromTags(finalTags);
+    if (inferred) {
+      stageToWrite = inferred;
+      if (!finalTags.includes(STAGE_INFERRED_SIGNAL)) {
+        finalTags = [...finalTags, STAGE_INFERRED_SIGNAL];
+      }
+    } else {
+      // No inference possible; strip a stale marker carried over via mergeTags.
+      finalTags = finalTags.filter(t => t !== STAGE_INFERRED_SIGNAL);
+    }
+  }
+
   const update: Record<string, unknown> = {
-    tags: reconciled.tags,
+    tags: finalTags,
     isVerified: reconciled.isVerified,
     qualityScore: reconciled.qualityScore,
     lastScrapedAt: new Date(),
@@ -78,7 +104,7 @@ export async function upsertCompany(input: CompanyInput): Promise<Company> {
   if (data.description != null) update.description = data.description;
   if (data.oneLiner != null) update.oneLiner = data.oneLiner;
   if (data.website != null) update.website = data.website;
-  if (data.stage != null) update.stage = data.stage;
+  if (stageToWrite !== undefined) update.stage = stageToWrite;
   if (data.industry != null) update.industry = data.industry;
   if (data.subIndustry != null) update.subIndustry = data.subIndustry;
   if (data.location != null) {
@@ -95,7 +121,7 @@ export async function upsertCompany(input: CompanyInput): Promise<Company> {
     description: data.description ?? null,
     oneLiner: data.oneLiner ?? null,
     website: data.website ?? null,
-    stage: data.stage ?? null,
+    stage: stageToWrite ?? null,
     industry: data.industry ?? null,
     subIndustry: data.subIndustry ?? null,
     location: data.location ?? null,
@@ -105,7 +131,7 @@ export async function upsertCompany(input: CompanyInput): Promise<Company> {
     batch: data.batch ?? null,
     source: data.source,
     sourceId: data.sourceId ?? null,
-    tags: reconciled.tags,
+    tags: finalTags,
     isVerified: reconciled.isVerified,
     qualityScore: reconciled.qualityScore,
     lastScrapedAt: new Date(),

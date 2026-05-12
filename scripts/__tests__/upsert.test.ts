@@ -110,6 +110,105 @@ describe("upsertCompany", () => {
     expect(upsertCall.where.domain).toBe("example.com");
     expect(upsertCall.create.domain).toBe("example.com");
   });
+
+  describe("stage inference", () => {
+    it("infers stage on create when adapter does not emit one", async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+      mockPrisma.company.upsert.mockResolvedValue({ id: "co-4", domain: "growth.co" });
+
+      // Insight Partners is in the growth-equity rule set → Series C+.
+      // signal:stage-inferred should be appended so we can audit the row.
+      await upsertCompany({
+        domain: "growth.co",
+        name: "Growth Co",
+        source: "insight",
+        tags: ["investor:insight"],
+        isVerified: true,
+      });
+
+      const call = mockPrisma.company.upsert.mock.calls[0][0];
+      expect(call.create.stage).toBe("Series C+");
+      expect(call.create.tags).toContain("investor:insight");
+      expect(call.create.tags).toContain("signal:stage-inferred");
+    });
+
+    it("does not infer when adapter emits a source-of-truth stage", async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+      mockPrisma.company.upsert.mockResolvedValue({ id: "co-5", domain: "real.co" });
+
+      await upsertCompany({
+        domain: "real.co",
+        name: "Real Co",
+        source: "yc",
+        stage: "Series A",
+        tags: ["signal:yc-backed"],
+        isVerified: true,
+      });
+
+      const call = mockPrisma.company.upsert.mock.calls[0][0];
+      expect(call.create.stage).toBe("Series A");
+      // No inferred marker — the stage came from the adapter.
+      expect(call.create.tags).not.toContain("signal:stage-inferred");
+    });
+
+    it("strips signal:stage-inferred when a real stage arrives later", async () => {
+      // Existing row was inferred to Seed via investor:boxgroup; a follow-up
+      // ingest brings a real Series A stage from a stage-aware adapter.
+      // We expect the new write to remove the inferred marker.
+      mockPrisma.company.findUnique.mockResolvedValue({
+        id: "co-6",
+        source: "boxgroup",
+        tags: ["investor:boxgroup", "signal:stage-inferred"],
+        isVerified: true,
+        qualityScore: 60,
+        stage: "Seed",
+      });
+      mockPrisma.company.upsert.mockResolvedValue({ id: "co-6", domain: "later.co" });
+
+      await upsertCompany({
+        domain: "later.co",
+        name: "Later Co",
+        source: "pear",
+        stage: "Series A",
+        tags: ["investor:pear"],
+        isVerified: true,
+      });
+
+      const call = mockPrisma.company.upsert.mock.calls[0][0];
+      expect(call.update.stage).toBe("Series A");
+      expect(call.update.tags).toContain("investor:boxgroup");
+      expect(call.update.tags).toContain("investor:pear");
+      expect(call.update.tags).not.toContain("signal:stage-inferred");
+    });
+
+    it("leaves existing non-null stage untouched on sparse update", async () => {
+      // Existing has a real Series B stage; new adapter with investor:insight
+      // tag would infer Series C+, but inference must NOT fire when existing
+      // stage exists — preserving the source-of-truth value.
+      mockPrisma.company.findUnique.mockResolvedValue({
+        id: "co-7",
+        source: "battery",
+        tags: ["investor:battery"],
+        isVerified: true,
+        qualityScore: 70,
+        stage: "Series B",
+      });
+      mockPrisma.company.upsert.mockResolvedValue({ id: "co-7", domain: "preserve.co" });
+
+      await upsertCompany({
+        domain: "preserve.co",
+        name: "Preserve Co",
+        source: "insight",
+        tags: ["investor:insight"],
+        isVerified: true,
+      });
+
+      const call = mockPrisma.company.upsert.mock.calls[0][0];
+      // No stage in update means sparse rule wins → existing Series B stays.
+      expect(call.update.stage).toBeUndefined();
+      expect(call.update.tags).not.toContain("signal:stage-inferred");
+    });
+  });
 });
 
 describe("upsertContact", () => {

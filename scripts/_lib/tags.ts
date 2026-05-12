@@ -313,7 +313,7 @@ const INVESTOR_TAGS = [
   "wave",
 ] as const;
 const SIZE_TAGS = ["solo-founder", "small-team", "mid-team", "big-team", "mega-team"] as const;
-const SIGNAL_TAGS = ["multi-source", "yc-backed", "ph-launched", "curated", "hn-hiring", "vc-backed", "unicorn"] as const;
+const SIGNAL_TAGS = ["multi-source", "yc-backed", "ph-launched", "curated", "hn-hiring", "vc-backed", "unicorn", "stage-inferred"] as const;
 
 // All canonical tags grouped by namespace — for rendering filter UIs.
 export const CANONICAL_TAG_GROUPS = {
