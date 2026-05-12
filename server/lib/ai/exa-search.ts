@@ -38,6 +38,12 @@ export interface ExaSearchInput {
   // descriptive queries, can hurt for strict named-entity lookups.
   useAutoprompt?: boolean
   includeDomains?: string[]
+  // Exa server-side filter — restricts results to a category. 'company' is the
+  // useful one for the ingest-discovery script (skips news/blog/encyclopedia
+  // pages); other valid values per Exa docs include 'research paper', 'news',
+  // 'linkedin profile', 'github', 'tweet', 'movie', 'song', 'personal site',
+  // 'pdf', 'financial report'.
+  category?: string
 }
 
 export interface ExaSearchResponse {
@@ -108,6 +114,7 @@ export async function exaSearch(input: ExaSearchInput): Promise<ExaSearchRespons
   if (input.includeDomains && input.includeDomains.length > 0) {
     body.includeDomains = input.includeDomains
   }
+  if (input.category) body.category = input.category
 
   let resp: Response
   try {

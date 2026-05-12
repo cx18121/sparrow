@@ -189,6 +189,40 @@ Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico (JS-rendered with no JS
 
 ---
 
+## Part 6 — Topical discovery via Exa (non-VC source)
+
+Every adapter up to this point scrapes a specific VC's portfolio page. That architecture has a coverage ceiling: companies funded by firms with no public portfolio (Tiger, Bond, Benchmark, Ribbit, Susa, Slow) and bootstrapped growth-stage companies are unreachable through it.
+
+`scripts/ingest-exa-discovery.ts` opens a parallel path. It calls Exa's `/search` with `category=company` for a topical query and ingests the returned canonical-homepage rows. Exa's company-category index is curated: every result is a real company homepage (not Wikipedia, not Crunchbase, not news), the `title` field is the company's display name, and the `content` field starts with a deterministic `# <Display Name> (<Legal Name>)\n\n<Display Name> is a <LinkedIn-style industry> company.` markdown header. That means **no HTML parsing, no name heuristics, no URL canonicalization** — the data is already structured.
+
+Source slug is the fixed `exa-discovery` for all queries; the per-query `--topic` slug is attached as a topics tag on each record so the wizard can filter by topic in the UI. Re-running the same `--topic` is idempotent (runIngestor dedupes by domain); a different `--topic` re-tags via last-write-wins.
+
+Constraints discovered during the probe (`scripts/_probe-exa-discovery.ts`):
+- Exa's `category=company` index does NOT support `startPublishedDate`. The error message is explicit: company pages live in a "dedicated index that only supports semantic search". Date-filtered freshness needs a different category (e.g. `news`) and a different query shape.
+- `numResults` caps at 100 per call. For more breadth, run multiple queries with disjoint phrasing rather than chasing a higher `numResults`.
+- Cross-query dedup rate is very low (<2% in the seed run across 8 topics — 179 candidates, 2 dupes). The category filter is semantic and queries that overlap in concept (e.g. "AI agents" and "developer tools") still return mostly disjoint companies.
+
+Initial seed run — 8 topical queries × `--limit 30` each:
+
+```
+ai-infra-b      18 ingested  (--limit 20 smoke)
+ai-agents-b     19
+devtools-b      16
+security-b      24
+fintech-b       26
+health-ai-b     22  (1 cross-query dupe)
+data-b          28
+saas-b          26  (1 cross-query dupe)
+```
+
+**Sub-total — 179 net-new companies in 8 Exa /search credits.** Cost-per-company is ~1/22 of the per-VC adapters' walltime cost and zero scraping infrastructure.
+
+Operational notes:
+- Exa's category=company is missing legal-status info — public-traded mega-caps (Marvell appeared in the AI-infra results) ingest as active. Filter at campaign time, or build a `--exclude-publics` flag on the script if the noise persists.
+- Industry strings come from LinkedIn's industry taxonomy and can contain commas ("Technology, Information and Internet") — preserved as the `industry` field. If they need to be split into multiple topic tags, do that downstream rather than in the adapter.
+
+---
+
 ## Appendix — Files added in Phase 1
 
 - `scripts/audit-stages.ts` — DB-side stage distribution audit. Run with `tsx scripts/audit-stages.ts [--verified-only]`.
