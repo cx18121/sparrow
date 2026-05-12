@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-05"
+last_updated: "2026-05-11"
 ---
 
 # Project State
@@ -45,6 +45,7 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 - Headcount filter is retired from the audience UI.
 - `LeadStatus` is SAVED, EMAILED, NO_RESPONSE, DECLINED.
 - Reply detection, scheduled sends, and follow-up automation are deferred.
+- **No Crunchbase.** Not a planned enrichment direction now or later. Several existing docs (`docs/scraping-research.md` Parts 2/4; ingest pipeline notes) frame Crunchbase open data as the canonical "Phase 4" fix for stage staleness, missing exit data, and the curated `PREEXISTING_PUBLICS` skiplist rot — that framing is **superseded**. External company-status enrichment, if pursued, must use a different source/approach. Future sessions that arrive at "the canonical fix is Crunchbase" via the older docs should redirect to this decision.
 
 ## Active Concerns
 
@@ -53,6 +54,17 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 - Research dossier freshness is manual/implicit, not a scheduled refresh.
 - Some old planning files are archived and intentionally not reliable as current implementation docs.
 
+## Resume hints (ephemeral)
+
+Transient session-handoff notes. Clear after the next manual refresh or push.
+
+- **4 commits on local main ahead of origin** (Lightspeed, IVP, JSON skiplist refactor, Coatue) — pending push approval.
+- **Phase 3 VC-scraper work**: steps 1–7 of `docs/scraping-research.md` Part 4 shipped. Remaining:
+  - **Step 8** — Insight Partners (~800 growth-stage rows). JS-rendered, needs Playwright. Different cost shape from prior adapters.
+  - **Step 9** — Benchmark + Khosla. Need one-pass research first to confirm portfolio-page shape.
+
 ## Last Manual Refresh
 
 2026-05-05: Root context, ADRs, README, product/design docs, env example, and active planning docs updated to match current implementation.
+
+2026-05-11: Phase 3 VC-scraper adapters shipped (Lightspeed, IVP, Coatue) + IVP skiplist externalized to `scripts/_data/skiplists.json`. `docs/scraping-research.md` Part 4 reflects status. AGENTS.md ingest-pipeline enumeration still doesn't list `lightspeed`/`ivp`/`coatue` — small follow-up.
