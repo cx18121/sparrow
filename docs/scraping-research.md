@@ -190,7 +190,29 @@ Tier-1 mediums (sitemap/REST + detail-page hop) — all five shipped:
 
 **Sub-total from steps 16–20 — 1,713 net-new companies in five detail-page-hop adapters.**
 
-Remaining adapter candidates from the survey (Tier 2/3, mostly Easy/Medium): Felicis (~290, Coatue-pattern `__next_f.push`), Balderton (200, FacetWP URL-param iteration), 8VC (169), TCV (150), Notion (106), Craft (104), Hoxton (94, WP REST), Mosaic (62), BoxGroup (50). Plus Exa-discovery (Part 6) can be re-run with additional topical queries for breadth at ~1 Exa credit per 18–28 new rows.
+Tier 2/3 adapters from the survey — nine shipped in one pass:
+
+21. **Mosaic Ventures** ✅ — `scripts/ingest-mosaic.ts`. **35 ingested** (64 cards → 32 exits filtered → 2 no-url). Squarespace single-page. Cards live inside `<div class="list-item-content__description">` blocks; per card: `<a><strong>Name</strong></a>` + `<p>` tagline. **Inline exit markers** ("Acquired by ...", "IPO", "Exited") matched via regex on card body. European late-stage.
+
+22. **BoxGroup** ✅ — `scripts/ingest-boxgroup.ts`. **42 ingested** (74 raw → 50 unique → 8 exits, 0 missing). Webflow. Cards have no text element for the company name — derived from URL host (Khosla-style). Exit signal is **Webflow's `w-condition-invisible` CSS class**: an exit card has `<div class="port_tabs-ipo">` or `<div class="port_tabs-acquired">` *without* the invisible class. Seed-stage focused.
+
+23. **Hoxton Ventures** ✅ — `scripts/ingest-hoxton.ts`. **88 ingested** (94 REST items → 6 no-website). UK seed-stage. WP REST `wp/v2/portfolio` exposes everything; per-item content.rendered has a tagline `<p>` followed by a bare-domain `<p>` (e.g. `panaceadiagnostics.co.uk`). Adapter normalizes bare domains to `https://` URLs. No detail-page hop.
+
+24. **Notion Capital** ✅ — `scripts/ingest-notion-capital.ts`. **64 ingested** (99 list cards → 35 exits → 64 detail fetches, 0 missing). European B2B SaaS (not to be confused with notion.so). Webflow CMS. **Authoritative exit filter** via `<div class="tag-legacy">Exited</div>` vs `Invested` text on the list. Detail-page hop required for website; chrome blocklist includes Notion's brand surfaces (`included.vc`, `notionvc.typeform.com`, `principlesofpricing.com`).
+
+25. **Craft Ventures** ✅ — `scripts/ingest-craft.ts`. **75 ingested** (100 cards → 25 exits → 75 detail fetches, 0 missing). **First source with stage data on the list page.** Webflow + Finsweet CMS Filter; per-card metadata stored as `fs-cmsfilter-field="name|industry|stage|unicorn|exit|investor"` on hidden child divs. Stage values normalized via `mapStage()` (Seed/Series A/Series B/Series C+/Growth). Detail-page hop only for website; chrome blocklist excludes `medium.com` and `substack.com` (Craft's blog surfaces).
+
+26. **8VC** ✅ — `scripts/ingest-8vc.ts`. **166 ingested** (303 cards → 169 unique → 169 detail fetches, 3 cross-source dupes). Webflow + Finsweet. Names via `fs-cmsfilter-field="name"`. Detail-page hop required; the first `target="_blank"` external (after chrome filter that excludes `8vc.altareturn.com`, the LP portal) is the canonical website — the page footer's "More portfolio companies" strip also has `target="_blank"` external links leaking adjacent portfolio URLs.
+
+27. **TCV** ✅ — `scripts/ingest-tcv.ts`. **91 ingested** (150 sitemap entries → 58 exits filtered → 91 active, 0 no-name, 1 no-website). Next.js + Contentful; the `/portfolio` page is JS-rendered, but `sitemap-0.xml` enumerates all 150 `/partnerships/<slug>` detail pages. Detail HTML carries everything: `og:title` → name, `<h2>Status</h2><p>VALUE</p>` → status field (clean "Active"/exit discriminator), anchor whose visible text contains "Website" → URL. Pure growth-equity.
+
+28. **Felicis Ventures** ✅ — `scripts/ingest-felicis.ts`. **171 ingested** (208 unique → 36 exits filtered → 1 no-name). Next.js + Sanity. Full company corpus lives inside the page HTML as backslash-escaped JSON fragments in `self.__next_f.push(...)` streaming chunks (Coatue-pattern). Extraction skips JSON parsing entirely: regex over the raw HTML for `\"websiteUrl\":\"<URL>\"` then back-search 1500 chars for the nearest `\"name\":\"<NAME>\"`. Status field (`"status":"current|acquired|ipo"`) is the authoritative exit filter — observed distribution: 172 current, 20 acquired, 16 ipo.
+
+29. **Balderton Capital** ✅ — `scripts/ingest-balderton.ts`. **20 ingested** of 30 server-rendered cards (8 exits filtered, 1 no-url, 1 cross-source dupe). **Partial coverage:** WP + FacetWP advertises `total_rows: 200`, but only ~30 cards survive a clean HTTP fetch — the rest load incrementally via FacetWP's AJAX endpoint (`/wp-json/facetwp/v1/refresh`), gated by a per-session nonce + opaque template state that doesn't reconstruct from a clean POST. Each card carries rich metadata in its CSS class (`status-live` vs `status-exited`, `sector-enterprise`, `location-france`) plus a structured body (`<h3>` name, `text-powder` tagline, "Series A in 2016" → stage). Adapter takes the server-rendered set only; replicating the AJAX would need Playwright. Documented this as a known limitation rather than spending the lift.
+
+**Sub-total from steps 21–29 — 752 net-new companies in nine adapters.**
+
+All survey adapter candidates from steps 11–29 shipped. Remaining work: re-run `audit-stages.ts` (step 7) to verify post-B counts moved with the new data; widen Exa-discovery (Part 6) with additional topical queries at ~1 Exa credit per 18–28 net-new rows; revisit Balderton with a Playwright-driven FacetWP session if the missing ~170 rows become a constraint.
 
 Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico (JS-rendered with no JSON escape hatch / anti-bot); Ribbit, Susa, Slow (no public portfolio page).
 
