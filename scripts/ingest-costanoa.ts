@@ -19,12 +19,21 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 //   - data.slogan              → tagline (used as oneLiner)
 //   - data.external_link.url   → website
 //   - data.filter_category     → sector (kept as a topic tag)
+//   - data.text_cells          → array of {caption, text} cells; the cell
+//                                captioned "COSTANOA'S Initial investment"
+//                                holds the stage at investment (Seed,
+//                                Series A, Series B, …). Other cells are
+//                                follow-on rounds. We use the
+//                                initial-investment stage as the canonical
+//                                Company.stage — that's "what stage was the
+//                                company when Costanoa first backed it,"
+//                                which matches the modeling other VC
+//                                adapters apply.
 //
 // Costanoa exposes no exit / status field — they're early-stage focused
 // and don't publish post-investment outcomes via this Prismic API. Cross-
 // source dedupe in runIngestor will absorb overlap with later-stage sources
-// that DO mark exits. No stage data either, so every row ingests with
-// stage=null — same shape as Khosla/Initialized/IVP/Insight.
+// that DO mark exits.
 
 const PRISMIC_ROOT = "https://costanoa.cdn.prismic.io/api/v2";
 const UA =
@@ -36,6 +45,11 @@ interface PrismicRef {
   isMasterRef?: boolean;
 }
 
+interface PrismicTextCell {
+  caption?: string | null;
+  text?: string | null;
+}
+
 interface PrismicCompanyDoc {
   data?: {
     name?: string;
@@ -45,7 +59,48 @@ interface PrismicCompanyDoc {
     // `null`/`undefined`/an empty object for a few — type as unknown and
     // narrow at the use site.
     filter_category?: unknown;
+    // Array of {caption, text} cells for the per-company sidebar table.
+    // The cell captioned "COSTANOA'S Initial investment" holds the
+    // entry-round stage; other cells are follow-on rounds.
+    text_cells?: PrismicTextCell[];
   };
+}
+
+// Normalize raw Costanoa stage text ("Series A", " Series C", "Seed",
+// "Pre-Seed", "pre-seed", …) to the canonical CANONICAL_STAGES form.
+// Returns null for empty or non-canonical strings.
+function normalizeCostanoaStage(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^Series [A-F]\+?$/i.test(t)) {
+    // Capitalize "series" if author used lowercase; the regex covers both forms.
+    return "Series " + t.slice(7).toUpperCase();
+  }
+  if (/^Pre-?Seed$/i.test(t)) return "Pre-Seed";
+  if (/^Seed$/i.test(t)) return "Seed";
+  return null;
+}
+
+// Pull the entry-round stage from data.text_cells. Prefers the cell
+// captioned "COSTANOA'S Initial investment" (case-insensitive, smart-quote
+// tolerant); falls back to the first cell whose text normalizes to a
+// canonical stage.
+function stageFromTextCells(cells: PrismicTextCell[] | undefined): string | null {
+  if (!cells || cells.length === 0) return null;
+  for (const c of cells) {
+    const caption = c.caption?.toLowerCase();
+    if (caption && /initial investment/.test(caption)) {
+      const s = normalizeCostanoaStage(c.text);
+      if (s) return s;
+    }
+  }
+  // Fallback: first cell whose text resolves to a canonical stage.
+  for (const c of cells) {
+    const s = normalizeCostanoaStage(c.text);
+    if (s) return s;
+  }
+  return null;
 }
 
 interface PrismicSearchResponse {
@@ -106,6 +161,7 @@ export const costanoaAdapter: IngestorAdapter = {
     const out: CompanyRecord[] = [];
     let missingName = 0;
     let missingUrl = 0;
+    let withStage = 0;
     for (const doc of docs) {
       const d = doc.data;
       if (!d) continue;
@@ -119,10 +175,14 @@ export const costanoaAdapter: IngestorAdapter = {
         topics.push(d.filter_category.trim());
       }
 
+      const stage = stageFromTextCells(d.text_cells);
+      if (stage) withStage++;
+
       out.push({
         name,
         website,
         oneLiner: d.slogan?.trim() || null,
+        stage,
         investors: ["costanoa"],
         signals: ["vc-backed"],
         topics,
@@ -132,7 +192,7 @@ export const costanoaAdapter: IngestorAdapter = {
 
     console.log(
       `[Costanoa] fetchAndParse DONE: ${out.length} kept of ${docs.length} docs — ` +
-        `${missingName} no-name, ${missingUrl} no-url`
+        `${missingName} no-name, ${missingUrl} no-url, ${withStage} with stage`
     );
     return out;
   },

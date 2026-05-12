@@ -32,9 +32,15 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 //   "acquired" / "ipo" / anything else → skip
 //
 // Cross-source dedupe in runIngestor absorbs overlap with sources that mark
-// exits differently. No stage data on this surface — `stage` ingests as
-// null. The HTML carries `"stage":"$5a"` style references, but resolving
-// those would require parsing the streaming chunks; not worth it.
+// exits differently.
+//
+// Stage extraction: Felicis tags ~40 featured companies with a stage via
+// `\"stage\":\"$<chunk-id>\"`. Each chunk-id resolves to a stage taxonomy
+// chunk shaped `<id>:{...,"title":"Series A"}`. We scan the page once to
+// build chunk-id → stage-title, then resolve the back-search hit per
+// company. Yields stage for the 4 canonical buckets Felicis exposes:
+// Seed / Series A / Series B / Series C. Non-featured rows still ingest
+// with stage=null (no JSON stage field on those).
 
 const PORTFOLIO_URL = "https://www.felicis.com/portfolio";
 const UA =
@@ -44,11 +50,17 @@ const UA =
 const URL_RE = /\\"websiteUrl\\":\\"(https?:\/\/[^"\\]+)/g;
 const NAME_RE = /\\"name\\":\\"([^"\\]{1,100})\\"/g;
 const STATUS_RE = /\\"status\\":\\"([^"\\]+)\\"/g;
+const STAGE_REF_RE = /\\"stage\\":\\"\$([0-9a-f]+)\\"/g;
+// Stage taxonomy chunks live separately, shaped as: `<id>:{...,"title":"Series A"}`.
+// The `\\"order\\":\\d+,\\"slug\\":\\"\$[^"]+\\"` clause anchors on stage-chunk
+// structure to avoid matching unrelated chunks that also have a title field.
+const STAGE_CHUNK_RE = /(?:^|\\n)([0-9a-f]+):\{\\"_id\\":\\"[^"\\]+\\",\\"order\\":\d+,\\"slug\\":\\"\$[^"]+\\",\\"title\\":\\"([^"\\]+)\\"\}/g;
 
 interface RawCompany {
   url: string;
   name: string | null;
   status: string | null;
+  stage: string | null;
 }
 
 function lastMatch(re: RegExp, s: string): string | null {
@@ -66,6 +78,19 @@ function isExitStatus(status: string | null): boolean {
   return s !== "current" && s !== "active" && s !== "private" && s !== "";
 }
 
+// Normalize Felicis stage titles to canonical form. One chunk in the wild
+// has a leading space ("title":" Series C"), which the source-of-truth
+// match would otherwise carry into Company.stage and fragment the bucket
+// in audit-stages.
+function normalizeFelicisStage(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^Series [A-F]\+?$/.test(t)) return t;
+  if (/^Pre-?Seed$/i.test(t)) return "Pre-Seed";
+  if (/^Seed$/i.test(t)) return "Seed";
+  return null;
+}
+
 export const felicisAdapter: IngestorAdapter = {
   name: "Felicis",
   source: "felicis",
@@ -76,6 +101,15 @@ export const felicisAdapter: IngestorAdapter = {
       timeout: 45_000,
       maxRedirects: 5,
     });
+
+    // First pass: build stage chunk-id -> canonical-stage map.
+    const stageMap = new Map<string, string>();
+    STAGE_CHUNK_RE.lastIndex = 0;
+    let sm: RegExpExecArray | null;
+    while ((sm = STAGE_CHUNK_RE.exec(html)) !== null) {
+      const canonical = normalizeFelicisStage(sm[2]);
+      if (canonical) stageMap.set(sm[1], canonical);
+    }
 
     const seen = new Set<string>();
     const records: RawCompany[] = [];
@@ -88,18 +122,23 @@ export const felicisAdapter: IngestorAdapter = {
       const back = html.slice(Math.max(0, m.index - 1500), m.index);
       const name = lastMatch(NAME_RE, back);
       const status = lastMatch(STATUS_RE, back);
-      records.push({ url, name, status });
+      const stageRefId = lastMatch(STAGE_REF_RE, back);
+      const stage = stageRefId ? (stageMap.get(stageRefId) ?? null) : null;
+      records.push({ url, name, status, stage });
     }
 
     const out: CompanyRecord[] = [];
     let skippedExit = 0;
     let missingName = 0;
+    let withStage = 0;
     for (const r of records) {
       if (isExitStatus(r.status)) { skippedExit++; continue; }
       if (!r.name) { missingName++; continue; }
+      if (r.stage) withStage++;
       out.push({
         name: r.name,
         website: r.url,
+        stage: r.stage,
         investors: ["felicis"],
         signals: ["vc-backed"],
         isVerified: true,
@@ -108,7 +147,8 @@ export const felicisAdapter: IngestorAdapter = {
 
     console.log(
       `[Felicis] fetchAndParse DONE: ${out.length} kept of ${records.length} candidates — ` +
-        `${skippedExit} exits, ${missingName} no-name`
+        `${skippedExit} exits, ${missingName} no-name, ${withStage} with stage ` +
+        `(stage map size: ${stageMap.size})`
     );
     return out;
   },
