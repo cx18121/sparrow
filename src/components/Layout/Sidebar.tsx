@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useAppData } from '../../contexts/AppDataContext'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Plus, Send } from 'lucide-react'
+import { STATUS_TONES } from '../ui/statusTokens'
 
 // Sidebar layout (per the latest mockup):
 //   Brand row    : forest green circle + Send icon + Sparrow wordmark, no
@@ -17,10 +18,14 @@ import { LogOut, ChevronDown, PanelLeftClose, PanelLeftOpen, Plus, Send } from '
 //
 // Mobile bottom-nav stays unchanged - it carries the global tabs only.
 
+// Campaign status dots — sourced from STATUS_TONES so the sidebar agrees
+// with Pill/Badge tones elsewhere. Active stays primary (the One Green
+// Rule applies to "current" too), paused uses the canonical warning
+// tone, completed uses neutral muted.
 const STATUS_DOT: Record<UiCampaign['status'], string> = {
   active: 'bg-primary',
-  paused: 'bg-amber-500',
-  completed: 'bg-warm-400',
+  paused: STATUS_TONES.warning.dot,
+  completed: STATUS_TONES.neutral.dot,
 }
 
 export default function Sidebar({
@@ -74,7 +79,7 @@ export default function Sidebar({
         aria-current={isActive ? 'page' : undefined}
         className={`group flex min-h-9 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-primary text-warm-50 shadow-[0_10px_24px_rgba(85,122,87,0.18)]'
+            ? 'bg-primary text-warm-50 shadow-active'
             : 'text-muted hover:bg-accent/10 hover:text-dark'
         } ${collapsed ? 'justify-center' : ''}`}
       >
@@ -109,12 +114,12 @@ export default function Sidebar({
 
   return (
     <>
-    <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-accent/20 bg-[#F8F4ED] transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
+    <aside className={`relative z-20 hidden h-screen shrink-0 flex-col border-r border-accent/20 bg-panel transition-all duration-200 md:flex ${collapsed ? 'w-16' : 'w-56'}`}>
       {/* Brand row - forest green badge + wordmark. No divider underneath
           (the previous border-t crowded the top). */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
         <div className={`flex min-w-0 items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-warm-50 shadow-[0_4px_12px_rgba(85,122,87,0.22)]">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-warm-50 shadow-brand">
             <Send size={14} className="-rotate-12" />
           </span>
           {!collapsed && (
@@ -135,7 +140,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={() => setCollapsed(false)}
-            className="absolute -right-3 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-accent/20 bg-[#F8F4ED] text-muted shadow-sm transition-colors hover:text-dark"
+            className="absolute -right-3 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-accent/20 bg-panel text-muted shadow-subtle transition-colors hover:text-dark"
             title="Expand sidebar"
           >
             <PanelLeftOpen size={13} />
@@ -213,7 +218,7 @@ export default function Sidebar({
             </button>
 
             {dropdownOpen && (
-              <div className={`absolute bottom-full z-50 mb-1 rounded-[18px] border border-accent/20 bg-[#F8F4ED] py-2 shadow-modal animate-fade-in ${collapsed ? 'left-10 w-48' : 'left-0 right-0'}`}>
+              <div className={`absolute bottom-full z-50 mb-1 rounded-[18px] border border-accent/20 bg-panel py-2 shadow-modal animate-fade-in ${collapsed ? 'left-10 w-48' : 'left-0 right-0'}`}>
                 <div className="border-b border-accent/15 px-4 py-3">
                   <p className="truncate text-sm font-medium text-dark">{displayName}</p>
                   <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p>
@@ -232,7 +237,7 @@ export default function Sidebar({
       </div>
     </aside>
 
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-accent/20 bg-[#F8F4ED]/[0.97] px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(44,31,16,0.08)] backdrop-blur-md md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-accent/20 bg-panel/[0.97] px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-rail backdrop-blur-md md:hidden">
       <div
         className="grid gap-1 overflow-x-auto"
         style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(58px, 1fr))` }}
@@ -246,7 +251,7 @@ export default function Sidebar({
               onClick={() => onTabChange(tab.id)}
               aria-current={isActive ? 'page' : undefined}
               className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${
-                isActive ? 'bg-primary text-warm-50 shadow-[0_10px_24px_rgba(85,122,87,0.18)]' : 'text-muted hover:bg-warm-50 hover:text-dark'
+                isActive ? 'bg-primary text-warm-50 shadow-active' : 'text-muted hover:bg-warm-50 hover:text-dark'
               }`}
             >
               <tab.icon size={16} />

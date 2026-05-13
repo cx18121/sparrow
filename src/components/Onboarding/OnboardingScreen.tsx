@@ -112,7 +112,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
 
       <div className="space-y-4">
         <div>
-          <label htmlFor="onboarding-sender-name" className="label">Name <span className="text-red-500">*</span></label>
+          <label htmlFor="onboarding-sender-name" className="label">Name <span className="text-red-600">*</span></label>
           <div className="relative">
             <User size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -120,12 +120,12 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
               value={form.senderName}
               onChange={e => updateField('senderName', e.target.value)}
               placeholder="Maya Chen"
-              className={`input pl-8 ${showNameError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+              className={`input pl-8 ${showNameError ? 'input-error' : ''}`}
               aria-invalid={showNameError}
             />
           </div>
           {showNameError && (
-            <p className="mt-2 text-xs text-red-500">Name is required.</p>
+            <p className="mt-2 form-error-text">Name is required.</p>
           )}
         </div>
 
@@ -275,11 +275,11 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
               onChange={e => updateCustomTemplate('body', e.target.value)}
               onFocus={() => setActiveField('body')}
               placeholder={"Hi {{first_name}},\n\nI noticed {{company}} and wanted to reach out because...\n\nBest,\n{{sender_name}}"}
-              className={`input min-h-[220px] resize-y font-mono text-[13px] leading-relaxed ${showBodyError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+              className={`input min-h-[220px] resize-y font-mono text-[13px] leading-relaxed ${showBodyError ? 'input-error' : ''}`}
               aria-invalid={showBodyError}
             />
             {showBodyError && (
-              <p className="mt-1.5 text-xs text-red-500">Please add an email body before continuing.</p>
+              <p className="mt-1.5 form-error-text">Please add an email body before continuing.</p>
             )}
           </div>
 
@@ -862,7 +862,7 @@ export default function OnboardingScreen({
                 }`}
               >
                 <span className={`h-2.5 rounded-full transition-all ${
-                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-stone-300 group-hover:bg-stone-400'
+                  index === stepIndex ? 'w-8 bg-primary' : 'w-2.5 bg-warm-300 group-hover:bg-warm-400'
                 }`} />
                 <span className={`hidden pl-2 pr-2 text-xs font-medium sm:inline ${
                   index === stepIndex ? 'text-primary' : 'text-muted'

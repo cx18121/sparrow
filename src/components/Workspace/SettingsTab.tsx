@@ -385,8 +385,8 @@ export default function SettingsTab() {
       )}
 
       {/* Danger zone */}
-      <section className="rounded-2xl border border-red-200 bg-red-50/50 px-5 py-5">
-        <h3 className="text-base font-semibold text-red-900">Danger zone</h3>
+      <section className="surface-danger px-5 py-5">
+        <h3 className="text-base font-semibold text-red-700">Danger zone</h3>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-dark">Delete this campaign</p>

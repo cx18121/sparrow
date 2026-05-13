@@ -66,11 +66,11 @@ function KpiCard({ label, value, helper, icon: Icon, loading, onClick }: KpiCard
   return (
     <Tag
       {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`surface-panel px-5 py-4 text-left w-full ${onClick ? 'transition-colors hover:bg-warm-50 active:translate-y-px cursor-pointer' : ''}`}
+      className={`surface-panel px-5 py-4 text-left w-full ${onClick ? 'transition-colors hover:bg-panel-deep/70 hover:border-accent/25 active:translate-y-px cursor-pointer' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
-        <Icon size={14} className="text-muted/60" />
+        <Icon size={14} className="text-primary/55" />
       </div>
       <div className="mt-3 flex items-baseline gap-2">
         <span className="font-display text-[2rem] font-semibold leading-none text-dark tabular-nums">
@@ -153,7 +153,7 @@ function NewCampaignCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-warm-300 bg-warm-50/50 px-5 py-6 text-muted transition-all duration-150 hover:border-primary/40 hover:bg-warm-50 hover:text-dark active:translate-y-px"
+      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-accent/30 bg-panel-deep/40 px-5 py-6 text-muted transition-all duration-150 hover:border-primary/45 hover:bg-panel-deep/70 hover:text-dark active:translate-y-px"
     >
       <Plus size={18} />
       <span className="font-display text-base font-semibold text-dark">New campaign</span>

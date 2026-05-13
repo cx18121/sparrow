@@ -189,14 +189,14 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
         <div>
           <label htmlFor="settings-sender-name" className="label">
             Sender name
-            {!form.senderName?.trim() && <span className="ml-1 text-amber-500 text-[10px] font-semibold">Required</span>}
+            {!form.senderName?.trim() && <span className="ml-1 form-warning-text font-semibold">Required</span>}
           </label>
           <input
             id="settings-sender-name"
             value={form.senderName || ''}
             onChange={e => field('senderName', e.target.value)}
             placeholder="Jordan Lee"
-            className={`input ${!form.senderName?.trim() ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100' : ''}`}
+            className={`input ${!form.senderName?.trim() ? 'input-warning' : ''}`}
           />
         </div>
       </FieldGroup>
@@ -254,7 +254,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
               {uploadState.uploading ? 'Uploading…' : 'Upload resume or bio (.pdf, .docx, .txt - max 10 MB)'}
             </button>
           )}
-          {uploadState.error && <p className="mt-1 text-xs text-red-500">Could not upload: {uploadState.error}</p>}
+          {uploadState.error && <p className="mt-1 form-error-text">Could not upload: {uploadState.error}</p>}
         </div>
       </FieldGroup>
 
@@ -423,7 +423,7 @@ function FileLibrary({ form, setForm, user }: { form: any; setForm: (fn: (c: any
         disabled={uploading}
         onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }}
       />
-      {uploadError && <p className="mb-2 text-xs text-red-500">{uploadError}</p>}
+      {uploadError && <p className="mb-2 form-error-text">{uploadError}</p>}
       {files.length === 0 ? (
         <button
           type="button"
@@ -558,18 +558,18 @@ function AccountTab({
 
       {!gmailOnly && (
         <FieldGroup title="Danger zone">
-          <div className="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3">
+          <div className="surface-danger flex items-start justify-between gap-4 px-4 py-3">
             <div className="min-w-0">
               <p className="text-sm font-medium text-dark">Delete account</p>
               <p className="mt-0.5 text-xs text-muted">
                 Permanently delete your account and workspace data.
               </p>
-              {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+              {error && <p className="mt-1 form-error-text">{error}</p>}
             </div>
             <button
               type="button"
               onClick={() => setConfirm(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-warm-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+              className="btn-danger-outline"
             >
               <Trash2 size={12} /> Delete account
             </button>

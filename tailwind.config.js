@@ -47,6 +47,9 @@ export default {
         muted: '#7A6651',
         surface: '#F5F0E8',
         panel: '#F8F4ED',
+        // Slightly warmer surface tone for layering — KPI rows, table
+        // headers, hover surfaces — without leaving the parchment family.
+        'panel-deep': '#F0E6D2',
       },
       fontFamily: {
         sans: ['DM Sans', 'system-ui', 'sans-serif'],
@@ -55,6 +58,15 @@ export default {
       boxShadow: {
         card: '0 18px 50px rgba(44,31,16,0.08)',
         modal: '0 32px 90px rgba(44,31,16,0.20)',
+        // Subtle warm shadow for compact controls (replaces shadow-sm).
+        subtle: '0 1px 2px rgba(44,31,16,0.06)',
+        // Green halo used by active sidebar/nav, segmented active state,
+        // primary buttons. Used to be inlined as a raw rgba shadow.
+        active: '0 10px 24px rgba(85,122,87,0.18)',
+        // Tighter green halo for the brand badge / send-icon chip.
+        brand: '0 4px 12px rgba(85,122,87,0.22)',
+        // Inverted shadow for the mobile bottom-nav lift.
+        rail: '0 -10px 30px rgba(44,31,16,0.08)',
       },
     },
   },

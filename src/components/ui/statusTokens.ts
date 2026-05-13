@@ -54,7 +54,7 @@ export const STATUS_TONES: Record<StatusTone, StatusToneClasses> = {
     text: 'text-muted',
     textStrong: 'text-dark',
     icon: 'text-muted',
-    dot: 'bg-stone-300',
+    dot: 'bg-warm-300',
   },
 }
 

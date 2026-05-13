@@ -63,11 +63,7 @@ function CompanyRow({ company, onSelect, hasSavedContact, checked, onToggle }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-dark text-sm">{company.name}</span>
             {company.isHiring && <Pill variant="success" dot>Hiring</Pill>}
-            {hasSavedContact && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                <CheckCircle size={9} /> Contact saved
-              </span>
-            )}
+            {hasSavedContact && <Pill variant="success" icon={CheckCircle}>Contact saved</Pill>}
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
             {company.website && (

@@ -179,7 +179,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…', ar
           <button
             type="button"
             onMouseDown={e => { e.preventDefault(); cancelLink() }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-neutral-100 hover:text-dark"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-warm-100 hover:text-dark"
           >
             <X size={12} />
           </button>

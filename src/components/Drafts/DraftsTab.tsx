@@ -651,7 +651,7 @@ export default function DraftsTab({
                   <button
                     type="button"
                     onClick={() => { cancelBatchRef.current = true }}
-                    className="btn-ghost text-xs text-red-500 hover:bg-red-50 py-1.5 px-3"
+                    className="btn-ghost text-xs text-red-600 hover:bg-red-50 py-1.5 px-3"
                   >
                     Cancel
                   </button>
@@ -669,7 +669,7 @@ export default function DraftsTab({
                   <button
                     onClick={() => setDeleteConfirm(selectedArr)}
                     disabled={deleting}
-                    className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-500 hover:bg-red-50"
+                    className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-600 hover:bg-red-50"
                   >
                     <Trash2 size={13} />
                     {deleting ? 'Deleting…' : `Delete ${selectedArr.length}`}
@@ -883,7 +883,7 @@ export default function DraftsTab({
                           onClick={() => setDeleteConfirm([draft.id])}
                           disabled={deleting}
                           title="Delete draft"
-                          className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 hover:text-red-500 disabled:opacity-40"
+                          className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 hover:text-red-600 disabled:opacity-40"
                         >
                           <Trash2 size={11} />
                         </button>
@@ -1330,27 +1330,22 @@ function Kbd({ children }) {
 
 function SentStatusPill({ draft }: { draft: any }) {
   if (draft.replyClassification === 'BOUNCE') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
-        <XCircle size={11} /> Bounced
-      </span>
-    )
+    return <Pill variant="danger" icon={XCircle}>Bounced</Pill>
   }
   if (draft.repliedAt) {
     const label = draft.replyClassification === 'AUTO_REPLY' ? 'Auto-reply' : 'Replied'
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-        <MessageSquare size={11} /> {label}
-      </span>
-    )
+    return <Pill variant="success" icon={MessageSquare}>{label}</Pill>
   }
   if (draft.openedAt) {
+    // Opens carry a tooltip explaining the estimate caveat; render the
+    // tinted chip via STATUS_TONES so it still flows through the token
+    // system without losing the title attribute.
     return (
       <span
-        className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 cursor-help"
-        title="Many email clients pre-fetch images — opens are an estimate"
+        className="inline-tag-warning cursor-help"
+        title="Many email clients pre-fetch images, opens are an estimate"
       >
-        <Eye size={11} /> Opened
+        <Eye size={10} /> Opened
       </span>
     )
   }

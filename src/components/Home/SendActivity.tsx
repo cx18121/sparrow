@@ -143,7 +143,7 @@ function QuotaBar({ label, used, cap, remaining, pct, barColor, loading, resetHi
           {loading ? '-' : `${used.toLocaleString()} / ${cap.toLocaleString()}`}
         </span>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-warm-100">
         <div
           className={`h-full rounded-full transition-[width] duration-300 ${barColor}`}
           style={{ width: loading ? '0%' : `${pct}%` }}

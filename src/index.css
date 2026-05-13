@@ -59,6 +59,41 @@
     background: #F5F0E8;
   }
 
+  /* Layered surface tones. Use these when you need a second surface
+   * level above bg-panel without reaching for a one-off color. */
+  .surface-soft {
+    @apply rounded-2xl border border-warm-200 bg-warm-50;
+  }
+
+  .surface-deep {
+    @apply rounded-2xl border border-accent/15 bg-panel-deep;
+  }
+
+  /* Horizontal tan divider — replaces ad-hoc border-t border-warm-200
+   * usage when the intent is "section break", not "table grid". */
+  .divider-warm {
+    @apply h-px w-full bg-accent/15;
+  }
+
+  /* Soft success/danger inline chip — same shape as Pill but for places
+   * where rendering a full Pill component is overkill (e.g. row meta).
+   * Lives here so callers stop reaching for raw bg-emerald-50 etc. */
+  .inline-tag-success {
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700;
+  }
+
+  .inline-tag-danger {
+    @apply inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700;
+  }
+
+  .inline-tag-warning {
+    @apply inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800;
+  }
+
+  .inline-tag-info {
+    @apply inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary;
+  }
+
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-warm-50 transition-all duration-150
            disabled:cursor-not-allowed disabled:opacity-50;
@@ -119,6 +154,37 @@
     filter: brightness(1.08);
   }
 
+  /* Small outlined destructive button — used for confirm-then-delete
+   * actions inside settings, danger-zone blocks, and row menus where
+   * the full red-fill .btn-danger is too loud. */
+  .btn-danger-outline {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors;
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.3);
+    background: rgba(253, 250, 245, 0.85);
+  }
+  .btn-danger-outline:hover:not(:disabled) {
+    background: rgba(254, 226, 226, 0.6);
+    border-color: rgba(220, 38, 38, 0.45);
+  }
+
+  /* Ghost destructive action — text-only with a soft red hover. Used in
+   * row action menus and toolbar danger links. */
+  .btn-danger-ghost {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors;
+    color: #dc2626;
+  }
+  .btn-danger-ghost:hover:not(:disabled) {
+    background: rgba(254, 226, 226, 0.6);
+  }
+
+  /* Tinted "danger zone" wrapper — section-level warning surface. */
+  .surface-danger {
+    @apply rounded-2xl border;
+    border-color: rgba(220, 38, 38, 0.22);
+    background: rgba(254, 226, 226, 0.4);
+  }
+
   .card {
     @apply overflow-hidden rounded-2xl border border-warm-200 bg-panel;
   }
@@ -134,6 +200,34 @@
   .input:focus {
     border-color: rgba(85, 122, 87, 0.42);
     background: rgba(245, 240, 232, 0.96);
+  }
+
+  /* Input error / warning modifiers — apply alongside .input to get the
+   * canonical invalid-field treatment. Replaces ad-hoc border-red-300 /
+   * focus:ring-red-100 patterns scattered across forms. */
+  .input-error {
+    border-color: rgba(239, 68, 68, 0.45);
+  }
+  .input-error:focus {
+    border-color: rgba(239, 68, 68, 0.7);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  }
+  .input-warning {
+    border-color: rgba(217, 119, 6, 0.4);
+  }
+  .input-warning:focus {
+    border-color: rgba(217, 119, 6, 0.65);
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.12);
+  }
+
+  /* Tiny helper text — paired with .input-error / required field markers
+   * for consistent error copy styling. */
+  .form-error-text {
+    @apply text-xs text-red-600;
+  }
+
+  .form-warning-text {
+    @apply text-xs text-amber-700;
   }
 
   .input-lg {
