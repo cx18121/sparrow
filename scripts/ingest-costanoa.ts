@@ -69,7 +69,11 @@ interface PrismicCompanyDoc {
 // Normalize raw Costanoa stage text ("Series A", " Series C", "Seed",
 // "Pre-Seed", "pre-seed", …) to the canonical CANONICAL_STAGES form.
 // Returns null for empty or non-canonical strings.
-function normalizeCostanoaStage(raw: string | null | undefined): string | null {
+//
+// Exported for unit tests — if Costanoa edits their cell text format
+// (e.g. switches to "Series-A" or "A round") tests fail before we deploy
+// a silent regression that drops stage on every row.
+export function normalizeCostanoaStage(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const t = raw.trim();
   if (!t) return null;
@@ -85,8 +89,8 @@ function normalizeCostanoaStage(raw: string | null | undefined): string | null {
 // Pull the entry-round stage from data.text_cells. Prefers the cell
 // captioned "COSTANOA'S Initial investment" (case-insensitive, smart-quote
 // tolerant); falls back to the first cell whose text normalizes to a
-// canonical stage.
-function stageFromTextCells(cells: PrismicTextCell[] | undefined): string | null {
+// canonical stage. Exported for unit tests.
+export function stageFromTextCells(cells: PrismicTextCell[] | undefined): string | null {
   if (!cells || cells.length === 0) return null;
   for (const c of cells) {
     const caption = c.caption?.toLowerCase();

@@ -35,9 +35,16 @@ export async function extractResumeTextFromFile(file: File): Promise<string> {
   }
 
   if (ext === 'pdf' || file.type === 'application/pdf') {
+    // Use the modern (non-legacy) minified pdfjs build:
+    //   - pdf.min.mjs: 425 KB vs legacy/pdf.mjs 984 KB
+    //   - pdf.worker.min.mjs: 1.2 MB vs legacy/pdf.worker.mjs 2.2 MB
+    // The modern build drops support for browsers below ES2020 + modern
+    // worker semantics — Safari < 16, Chrome < 80. Acceptable for Sparrow's
+    // user base; if we ever need to support older browsers, swap back to
+    // pdfjs-dist/legacy/build/*.
     const [{ default: workerSrc }, pdfjsLib] = await Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.worker.mjs?url'),
-      import('pdfjs-dist/legacy/build/pdf.mjs'),
+      import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+      import('pdfjs-dist/build/pdf.min.mjs'),
     ])
     pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise
@@ -51,7 +58,8 @@ export async function extractResumeTextFromFile(file: File): Promise<string> {
   }
 
   if (ext === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    const mammoth = await import('mammoth/mammoth.browser')
+    // Minified mammoth: 621 KB vs unminified 864 KB.
+    const mammoth = await import('mammoth/mammoth.browser.min')
     const api = (mammoth as any).default ?? mammoth
     const result = await api.extractRawText({ arrayBuffer: await file.arrayBuffer() })
     return normalizeExtractedText(result.value || '')

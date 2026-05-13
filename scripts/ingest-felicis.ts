@@ -39,8 +39,18 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 // chunk shaped `<id>:{...,"title":"Series A"}`. We scan the page once to
 // build chunk-id → stage-title, then resolve the back-search hit per
 // company. Yields stage for the 4 canonical buckets Felicis exposes:
-// Seed / Series A / Series B / Series C. Non-featured rows still ingest
-// with stage=null (no JSON stage field on those).
+// Seed / Series A / Series B / Series C.
+//
+// Capture ceiling: ~40 stage refs on the page, but ~11 of those belong
+// to IPO'd / acquired featured companies (Adyen, Notion, Stripe-era
+// alumni) that the exit-status filter drops before we hand records to
+// the upserter. Net: ~29 active companies with stage. Probed 2026-05-12 —
+// widening the back-window doesn't help because the ceiling is the
+// exit filter, not the back-search range.
+//
+// Non-featured rows still ingest with stage=null (no JSON stage field
+// on those). They get covered by stage-defaults.ts inference if their
+// other tags trigger a rule.
 
 const PORTFOLIO_URL = "https://www.felicis.com/portfolio";
 const UA =
@@ -82,13 +92,29 @@ function isExitStatus(status: string | null): boolean {
 // has a leading space ("title":" Series C"), which the source-of-truth
 // match would otherwise carry into Company.stage and fragment the bucket
 // in audit-stages.
-function normalizeFelicisStage(raw: string): string | null {
+export function normalizeFelicisStage(raw: string): string | null {
   const t = raw.trim();
   if (!t) return null;
   if (/^Series [A-F]\+?$/.test(t)) return t;
   if (/^Pre-?Seed$/i.test(t)) return "Pre-Seed";
   if (/^Seed$/i.test(t)) return "Seed";
   return null;
+}
+
+// Build the chunk-id → stage-title map by scanning a Felicis page's HTML.
+// Exported so the parsing contract has unit-test coverage independent of
+// the live HTTP fetch — if Felicis rewires their RSC chunk shape (e.g.
+// drops the `_id`/`order`/`slug` anchor fields, or moves stage data to a
+// different chunk type), tests fail before we deploy a silent regression.
+export function buildFelicisStageMap(html: string): Map<string, string> {
+  const map = new Map<string, string>();
+  STAGE_CHUNK_RE.lastIndex = 0;
+  let sm: RegExpExecArray | null;
+  while ((sm = STAGE_CHUNK_RE.exec(html)) !== null) {
+    const canonical = normalizeFelicisStage(sm[2]);
+    if (canonical) map.set(sm[1], canonical);
+  }
+  return map;
 }
 
 export const felicisAdapter: IngestorAdapter = {
@@ -103,29 +129,45 @@ export const felicisAdapter: IngestorAdapter = {
     });
 
     // First pass: build stage chunk-id -> canonical-stage map.
-    const stageMap = new Map<string, string>();
-    STAGE_CHUNK_RE.lastIndex = 0;
-    let sm: RegExpExecArray | null;
-    while ((sm = STAGE_CHUNK_RE.exec(html)) !== null) {
-      const canonical = normalizeFelicisStage(sm[2]);
-      if (canonical) stageMap.set(sm[1], canonical);
-    }
+    const stageMap = buildFelicisStageMap(html);
 
-    const seen = new Set<string>();
-    const records: RawCompany[] = [];
+    // The same company URL appears multiple times in the page — once
+    // inside its company chunk (with name + stage + status fields nearby)
+    // and again inside auxiliary chunks (grid-card duplicate, related
+    // sections) where the back-search may return name=null or stage=null.
+    // Dedupe by URL but keep the richest record: each field independently
+    // picks the first non-null observation across all occurrences. This
+    // makes parsing order-insensitive — future chunk-ordering changes in
+    // the upstream Sanity build won't silently drop fields just because
+    // a stripped-down occurrence happens to be matched first.
+    const byUrl = new Map<string, RawCompany>();
     URL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = URL_RE.exec(html)) !== null) {
       const url = m[1];
-      if (seen.has(url)) continue;
-      seen.add(url);
       const back = html.slice(Math.max(0, m.index - 1500), m.index);
       const name = lastMatch(NAME_RE, back);
       const status = lastMatch(STATUS_RE, back);
       const stageRefId = lastMatch(STAGE_REF_RE, back);
       const stage = stageRefId ? (stageMap.get(stageRefId) ?? null) : null;
-      records.push({ url, name, status, stage });
+      const incoming: RawCompany = { url, name, status, stage };
+      const existing = byUrl.get(url);
+      if (!existing) {
+        byUrl.set(url, incoming);
+        continue;
+      }
+      // Keep the existing entry's name/status/stage when present, else
+      // adopt incoming. This makes dedupe order-insensitive — each field
+      // independently picks the first non-null observation across all
+      // occurrences of the URL.
+      byUrl.set(url, {
+        url,
+        name: existing.name ?? incoming.name,
+        status: existing.status ?? incoming.status,
+        stage: existing.stage ?? incoming.stage,
+      });
     }
+    const records: RawCompany[] = [...byUrl.values()];
 
     const out: CompanyRecord[] = [];
     let skippedExit = 0;
