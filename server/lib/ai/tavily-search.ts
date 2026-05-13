@@ -18,6 +18,22 @@ export interface TavilySearchInput {
   // 'advanced' returns 1-3kb extracts per result (better for product research),
   // 'basic' returns ~500-char snippets (faster + cheaper). Defaults to advanced.
   searchDepth?: 'basic' | 'advanced'
+  // When true, throw on 402 (quota exhausted) and 429 (rate limit) instead of
+  // silently returning empty results. Off by default so the production email
+  // pipeline keeps its fail-closed semantics; batch jobs (backfills) opt in
+  // so a quota exhaustion aborts the run loudly instead of being mistaken
+  // for many companies having no search results.
+  throwOnQuota?: boolean
+}
+
+// Thrown when Tavily indicates the caller is out of credits or being rate-
+// limited. Callers that opt into throwOnQuota use this to distinguish a
+// transient infra problem from a per-query "no results" outcome.
+export class TavilyQuotaError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+    this.name = 'TavilyQuotaError'
+  }
 }
 
 export interface TavilySearchResponse {
@@ -71,6 +87,17 @@ export async function tavilySearch(input: TavilySearchInput): Promise<TavilySear
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
+    // Quota / rate-limit detection. Tavily uses non-standard 432 ("This
+    // request exceeds your plan's set usage limit") in addition to 402 and
+    // 429. We also pattern-match the response body so future code drift
+    // doesn't silently swallow a quota outage.
+    if (input.throwOnQuota) {
+      const isQuotaStatus = resp.status === 402 || resp.status === 429 || resp.status === 432
+      const isQuotaBody = /usage limit|rate limit|out of (credits|quota)|plan'?s.*limit/i.test(text)
+      if (isQuotaStatus || isQuotaBody) {
+        throw new TavilyQuotaError(resp.status, `Tavily API ${resp.status}: ${text || 'quota exceeded'}`)
+      }
+    }
     console.warn(`Tavily search ${resp.status}:`, text)
     return { results: [] }
   }
