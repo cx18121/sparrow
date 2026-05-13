@@ -212,9 +212,13 @@ Tier 2/3 adapters from the survey — nine shipped in one pass:
 
 **Sub-total from steps 21–29 — 752 net-new companies in nine adapters.**
 
-All survey adapter candidates from steps 11–29 shipped. Remaining work: re-run `audit-stages.ts` (step 7) to verify post-B counts moved with the new data; widen Exa-discovery (Part 6) with additional topical queries at ~1 Exa credit per 18–28 net-new rows; revisit Balderton with a Playwright-driven FacetWP session if the missing ~170 rows become a constraint.
+30. **Redpoint Ventures** ✅ — `scripts/ingest-redpoint.ts`. **117 net-new companies** ingested (226 total — 109 overlap with prior sources tagged `investor:redpoint`). Gatsby static site with the companies grid pre-built into `https://www.redpoint.com/page-data/companies/page-data.json` (313 KB of structured Sanity data). No HTML parsing, no detail-page hop, no AJAX, no Playwright. Stage taxonomy is closed and clean (`Seed`/`Series A`/`Series B`/`Series C or Later` → canonical, with `or Later` collapsing to the `Series C+` legacy bucket). **224 of 226 rows carry stage (~99%)** — beats every prior adapter except Costanoa/Greylock. Sectors emitted as `topics` so `buildTags` normalizes them through the canonical vertical/tech/model dictionaries.
 
-Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico (JS-rendered with no JSON escape hatch / anti-bot); Ribbit, Susa, Slow (no public portfolio page).
+**Sub-total from step 30 — 117 net-new companies in one trivial single-fetch adapter.**
+
+All survey adapter candidates from steps 11–30 shipped. Remaining work: re-run `audit-stages.ts` (step 7) to verify post-B counts moved with the new data; widen Exa-discovery (Part 6) with additional topical queries at ~1 Exa credit per 18–28 net-new rows; revisit Balderton with a Playwright-driven FacetWP session if the missing ~170 rows become a constraint.
+
+Hard-skipped (validated): NEA, Lux, BCV, Thrive, Atomico, **Menlo, Norwest** (JS-rendered with no JSON escape hatch / anti-bot — Menlo returns a WP-Engine WAF block page through Cloudflare, Norwest 403s every path with the standard browser UA); Ribbit, Susa, Slow (no public portfolio page).
 
 ---
 

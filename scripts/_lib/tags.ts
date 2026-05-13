@@ -305,6 +305,7 @@ const INVESTOR_TAGS = [
   "mosaic",
   "notion-capital",
   "pear",
+  "redpoint",
   "sapphire",
   "sequoia",
   "spark",
