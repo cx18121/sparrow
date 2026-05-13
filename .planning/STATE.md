@@ -49,9 +49,7 @@ Sparrow is campaign-first. Global navigation is Home, Templates, Settings. Campa
 
 ## Active Concerns
 
-- Accessibility hardening: labels and modal focus management.
-- Bundle size around vendor/pdf/docx parser chunks.
-- Research dossier freshness is manual/implicit, not a scheduled refresh.
+- Accessibility hardening: labels and modal focus management. (User has explicitly de-prioritized 2026-05-12 — not a current focus.)
 - Some old planning files are archived and intentionally not reliable as current implementation docs.
 
 ## Resume hints (ephemeral)
