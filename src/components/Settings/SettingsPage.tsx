@@ -56,7 +56,7 @@ function CapabilityRow({ icon: Icon, label, enabled, disabledHint }: {
 
 function FieldGroup({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="surface-panel px-5 py-5 sm:px-6">
+    <section className="surface-panel py-2">
       <header className="mb-4">
         <h3 className="font-display text-base font-semibold text-dark">{title}</h3>
         {hint && <p className="mt-1 text-xs leading-5 text-muted">{hint}</p>}
@@ -679,51 +679,59 @@ export default function SettingsPage({
 
   return (
     <div className="page-shell max-w-5xl">
-      <header className="flex flex-col gap-1">
-        <p className="page-eyebrow">Settings</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Workspace settings</h1>
-        <p className="text-sm text-muted">Profile, sending, and account.</p>
-      </header>
+      <div className="workspace">
+        <header className="border-b border-warm-200 px-6 pb-6 pt-8 sm:px-10 sm:pt-10">
+          <p className="page-eyebrow">Settings</p>
+          <h1 className="mt-3 font-display text-[2rem] font-semibold leading-tight text-dark">Your workspace</h1>
+          <p className="mt-2 text-sm text-muted">Profile, sending, account.</p>
+        </header>
 
-      {oauthResult?.kind === 'success' && (
-        profile?.hasGmailWatch ? (
-          <Banner variant="success" icon={Check}>
-            Gmail connected. Sending and reply tracking are both active.
-          </Banner>
-        ) : (
-          <Banner variant="warning" icon={AlertCircle}>
-            Gmail connected for sending. Reply tracking did not enable — try reconnecting.
-          </Banner>
-        )
-      )}
-      {oauthResult?.kind === 'error' && (
-        <Banner variant="danger" icon={AlertCircle}>{oauthResult.message}</Banner>
-      )}
+        {oauthResult && (
+          <div className="border-b border-warm-200 px-6 py-4 sm:px-10">
+            {oauthResult.kind === 'success' && (
+              profile?.hasGmailWatch ? (
+                <Banner variant="success" icon={Check}>
+                  Gmail connected. Sending and reply tracking are both active.
+                </Banner>
+              ) : (
+                <Banner variant="warning" icon={AlertCircle}>
+                  Gmail connected for sending. Reply tracking did not enable — try reconnecting.
+                </Banner>
+              )
+            )}
+            {oauthResult.kind === 'error' && (
+              <Banner variant="danger" icon={AlertCircle}>{oauthResult.message}</Banner>
+            )}
+          </div>
+        )}
 
-      <TabBar active={active} onChange={setActive} status={tabStatus} />
+        <div className="border-b border-warm-200 px-3 sm:px-7">
+          <TabBar active={active} onChange={setActive} status={tabStatus} />
+        </div>
 
-      <div className="pt-1">
-        {active === 'profile' && (
-          <ProfileTab
-            workspaceConfig={workspaceConfig}
-            onSave={(updater) => saveWorkspace(updater, 'Profile saved')}
-          />
-        )}
-        {active === 'sending' && (
-          <SendingTab
-            workspaceConfig={workspaceConfig}
-            templates={templates}
-            onSave={(updater) => saveWorkspace(updater, 'Sending settings saved')}
-          />
-        )}
-        {active === 'account' && (
-          <AccountTab
-            profile={profile}
-            profileLoading={profileLoading}
-            onRefreshProfile={onRefreshProfile}
-            onConnectGoogle={handleConnect}
-          />
-        )}
+        <div className="px-6 py-6 sm:px-10 sm:py-8">
+          {active === 'profile' && (
+            <ProfileTab
+              workspaceConfig={workspaceConfig}
+              onSave={(updater) => saveWorkspace(updater, 'Profile saved')}
+            />
+          )}
+          {active === 'sending' && (
+            <SendingTab
+              workspaceConfig={workspaceConfig}
+              templates={templates}
+              onSave={(updater) => saveWorkspace(updater, 'Sending settings saved')}
+            />
+          )}
+          {active === 'account' && (
+            <AccountTab
+              profile={profile}
+              profileLoading={profileLoading}
+              onRefreshProfile={onRefreshProfile}
+              onConnectGoogle={handleConnect}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

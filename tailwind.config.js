@@ -67,6 +67,9 @@ export default {
         brand: '0 4px 12px rgba(85,122,87,0.22)',
         // Inverted shadow for the mobile bottom-nav lift.
         rail: '0 -10px 30px rgba(44,31,16,0.08)',
+        // Two-layer warm drop shadow for the white workspace panel.
+        // Tighter than `card` so the lift reads as "object on parchment".
+        lift: '0 8px 24px rgba(44,31,16,0.10), 0 2px 6px rgba(44,31,16,0.06)',
       },
     },
   },

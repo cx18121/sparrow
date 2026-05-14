@@ -8,14 +8,15 @@ interface SendActivityProps {
   monthlyMax: number
 }
 
-// Color-code on usage so a user at 90% sees a warning before they hit the
-// cap mid-batch. Thresholds match what feels natural: green up to 75%,
-// amber 75-95%, red above. Independent of the actual numbers so small and
-// large caps look consistent.
+// Color-code on usage so a user at 90% sees a warning before they hit
+// the cap mid-batch. Stays inside the warm parchment palette: primary
+// green at safe levels, accent tan at warning, oxblood rust at danger.
+// Independent of the actual numbers so small and large caps look
+// consistent.
 function barColor(pct: number): string {
-  if (pct >= 95) return 'bg-red-500'
-  if (pct >= 75) return 'bg-amber-500'
-  return 'bg-emerald-500'
+  if (pct >= 95) return 'bg-[#8C3A1F]'
+  if (pct >= 75) return 'bg-accent-500'
+  return 'bg-primary-500'
 }
 
 // Quota windows are UTC-anchored to match server/lib/rate-limit.ts.
@@ -77,47 +78,46 @@ export default function SendActivity({ stats, loading, dailyMax, monthlyMax }: S
   const monthlyResetHint = formatMonthlyCountdown(nextMonthlyReset(now), now)
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Send activity</h2>
+    <section className="px-6 pb-10 pt-8 sm:px-10">
+      <div className="flex items-baseline justify-between border-b border-warm-200 pb-3">
+        <h2 className="font-display text-lg font-semibold text-dark">Sending capacity</h2>
+        <span className="text-xs text-muted">UTC reset</span>
       </div>
-      <div className="rounded-2xl border border-neutral-200 bg-white">
-        <div className="grid gap-4 p-4 sm:grid-cols-2">
-          <QuotaBar
-            label="Today"
-            used={dailyUsed}
-            cap={dailyMax}
-            remaining={dailyRemaining}
-            pct={dailyPct}
-            barColor={barColor(dailyPct)}
-            loading={loading}
-            resetHint={dailyResetHint}
-          />
-          <QuotaBar
-            label="This month"
-            used={monthlyUsed}
-            cap={monthlyMax}
-            remaining={monthlyRemaining}
-            pct={monthlyPct}
-            barColor={barColor(monthlyPct)}
-            loading={loading}
-            resetHint={monthlyResetHint}
-          />
-        </div>
-        <div className="grid grid-cols-3 divide-x divide-neutral-200 border-t border-neutral-200">
-          <MiniStat label="Last 7 days" value={stats?.sentLast7Days ?? null} loading={loading} />
-          <MiniStat label="All time" value={stats?.sentTotal ?? null} loading={loading} />
-          <MiniStat
-            label="Replies"
-            value={stats?.repliedCount ?? null}
-            loading={loading}
-            detail={
-              stats && stats.sentTotal > 0 && stats.repliedCount > 0
-                ? `${Math.round((stats.repliedCount / stats.sentTotal) * 100)}% reply rate`
-                : undefined
-            }
-          />
-        </div>
+      <div className="grid gap-x-10 gap-y-6 pt-5 sm:grid-cols-2">
+        <QuotaBar
+          label="Today"
+          used={dailyUsed}
+          cap={dailyMax}
+          remaining={dailyRemaining}
+          pct={dailyPct}
+          barColor={barColor(dailyPct)}
+          loading={loading}
+          resetHint={dailyResetHint}
+        />
+        <QuotaBar
+          label="This month"
+          used={monthlyUsed}
+          cap={monthlyMax}
+          remaining={monthlyRemaining}
+          pct={monthlyPct}
+          barColor={barColor(monthlyPct)}
+          loading={loading}
+          resetHint={monthlyResetHint}
+        />
+      </div>
+      <div className="mt-6 grid max-w-xl grid-cols-3 gap-6 text-sm">
+        <MiniStat label="Last 7 days" value={stats?.sentLast7Days ?? null} loading={loading} />
+        <MiniStat label="All time" value={stats?.sentTotal ?? null} loading={loading} />
+        <MiniStat
+          label="Replies"
+          value={stats?.repliedCount ?? null}
+          loading={loading}
+          detail={
+            stats && stats.sentTotal > 0 && stats.repliedCount > 0
+              ? `${Math.round((stats.repliedCount / stats.sentTotal) * 100)}% reply rate`
+              : undefined
+          }
+        />
       </div>
     </section>
   )
@@ -166,7 +166,7 @@ interface MiniStatProps {
 function MiniStat({ label, value, loading, detail }: MiniStatProps) {
   const display = loading || value == null ? '-' : value.toLocaleString()
   return (
-    <div className="min-w-0 px-4 py-3">
+    <div className="min-w-0">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</div>
       <div className="mt-1.5 font-display text-xl font-semibold text-dark tabular-nums">{display}</div>
       {detail && <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>}

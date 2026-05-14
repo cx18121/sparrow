@@ -1,10 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {
-  ArrowRight, FileText, Plus, Users,
-} from 'lucide-react'
+import { Plus } from 'lucide-react'
 import Banner from '../ui/Banner'
-import Pill from '../ui/Pill'
 import { useToast } from '../../contexts/ToastContext'
 import { fetchCampaignOptions, fetchEmailsCombined } from '../../lib/api'
 import { useAppData, type UiCampaign } from '../../contexts/AppDataContext'
@@ -22,12 +19,6 @@ import SendActivity from './SendActivity'
 
 const EMPTY_OPTIONS: CampaignOptions = {
   industries: [], regions: [], stages: [], batches: [], tags: {}, hiringCount: 0,
-}
-
-const STATUS_VARIANT: Record<UiCampaign['status'], 'success' | 'warning' | 'info'> = {
-  active: 'success',
-  paused: 'warning',
-  completed: 'info',
 }
 
 const STATUS_LABEL: Record<UiCampaign['status'], string> = {
@@ -51,29 +42,29 @@ function formatRelative(value: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-interface KpiCardProps {
+interface KpiCellProps {
   label: string
   value: number | string
   helper?: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
   loading?: boolean
   onClick?: () => void
 }
 
-function KpiCard({ label, value, helper, icon: Icon, loading, onClick }: KpiCardProps) {
+// Divided-strip KPI cell: not a box, no icon ornament. The grid wrapper
+// supplies the visual structure (divide-x + bottom hairline); the cell
+// is just typographic info. `onClick` makes the cell a button with a
+// tinted hover surface and a primary-tinted number on hover.
+function KpiCell({ label, value, helper, loading, onClick }: KpiCellProps) {
   const display = loading && (value === 0 || value === '') ? '-' : value
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag
       {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`surface-panel px-5 py-4 text-left w-full ${onClick ? 'transition-colors hover:bg-panel-deep/70 hover:border-accent/25 active:translate-y-px cursor-pointer' : ''}`}
+      className={`group block px-6 py-5 text-left sm:px-10 sm:py-6 ${onClick ? 'transition-colors hover:bg-warm-50/70 active:bg-warm-50 cursor-pointer' : ''}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
-        <Icon size={14} className="text-primary/55" />
-      </div>
-      <div className="mt-3 flex items-baseline gap-2">
-        <span className="font-display text-[2rem] font-semibold leading-none text-dark tabular-nums">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted/80">{label}</p>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="font-display text-3xl font-semibold leading-none text-dark tabular-nums transition-colors group-hover:text-primary-700">
           {display}
         </span>
         {helper && <span className="text-xs text-muted">{helper}</span>}
@@ -82,90 +73,69 @@ function KpiCard({ label, value, helper, icon: Icon, loading, onClick }: KpiCard
   )
 }
 
-interface CampaignCardProps {
+interface CampaignRowProps {
   campaign: UiCampaign & { template?: { id: string; name: string } | null }
   templateName: string | null
   onClick: () => void
 }
 
-function CampaignCard({ campaign, templateName, onClick }: CampaignCardProps) {
+// Status visual: ink color + weight, no dot. The label's typography
+// carries the status — saves a glyph, drops a SaaS reflex.
+const STATUS_INK: Record<UiCampaign['status'], string> = {
+  active: 'text-primary-700 font-semibold',
+  paused: 'text-accent-700 font-medium',
+  completed: 'text-warm-500 font-medium',
+}
+
+function CampaignRow({ campaign, templateName, onClick }: CampaignRowProps) {
   const audience = audienceToDisplayPills(audienceFromCampaign(campaign)).slice(0, 3).join(' · ')
   const status = campaign.status
   const leads = campaign.leadCount ?? 0
   const drafts = campaign.draftCount ?? 0
   const sent = campaign.sentCount ?? 0
-  const hasActivity = leads + drafts + sent > 0
-  // Optimistic temp-id rows are pre-server commit. Letting them be clicked
-  // navigates to a workspace URL the server doesn't know about, and every
-  // fetch the workspace makes 404s. Render them muted + non-clickable until
-  // the real id arrives (typically a sub-second swap).
+  // Optimistic temp-id rows are pre-server commit. Clicking through would
+  // 404 every workspace fetch, so render them disabled until the real id
+  // arrives.
   const isOptimistic = campaign.id.startsWith('temp-')
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isOptimistic}
-      aria-busy={isOptimistic || undefined}
-      className={`group flex w-full flex-col gap-3 rounded-2xl border border-warm-200 bg-panel px-5 py-4 text-left transition-all duration-150 ${
-        isOptimistic
-          ? 'cursor-progress opacity-60'
-          : 'hover:border-primary/30 hover:bg-warm-50 active:translate-y-px'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <Pill variant={STATUS_VARIANT[status]} dot>{STATUS_LABEL[status]}</Pill>
-        <ArrowRight size={14} className="text-muted/40 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-primary/60" />
-      </div>
-      <div>
-        <h3 className="font-display text-base font-semibold text-dark">{campaign.name}</h3>
-        {audience && <p className="mt-1 line-clamp-1 text-xs text-muted">{audience}</p>}
-      </div>
-      <div className="mt-1 border-t border-warm-200/70 pt-3">
-        {hasActivity ? (
-          <div className="flex items-center divide-x divide-warm-200/70 text-sm">
-            <CardStat value={leads} label={leads === 1 ? 'lead' : 'leads'} />
-            <CardStat value={drafts} label={drafts === 1 ? 'draft' : 'drafts'} accent={drafts > 0} />
-            <CardStat value={sent} label="sent" />
-          </div>
-        ) : (
-          <p className="text-xs text-muted">Not started · {campaign.batchSize ?? 10} per batch</p>
-        )}
-      </div>
-      <div className="flex items-center justify-between gap-3 text-xs text-muted">
-        <span>{isOptimistic ? 'Saving…' : formatRelative(campaign.updatedAt)}</span>
-        {templateName && <span className="truncate">{templateName}</span>}
-      </div>
-    </button>
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={isOptimistic}
+        aria-busy={isOptimistic || undefined}
+        className={`group grid w-full grid-cols-[1fr_auto] items-baseline gap-x-6 gap-y-1 px-6 py-4 text-left transition-colors sm:grid-cols-[1fr_minmax(0,7rem)_minmax(0,11rem)_minmax(0,5rem)] sm:items-baseline sm:gap-x-8 sm:px-10 ${
+          isOptimistic ? 'cursor-progress opacity-60' : 'hover:bg-warm-50/70'
+        }`}
+      >
+        <div className="min-w-0">
+          <p className="font-display text-base font-semibold text-dark transition-colors group-hover:text-primary-700">{campaign.name}</p>
+          {audience && <p className="mt-0.5 truncate text-xs text-muted">{audience}</p>}
+        </div>
+        <span className={`text-xs uppercase tracking-[0.14em] sm:justify-self-start ${STATUS_INK[status]}`}>
+          {STATUS_LABEL[status]}
+        </span>
+        <span className="hidden text-xs tabular-nums text-muted sm:block sm:text-right">
+          {leads} {leads === 1 ? 'lead' : 'leads'}
+          {' · '}
+          {drafts > 0
+            ? <span className="font-medium text-primary-700">{drafts} {drafts === 1 ? 'draft' : 'drafts'}</span>
+            : <>{drafts} drafts</>}
+          {' · '}
+          {sent} sent
+        </span>
+        <span className="hidden text-right text-xs tabular-nums text-muted sm:block">
+          {isOptimistic ? 'Saving…' : formatRelative(campaign.updatedAt)}
+        </span>
+      </button>
+    </li>
   )
 }
 
-function CardStat({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
+function WelcomeBlock({ name, onCreate }: { name: string; onCreate: () => void }) {
   return (
-    <div className="flex items-baseline gap-1.5 px-3 first:pl-0 last:pr-0">
-      <span className={`font-medium tabular-nums ${accent ? 'text-primary' : 'text-dark'}`}>{value}</span>
-      <span className="text-muted">{label}</span>
-    </div>
-  )
-}
-
-function NewCampaignCard({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-accent/30 bg-panel-deep/40 px-5 py-6 text-muted transition-all duration-150 hover:border-primary/45 hover:bg-panel-deep/70 hover:text-dark active:translate-y-px"
-    >
-      <Plus size={18} />
-      <span className="font-display text-base font-semibold text-dark">New campaign</span>
-      <span className="text-xs">Define a search, save leads, send drafts</span>
-    </button>
-  )
-}
-
-function WelcomeCard({ name, onCreate }: { name: string; onCreate: () => void }) {
-  return (
-    <div className="mx-auto mt-16 max-w-2xl sm:mt-24">
-      <div className="surface-panel px-6 py-7 sm:px-8 sm:py-8">
+    <div className="px-6 py-16 sm:px-10 sm:py-24">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="page-eyebrow">Home</p>
         <h1 className="mt-3 font-display text-3xl font-semibold leading-tight text-dark sm:text-4xl">
           {name ? `Welcome, ${name}.` : 'Welcome to Sparrow.'}
@@ -321,14 +291,16 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
   }
 
   // Still loading from network with no local cache — return null to avoid
-  // flashing an empty full-page layout then switching to WelcomeCard.
+  // flashing an empty full-page layout then switching to the welcome block.
   if (dataLoading) return null
 
-  // Empty state: no campaigns, no stats - just one welcome card.
+  // Empty state: no campaigns, no stats - workspace shows just the welcome.
   if (campaigns.length === 0) {
     return (
       <div className="page-shell">
-        <WelcomeCard name={firstName} onCreate={openCreate} />
+        <div className="workspace">
+          <WelcomeBlock name={firstName} onCreate={openCreate} />
+        </div>
         <CreateCampaignWizard
           open={wizardOpen}
           templates={templates}
@@ -343,77 +315,80 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
 
   return (
     <div className="page-shell">
-      {/* Greeting strip */}
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="page-eyebrow">Home</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold leading-tight text-dark">
-            {firstName ? `${greeting}, ${firstName}.` : 'Welcome back.'}
-          </h1>
-          {greetingStat && (
-            <p className="mt-2 text-sm leading-relaxed text-muted">{greetingStat}</p>
-          )}
+      <div className="workspace">
+        {/* Header band */}
+        <header className="border-b border-warm-200 px-6 pb-6 pt-8 sm:px-10 sm:pt-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="page-eyebrow">Home</p>
+              <h1 className="mt-3 font-display text-[2rem] font-semibold leading-tight text-dark">
+                {firstName ? `${greeting}, ${firstName}.` : 'Welcome back.'}
+              </h1>
+              {greetingStat && (
+                <p className="mt-2 text-sm leading-6 text-muted">{greetingStat}</p>
+              )}
+            </div>
+            <button onClick={openCreate} className="btn-primary self-start sm:self-auto">
+              <Plus size={14} /> New campaign
+            </button>
+          </div>
+        </header>
+
+        {emailsError && (
+          <div className="border-b border-warm-200 px-6 py-4 sm:px-10">
+            <Banner variant="warning">{emailsError}</Banner>
+          </div>
+        )}
+
+        {/* KPI divided strip. Send-related counts live in the SendActivity
+            section below to avoid duplicating "X this week" in two places. */}
+        <div className="grid grid-cols-2 divide-x divide-warm-200 border-b border-warm-200">
+          <KpiCell
+            label="Lead Pool"
+            value={totalLeadPool}
+            helper="across all campaigns"
+            loading={dataLoading}
+            onClick={mostRecentActiveCampaign ? () => goToCampaignTab('leads') : undefined}
+          />
+          <KpiCell
+            label="Drafts"
+            value={drafts.length}
+            helper="waiting review"
+            loading={emailsLoading}
+            onClick={mostRecentActiveCampaign ? () => goToCampaignTab('drafts') : undefined}
+          />
         </div>
-        <button onClick={openCreate} className="btn-primary self-start lg:self-auto">
-          <Plus size={14} /> New campaign
-        </button>
-      </section>
 
-      {emailsError && (
-        <Banner variant="warning">{emailsError}</Banner>
-      )}
+        {/* Campaign list. Rows on white, hairline separators. */}
+        <section className="px-6 pt-8 sm:px-10">
+          <div className="flex items-baseline justify-between border-b border-warm-200 pb-3">
+            <h2 className="font-display text-lg font-semibold text-dark">Campaigns</h2>
+            <span className="text-xs tabular-nums text-muted">
+              {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
+            </span>
+          </div>
+          <ol className="-mx-6 divide-y divide-warm-200 sm:-mx-10">
+            {sortedCampaigns.map(campaign => {
+              const tpl = templates.find(t => t.id === campaign.templateId)
+              return (
+                <CampaignRow
+                  key={campaign.id}
+                  campaign={campaign}
+                  templateName={tpl?.name ?? null}
+                  onClick={() => enterCampaign({ id: campaign.id, name: campaign.name })}
+                />
+              )
+            })}
+          </ol>
+        </section>
 
-      {/* KPI cards. Send-related counts live in the SendActivity panel
-          below to avoid duplicating "X this week" in two places. */}
-      <section className="grid gap-4 sm:grid-cols-2">
-        <KpiCard
-          label="Lead Pool"
-          value={totalLeadPool}
-          helper="across all campaigns"
-          icon={Users}
-          loading={dataLoading}
-          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('leads') : undefined}
+        <SendActivity
+          stats={stats}
+          loading={emailsLoading || stats == null}
+          dailyMax={workspaceConfig?.sendingLimits?.dailyMax ?? 250}
+          monthlyMax={workspaceConfig?.sendingLimits?.monthlyMax ?? 2000}
         />
-        <KpiCard
-          label="Drafts"
-          value={drafts.length}
-          helper="waiting review"
-          icon={FileText}
-          loading={emailsLoading}
-          onClick={mostRecentActiveCampaign ? () => goToCampaignTab('drafts') : undefined}
-        />
-      </section>
-
-      <SendActivity
-        stats={stats}
-        loading={emailsLoading || stats == null}
-        dailyMax={workspaceConfig?.sendingLimits?.dailyMax ?? 250}
-        monthlyMax={workspaceConfig?.sendingLimits?.monthlyMax ?? 2000}
-      />
-
-      {/* Campaign grid */}
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Campaigns</h2>
-          <span className="text-xs tabular-nums text-muted">
-            {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
-          </span>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sortedCampaigns.map(campaign => {
-            const tpl = templates.find(t => t.id === campaign.templateId)
-            return (
-              <CampaignCard
-                key={campaign.id}
-                campaign={campaign}
-                templateName={tpl?.name ?? null}
-                onClick={() => enterCampaign({ id: campaign.id, name: campaign.name })}
-              />
-            )
-          })}
-          <NewCampaignCard onClick={openCreate} />
-        </div>
-      </section>
+      </div>
 
       <CreateCampaignWizard
         open={wizardOpen}

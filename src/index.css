@@ -186,7 +186,8 @@
   }
 
   .card {
-    @apply overflow-hidden rounded-2xl border border-warm-200 bg-panel;
+    /* Legacy boxed card. Flat now; visual lift comes from .workspace. */
+    @apply overflow-hidden rounded-2xl;
   }
 
   .input {
@@ -264,6 +265,18 @@
     @apply mx-auto w-full max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-10 lg:pt-8 space-y-6;
   }
 
+  /* Workspace surface — single warm-tinted page panel lifted above the
+   * cream backdrop. Faint SVG fractal-noise lays a paper grain over the
+   * fill so the workspace reads as parchment, not flat white. Sections
+   * inside MUST be flat (hairline-separated, warm-50 sub-trays at most);
+   * never nested workspace containers. */
+  .workspace {
+    @apply relative overflow-hidden rounded-3xl border border-warm-200 shadow-lift;
+    background-color: #FDFBF6;
+    background-image:
+      url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.17 0 0 0 0 0.13 0 0 0 0 0.06 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
   .page-hero {
     @apply py-2 sm:py-4;
   }
@@ -285,7 +298,9 @@
   }
 
   .table-shell {
-    @apply overflow-x-auto overflow-y-hidden rounded-2xl border border-warm-200 bg-panel;
+    /* Was a boxed table card. Flat now; the surrounding .workspace
+     * provides the white panel. Keep the rounded clipping and scroll. */
+    @apply overflow-x-auto overflow-y-hidden rounded-2xl border border-warm-200;
   }
 
   .table-shell table {
@@ -306,7 +321,12 @@
   }
 
   .surface-panel {
-    @apply rounded-2xl border border-warm-200 bg-panel;
+    /* Was a boxed card. Surfaces of structure now come from the
+     * enclosing .workspace (single white panel per page). Retained as
+     * a semantic marker so the migration is grep-able, but renders
+     * flat. Sections that need explicit separation add their own
+     * `border-b border-warm-200` on a header or wrapper. */
+    @apply rounded-2xl;
   }
 
   .dense-list-row {

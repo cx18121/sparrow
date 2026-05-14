@@ -352,22 +352,25 @@ export default function TemplatesTab({ workspaceConfig }) {
   }
 
   return (
-    <div className="page-shell space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="page-eyebrow">Templates</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold text-dark">Reusable templates</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Edit the starting point for generated drafts.
-          </p>
-        </div>
-        <button onClick={openCreate} className="btn-primary self-start">
-          <Plus size={14} /> New template
-        </button>
-      </header>
+    <div className="page-shell">
+      <div className="workspace">
+        <header className="border-b border-warm-200 px-6 pb-6 pt-8 sm:px-10 sm:pt-10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="page-eyebrow">Templates</p>
+              <h1 className="mt-3 font-display text-[2rem] font-semibold leading-tight text-dark">Reusable templates</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Edit the starting point for generated drafts.
+              </p>
+            </div>
+            <button onClick={openCreate} className="btn-primary self-start sm:self-auto">
+              <Plus size={14} /> New template
+            </button>
+          </div>
+        </header>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
-        <aside className="surface-panel flex h-fit flex-col gap-4 p-3 xl:sticky xl:top-6">
+        <div className="grid gap-0 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start xl:divide-x xl:divide-warm-200">
+          <aside className="surface-panel flex h-fit flex-col gap-4 p-4 xl:sticky xl:top-6 xl:p-6">
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input aria-label="Search templates" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…" className="input pl-9 text-sm" />
@@ -431,12 +434,12 @@ export default function TemplatesTab({ workspaceConfig }) {
           </div>
         </aside>
 
-        <section className="space-y-4">
+        <section className="space-y-4 p-4 xl:p-6">
           {!selected ? (
             <EmptyState>Select or create a template to start editing.</EmptyState>
           ) : (
             <>
-              <div className="surface-panel px-5 py-5">
+              <div className="surface-panel">
                 {/* Name row + actions */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -626,6 +629,7 @@ export default function TemplatesTab({ workspaceConfig }) {
             </>
           )}
         </section>
+        </div>
       </div>
 
       <Modal open={editModal} onClose={() => setEditModal(false)} title={editingId ? 'Rename template' : 'New template'} size="sm">

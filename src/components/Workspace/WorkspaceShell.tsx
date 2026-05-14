@@ -75,7 +75,7 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
     }
     return (
       <div className="page-shell">
-        <div className="rounded-2xl border border-warm-200 bg-panel px-6 py-8 text-center">
+        <div className="workspace px-6 py-12 text-center sm:py-16">
           <h2 className="font-display text-xl font-semibold text-dark">Campaign not found</h2>
           <p className="mt-2 text-sm text-muted">It may have been deleted, or the link is wrong.</p>
           <button onClick={() => navigate('/dashboard')} className="btn-primary mt-4">
@@ -88,10 +88,14 @@ export default function WorkspaceShell({ workspaceConfig, profile, profileLoadin
 
   return (
     <div className="page-shell">
-      <WorkspaceHeader campaign={campaign} />
-      <SubTabNav campaignId={campaign.id} />
-      <div className="mt-5">
-        <Outlet context={{ campaign, workspaceConfig, profile, profileLoading, onRefreshProfile } satisfies WorkspaceOutletContext} />
+      <div className="workspace">
+        <div className="px-6 pt-8 sm:px-10 sm:pt-10">
+          <WorkspaceHeader campaign={campaign} />
+        </div>
+        <SubTabNav campaignId={campaign.id} />
+        <div className="px-6 py-6 sm:px-10 sm:py-8">
+          <Outlet context={{ campaign, workspaceConfig, profile, profileLoading, onRefreshProfile } satisfies WorkspaceOutletContext} />
+        </div>
       </div>
     </div>
   )
@@ -126,7 +130,7 @@ function SubTabNav({ campaignId }: { campaignId: string }) {
     <nav
       role="tablist"
       aria-label="Campaign workspace sections"
-      className="mt-5 flex flex-wrap gap-1 overflow-x-clip border-b border-warm-200"
+      className="mt-6 flex flex-wrap gap-1 overflow-x-clip border-b border-warm-200 px-3 sm:px-7"
     >
       {SUB_TABS.map(t => (
         <NavLink
