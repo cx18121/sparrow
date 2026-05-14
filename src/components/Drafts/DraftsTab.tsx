@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip, MailCheck,
   Loader2, MessageSquare, Eye, XCircle,
 } from 'lucide-react'
-import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments } from '../../lib/api'
+import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments, changeEmailAngle } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
@@ -35,6 +35,99 @@ import Pill from '../ui/Pill'
 function formatDate(iso) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Picker that lets the user swap which company surface (featureLine) the
+// draft pivots on. Only shown for verbatim drafts with a non-empty
+// featureLine and a dossier; the server enforces the same constraint.
+// Calling /api/emails/angle does a token-only fitAngle re-derive and a
+// string substitution on the saved body/subject — no Claude rewrite, so
+// any user edits to other parts of the email survive.
+function AnglePicker({
+  emailId,
+  currentFeatureLine,
+  surfaces,
+  onChanged,
+  disabled,
+}: {
+  emailId: string
+  currentFeatureLine: string
+  surfaces: string[]
+  onChanged: (next: { subject: string; body: string; featureLine: string | null; fitAngle: string | null }) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const { showToast } = useToast()
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || triggerRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  const pick = async (next: string) => {
+    if (busy) return
+    if (next === currentFeatureLine) {
+      setOpen(false)
+      return
+    }
+    setBusy(true)
+    try {
+      const updated = await changeEmailAngle(emailId, next)
+      onChanged({
+        subject: updated.subject,
+        body: updated.body,
+        featureLine: updated.featureLine,
+        fitAngle: updated.fitAngle,
+      })
+      setOpen(false)
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'Could not change angle', message: err?.message ?? 'Try again.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled || busy}
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-warm-200 bg-warm-50 px-3 py-1 text-xs font-medium text-dark transition-colors hover:border-primary/30 disabled:cursor-wait disabled:opacity-60"
+      >
+        {busy && <Loader2 size={11} className="animate-spin text-primary" />}
+        <span className="max-w-[32ch] truncate">{currentFeatureLine}</span>
+        <ChevronDown size={11} className="text-muted" />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          className="absolute left-0 top-full z-30 mt-1.5 min-w-[260px] max-w-[360px] overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 py-1 shadow-card"
+        >
+          {surfaces.map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => pick(s)}
+              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-xs transition-colors hover:bg-warm-100 ${s === currentFeatureLine ? 'font-semibold text-primary' : 'text-dark'}`}
+            >
+              <span className="truncate">{s}</span>
+              {s === currentFeatureLine && <Check size={11} className="shrink-0 text-primary" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function readinessIcon(label) {
@@ -203,10 +296,16 @@ export default function DraftsTab({
     setSubjectValue(preview.subject || '')
     setEditing(true)
     setSaveError(null)
+    // Make Enter inside contentEditable produce <p> blocks across browsers.
+    // Without this, Chrome inserts <div>, Firefox inserts <br>, and the
+    // saved markup ends up a mix that the display layer styles unevenly.
+    // execCommand is deprecated but defaultParagraphSeparator is still
+    // honored everywhere we ship, and there's no replacement API yet.
+    try { document.execCommand('defaultParagraphSeparator', false, 'p') } catch {}
     // Set contentEditable body after it mounts
     requestAnimationFrame(() => {
       if (editBodyRef.current) {
-        editBodyRef.current.innerHTML = DOMPurify.sanitize(preview.body || '')
+        editBodyRef.current.innerHTML = DOMPurify.sanitize(textToDraftHtml(preview.body))
         editBodyRef.current.focus()
       }
     })
@@ -215,7 +314,7 @@ export default function DraftsTab({
   const cancelEdit = () => {
     setSubjectValue(preview?.subject || '')
     if (editBodyRef.current) {
-      editBodyRef.current.innerHTML = DOMPurify.sanitize(preview?.body || '')
+      editBodyRef.current.innerHTML = DOMPurify.sanitize(textToDraftHtml(preview?.body))
     }
     setEditing(false)
     setSaveError(null)
@@ -932,6 +1031,16 @@ export default function DraftsTab({
                   {previewIndex + 1} / {sorted.length}
                 </span>
               )}
+              {selected.has(preview.id) && (
+                // Selection pill makes the `x` keyboard toggle visible in
+                // focus mode, where the list (and its checkbox) is hidden.
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                  title="In bulk selection (press x to deselect)"
+                >
+                  <Check size={9} /> Selected
+                </span>
+              )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-1.5 lg:ml-3">
               {/* Navigation */}
@@ -1076,6 +1185,33 @@ export default function DraftsTab({
               </div>
             </div>
 
+            {/* Angle picker: only verbatim drafts with a non-empty
+                featureLine and an attached dossier qualify. Backend
+                enforces the same constraint. */}
+            {tab === 'draft' && !editing && (() => {
+              const surfaces: string[] = (preview.userLead?.company as any)?.researchDossier?.surfaces ?? []
+              const canChange =
+                preview.generationKind === 'verbatim' &&
+                typeof preview.featureLine === 'string' &&
+                preview.featureLine.length > 0 &&
+                Array.isArray(surfaces) && surfaces.length > 0
+              if (!canChange) return null
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Angle</p>
+                  <AnglePicker
+                    emailId={preview.id}
+                    currentFeatureLine={preview.featureLine}
+                    surfaces={surfaces}
+                    onChanged={(next) => {
+                      setPreview(p => p ? { ...p, subject: next.subject, body: next.body, featureLine: next.featureLine, fitAngle: next.fitAngle } : p)
+                      setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: next.subject, body: next.body, featureLine: next.featureLine, fitAngle: next.fitAngle } : d))
+                    }}
+                  />
+                </div>
+              )
+            })()}
+
             {/* Subject */}
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70 mb-2">Subject</p>
@@ -1108,7 +1244,7 @@ export default function DraftsTab({
                   contentEditable
                   suppressContentEditableWarning
                   aria-label="Draft body"
-                  className="input w-full min-h-[280px] text-sm leading-7 focus:outline-none overflow-auto"
+                  className="email-body input w-full min-h-[280px] focus:outline-none overflow-auto"
                   onPaste={e => {
                     // Strip HTML from paste — keeps plain text, avoids injecting
                     // arbitrary markup from rich-text sources.
@@ -1125,7 +1261,7 @@ export default function DraftsTab({
                 />
               ) : (
                 <div
-                  className="max-w-[68ch] rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 text-[15px] leading-7 text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                  className="email-body max-w-[68ch] rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 text-dark shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(textToDraftHtml(preview.body)) }}
                 />
               )}

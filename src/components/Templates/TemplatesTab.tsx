@@ -621,7 +621,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                     </p>
                   </div>
                   <div
-                    className="template-preview prose prose-sm max-w-none bg-panel p-6 text-dark"
+                    className="email-body max-w-none bg-panel p-6 text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                 </div>

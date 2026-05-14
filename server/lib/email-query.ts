@@ -12,7 +12,11 @@ const emailInclude = {
     select: {
       id: true,
       status: true,
-      company: { select: { id: true, name: true, domain: true } },
+      // researchDossier is included so the draft-review "change angle"
+      // picker can list the company's surfaces[] without a second fetch.
+      // It's a small JSON blob (1-3 KB per company); the trade-off is one
+      // extra column per email row.
+      company: { select: { id: true, name: true, domain: true, researchDossier: true } },
     },
   },
 } as const;

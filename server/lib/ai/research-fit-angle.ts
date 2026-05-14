@@ -37,6 +37,10 @@ export interface PickFitAngleInput {
   dossier: CompanyDossier
   resumeText: string | null
   apiKey: string
+  // When set, the model is asked to pick only FIT against this fixed
+  // FEATURE. Used by the draft "change angle" flow so the chosen surface
+  // is preserved verbatim while the fit phrasing is rederived for it.
+  forceFeatureLine?: string | null
 }
 
 export interface FitAngleResult {
@@ -129,6 +133,7 @@ function buildSynthesisPrompt(input: ResearchCompanyInput, results: TavilyResult
 
 function buildPickPrompt(input: PickFitAngleInput): string {
   const d = input.dossier
+  const forced = input.forceFeatureLine?.trim() || null
   const lines = [
     'Dossier:',
     d.summary ? `Summary: ${d.summary}` : null,
@@ -138,6 +143,11 @@ function buildPickPrompt(input: PickFitAngleInput): string {
     '',
     'Candidate resume (full):',
     input.resumeText ?? '(no resume provided)',
+    forced ? '' : null,
+    // The user has explicitly chosen FEATURE in the UI. Echo it back
+    // verbatim and pick only FIT to bridge to it. This keeps the chosen
+    // surface stable while letting the model re-anchor the resume hook.
+    forced ? `FEATURE is fixed: "${forced}". Output FEATURE: "${forced}" exactly, then pick FIT that bridges most directly to that surface.` : null,
   ].filter(line => line !== null)
   return lines.join('\n')
 }
@@ -409,7 +419,7 @@ export async function researchCompanyDossierHybrid(
 // Per-recipient personalization. Token-only — no search.
 export async function pickFitAngle(input: PickFitAngleInput): Promise<FitAngleResult> {
   if (isEmptyDossier(input.dossier)) {
-    return { featureLine: null, fitAngle: null }
+    return { featureLine: input.forceFeatureLine?.trim() || null, fitAngle: null }
   }
 
   const text = await callClaude({
@@ -421,8 +431,13 @@ export async function pickFitAngle(input: PickFitAngleInput): Promise<FitAngleRe
   })
 
   console.log('[pickFitAngle] raw output:', text)
+  const forced = input.forceFeatureLine?.trim() || null
   return {
-    featureLine: parseLine(text, 'FEATURE'),
+    // When the caller forced a FEATURE, trust the user's choice over the
+    // model's echo: if the model drifts (rephrases, adds punctuation), we
+    // still emit the exact user-selected string for clean merge-tag
+    // substitution downstream.
+    featureLine: forced ?? parseLine(text, 'FEATURE'),
     fitAngle: parseLine(text, 'FIT'),
   }
 }

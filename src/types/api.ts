@@ -132,9 +132,30 @@ export interface Email {
   sentAt: string | null
   createdAt: string
   updatedAt: string
+  // Personalization metadata. Populated by the draft-generation path;
+  // null for rows written by other paths or pre-migration. The picker on
+  // the drafts review pane reads featureLine + userLead.company.researchDossier.surfaces
+  // to surface the angle currently chosen and the alternatives available.
+  featureLine?: string | null
+  fitAngle?: string | null
+  generationKind?: "verbatim" | "template" | "ai" | "fallback" | null
   contact?: ContactSummary | null
   customContact?: { id: string; name: string | null; email: string | null; title: string | null; companyName: string | null } | null
-  userLead?: { id: string; status: LeadStatus; company: CompanySummary } | null
+  userLead?: {
+    id: string
+    status: LeadStatus
+    company: CompanySummary & { researchDossier?: ResearchDossier | null }
+  } | null
+}
+
+// Cached web-research output per company. The `surfaces` list seeds the
+// "change angle" picker on the drafts review pane; the rest of the
+// fields are reserved for downstream UI that wants to show the dossier.
+export interface ResearchDossier {
+  summary: string
+  surfaces: string[]
+  recentLaunches: string[]
+  technicalAreas: string[]
 }
 
 // -------------------- API request/response envelopes --------------------

@@ -265,6 +265,37 @@
     @apply mx-auto w-full max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-10 lg:pt-8 space-y-6;
   }
 
+  /* Shared prose styling for an email body — covers the read-only draft
+   * preview, the contentEditable edit pane, and the template preview so
+   * all three render identically. Paragraph spacing has to survive
+   * three input shapes:
+   *   1. HTML from the RichEditor template (`<p>Hi</p><p>I'm…</p>`).
+   *   2. Plain text wrapped by textToDraftHtml (inline style margins
+   *      that DOMPurify can strip in some configs).
+   *   3. The browser-inserted blocks on Enter inside contentEditable —
+   *      Chrome emits `<div>`, Firefox emits `<br>`, Safari mixes.
+   * Inherits body font (DM Sans) and default 1.5 line-height; explicit
+   * font-size or leading overrides on the host element will fight this. */
+  /* True WYSIWYG: paragraphs have zero margin so adjacent <p> blocks
+   * render tight (single Enter in TipTap = next line, no blank).
+   * `min-height: 1.5em` makes empty paragraphs (double Enter,
+   * <p></p> or <p><br></p>) take up one line of space — showing as
+   * the literal blank line the user typed. Sigs stay tight; section
+   * breaks the user explicitly inserted with a blank line show as
+   * blank lines. No Shift+Enter required. */
+  .email-body p,
+  .email-body div {
+    margin: 0;
+    min-height: 1.5em;
+  }
+  .email-body ul,
+  .email-body ol {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+  .email-body ul { @apply list-disc; }
+  .email-body ol { @apply list-decimal; }
+
   /* Workspace surface — single warm-tinted page panel lifted above the
    * cream backdrop. Faint SVG fractal-noise lays a paper grain over the
    * fill so the workspace reads as parchment, not flat white. Sections

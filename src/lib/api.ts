@@ -361,6 +361,11 @@ export const generateEmail = (data: {
 })
 export const sendEmail = (emailId: string) =>
   request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
+export const changeEmailAngle = (emailId: string, featureLine: string | null) =>
+  request<{ id: string; subject: string; body: string; featureLine: string | null; fitAngle: string | null }>(
+    '/emails/angle',
+    { method: 'POST', body: JSON.stringify({ emailId, featureLine }) }
+  )
 export const sendTestEmail = (emailId: string, recipient: string) =>
   request<{ success: true; recipient: string }>('/emails/send-test', {
     method: 'POST',

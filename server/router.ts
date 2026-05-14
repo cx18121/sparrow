@@ -9,6 +9,7 @@ import companies from "./routes/companies.js";
 import customContacts from "./routes/custom-contacts.js";
 import emails from "./routes/emails.js";
 import generateEmail from "./routes/emails/generate.js";
+import changeEmailAngle from "./routes/emails/angle.js";
 import sendEmail from "./routes/emails/send.js";
 import sendTestEmail from "./routes/emails/send-test.js";
 import googleCallback from "./routes/google/callback.js";
@@ -34,6 +35,7 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/leads": leads,
   "/api/emails": emails,
   "/api/emails/generate": generateEmail,
+  "/api/emails/angle": changeEmailAngle,
   "/api/emails/send": sendEmail,
   "/api/emails/send-test": sendTestEmail,
   "/api/google/connect": googleConnect,
