@@ -71,6 +71,17 @@ Single-context — one `docs/context.md` + `docs/adr/`. See `docs/agents/domain.
 - 503 unit (vitest) + 29 e2e (playwright). Run via `npx vitest run` and `npx playwright test`.
 - e2e contracts that constrain Settings work: `gmail-connect.spec.ts` requires exactly the **Profile / Sending / Account** tabs, asserts Style and Integrations are absent, and expects the Gmail `Connect` button on the Account tab.
 - e2e contracts that constrain Sidebar: `smoke.spec.ts` "sidebar exposes the three top-level tabs" asserts Home / Templates / Settings.
+- e2e selector conventions are in `e2e/README.md` — **pin behavior, not copy**. Tests broke from UI text drift on 2026-05-15; the doc and refactored tests show the working pattern (network interception > URL match > role/label > seeded data > copy as last resort).
+
+### Database migrations
+- **Prod schema changes flow through `prisma migrate`, never `db push`.** Workflow:
+  1. `npm run db:migrate:create -- <name>` — generates a versioned SQL file in `prisma/migrations/` against your local Supabase. Review and commit.
+  2. `npm run db:migrate:deploy` — applies pending migrations to prod (reads `DIRECT_URL` from `.env`, prompts for confirmation).
+- **Local exploration: `npm run db:push:local`** is fine for fast iteration while a schema is in flux. Once you're settled, run `db:migrate:create` to capture the change.
+- **`db:push:prod` is retired** (2026-05-15). The script errors and prints the new workflow if you try it.
+- Baselined to `0_init` on 2026-05-15 — that single migration represents the entire schema at that point in time, marked already-applied via `prisma migrate resolve`. Future migrations are deltas on top.
+- Historical ad-hoc migrations live in `prisma/legacy/` for reference only — they're not part of the migration history.
+- The `_prisma_migrations` table in prod tracks what's been applied. Don't drop it.
 
 ## Conventions
 - Atomic commits, one logical change each, multiline messages explaining WHY.
