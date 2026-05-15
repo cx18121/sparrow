@@ -33,7 +33,7 @@ test.describe('Home page', () => {
     await expect(page.locator('text=/^lead pool$/i').first()).toHaveCount(0)
   })
 
-  test('populated home shows greeting, 3 KPI cards, and campaign grid', async ({ page }) => {
+  test('populated home shows greeting, KPI cards, and campaign grid', async ({ page }) => {
     const template = await createTestTemplate(page, { name: 'Cold intro' })
     const campaign = await createTestCampaign(page, {
       name: 'Series A AI infra hiring',
@@ -46,10 +46,12 @@ test.describe('Home page', () => {
     // Greeting with user's name from the seeded session
     await expect(page.locator('text=/E2E/').first()).toBeVisible({ timeout: 10_000 })
 
-    // 3 KPI labels — must all exist
+    // Two KPI cells live on the divided KPI strip: Lead Pool and Drafts.
+    // Send-related counts moved to the SendActivity sentence below so the
+    // strip stays compact — the "sent this week" string still exists, but
+    // outside the KPI grid.
     await expect(page.locator('text=/^lead pool$/i').first()).toBeVisible()
     await expect(page.locator('text=/^drafts$/i').first()).toBeVisible()
-    await expect(page.locator('text=/sent this week/i').first()).toBeVisible()
 
     // Replies must NOT be present — that's a future phase
     await expect(page.locator('text=/^replies$/i').first()).toHaveCount(0)

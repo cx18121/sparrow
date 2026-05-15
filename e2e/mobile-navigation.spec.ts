@@ -32,6 +32,9 @@ test.describe('Mobile navigation UX', () => {
 
     await page.getByRole('button', { name: /^Settings$/i }).click()
     await expect(page).toHaveURL(/\/settings/)
-    await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible()
+    // Settings page no longer renders a "Settings" heading — the tab strip
+    // and URL communicate the section. Behavior under test (mobile nav routes
+    // correctly) is fully asserted by the URL match.
+    await expect(page.getByRole('tab', { name: /Profile/ })).toBeVisible()
   })
 })

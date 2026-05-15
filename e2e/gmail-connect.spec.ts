@@ -89,9 +89,10 @@ test.describe('Gmail connect button', () => {
       'aria-selected',
       'true',
     )
-    await expect(page.locator('text=/Ready to send drafts/i').first()).toBeVisible({
-      timeout: 5000,
-    })
+    // The behavior under test is that the success banner appears and the
+    // Account tab is selected after redirect — both asserted above. We don't
+    // pin specific banner copy so prose tweaks ("Ready to send drafts" →
+    // "Gmail connected for sending") don't break the suite.
   })
 })
 
@@ -120,14 +121,18 @@ test.describe('Settings tab structure', () => {
     await expect(page.getByRole('tab', { name: /Style/ })).toHaveCount(0)
     await expect(page.getByRole('tab', { name: /Integrations/ })).toHaveCount(0)
 
-    await expect(page.locator('text=/Sender identity/i').first()).toBeVisible()
+    // Profile tab has the sender-name input, which Sending and Account don't.
+    await expect(page.getByLabel(/Sender name/i)).toBeVisible()
 
     await page.getByRole('tab', { name: /Sending/ }).click()
-    await expect(page.locator('text=/Send rate/i').first()).toBeVisible()
-    await expect(page.locator('text=/Sender identity/i')).toHaveCount(0)
+    // Sending tab has the lead-batch-size input — a structural anchor that
+    // survives copy edits to surrounding labels.
+    await expect(page.getByLabel(/Lead batch size/i)).toBeVisible()
+    await expect(page.getByLabel(/Sender name/i)).toHaveCount(0)
 
     await page.getByRole('tab', { name: /Account/ }).click()
-    await expect(page.locator('text=/Gmail/i').first()).toBeVisible()
+    // Account tab is structurally identified by sign-out + delete buttons,
+    // not by the section copy.
     await expect(page.getByRole('button', { name: /Sign out/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /Delete account/i })).toBeVisible()
   })

@@ -113,7 +113,10 @@ test.describe('Drafts UX', () => {
     await page.getByRole('button', { name: /^Save$/i }).click()
 
     await expect.poll(() => patchPayload?.subject).toBe('Updated subject')
-    expect(patchPayload.body).toBe('Updated body')
+    // Body is rich-editor HTML now ('<p style="...">Updated body</p>') — the
+    // contract is that user input reaches the server intact, not that it
+    // arrives as bare plain text.
+    expect(patchPayload.body).toContain('Updated body')
     await expect(page.locator('text=/Updated subject/i').first()).toBeVisible()
   })
 

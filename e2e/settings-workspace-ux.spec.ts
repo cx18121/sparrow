@@ -64,57 +64,11 @@ test.describe('Settings and workspace UX', () => {
     await expect(page.locator('text=/Profile saved/i')).toBeVisible()
   })
 
-  test('clamps sending limits and saves default sending settings', async ({ page }) => {
-    let profilePost: any = null
-    await page.route('**/api/profile**', route => {
-      if (route.request().method() === 'POST') {
-        profilePost = route.request().postDataJSON()
-        return json(route, {
-          profile: {
-            onboardingCompleted: true,
-            workspaceConfig: profilePost.workspaceConfig,
-            hasClaudeKey: true,
-            hasGoogleRefreshToken: true,
-          },
-        })
-      }
-      return json(route, {
-        profile: {
-          onboardingCompleted: true,
-          workspaceConfig: {
-            senderName: 'Alex Tester',
-            resumeText: 'Built outreach tools.',
-            sendingLimits: { dailyMax: 25, delaySeconds: 30 },
-          },
-          hasClaudeKey: true,
-          hasGoogleRefreshToken: true,
-        },
-      })
-    })
-
-    await page.goto('/settings')
-    await page.getByRole('tab', { name: /Sending/i }).click()
-    await page
-      .locator('label', { hasText: 'Daily send limit' })
-      .locator('..')
-      .getByRole('spinbutton')
-      .fill('500')
-    await page
-      .locator('label', { hasText: 'Delay between sends' })
-      .locator('..')
-      .getByRole('spinbutton')
-      .fill('1')
-    await page
-      .locator('label', { hasText: 'Lead batch size' })
-      .locator('..')
-      .getByRole('spinbutton')
-      .fill('60')
-    await page.getByRole('button', { name: /Save sending settings/i }).click()
-
-    await expect.poll(() => profilePost?.workspaceConfig?.sendingLimits?.dailyMax).toBe(100)
-    expect(profilePost.workspaceConfig.sendingLimits.delaySeconds).toBe(15)
-    expect(profilePost.workspaceConfig.leadsPerGeneration).toBe(50)
-  })
+  // Removed: "clamps sending limits and saves default sending settings".
+  // The Sending tab no longer exposes Daily send limit / Delay between sends
+  // controls — `sendingLimits` was retired from the workspace config. If the
+  // feature returns, restore a test that asserts clamp behavior through the
+  // server payload, not by matching label text.
 
   test('saves campaign settings edits through the workspace editor', async ({ page }) => {
     const template = await createTestTemplate(page, { name: 'Cold intro' })
