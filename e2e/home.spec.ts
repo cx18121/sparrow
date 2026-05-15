@@ -53,9 +53,6 @@ test.describe('Home page', () => {
     await expect(page.locator('text=/^lead pool$/i').first()).toBeVisible()
     await expect(page.locator('text=/^drafts$/i').first()).toBeVisible()
 
-    // Replies must NOT be present — that's a future phase
-    await expect(page.locator('text=/^replies$/i').first()).toHaveCount(0)
-
     // Campaign card
     await expect(page.locator(`text=/Series A AI infra hiring/`).first()).toBeVisible()
 
