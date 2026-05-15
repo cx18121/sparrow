@@ -18,14 +18,37 @@ export type DraftSortKey = 'createdAt' | 'name' | 'company' | 'subject'
 export type DraftSortDirection = 'asc' | 'desc'
 export type DraftReviewFilter = 'all' | 'ready' | 'needsReview' | 'needsRecipient'
 
+// Decode HTML entities ('&amp;' → '&', '&apos;' → "'", numeric, etc.). In
+// browsers we let the HTML parser handle it via a detached textarea — single
+// pass, full entity coverage. Outside the browser (vitest under node) we
+// handle the named entities the AI and our templates actually produce.
+// '&amp;' runs last so single-encoded inputs decode cleanly; we don't
+// attempt to repair double-encoding here.
+function decodeHtmlEntities(s: string): string {
+  if (typeof document !== 'undefined') {
+    const ta = document.createElement('textarea')
+    ta.innerHTML = s
+    return ta.value
+  }
+  return s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
 export function stripDraftHtml(html?: string | null) {
   if (!html) return ''
-  return html
+  const stripped = html
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<\/p>/gi, ' ')
     .replace(/<[^>]*>/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+  return decodeHtmlEntities(stripped)
 }
 
 function signoffLine(line: string) {
@@ -60,16 +83,13 @@ export function textToDraftHtml(text?: string | null) {
 export function htmlToEditableText(html?: string | null) {
   if (!html) return ''
   if (!html.includes('<')) return html
-  return html
+  const stripped = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
     .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+  return decodeHtmlEntities(stripped)
 }
 
 export function getRecipient(draft: DraftLike) {

@@ -48,7 +48,10 @@ describe("Draft queue helpers", () => {
   });
 
   it("normalizes Draft body text for table previews and edit mode", () => {
-    expect(stripDraftHtml(leadDraft.body)).toBe("First line Second&nbsp;line");
+    // stripDraftHtml decodes HTML entities so list previews render
+    // "Second line" not "Second&nbsp;line" (regression from 2026-05-15
+    // where users saw literal &amp; / &apos; / &nbsp; in truncated previews).
+    expect(stripDraftHtml(leadDraft.body)).toBe("First line Second line");
     expect(htmlToEditableText("<p>Hello<br>there</p><p>Bye &amp; thanks</p>")).toBe("Hello\nthere\n\nBye & thanks");
     expect(textToDraftHtml("Hello\nthere\n\nBye")).toBe("<p style=\"margin:0 0 0.75em\">Hello<br>there</p><p style=\"margin:0 0 0.75em\">Bye</p>");
   });
