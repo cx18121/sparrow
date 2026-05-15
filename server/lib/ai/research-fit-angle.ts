@@ -211,7 +211,7 @@ function emptyDossier(): CompanyDossier {
   return { summary: '', surfaces: [], recentLaunches: [], technicalAreas: [] }
 }
 
-function isEmptyDossier(d: CompanyDossier): boolean {
+export function isEmptyDossier(d: CompanyDossier): boolean {
   return (
     d.surfaces.length === 0 &&
     d.recentLaunches.length === 0 &&

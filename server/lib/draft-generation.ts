@@ -4,6 +4,7 @@ import {
   researchCompanyDossierHybrid,
   pickFitAngle,
   parseCachedDossier,
+  isEmptyDossier,
   type CompanyDossier,
 } from "./ai/research-fit-angle.js";
 import type { DraftInput } from "./ai/types.js";
@@ -36,13 +37,19 @@ interface PersonalizationInput {
   apiKey: string;
 }
 
-// A cached dossier is always considered fresh for now. The product
-// trade-off: search results go stale (a company ships a new feature, the
-// dossier stays put), but a cap at this stage produces noise — most
-// companies don't ship anything in 30 days, and the cap costs a Tavily
-// call every reactivation. Re-research will be a manual action when added.
-function dossierIsFresh(at: Date | null): boolean {
-  return at !== null;
+// A cached dossier is considered fresh when it has both a timestamp AND
+// non-empty content. Empty dossiers (zero surfaces, no recent launches,
+// no technical areas) are treated as stale so the next caller re-researches.
+// This guards against caching null results from a misconfigured retrieval
+// pipeline — observed on 2026-05-15 when EXA_API_KEY was missing from prod:
+// every researched company got a `{summary:"", surfaces:[], ...}` cache
+// that then survived the env-var fix, leaving drafts permanently
+// personalization-less until the cache was manually invalidated.
+function dossierIsFresh(at: Date | null, dossier: CompanyDossier | null): boolean {
+  if (at === null) return false;
+  if (!dossier) return false;
+  if (isEmptyDossier(dossier)) return false;
+  return true;
 }
 
 async function researchAndCacheDossier(input: PersonalizationInput): Promise<CompanyDossier> {
@@ -103,9 +110,8 @@ async function resolvePersonalization(
 
   try {
     let dossier: CompanyDossier;
-    const cached = dossierIsFresh(input.cachedDossierAt)
-      ? parseCachedDossier(input.cachedDossier)
-      : null;
+    const parsedCache = parseCachedDossier(input.cachedDossier);
+    const cached = dossierIsFresh(input.cachedDossierAt, parsedCache) ? parsedCache : null;
     if (cached) {
       dossier = cached;
     } else {
