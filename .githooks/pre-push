@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Pre-push: run the same fast checks CI runs (type check + unit tests).
+# Catches the "push → CI fails → fix → push again" loop on tests/types
+# that pass locally but only with whatever env vars happen to be loaded.
+# Skips e2e (needs Docker + Supabase + ~3 min).
+#
+# Bypass with: git push --no-verify
+# Wired via `git config core.hooksPath .githooks` (set automatically by
+# the postinstall script in package.json).
+
+set -e
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+# Only gate main pushes — feature branches are exploratory.
+if [ "$branch" != "main" ]; then
+  exit 0
+fi
+
+# Same dummy env vars CI uses, so guards in server/lib/prisma.ts and
+# src/lib/supabase.ts don't trip when the shell doesn't have them set.
+export DATABASE_URL="${DATABASE_URL:-postgresql://test:test@localhost:5432/test}"
+export DIRECT_URL="${DIRECT_URL:-postgresql://test:test@localhost:5432/test}"
+export VITE_SUPABASE_URL="${VITE_SUPABASE_URL:-http://localhost:54321}"
+export VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY:-ci-anon-placeholder}"
+
+echo "[pre-push] tsc -b..."
+npm run check --silent || { echo "[pre-push] type check failed. Bypass: git push --no-verify"; exit 1; }
+
+echo "[pre-push] vitest run..."
+npm run test:unit --silent || { echo "[pre-push] unit tests failed. Bypass: git push --no-verify"; exit 1; }
+
+echo "[pre-push] OK"

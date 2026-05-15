@@ -73,6 +73,11 @@ Single-context — one `docs/context.md` + `docs/adr/`. See `docs/agents/domain.
 - e2e contracts that constrain Sidebar: `smoke.spec.ts` "sidebar exposes the three top-level tabs" asserts Home / Templates / Settings.
 - e2e selector conventions are in `e2e/README.md` — **pin behavior, not copy**. Tests broke from UI text drift on 2026-05-15; the doc and refactored tests show the working pattern (network interception > URL match > role/label > seeded data > copy as last resort).
 
+### Pre-push hook
+- `.githooks/pre-push` runs `tsc -b` + `vitest run` before any push to `main`. Bypass with `git push --no-verify`.
+- Activated via `git config core.hooksPath .githooks` (one-time per clone). Hook is tracked in repo.
+- E2E is intentionally NOT run pre-push (needs Docker + Supabase + ~3 min). CI handles that.
+
 ### Database migrations
 - **Prod schema changes flow through `prisma migrate`, never `db push`.** Workflow:
   1. `npm run db:migrate:create -- <name>` — generates a versioned SQL file in `prisma/migrations/` against your local Supabase. Review and commit.
