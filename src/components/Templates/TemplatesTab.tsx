@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { MergeTag, tagsToSpans, spansToTags } from './MergeTagNode'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
   List, ListOrdered, Eye, Edit3, Search, Copy, Loader2, Check, X, Library, MoreHorizontal,
@@ -78,16 +79,24 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…', ar
       Underline,
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder }),
+      MergeTag,
     ],
-    content,
-    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    // Pre-process the incoming HTML so '{{tag}}' text becomes a span that
+    // the MergeTag node parses as an atomic pill on load.
+    content: tagsToSpans(content),
+    // And inverse on save: pills back to '{{tag}}' text in storage so server
+    // substitution keeps working unchanged.
+    onUpdate: ({ editor }) => onChange(spansToTags(editor.getHTML())),
     editorProps: {
       attributes: { class: 'focus:outline-none', role: 'textbox', 'aria-label': ariaLabel },
     },
   })
 
+  // Insert a merge tag as a MergeTag node (atomic pill) rather than plain text.
+  // v is the '{{tag}}' string from VARIABLES; strip the braces for the node name.
   const insertVariable = (v) => {
-    editor?.commands.insertContent(v)
+    const name = v.replace(/[{}]/g, '')
+    editor?.chain().focus().insertContent({ type: 'mergeTag', attrs: { name } }).run()
   }
 
   const openLink = () => {

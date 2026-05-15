@@ -412,6 +412,24 @@
   @apply italic;
 }
 
+/* Merge tag pills — rendered by the MergeTag Tiptap node. Atomic, baseline-
+ * aligned, mildly saturated so they read as variables, not body text. The
+ * --merge-tag-pill class is also reused outside the editor (template-view
+ * renderers, sidebar previews) so the visual stays consistent everywhere. */
+.merge-tag-pill {
+  @apply inline-flex items-baseline rounded-md bg-primary/12 px-1.5 py-px text-[0.92em] font-medium text-primary ring-1 ring-inset ring-primary/15;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+.tiptap-editor .ProseMirror .merge-tag-pill {
+  /* Tighter line so pills don't stretch the paragraph height. */
+  line-height: 1.4;
+}
+.tiptap-editor .ProseMirror .merge-tag-pill.ProseMirror-selectednode {
+  @apply ring-2 ring-primary/40;
+}
+
 .template-preview p {
   @apply mb-4;
 }
