@@ -10,7 +10,7 @@ import { MergeTag, tagsToSpans, spansToTags } from './MergeTagNode'
 import {
   Plus, Trash2, Bold, Italic, UnderlineIcon, Link as LinkIcon,
   List, ListOrdered, Eye, Edit3, Search, Copy, Loader2, Check, X, Library, MoreHorizontal,
-  Paperclip, FileText,
+  Paperclip, FileText, Code,
 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import EmptyState from '../ui/EmptyState'
@@ -209,7 +209,11 @@ export default function TemplatesTab({ workspaceConfig }) {
     ? workspaceConfig.templateId
     : templates[0]?.id || null
   const [selectedId, setSelectedId] = useState(defaultTemplateId)
-  const [view, setView] = useState('edit')
+  // 'template' shows the raw template with merge tags as pills (editable for
+  // personal templates, read-only for library); 'preview' renders the body
+  // with sample data filled in. Default is 'template' so the user sees the
+  // structure first, not a rendered example.
+  const [view, setView] = useState('template')
   const [editModal, setEditModal] = useState(false)
   const [form, setForm] = useState({ name: '', subject: '' })
   const [editingId, setEditingId] = useState(null)
@@ -316,7 +320,7 @@ export default function TemplatesTab({ workspaceConfig }) {
   }
 
   // Flush pending auto-save for the current template, then switch to another
-  const switchTemplate = async (id: string, view: string = 'edit') => {
+  const switchTemplate = async (id: string, view: string = 'template') => {
     if (flushTimerRef.current && draftDirtyRef.current) {
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
@@ -516,36 +520,35 @@ export default function TemplatesTab({ workspaceConfig }) {
                   </div>
                 </div>
 
-                {/* Underline tab nav - matches workspace sub-tab pattern */}
-                {!selectedIsLibrary && (
-                  <nav className="mt-4 flex gap-1 border-b border-warm-200">
+                {/* Segmented Template ↔ Preview toggle — always shown, including
+                    for library templates so the structure (with merge tags as
+                    pills) is the default surface and the rendered-with-sample
+                    preview is one click away. */}
+                <div className="mt-4">
+                  <div className="inline-flex rounded-full border border-warm-200 bg-warm-50/60 p-0.5">
                     <button
                       type="button"
-                      onClick={() => setView('edit')}
-                      className={`relative px-3 py-2.5 text-sm font-medium transition-colors ${
-                        view === 'edit'
-                          ? 'text-dark after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
-                          : 'text-muted hover:text-dark'
+                      onClick={() => setView('template')}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        view === 'template' ? 'bg-panel text-dark shadow-sm' : 'text-muted hover:text-dark'
                       }`}
                     >
-                      <span className="inline-flex items-center gap-1.5"><Edit3 size={13} /> Edit</span>
+                      <Code size={12} /> Template
                     </button>
                     <button
                       type="button"
                       onClick={() => setView('preview')}
-                      className={`relative px-3 py-2.5 text-sm font-medium transition-colors ${
-                        view === 'preview'
-                          ? 'text-dark after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
-                          : 'text-muted hover:text-dark'
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        view === 'preview' ? 'bg-panel text-dark shadow-sm' : 'text-muted hover:text-dark'
                       }`}
                     >
-                      <span className="inline-flex items-center gap-1.5"><Eye size={13} /> Preview</span>
+                      <Eye size={12} /> Preview
                     </button>
-                  </nav>
-                )}
+                  </div>
+                </div>
               </div>
 
-              {view === 'edit' && !selectedIsLibrary ? (
+              {view === 'template' && !selectedIsLibrary ? (
                 <div className="space-y-5 surface-panel px-5 py-5">
                   <div>
                     <label htmlFor="template-editor-subject" className="label">Subject line</label>
@@ -621,7 +624,23 @@ export default function TemplatesTab({ workspaceConfig }) {
                     </div>
                   )}
                 </div>
+              ) : view === 'template' && selectedIsLibrary ? (
+                /* Library Template view: read-only render of the raw template
+                 * with merge tags as styled pills. Same visual language as the
+                 * editor without the editing chrome — so a user can study the
+                 * structure before cloning. */
+                <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">
+                  <div
+                    className="border-b border-warm-200 px-6 py-4 text-sm font-medium text-dark"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tagsToSpans(selected.subject || '')) }}
+                  />
+                  <div
+                    className="email-body max-w-none bg-panel px-6 py-5 text-dark"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tagsToSpans(selected.body || '')) }}
+                  />
+                </div>
               ) : (
+                /* Preview view: rendered with sample data — same as before. */
                 <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">
                   <div className="border-b border-warm-200 bg-warm-50/60 px-6 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
