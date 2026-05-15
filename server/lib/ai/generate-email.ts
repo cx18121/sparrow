@@ -131,28 +131,52 @@ function buildTemplateSkeleton(input: TemplateDraftInput): string {
   ))
 }
 
+// Template mode: the user's template already defines the structure. Do NOT
+// reuse the AI-mode "Write a cold email with 1. Opening / 2. Bridge / 3. Ask"
+// instruction here — that conflicted with the skeleton and Claude resolved
+// the conflict by emitting just greeting + sign-off (observed in prod: a
+// 5-paragraph template collapsed to "Hi <name>,\n\nBest,\n<sender>"). The
+// skeleton is the contract; personalization is wording-only.
 function buildTemplatePrompt(input: TemplateDraftInput, skeleton = buildTemplateSkeleton(input)): string {
-  const basePrompt = buildPrompt({
-    kind: 'ai',
-    contact: input.contact,
-    company: input.company,
-    subjectTemplate: input.subjectTemplate,
-    senderName: input.senderName,
-    interestHook: null,
-    senderContext: input.senderContext,
-    apiKey: input.apiKey,
-    featureLine: input.featureLine ?? null,
-    fitAngle: input.fitAngle ?? null,
-  })
+  const companyContext = [
+    input.company.oneLiner ?? input.company.description,
+    input.company.stage,
+    input.company.industry,
+    input.company.isHiring ? 'currently hiring' : null,
+  ]
+    .filter(Boolean)
+    .join('; ')
+
+  const personalizationNote =
+    input.featureLine || input.fitAngle
+      ? [
+          'Personalization (use verbatim, do not paraphrase):',
+          input.featureLine ? `- Feature to reference: "${input.featureLine}"` : null,
+          input.fitAngle ? `- Resume angle: "${input.fitAngle}"` : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : null
 
   return [
-    basePrompt,
+    'Rewrite this email template, personalizing the wording for the recipient. Do not add, remove, or merge paragraphs — preserve the skeleton structure exactly.',
+    '',
+    `Contact: ${input.contact.name ?? 'there'}${input.contact.title ? `, ${input.contact.title}` : ''}${input.company.name ? ` at ${input.company.name}` : ''}`,
+    companyContext ? `Company: ${companyContext}` : null,
+    `Sender: ${input.senderContext}`,
+    personalizationNote,
+    '',
+    'Rules:',
+    '- Preserve every paragraph, bullet, and the greeting and sign-off. Same number of paragraphs in, same number out.',
+    '- Personalize wording only where it sharpens specificity. Keep length similar to the skeleton.',
+    '- Do not leave merge tags or bracketed placeholders ([Company], {{...}}) in the output.',
+    '- Separate paragraphs with one blank line. Output ONLY the rewritten body — no subject, no preamble.',
     '',
     'Template skeleton:',
     skeleton,
-    '',
-    'Use the template skeleton as the structure and intent, but personalize the wording with the contact, company, and sender context. Preserve the template paragraph breaks exactly, separating paragraphs with one blank line. Do not leave merge tags or bracketed placeholders in the output.',
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function htmlToPlainText(html: string): string {
