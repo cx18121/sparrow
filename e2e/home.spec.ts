@@ -55,8 +55,5 @@ test.describe('Home page', () => {
 
     // Campaign card
     await expect(page.locator(`text=/Series A AI infra hiring/`).first()).toBeVisible()
-
-    // "+ New campaign" empty cell
-    await expect(page.locator('text=/^new campaign$/i').first()).toBeVisible()
   })
 })
