@@ -394,7 +394,7 @@ export default function TemplatesTab({ workspaceConfig }) {
               {filtered.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => switchTemplate(t.id, 'edit')}
+                  onClick={() => switchTemplate(t.id, 'template')}
                   className={`w-full rounded-xl border px-4 py-3 text-left transition-colors duration-150 ${
                     selectedId === t.id
                       ? 'border-primary/30 bg-primary/8'
@@ -429,7 +429,7 @@ export default function TemplatesTab({ workspaceConfig }) {
                 {libraryFiltered.map(t => (
                   <button
                     key={t.id}
-                    onClick={() => switchTemplate(t.id, 'preview')}
+                    onClick={() => switchTemplate(t.id, 'template')}
                     className={`w-full rounded-xl border px-4 py-3 text-left transition-colors duration-150 ${
                       selectedId === t.id
                         ? 'border-primary/30 bg-primary/8'
@@ -630,26 +630,31 @@ export default function TemplatesTab({ workspaceConfig }) {
                  * editor without the editing chrome — so a user can study the
                  * structure before cloning. */
                 <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">
+                  <div className="border-b border-warm-200 px-6 py-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/70">Subject</p>
+                    <p
+                      className="mt-1.5 text-sm font-medium text-dark"
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tagsToSpans(selected.subject || '')) }}
+                    />
+                  </div>
                   <div
-                    className="border-b border-warm-200 px-6 py-4 text-sm font-medium text-dark"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tagsToSpans(selected.subject || '')) }}
-                  />
-                  <div
-                    className="email-body max-w-none bg-panel px-6 py-5 text-dark"
+                    className="email-body max-w-none px-6 py-5 text-sm text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tagsToSpans(selected.body || '')) }}
                   />
                 </div>
               ) : (
-                /* Preview view: rendered with sample data — same as before. */
+                /* Preview view: rendered with sample data. The toggle in the
+                 * header already labels this 'Preview' so we don't need to
+                 * repeat it inside; quieter 'Subject' eyebrow names the field. */
                 <div className="overflow-hidden rounded-2xl border border-warm-200 bg-panel">
-                  <div className="border-b border-warm-200 bg-warm-50/60 px-6 py-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Preview</p>
-                    <p className="mt-2 text-sm font-medium text-dark">
+                  <div className="border-b border-warm-200 px-6 py-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/70">Subject</p>
+                    <p className="mt-1.5 text-sm font-medium text-dark">
                       {fillVariables(draft.id === selected.id ? draft.subject : selected.subject, previewData)}
                     </p>
                   </div>
                   <div
-                    className="email-body max-w-none bg-panel p-6 text-dark"
+                    className="email-body max-w-none px-6 py-5 text-sm text-dark"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(fillVariables(draft.id === selected.id ? draft.body : selected.body, previewData)) }}
                   />
                 </div>
