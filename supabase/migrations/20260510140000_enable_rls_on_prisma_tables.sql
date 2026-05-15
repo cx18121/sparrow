@@ -21,7 +21,10 @@
 --
 -- Idempotent: ALTER TABLE ... ENABLE ROW LEVEL SECURITY is a no-op when
 -- already enabled. Policies use a fixed name and drop-then-create so re-runs
--- are safe.
+-- are safe. The to_regclass guard makes the migration tolerant of fresh
+-- environments where `supabase start` runs migrations before `prisma db push`
+-- has created the tables (CI). Tables that don't exist are skipped; once
+-- Prisma creates them, re-applying this migration enables RLS as intended.
 
 do $$
 declare
@@ -44,6 +47,9 @@ declare
   ];
 begin
   foreach t in array tables loop
+    if to_regclass('public.' || quote_ident(t)) is null then
+      continue;
+    end if;
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "service_role only" on public.%I', t);
     execute format(

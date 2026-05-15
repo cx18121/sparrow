@@ -15,10 +15,15 @@ jobs:
     # Unit tests mock all routes so no real connection is attempted — a dummy
     # URL just satisfies the import guard.
     env:
-      # prisma.config.ts reads DIRECT_URL; server/lib/prisma.ts reads DATABASE_URL.
-      # Dummy values satisfy both at import time without attempting a connection.
+      # Various modules throw at import time when these aren't set:
+      #   server/lib/prisma.ts  → DATABASE_URL
+      #   prisma.config.ts      → DIRECT_URL
+      #   src/lib/supabase.ts   → VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+      # Dummy values satisfy the guards without attempting any connection.
       DATABASE_URL: postgresql://test:test@localhost:5432/test
       DIRECT_URL: postgresql://test:test@localhost:5432/test
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_ANON_KEY: ci-anon-placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,10 +41,15 @@ jobs:
     timeout-minutes: 10
     # Same import guard as the verify job — dummy URL is fine, build doesn't connect.
     env:
-      # prisma.config.ts reads DIRECT_URL; server/lib/prisma.ts reads DATABASE_URL.
-      # Dummy values satisfy both at import time without attempting a connection.
+      # Various modules throw at import time when these aren't set:
+      #   server/lib/prisma.ts  → DATABASE_URL
+      #   prisma.config.ts      → DIRECT_URL
+      #   src/lib/supabase.ts   → VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+      # Dummy values satisfy the guards without attempting any connection.
       DATABASE_URL: postgresql://test:test@localhost:5432/test
       DIRECT_URL: postgresql://test:test@localhost:5432/test
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_ANON_KEY: ci-anon-placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,6 +104,10 @@ jobs:
       # Spin up the local Supabase stack the e2e suite expects. gen-test-env.js
       # reads `supabase status` to derive credentials, so no secrets are needed.
       - run: supabase start
+      # Create Prisma-managed tables on the local Supabase DB. The first
+      # supabase migration only creates Supabase-managed tables; Prisma tables
+      # (Company, Email, etc.) come from `prisma db push`.
+      - run: npm run db:push:local
       - run: npm run test:e2e
       - name: Upload Playwright report on failure
         if: failure()
