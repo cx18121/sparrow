@@ -9,8 +9,9 @@ import {
   audienceToCampaignFields, audienceToDisplayPills, type Audience, type RegionFilter,
 } from '../../types/audience'
 import {
-  ROLE_FAMILIES, DEFAULT_ROLE_FAMILY, labelForRoleFamily, type RoleFamily,
+  DEFAULT_ROLE_FAMILY, labelForRoleFamily, type RoleFamily,
 } from '../../types/roleFamilies'
+import { RoleTiles } from '../ui/RoleTiles'
 import type { CampaignOptions, Template } from '../../types/api'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import { PREVIEW_SAMPLE } from '../../lib/previewSample'
@@ -940,31 +941,7 @@ function RolePicker({
               Done
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {ROLE_FAMILIES.map(family => {
-              const active = family.id === effective
-              return (
-                <button
-                  type="button"
-                  key={family.id}
-                  onClick={() => handlePick(family.id)}
-                  aria-pressed={active}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all ${
-                    active
-                      ? 'border-primary bg-primary/5'
-                      : 'border-warm-200 bg-warm-50 hover:border-primary/40'
-                  }`}
-                >
-                  <span
-                    className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
-                      active ? 'border-primary bg-primary' : 'border-warm-400 bg-transparent'
-                    }`}
-                  />
-                  <span className="text-[12px] font-medium text-dark">{family.label}</span>
-                </button>
-              )
-            })}
-          </div>
+          <RoleTiles value={effective} onChange={handlePick} />
         </div>
       )}
     </div>

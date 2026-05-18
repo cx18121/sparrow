@@ -6,6 +6,8 @@ import { fetchPreviewFitAngle } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 import { PREVIEW_FALLBACK, PREVIEW_SAMPLE } from '../../lib/previewSample'
+import { RoleTiles } from '../ui/RoleTiles'
+import type { RoleFamily } from '../../types/roleFamilies'
 
 const TOTAL_STEPS = 3
 const STEP_LABELS = ['About', 'Template', 'Gmail']
@@ -94,7 +96,7 @@ function StepHeader({ step, total, title, description = undefined }) {
   )
 }
 
-function AboutStep({ form, updateField, onUploadResume, uploadState, showNameError }) {
+function AboutStep({ form, updateField, onUploadResume, uploadState, showNameError, onPickRole }) {
   const statusLabel = uploadState.uploading
     ? 'Uploading…'
     : uploadState.error
@@ -157,6 +159,23 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
             }}
           />
         </label>
+
+        {/* Role picker — drives Apollo's title scope for the user's
+            campaigns. Always-visible tiles here (not the compact summary
+            the wizard uses) because onboarding is *establishing* the
+            default, not overriding it — discoverability beats compactness
+            during first-run setup. */}
+        <div className="pt-2">
+          <label className="label" id="onboarding-role-label">
+            What role are you looking for?
+          </label>
+          <p className="mb-2 text-xs text-muted">
+            We'll email decision-makers in this family at each company. You can override per-campaign later.
+          </p>
+          <div role="group" aria-labelledby="onboarding-role-label">
+            <RoleTiles value={form.targetRole} onChange={onPickRole} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -790,6 +809,7 @@ export default function OnboardingScreen({
       onUploadResume={handleUploadResume}
       uploadState={resumeUpload}
       showNameError={stepIndex === 0 && senderNameAttempted && !form.senderName.trim()}
+      onPickRole={(role: RoleFamily) => updateField('targetRole', role)}
     />,
     <TemplateStep
       key="template"
