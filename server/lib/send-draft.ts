@@ -200,7 +200,11 @@ export async function sendDraft(emailId: string, userId: string) {
   const message = buildMimeMessage(toHeader, encodeHeader(subject), htmlBody, attachments);
   const raw = Buffer.from(message).toString("base64url");
 
-  let gmailResponse: Awaited<ReturnType<typeof gmail.users.messages.send>>;
+  // googleapis exposes overloads for gmail.users.messages.send whose
+  // Awaited<ReturnType<>> resolves to `void` in some TS configurations; we
+  // call the non-callback variant which actually returns the Schema$Message
+  // envelope. Pin the type explicitly so .data.id/.data.threadId resolve.
+  let gmailResponse: { data: { id?: string | null; threadId?: string | null } };
   try {
     gmailResponse = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   } catch {

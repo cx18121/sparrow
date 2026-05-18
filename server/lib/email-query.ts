@@ -80,8 +80,8 @@ export async function readDashboardSendStats(userId: string, db: Db = prisma): P
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const ownership = { OR: [{ userLead: { userId } }, { customContact: { userId } }] } as const;
-  const sentBase = { status: "sent", ...ownership } as const;
+  const ownership = { OR: [{ userLead: { userId } }, { customContact: { userId } }] };
+  const sentBase = { status: "sent" as const, ...ownership };
 
   const [
     sentToday,

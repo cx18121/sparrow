@@ -61,6 +61,9 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     stage: stage ?? null,
     batch: batch ?? null,
     isHiring: isHiring === "true" ? true : isHiring === "false" ? false : null,
+    // Discover endpoint scopes by company attributes only; target role is a
+    // contact-side concern resolved later via Apollo. Pass null to skip.
+    targetRole: null,
   });
 
   const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);

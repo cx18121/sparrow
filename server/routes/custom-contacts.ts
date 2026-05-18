@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { LeadStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
 import { HttpError } from "../lib/user.js";
@@ -93,7 +94,7 @@ async function update(req: VercelRequest, res: VercelResponse, userId: string) {
 
   const updated = await prisma.customContact.update({
     where: { id },
-    data: { ...(typeof status === "string" ? { status } : {}) },
+    data: { ...(typeof status === "string" ? { status: status as LeadStatus } : {}) },
   });
   res.status(200).json(updated);
 }

@@ -28,6 +28,10 @@ function normaliseAudience(input: Partial<Audience>): Audience {
     stage: typeof input.stage === "string" ? input.stage : null,
     batch: typeof input.batch === "string" ? input.batch : null,
     isHiring: typeof input.isHiring === "boolean" ? input.isHiring : null,
+    // Audience preview does not filter by role — role only affects contact
+    // resolution (Apollo title scope), not company pool. Pass null so the
+    // Prisma WHERE adapter skips the targetRole branch.
+    targetRole: null,
   };
 }
 
