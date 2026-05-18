@@ -23,6 +23,7 @@ import profile from "./routes/profile.js";
 import templates from "./routes/templates.js";
 import track from "./routes/track.js";
 import gmailWebhook from "./routes/webhooks/gmail.js";
+import devInjectReply from "./routes/dev/inject-reply.js";
 
 export type ApiHandler = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
@@ -49,6 +50,9 @@ export const routeHandlers: Record<string, ApiHandler> = {
   "/api/apollo-search": apolloSearch,
   "/api/audience-query": audienceQuery,
   "/api/preview/fit-angle": previewFitAngle,
+  // Dev-only — handler itself returns 404 when NODE_ENV=production so the
+  // route is effectively non-existent in prod even though it's registered.
+  "/api/dev/inject-reply": devInjectReply,
 };
 
 function pathFromCatchAll(req: VercelRequest): string | null {
