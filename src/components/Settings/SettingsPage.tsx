@@ -12,6 +12,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 import { LEAD_BATCH_MAX, LEAD_BATCH_MIN } from '../../lib/workspaceConfig'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
+import { RoleTiles } from '../ui/RoleTiles'
+import type { RoleFamily } from '../../types/roleFamilies'
 
 const TABS = SETTINGS_TABS
 type TabKey = SettingsTabKey
@@ -258,6 +260,16 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
         </div>
       </FieldGroup>
 
+      <FieldGroup
+        title="Target role"
+        hint="Default for new campaigns — you can override per-campaign in the wizard. Sets which decision-makers Sparrow looks up at each company."
+      >
+        <RoleTiles
+          value={form.targetRole ?? null}
+          onChange={(role: RoleFamily) => field('targetRole', role)}
+        />
+      </FieldGroup>
+
       <SaveBar
         dirty={dirty}
         saving={saving}
@@ -277,6 +289,10 @@ function pickProfileFields(c: any) {
     resumeFileName: c?.resumeFileName || '',
     resumePath: c?.resumePath || '',
     resumeUploadedAt: c?.resumeUploadedAt || '',
+    // Validation of the value lives in normalizeRoleFamily on the server
+    // side (parseWorkspaceConfig); here we just round-trip whatever's set
+    // so the dirty-state comparison can fire on changes.
+    targetRole: c?.targetRole || null,
   }
 }
 
