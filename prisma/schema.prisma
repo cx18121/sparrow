@@ -241,6 +241,11 @@ model Campaign {
   filterBatch            String?
   filterIsHiring         Boolean?
   filterTags             String[]
+  // Per-campaign override of user.workspace_config.targetRoles. Values are
+  // RoleFamily ids (see src/types/roleFamilies.ts) e.g. "engineering",
+  // "sales". Empty = inherit user default. Resolved at Apollo searchContacts
+  // time, not at company-pool query time.
+  filterTargetRoles      String[]
   batchSize              Int            @default(10)
   currentBatch           Int            @default(0)
   tone                   String?

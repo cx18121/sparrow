@@ -104,6 +104,7 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
   const {
     name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterTargetRoles,
     batchSize, tone, attachmentIds,
     includePreviouslySaved,
   } = body ?? {};
@@ -132,6 +133,9 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
       filterStage: (filterStage as string | null) ?? null,
       filterBatch: (filterBatch as string | null) ?? null,
       filterIsHiring: parseNullableBoolean(filterIsHiring),
+      filterTargetRoles: Array.isArray(filterTargetRoles)
+        ? (filterTargetRoles as string[]).filter((v): v is string => typeof v === "string")
+        : [],
       batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
       attachmentIds: stringArray(attachmentIds),
@@ -145,6 +149,7 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
   const {
     id, name, subject, status, templateId, scheduledAt,
     filterTags, filterRegion, filterStage, filterBatch, filterIsHiring,
+    filterTargetRoles,
     batchSize, tone, attachmentIds,
     includePreviouslySaved,
   } = body ?? {};
@@ -181,6 +186,11 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
       ...(filterStage !== undefined && { filterStage: (filterStage as string | null) ?? null }),
       ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
       ...(filterIsHiring !== undefined && { filterIsHiring: parseNullableBoolean(filterIsHiring) }),
+      ...(filterTargetRoles !== undefined && {
+        filterTargetRoles: Array.isArray(filterTargetRoles)
+          ? (filterTargetRoles as string[]).filter((v): v is string => typeof v === "string")
+          : [],
+      }),
       ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),
       ...(attachmentIds !== undefined && { attachmentIds: stringArray(attachmentIds) }),
