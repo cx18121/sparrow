@@ -5,6 +5,7 @@ import { getUserIdFromRequest, respondUnauthorized } from "../lib/supabaseAdmin.
 import { HttpError } from "../lib/user.js";
 import { searchContacts, revealPerson, normalizeDomain } from "../lib/apollo.js";
 import { consumeDurableDailyQuota, QuotaError } from "../lib/rate-limit.js";
+import { normalizeRoleFamilies } from "../../src/types/roleFamilies.js";
 
 type ApolloAction = "search" | "reveal";
 
@@ -165,18 +166,30 @@ async function searchCompanies(req: VercelRequest, res: VercelResponse) {
 }
 
 async function apolloSearch(req: VercelRequest, res: VercelResponse, userId: string) {
-  const { domain, companyId } = req.body ?? {};
+  const { domain, companyId, roleFamilies } = req.body ?? {};
   const company = await requireSearchableCompany(companyId, domain);
 
   const apiKey = requireApolloApiKey();
 
+  // Client passes the campaign's roleFamilies (or workspace default) so the
+  // preview reflects what the actual draft-generation pass will query for.
+  // Empty/missing → engineering default, which preserves the pre-refactor
+  // behavior at this route. The cap and id validation live in
+  // normalizeRoleFamilies so a malformed client can't push junk into Apollo.
+  const resolvedRoles = normalizeRoleFamilies(roleFamilies, { fallback: [] });
+
   await consumeApolloQuota(userId, "search");
   try {
-    // Bug 08 fix: title-first search is restrictive (only CTO/Founder/CEO/etc).
-    // Most small or non-tech startups have no people with those titles in
-    // Apollo, so we silently retry without the title filter and flag the UI
-    // to hint that the results are broader than usual.
-    let people = await searchContacts(company.domain, apiKey, { retry: false });
+    // Bug 08 fix: title-first search is restrictive (defaults to senior
+    // engineering titles plus CEO/Founder; widens to whatever the user
+    // selected via roleFamilies). Most small or non-tech startups have no
+    // people with those titles in Apollo, so we silently retry without the
+    // title filter and flag the UI to hint that the results are broader
+    // than usual.
+    let people = await searchContacts(company.domain, apiKey, {
+      retry: false,
+      roleFamilies: resolvedRoles,
+    });
     let usedFallback = false;
     if (people.length === 0) {
       people = await searchContacts(company.domain, apiKey, { retry: false, titleFilter: false });

@@ -75,6 +75,52 @@ describe("Apollo HTTP primitives", () => {
     );
   });
 
+  it("uses sales-family titles plus the universal CEO/Founder safety net when roleFamilies includes sales", async () => {
+    mockAxios.post.mockResolvedValue({ data: { people: [] } });
+
+    await searchContacts("example.com", "apollo-key", {
+      retry: false,
+      roleFamilies: ["sales"],
+    });
+
+    const body = mockAxios.post.mock.calls[0][1];
+    expect(body.person_titles).toEqual(
+      expect.arrayContaining(["Founder", "CEO", "Head of Sales", "VP Sales"]),
+    );
+    // No engineering-specific titles when the user picked sales only.
+    expect(body.person_titles).not.toContain("CTO");
+    expect(body.person_titles).not.toContain("VP Engineering");
+  });
+
+  it("unions titles across multiple roleFamilies without duplicating universal titles", async () => {
+    mockAxios.post.mockResolvedValue({ data: { people: [] } });
+
+    await searchContacts("example.com", "apollo-key", {
+      retry: false,
+      roleFamilies: ["engineering", "sales"],
+    });
+
+    const titles = mockAxios.post.mock.calls[0][1].person_titles as string[];
+    expect(titles).toEqual(expect.arrayContaining(["CTO", "Head of Sales", "Founder", "CEO"]));
+    // Universal titles must not duplicate when multiple families merge —
+    // wasted request bytes and confusing in Apollo's logs.
+    expect(titles.filter(t => t === "Founder").length).toBe(1);
+    expect(titles.filter(t => t === "CEO").length).toBe(1);
+  });
+
+  it("falls back to engineering-default titles when roleFamilies is empty (backward compat)", async () => {
+    mockAxios.post.mockResolvedValue({ data: { people: [] } });
+
+    await searchContacts("example.com", "apollo-key", {
+      retry: false,
+      roleFamilies: [],
+    });
+
+    const titles = mockAxios.post.mock.calls[0][1].person_titles as string[];
+    // Same default as the pre-refactor TARGET_TITLES baseline.
+    expect(titles).toEqual(expect.arrayContaining(["Founder", "CEO", "CTO", "VP Engineering"]));
+  });
+
   it("can search contacts without title filters for fallback discovery", async () => {
     mockAxios.post.mockResolvedValue({ data: { people: [] } });
 

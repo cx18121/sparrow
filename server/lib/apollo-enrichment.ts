@@ -1,6 +1,7 @@
 import { prisma, type Db } from "./prisma.js";
 import { revealPerson, enrichDomain } from "./apollo.js";
 import { consumeDurableDailyQuota } from "./rate-limit.js";
+import type { RoleFamily } from "../../src/types/roleFamilies.js";
 
 // Workflow helpers that combine Apollo HTTP primitives with DB writes.
 // Pure HTTP lives in ./apollo.ts; this file is the only place that turns an
@@ -78,11 +79,13 @@ export async function upsertContactFromReveal(
 // Pure HTTP — no DB write, no quota charge. Returns the raw enrichment data so
 // callers can run the DB write separately (e.g. inside a transaction), decoupling
 // the Apollo HTTP latency from any held DB lock.
+// roleFamilies threads through to enrichDomain → searchContacts; see those.
 export async function fetchEnrichedDomain(
   domain: string,
-  apiKey: string
+  apiKey: string,
+  options: { roleFamilies?: RoleFamily[] } = {}
 ): Promise<EnrichedPerson | null> {
-  return enrichDomain(domain, apiKey);
+  return enrichDomain(domain, apiKey, options);
 }
 
 // Quota-enforced: searches a company domain for a decision-maker, reveals them,
@@ -94,10 +97,11 @@ export async function enrichContactFromDomain(
   companyId: string,
   apiKey: string,
   userId: string,
-  db: Db = prisma
+  db: Db = prisma,
+  options: { roleFamilies?: RoleFamily[] } = {}
 ): Promise<{ contact: SavedContact | null; apolloPersonId: string | null }> {
   await enforceRevealQuota(userId, db);
-  const enriched = await enrichDomain(domain, apiKey);
+  const enriched = await enrichDomain(domain, apiKey, options);
   if (!enriched) return { contact: null, apolloPersonId: null };
   const contact = await upsertContactFromReveal(enriched, companyId, db);
   return { contact, apolloPersonId: enriched.personId };

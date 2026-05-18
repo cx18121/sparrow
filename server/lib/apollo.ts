@@ -18,19 +18,26 @@ export function normalizeDomain(value: string): string {
 // Search calls (searchContacts, searchOrganization) are FREE.
 // Reveal calls (revealPerson, enrichDomain) consume one Apollo credit each.
 
+import {
+  DEFAULT_ROLE_FAMILIES,
+  titlesForRoles,
+  type RoleFamily,
+} from "../../src/types/roleFamilies.js";
+
 const SEARCH_URL = "https://api.apollo.io/api/v1/mixed_people/api_search";
 const MATCH_URL = "https://api.apollo.io/api/v1/people/match";
 const ORG_SEARCH_URL = "https://api.apollo.io/api/v1/mixed_companies/search";
 const HEALTH_URL = "https://api.apollo.io/v1/auth/health";
 
-const TARGET_TITLES = [
-  "CTO",
-  "Founder",
-  "Co-Founder",
-  "CEO",
-  "Head of Engineering",
-  "VP Engineering",
-];
+// Replaced the hardcoded TARGET_TITLES array (CTO/Founder/Co-Founder/CEO/
+// Head of Engineering/VP Engineering) with the role-family registry. Callers
+// that don't pass roleFamilies get DEFAULT_ROLE_FAMILIES (['engineering'])
+// resolved against UNIVERSAL_TITLES — same shape as the pre-refactor default
+// plus "Engineering Manager", which is a deliberate safety widening.
+function resolveTargetTitles(roleFamilies: RoleFamily[] | undefined): string[] {
+  const families = roleFamilies && roleFamilies.length > 0 ? roleFamilies : DEFAULT_ROLE_FAMILIES;
+  return titlesForRoles(families);
+}
 
 export interface ApolloSearchResult {
   id: string;
@@ -134,22 +141,26 @@ export async function checkApiHealth(apiKey: string): Promise<boolean> {
 // Defaults to retrying on rate limit (60s wait) for batch scripts. Pass
 // { retry: false } from serverless API endpoints, where rethrowing the 429
 // to the caller is correct and a 60s wait would exceed function timeout.
-// titleFilter defaults to true (CTO/Founder/CEO/etc only) — pass false to
+// titleFilter defaults to true (role-aware: see roleFamilies) — pass false to
 // see everyone Apollo has on file for the domain. The route falls back to
-// titleFilter=false when a senior-only search returns 0 results so small
+// titleFilter=false when a role-filtered search returns 0 results so small
 // startups without C-suite titles in Apollo still get usable contacts.
+// roleFamilies scopes Apollo's person_titles to the user's selected roles
+// plus the universal CEO/Founder safety net. Empty/undefined → engineering
+// default (preserves pre-refactor behavior).
 export async function searchContacts(
   domain: string,
   apiKey: string,
-  options: { retry?: boolean; titleFilter?: boolean } = {}
+  options: { retry?: boolean; titleFilter?: boolean; roleFamilies?: RoleFamily[] } = {}
 ): Promise<ApolloSearchResult[]> {
   const useTitles = options.titleFilter !== false;
+  const personTitles = useTitles ? resolveTargetTitles(options.roleFamilies) : null;
   const call = async () => {
     const response = await axios.post(
       SEARCH_URL,
       {
         q_organization_domains_list: [domain],
-        ...(useTitles && { person_titles: TARGET_TITLES }),
+        ...(personTitles && { person_titles: personTitles }),
         per_page: 10,
       },
       { headers: buildHeaders(apiKey), timeout: 15_000 }
@@ -202,11 +213,15 @@ export async function revealPerson(
 // Workflow: search a domain for the first decision-maker, then reveal them.
 // Returns personId even when reveal yields no email, so callers can persist it
 // for later auto-reveal flows. Consumes at most one credit per call.
+// roleFamilies threads through to searchContacts — see its docstring.
 export async function enrichDomain(
   domain: string,
-  apiKey: string
+  apiKey: string,
+  options: { roleFamilies?: RoleFamily[] } = {}
 ): Promise<EnrichResult | null> {
-  const previews = await searchContacts(normalizeDomain(domain), apiKey);
+  const previews = await searchContacts(normalizeDomain(domain), apiKey, {
+    roleFamilies: options.roleFamilies,
+  });
   if (previews.length === 0) return null;
 
   const personId = previews[0].id;

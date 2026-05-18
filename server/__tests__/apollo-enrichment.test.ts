@@ -104,7 +104,9 @@ describe("Apollo enrichment helpers", () => {
       email: "jane@example.com",
       personId: "person-1",
     });
-    expect(mockEnrichDomain).toHaveBeenCalledWith("example.com", "apollo-key");
+    // 3rd arg is the new roleFamilies options object — undefined when caller
+    // doesn't specify, so enrichDomain receives an empty {} (its default).
+    expect(mockEnrichDomain).toHaveBeenCalledWith("example.com", "apollo-key", {});
     expect(mockConsumeQuota).not.toHaveBeenCalled();
     expect(mockPrisma.contact.upsert).not.toHaveBeenCalled();
   });
@@ -132,7 +134,7 @@ describe("Apollo enrichment helpers", () => {
     const result = await enrichContactFromDomain("example.com", "company-1", "apollo-key", "user-1", tx as any);
 
     expect(mockConsumeQuota).toHaveBeenCalledWith("apollo", "user-1", "reveal", 7, tx);
-    expect(mockEnrichDomain).toHaveBeenCalledWith("example.com", "apollo-key");
+    expect(mockEnrichDomain).toHaveBeenCalledWith("example.com", "apollo-key", {});
     expect(tx.contact.upsert).toHaveBeenCalledOnce();
     expect(result).toEqual({
       contact: { id: "contact-1", name: "Jane Smith", email: "jane@example.com", title: "Founder" },
