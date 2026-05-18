@@ -26,6 +26,9 @@ export VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY:-ci-anon-placeholder}"
 echo "[pre-push] tsc -b..."
 npm run check --silent || { echo "[pre-push] type check failed. Bypass: git push --no-verify"; exit 1; }
 
+echo "[pre-push] esm extensions..."
+npx tsx scripts/check-esm-extensions.ts || { echo "[pre-push] esm extension check failed. Bypass: git push --no-verify"; exit 1; }
+
 echo "[pre-push] vitest run..."
 npm run test:unit --silent || { echo "[pre-push] unit tests failed. Bypass: git push --no-verify"; exit 1; }
 
