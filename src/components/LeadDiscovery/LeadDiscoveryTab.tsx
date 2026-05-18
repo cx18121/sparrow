@@ -570,7 +570,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         if (top.hasEmail) { try { await revealApolloContact(top.id, company.id, company.domain) } catch {} }
         const savedLead = await saveLead({ companyId: company.id, contactId: null, apolloPersonId: top.id, notes: `Apollo contact: ${top.firstName} ${top.lastNameObfuscated} - ${top.title || 'unknown title'}` })
         if (activeCampaign?.id && savedLead?.id) await addCampaignLead(activeCampaign.id, savedLead.id)
-        if (mode === 'emails' && savedLead?.id) await generateEmail({ userLeadId: savedLead.id, templateId: workspaceConfig?.templateId ?? null, save: true }, `batch-${company.id}-${savedLead.id}`)
+        if (mode === 'emails' && savedLead?.id) await generateEmail({ userLeadId: savedLead.id, campaignId: activeCampaign?.id ?? null, templateId: workspaceConfig?.templateId ?? null, save: true }, `batch-${company.id}-${savedLead.id}`)
         done++
       } catch (err: any) {
         failed++

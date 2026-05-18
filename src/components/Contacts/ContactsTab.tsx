@@ -192,6 +192,10 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
   // and the humanizer rewrites everything regardless of the template's
   // verbatim flag.
   const generateOverrides = {
+    // ContactsTab is always rendered inside a campaign — pass the campaign
+    // id so generateDraft can resolve the per-campaign filterTargetRole
+    // (with workspace-default fallback) when picking the fit-angle.
+    campaignId,
     ...(templateId ? { templateId } : {}),
     ...(attachmentIds && attachmentIds.length ? { attachmentIds } : {}),
     ...(tone ? { tone } : {}),

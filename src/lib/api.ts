@@ -358,6 +358,11 @@ export const updateEmail = (data: Partial<Email> & { id: string }) =>
   request<Email>('/emails', { method: 'PATCH', body: JSON.stringify(data) })
 export const generateEmail = (data: {
   userLeadId?: string; customContactId?: string;
+  // Active campaign context. When the user is generating a draft inside a
+  // specific campaign, callers pass this so the server's role-aware
+  // fit-angle uses the campaign's filterTargetRole instead of just the
+  // workspace default. Standalone draft preview (no campaign) omits it.
+  campaignId?: string | null;
   templateId?: string | null; tone?: string;
   attachmentIds?: string[];
   interestHook?: string | null; extraContext?: string | null;

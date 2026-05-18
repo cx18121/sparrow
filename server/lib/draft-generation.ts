@@ -148,6 +148,13 @@ export interface DraftGenerationParams {
   userId: string;
   userLeadId?: string;
   customContactId?: string;
+  // Active campaign context. When present, the campaign's filterTargetRole
+  // (if set) overrides the user's workspace default for fit-angle picking.
+  // Missing → workspace default → null. Callers that know which campaign
+  // the user is generating in should pass this; callers that don't (e.g.
+  // standalone draft preview) get the workspace default. See the
+  // resolveCampaignTargetRole call below for the resolution chain.
+  campaignId?: string | null;
   templateId?: string | null;
   attachmentIds?: string[];
   interestHook?: string | null;
@@ -249,11 +256,40 @@ export interface DraftGenerationResult {
   error?: string;
 }
 
+// Resolves the role-family to apply when picking a fit-angle, following the
+// same override-then-default chain Apollo discovery uses: per-campaign value
+// → workspace default → null. Returns null only when neither is set; the
+// pickFitAngle prompt then omits the role hint and ranks surfaces by resume
+// match alone.
+//
+// Exported so it can be unit-tested directly — the full draft-generation
+// orchestrator path is heavy to mock end-to-end, and the resolution chain
+// here is exactly the kind of pure logic that benefits from isolated tests.
+export async function resolveCampaignTargetRole(
+  campaignId: string | null | undefined,
+  userId: string,
+  workspaceDefault: string | null,
+): Promise<string | null> {
+  if (campaignId) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { userId: true, filterTargetRole: true },
+    });
+    // Silently ignore a campaignId that doesn't belong to this user — don't
+    // leak across users, and don't throw because draft generation should
+    // degrade gracefully rather than fail on stale client state.
+    if (campaign && campaign.userId === userId && campaign.filterTargetRole) {
+      return campaign.filterTargetRole;
+    }
+  }
+  return workspaceDefault;
+}
+
 // Generates a Draft for a Lead or CustomContact.
 // save defaults to FALSE — callers must opt in to persisting a draft to avoid
 // silent Email record creation during preview calls.
 export async function generateDraft(params: DraftGenerationParams): Promise<DraftGenerationResult> {
-  const { userId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = false } = params;
+  const { userId, campaignId, templateId, interestHook, tone, extraContext, includeResumeBullet = false, save = false } = params;
 
   const {
     contactInfo,
@@ -298,6 +334,17 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   // (no companyId) skip both — there's no Company row to cache against.
   // Failures at any stage are non-fatal: the email still drafts, just without
   // the personalization lines.
+  // Per-campaign role overrides the workspace default. Both flow through
+  // normalizeRoleFamily upstream (campaign-definition for writes, on read
+  // via the Campaign column being TEXT). Apollo discovery uses the
+  // per-campaign value at apolloSearch time; fit-angle picking now uses
+  // it here, closing the loop Codex review flagged.
+  const targetRole = await resolveCampaignTargetRole(
+    campaignId ?? null,
+    userId,
+    profile.ws.targetRole ?? null,
+  );
+
   const fit = await resolvePersonalization({
     interestHook: interestHook ?? null,
     companyId,
@@ -306,9 +353,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     cachedDossierAt,
     resumeText: profile.resumeText,
     apiKey: profile.apiKey,
-    // parseWorkspaceConfig already normalizes this to a valid RoleFamily
-    // or null, so we can pass through without re-validating.
-    targetRole: (profile.ws.targetRole ?? null) as PersonalizationInput["targetRole"],
+    targetRole: targetRole as PersonalizationInput["targetRole"],
   });
 
   const draftInput: DraftInput = userTemplate

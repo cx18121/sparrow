@@ -22,6 +22,9 @@ const {
     template: { findUnique: vi.fn() },
     email: { create: vi.fn(), findFirst: vi.fn() },
     company: { update: vi.fn() },
+    // resolveCampaignTargetRole hits this when generateDraft is called with
+    // campaignId. Tests that omit campaignId never touch it.
+    campaign: { findUnique: vi.fn() },
     $executeRaw: vi.fn(),
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockPrisma)),
   };
