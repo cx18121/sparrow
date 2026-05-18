@@ -9,6 +9,7 @@ import { expandStageFilter } from "../../scripts/_lib/stages.js";
 import {
   REGION_INTL, REGION_REMOTE, REGION_US, type Audience,
 } from "../../src/types/audience.js";
+import { normalizeRoleFamilies } from "../../src/types/roleFamilies.js";
 
 // Older callsites pass the raw Campaign filter* fields. Convert in-place.
 export interface CampaignFilters {
@@ -17,6 +18,7 @@ export interface CampaignFilters {
   filterStage?: string | null;
   filterBatch?: string | null;
   filterIsHiring?: boolean | null;
+  filterTargetRoles?: string[] | null;
 }
 
 export function audienceFromCampaign(c: CampaignFilters): Audience {
@@ -26,6 +28,7 @@ export function audienceFromCampaign(c: CampaignFilters): Audience {
     stage: c.filterStage ?? null,
     batch: c.filterBatch ?? null,
     isHiring: c.filterIsHiring ?? null,
+    targetRoles: normalizeRoleFamilies(c.filterTargetRoles, { fallback: [] }),
   };
 }
 

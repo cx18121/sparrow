@@ -5,12 +5,22 @@
 // This module owns the shape and the pure transforms; the Prisma adapter lives
 // in server/lib/audience-query.ts and consumes this same Audience type.
 
+import {
+  normalizeRoleFamilies,
+  labelForRoleFamily,
+  type RoleFamily,
+} from './roleFamilies'
+
 export interface Audience {
   tags: string[]
   region: RegionFilter | null
   stage: string | null
   batch: string | null
   isHiring: boolean | null
+  // Per-campaign override of the user's default target roles. Empty array
+  // means "inherit the user's workspace default at apply time" — the wizard
+  // and Apollo callers resolve the actual title set, not this field directly.
+  targetRoles: RoleFamily[]
 }
 
 // Region special values. Plain region strings (e.g. "Europe") also accepted.
@@ -26,7 +36,7 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 export const EMPTY_AUDIENCE: Audience = {
-  tags: [], region: null, stage: null, batch: null, isHiring: null,
+  tags: [], region: null, stage: null, batch: null, isHiring: null, targetRoles: [],
 }
 
 // Build an Audience from raw Campaign fields stored in the DB / wire format.
@@ -37,6 +47,7 @@ export function audienceFromCampaign(c: {
   filterStage?: string | null
   filterBatch?: string | null
   filterIsHiring?: boolean | null
+  filterTargetRoles?: string[] | null
 }): Audience {
   return {
     tags: c.filterTags ?? [],
@@ -44,6 +55,10 @@ export function audienceFromCampaign(c: {
     stage: c.filterStage ?? null,
     batch: c.filterBatch ?? null,
     isHiring: c.filterIsHiring ?? null,
+    // Empty array (not the default-engineering fallback) when the campaign
+    // hasn't specified roles — caller decides how to resolve "inherit user
+    // default" vs "actually empty" at apply time.
+    targetRoles: normalizeRoleFamilies(c.filterTargetRoles, { fallback: [] }),
   }
 }
 
@@ -55,6 +70,7 @@ export function audienceToCampaignFields(a: Audience) {
     filterStage: a.stage,
     filterBatch: a.batch,
     filterIsHiring: a.isHiring,
+    filterTargetRoles: a.targetRoles,
   }
 }
 
@@ -66,9 +82,13 @@ export function audienceToDisplayPills(a: Audience): string[] {
     a.stage,
     a.batch,
     a.isHiring != null ? (a.isHiring ? 'Hiring' : 'Not hiring') : null,
+    ...a.targetRoles.map(labelForRoleFamily),
   ].filter((v): v is string => Boolean(v))
 }
 
+// Whether the audience filters the company pool. Target roles are a
+// contact-level filter (applied at Apollo searchContacts time), not a
+// company-pool filter, so they intentionally don't count here.
 export function isAudienceEmpty(a: Audience): boolean {
   return a.tags.length === 0 && !a.region && !a.stage && !a.batch && a.isHiring == null
 }
