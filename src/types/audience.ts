@@ -9,7 +9,7 @@ import {
   normalizeRoleFamily,
   labelForRoleFamily,
   type RoleFamily,
-} from './roleFamilies'
+} from './roleFamilies.js'
 
 export interface Audience {
   tags: string[]
