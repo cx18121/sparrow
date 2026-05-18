@@ -41,6 +41,14 @@ export interface PickFitAngleInput {
   // FEATURE. Used by the draft "change angle" flow so the chosen surface
   // is preserved verbatim while the fit phrasing is rederived for it.
   forceFeatureLine?: string | null
+  // The role family the candidate is targeting (engineering / product /
+  // gtm / operations). Steers the model toward surfaces relevant to that
+  // function — designers should bridge to design surfaces, GTM applicants
+  // should bridge to growth/revenue surfaces, etc. Optional — when absent
+  // the model falls back to whichever surface the resume best supports
+  // regardless of function. Kept minimal per "(a) tight" — no per-role
+  // prompt branching, just one extra line of context in the prompt.
+  targetRole?: 'engineering' | 'product' | 'gtm' | 'operations' | null
 }
 
 export interface FitAngleResult {
@@ -131,9 +139,22 @@ function buildSynthesisPrompt(input: ResearchCompanyInput, results: TavilyResult
   return [ctx, '', 'Search results:', resultsBlock].join('\n')
 }
 
+// Role family → one-line steer for the picker. Keeps the prompt change
+// surface-level — the picker still reasons over the same cross-product of
+// dossier × resume — but tilts the tiebreaker toward function-relevant
+// surfaces. Avoids hard rules ("MUST pick a sales surface") because the
+// model otherwise picks bad fits when no sales-shaped surface exists.
+const ROLE_HINTS: Record<string, string> = {
+  engineering: "Candidate is targeting engineering roles — prefer technical, infrastructure, code, model, or developer-tooling surfaces when they plausibly match.",
+  product: "Candidate is targeting product / design roles — prefer product, UX, design system, or end-user-facing surfaces when they plausibly match.",
+  gtm: "Candidate is targeting GTM roles (sales, marketing, growth) — prefer revenue, growth-loop, distribution, or customer-facing surfaces when they plausibly match.",
+  operations: "Candidate is targeting operations / finance / people roles — prefer scale, process, hiring, or org-infrastructure surfaces when they plausibly match.",
+}
+
 function buildPickPrompt(input: PickFitAngleInput): string {
   const d = input.dossier
   const forced = input.forceFeatureLine?.trim() || null
+  const roleHint = input.targetRole ? ROLE_HINTS[input.targetRole] : null
   const lines = [
     'Dossier:',
     d.summary ? `Summary: ${d.summary}` : null,
@@ -143,6 +164,8 @@ function buildPickPrompt(input: PickFitAngleInput): string {
     '',
     'Candidate resume (full):',
     input.resumeText ?? '(no resume provided)',
+    roleHint ? '' : null,
+    roleHint,
     forced ? '' : null,
     // The user has explicitly chosen FEATURE in the UI. Echo it back
     // verbatim and pick only FIT to bridge to it. This keeps the chosen

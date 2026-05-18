@@ -35,6 +35,14 @@ interface PersonalizationInput {
   cachedDossierAt: Date | null;
   resumeText: string | null;
   apiKey: string;
+  // Workspace default target role family — steers pickFitAngle toward
+  // function-relevant surfaces. Per-campaign override is intentionally
+  // NOT applied here: a saved lead can belong to multiple campaigns over
+  // time, so the workspace default is the only stable "what kind of role
+  // is this candidate applying to" signal at draft-generation time. Apollo
+  // discovery (which DOES know the campaign) uses the per-campaign value;
+  // this stage uses the user-level default.
+  targetRole: 'engineering' | 'product' | 'gtm' | 'operations' | null;
 }
 
 // A cached dossier is considered fresh when it has both a timestamp AND
@@ -122,6 +130,7 @@ async function resolvePersonalization(
       dossier,
       resumeText: input.resumeText,
       apiKey: input.apiKey,
+      targetRole: input.targetRole,
     });
   } catch (err) {
     // Non-fatal: email still drafts without personalization. We log so
@@ -297,6 +306,9 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     cachedDossierAt,
     resumeText: profile.resumeText,
     apiKey: profile.apiKey,
+    // parseWorkspaceConfig already normalizes this to a valid RoleFamily
+    // or null, so we can pass through without re-validating.
+    targetRole: (profile.ws.targetRole ?? null) as PersonalizationInput["targetRole"],
   });
 
   const draftInput: DraftInput = userTemplate

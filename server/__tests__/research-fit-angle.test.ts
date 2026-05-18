@@ -277,6 +277,43 @@ describe("pickFitAngle", () => {
     expect(prompt).toContain("RAG cost telemetry");
   });
 
+  it("injects a role-family hint into the prompt when targetRole is set", async () => {
+    // The whole point of role-aware fit-angle: a designer applying to a
+    // company shouldn't get an infra-flavored fit picked just because
+    // their resume mentions one infra project. The hint tilts the
+    // tiebreaker toward function-relevant surfaces.
+    const fetchMock = mockClaudeText("FEATURE: design system\nFIT: my design work");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pickFitAngle({
+      dossier,
+      resumeText: "resume",
+      apiKey: API_KEY,
+      targetRole: "product",
+    });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toMatch(/product.*design/i);
+  });
+
+  it("omits the role hint when targetRole is null", async () => {
+    // Backward-compat: callers that don't pass targetRole get the
+    // pre-refactor prompt verbatim.
+    const fetchMock = mockClaudeText("FEATURE: x\nFIT: y");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pickFitAngle({ dossier, resumeText: "resume", apiKey: API_KEY });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    const prompt = body.messages[0].content as string;
+    // No role hint should appear; the "Candidate is targeting" preamble
+    // only fires when a hint is provided.
+    expect(prompt).not.toMatch(/Candidate is targeting/i);
+  });
+
   it("returns nulls for both fields when Claude says NONE", async () => {
     vi.stubGlobal("fetch", mockClaudeText("FEATURE: NONE\nFIT: NONE"));
 
