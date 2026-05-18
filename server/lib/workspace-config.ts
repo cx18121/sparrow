@@ -1,3 +1,5 @@
+import { normalizeRoleFamilies, type RoleFamily } from "../../src/types/roleFamilies.js";
+
 export interface FileEntry {
   id: string;
   path: string;
@@ -18,6 +20,10 @@ export interface WorkspaceConfig {
     delaySeconds?: number | null;
   } | null;
   files?: FileEntry[] | null;
+  // Default role families for the user. New campaigns inherit this when
+  // they don't override per-campaign. parseWorkspaceConfig normalizes the
+  // value so consumers can rely on it being a clean RoleFamily[].
+  targetRoles?: RoleFamily[] | null;
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -67,5 +73,9 @@ export function parseWorkspaceConfig(raw: unknown): WorkspaceConfig {
     ...parsed,
     sendingLimits: normalizeSendingLimits(parsed.sendingLimits),
     files: Array.isArray(parsed.files) ? parsed.files : [],
+    // Existing users without a saved targetRoles get the default
+    // (['engineering']) so behavior is identical to the pre-refactor
+    // TARGET_TITLES hardcoded set until they opt into other families.
+    targetRoles: normalizeRoleFamilies(parsed.targetRoles),
   };
 }

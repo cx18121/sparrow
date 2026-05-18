@@ -1,3 +1,9 @@
+import {
+  DEFAULT_ROLE_FAMILIES,
+  normalizeRoleFamilies,
+  type RoleFamily,
+} from '../types/roleFamilies'
+
 // Pre-filled starter template for fresh onboarding sessions. Uses the
 // high-signal merge tags ({{first_name}}, {{company}}, {{feature_line}},
 // {{fit_angle}}, {{sender_name}}) so the Step 2 preview renders a real-
@@ -137,6 +143,11 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       dailyMax: 250,
       delaySeconds: 15,
     },
+    // Default role families for new campaigns. Onboarding overrides this
+    // with the user's actual selection; existing users with no targetRoles
+    // saved get DEFAULT_ROLE_FAMILIES (['engineering']) preserving the
+    // pre-refactor TARGET_TITLES behavior.
+    targetRoles: [...DEFAULT_ROLE_FAMILIES] as RoleFamily[],
   };
 
   const merged = {
@@ -150,6 +161,10 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
       data?.sendingLimits || baseConfig.sendingLimits
     ),
     files: Array.isArray(data?.files) ? data.files : baseConfig.files,
+    targetRoles: normalizeRoleFamilies(
+      data?.targetRoles,
+      { fallback: baseConfig.targetRoles }
+    ),
   };
 
   const templateExists = personalTemplates.some(

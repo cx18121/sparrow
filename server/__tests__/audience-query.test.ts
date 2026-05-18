@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { audienceToPrismaWhere } from "../lib/audience-query.js";
+import type { RoleFamily } from "../../src/types/roleFamilies.js";
 
 // Pure-function tests for the Audience → Prisma WHERE translator. Doesn't
 // need a DB — checks the shape of the where clause for the stage-filter
@@ -11,6 +12,11 @@ const baseAudience = {
   stage: null as string | null,
   batch: null as string | null,
   isHiring: null as boolean | null,
+  // targetRoles is a contact-level filter, not a company-pool filter — these
+  // tests verify the pool query so it stays empty here. See
+  // audienceToPrismaWhere implementation: targetRoles is intentionally not
+  // consumed in the WHERE clause.
+  targetRoles: [] as RoleFamily[],
 };
 
 describe("audienceToPrismaWhere — stage filter", () => {
