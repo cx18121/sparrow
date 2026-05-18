@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const { mockGetUserId, mockPrisma, mockRevealAndUpsert } = vi.hoisted(() => {
-  const mockGetUserId = vi.fn<[], Promise<string | null>>();
+  const mockGetUserId = vi.fn<() => Promise<string | null>>();
   const mockPrisma = {
     $executeRaw: vi.fn(),
     $transaction: vi.fn(async (fn) => fn(mockPrisma)),

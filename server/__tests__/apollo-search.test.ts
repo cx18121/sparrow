@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const { mockGetUserId, mockPrisma, mockSearchContacts, mockConsumeQuota, MockQuotaError } =
   vi.hoisted(() => {
-    const mockGetUserId = vi.fn<[], Promise<string | null>>();
+    const mockGetUserId = vi.fn<() => Promise<string | null>>();
     const mockPrisma = {
       company: { findUnique: vi.fn() },
     };

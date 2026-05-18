@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const { mockGetUserId, mockGetSupabaseAdmin, mockEncrypt, mockPrisma } = vi.hoisted(() => {
-  const mockGetUserId = vi.fn<[], Promise<string | null>>();
+  const mockGetUserId = vi.fn<() => Promise<string | null>>();
   const mockGetSupabaseAdmin = vi.fn();
   const mockEncrypt = vi.fn((s: string) => `encrypted:${s}`);
   const mockPrisma = {

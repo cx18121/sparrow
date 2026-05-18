@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const { mockGetUserId, mockGenerateDraft, mockSendDraft, mockOAuth2, mockRunPersistentIdempotent, mockHashRequest } = vi.hoisted(() => {
-  const mockGetUserId = vi.fn<[], Promise<string | null>>();
+  const mockGetUserId = vi.fn<() => Promise<string | null>>();
   const mockGenerateDraft = vi.fn();
   const mockSendDraft = vi.fn();
   const mockRunPersistentIdempotent = vi.fn(async ({ task }) => task());

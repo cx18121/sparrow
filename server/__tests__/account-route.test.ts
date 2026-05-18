@@ -4,7 +4,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const {
   mockGetUserId, mockGetSupabaseAdmin, tx, mockTransaction, mockDecrypt, mockRevokeToken,
 } = vi.hoisted(() => {
-  const mockGetUserId = vi.fn<[], Promise<string | null>>();
+  const mockGetUserId = vi.fn<() => Promise<string | null>>();
   const mockGetSupabaseAdmin = vi.fn();
   const mockDecrypt = vi.fn((value: string) => `decrypted:${value}`);
   const mockRevokeToken = vi.fn().mockResolvedValue(undefined);
