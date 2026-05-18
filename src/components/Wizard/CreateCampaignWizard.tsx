@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, FileText, Filter,
   Sparkles, Users, X,
@@ -232,7 +233,13 @@ export default function CreateCampaignWizard({
     }
   }
 
-  return (
+  // Portal the wizard to document.body so its `fixed inset-0 z-50` doesn't
+  // get trapped inside <main>'s stacking context. AppShell renders
+  // <main className="relative z-10">, which creates a stacking context that
+  // contains everything inside it — including a z-50 child — beneath the
+  // sidebar's z-20 layer at the outer flex level. Portaling escapes that
+  // context and lets the overlay actually cover the sidebar.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
       {/* Sticky stepper */}
       <header className="sticky top-0 z-10 border-b border-warm-200 bg-surface/95 backdrop-blur-sm">
@@ -375,7 +382,8 @@ export default function CreateCampaignWizard({
           )}
         </div>
       </footer>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
