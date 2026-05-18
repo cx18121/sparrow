@@ -75,46 +75,38 @@ describe("Apollo HTTP primitives", () => {
     );
   });
 
-  it("uses sales-family titles plus the universal CEO/Founder safety net when roleFamilies includes sales", async () => {
+  it("uses GTM titles plus the universal safety net when role=gtm", async () => {
     mockAxios.post.mockResolvedValue({ data: { people: [] } });
 
     await searchContacts("example.com", "apollo-key", {
       retry: false,
-      roleFamilies: ["sales"],
+      role: "gtm",
     });
 
     const body = mockAxios.post.mock.calls[0][1];
     expect(body.person_titles).toEqual(
-      expect.arrayContaining(["Founder", "CEO", "Head of Sales", "VP Sales"]),
+      expect.arrayContaining(["Founder", "CEO", "Head of Sales", "CMO"]),
     );
-    // No engineering-specific titles when the user picked sales only.
+    // No engineering-specific titles when the user picked GTM only — this
+    // is the whole point of per-campaign role targeting.
     expect(body.person_titles).not.toContain("CTO");
     expect(body.person_titles).not.toContain("VP Engineering");
   });
 
-  it("unions titles across multiple roleFamilies without duplicating universal titles", async () => {
+  it("does not duplicate universal titles in the resolved title set", async () => {
     mockAxios.post.mockResolvedValue({ data: { people: [] } });
 
-    await searchContacts("example.com", "apollo-key", {
-      retry: false,
-      roleFamilies: ["engineering", "sales"],
-    });
+    await searchContacts("example.com", "apollo-key", { retry: false, role: "engineering" });
 
     const titles = mockAxios.post.mock.calls[0][1].person_titles as string[];
-    expect(titles).toEqual(expect.arrayContaining(["CTO", "Head of Sales", "Founder", "CEO"]));
-    // Universal titles must not duplicate when multiple families merge —
-    // wasted request bytes and confusing in Apollo's logs.
     expect(titles.filter(t => t === "Founder").length).toBe(1);
     expect(titles.filter(t => t === "CEO").length).toBe(1);
   });
 
-  it("falls back to engineering-default titles when roleFamilies is empty (backward compat)", async () => {
+  it("falls back to engineering-default titles when role is null (backward compat)", async () => {
     mockAxios.post.mockResolvedValue({ data: { people: [] } });
 
-    await searchContacts("example.com", "apollo-key", {
-      retry: false,
-      roleFamilies: [],
-    });
+    await searchContacts("example.com", "apollo-key", { retry: false, role: null });
 
     const titles = mockAxios.post.mock.calls[0][1].person_titles as string[];
     // Same default as the pre-refactor TARGET_TITLES baseline.

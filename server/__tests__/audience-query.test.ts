@@ -12,11 +12,11 @@ const baseAudience = {
   stage: null as string | null,
   batch: null as string | null,
   isHiring: null as boolean | null,
-  // targetRoles is a contact-level filter, not a company-pool filter — these
-  // tests verify the pool query so it stays empty here. See
-  // audienceToPrismaWhere implementation: targetRoles is intentionally not
+  // targetRole is a contact-level filter, not a company-pool filter — these
+  // tests verify the pool query so it stays null here. See
+  // audienceToPrismaWhere implementation: targetRole is intentionally not
   // consumed in the WHERE clause.
-  targetRoles: [] as RoleFamily[],
+  targetRole: null as RoleFamily | null,
 };
 
 describe("audienceToPrismaWhere — stage filter", () => {

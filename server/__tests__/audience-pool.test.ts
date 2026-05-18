@@ -29,7 +29,7 @@ const audience = {
   stage: null,
   batch: null,
   isHiring: null,
-  targetRoles: [],
+  targetRole: null,
 };
 
 beforeEach(() => {

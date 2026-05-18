@@ -79,11 +79,11 @@ export async function upsertContactFromReveal(
 // Pure HTTP — no DB write, no quota charge. Returns the raw enrichment data so
 // callers can run the DB write separately (e.g. inside a transaction), decoupling
 // the Apollo HTTP latency from any held DB lock.
-// roleFamilies threads through to enrichDomain → searchContacts; see those.
+// `role` threads through to enrichDomain → searchContacts; see those.
 export async function fetchEnrichedDomain(
   domain: string,
   apiKey: string,
-  options: { roleFamilies?: RoleFamily[] } = {}
+  options: { role?: RoleFamily | null } = {}
 ): Promise<EnrichedPerson | null> {
   return enrichDomain(domain, apiKey, options);
 }
@@ -98,7 +98,7 @@ export async function enrichContactFromDomain(
   apiKey: string,
   userId: string,
   db: Db = prisma,
-  options: { roleFamilies?: RoleFamily[] } = {}
+  options: { role?: RoleFamily | null } = {}
 ): Promise<{ contact: SavedContact | null; apolloPersonId: string | null }> {
   await enforceRevealQuota(userId, db);
   const enriched = await enrichDomain(domain, apiKey, options);

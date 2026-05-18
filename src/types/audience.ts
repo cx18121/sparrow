@@ -6,7 +6,7 @@
 // in server/lib/audience-query.ts and consumes this same Audience type.
 
 import {
-  normalizeRoleFamilies,
+  normalizeRoleFamily,
   labelForRoleFamily,
   type RoleFamily,
 } from './roleFamilies'
@@ -17,10 +17,10 @@ export interface Audience {
   stage: string | null
   batch: string | null
   isHiring: boolean | null
-  // Per-campaign override of the user's default target roles. Empty array
-  // means "inherit the user's workspace default at apply time" — the wizard
-  // and Apollo callers resolve the actual title set, not this field directly.
-  targetRoles: RoleFamily[]
+  // Per-campaign override of the user's default target role. null means
+  // "inherit the user's workspace default at apply time" — the wizard and
+  // Apollo callers resolve the actual title set, not this field directly.
+  targetRole: RoleFamily | null
 }
 
 // Region special values. Plain region strings (e.g. "Europe") also accepted.
@@ -36,7 +36,7 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 export const EMPTY_AUDIENCE: Audience = {
-  tags: [], region: null, stage: null, batch: null, isHiring: null, targetRoles: [],
+  tags: [], region: null, stage: null, batch: null, isHiring: null, targetRole: null,
 }
 
 // Build an Audience from raw Campaign fields stored in the DB / wire format.
@@ -47,7 +47,7 @@ export function audienceFromCampaign(c: {
   filterStage?: string | null
   filterBatch?: string | null
   filterIsHiring?: boolean | null
-  filterTargetRoles?: string[] | null
+  filterTargetRole?: string | null
 }): Audience {
   return {
     tags: c.filterTags ?? [],
@@ -55,10 +55,10 @@ export function audienceFromCampaign(c: {
     stage: c.filterStage ?? null,
     batch: c.filterBatch ?? null,
     isHiring: c.filterIsHiring ?? null,
-    // Empty array (not the default-engineering fallback) when the campaign
-    // hasn't specified roles — caller decides how to resolve "inherit user
-    // default" vs "actually empty" at apply time.
-    targetRoles: normalizeRoleFamilies(c.filterTargetRoles, { fallback: [] }),
+    // null fallback (not engineering default) when the campaign hasn't
+    // specified a role — caller decides how to resolve "inherit user
+    // default" vs "actually unset" at apply time.
+    targetRole: normalizeRoleFamily(c.filterTargetRole, { fallback: null }),
   }
 }
 
@@ -70,7 +70,7 @@ export function audienceToCampaignFields(a: Audience) {
     filterStage: a.stage,
     filterBatch: a.batch,
     filterIsHiring: a.isHiring,
-    filterTargetRoles: a.targetRoles,
+    filterTargetRole: a.targetRole,
   }
 }
 
@@ -82,13 +82,13 @@ export function audienceToDisplayPills(a: Audience): string[] {
     a.stage,
     a.batch,
     a.isHiring != null ? (a.isHiring ? 'Hiring' : 'Not hiring') : null,
-    ...a.targetRoles.map(labelForRoleFamily),
+    a.targetRole ? labelForRoleFamily(a.targetRole) : null,
   ].filter((v): v is string => Boolean(v))
 }
 
-// Whether the audience filters the company pool. Target roles are a
+// Whether the audience filters the company pool. targetRole is a
 // contact-level filter (applied at Apollo searchContacts time), not a
-// company-pool filter, so they intentionally don't count here.
+// company-pool filter, so it intentionally doesn't count here.
 export function isAudienceEmpty(a: Audience): boolean {
   return a.tags.length === 0 && !a.region && !a.stage && !a.batch && a.isHiring == null
 }
