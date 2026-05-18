@@ -306,8 +306,16 @@ export const fetchCompanies = (params: Record<string, unknown> = {}, init?: Requ
   request<CompanyListResponse>(`/companies${qs(params)}`, init)
 export const resetDiscoverySeen = () => request<void>('/companies?seen=discovery', { method: 'DELETE' })
 
-export const apolloSearch = (domain: string, companyId: string) =>
-  request<ApolloSearchResponse>('/apollo-search', { method: 'POST', body: JSON.stringify({ domain, companyId }) })
+// `role` is the campaign's targetRole (or null to fall back to the user's
+// workspace default at the server). Without this the server route can't
+// know which role family the user is targeting and silently engineering
+// titles are used regardless of campaign config — the refactor's primary
+// goal would be broken end-to-end. See server/routes/apollo-search.ts.
+export const apolloSearch = (domain: string, companyId: string, role: string | null = null) =>
+  request<ApolloSearchResponse>('/apollo-search', {
+    method: 'POST',
+    body: JSON.stringify({ domain, companyId, role }),
+  })
 
 export const revealApolloContact = (personId: string, companyId: string, domain: string) =>
   request<ApolloRevealResponse>('/apollo-search', { method: 'PUT', body: JSON.stringify({ personId, companyId, domain }) })

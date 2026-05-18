@@ -8,6 +8,9 @@ import {
   EMPTY_AUDIENCE, REGION_INTL, REGION_REMOTE, REGION_US,
   audienceToCampaignFields, audienceToDisplayPills, type Audience, type RegionFilter,
 } from '../../types/audience'
+import {
+  ROLE_FAMILIES, DEFAULT_ROLE_FAMILY, labelForRoleFamily, type RoleFamily,
+} from '../../types/roleFamilies'
 import type { CampaignOptions, Template } from '../../types/api'
 import type { UiCampaign } from '../../contexts/AppDataContext'
 import { PREVIEW_SAMPLE } from '../../lib/previewSample'
@@ -155,12 +158,16 @@ interface WizardProps {
   templates: Template[]
   options: CampaignOptions
   saving: boolean
+  // User's default target role, set at onboarding / Settings. Used to render
+  // the RolePicker's "currently in effect" label when the user hasn't picked
+  // a per-campaign override yet. null → engineering applies at Apollo time.
+  defaultTargetRole: RoleFamily | null
   onCancel: () => void
   onSubmit: (submission: WizardSubmission) => Promise<UiCampaign>
 }
 
 export default function CreateCampaignWizard({
-  open, templates, options, saving, onCancel, onSubmit,
+  open, templates, options, saving, defaultTargetRole, onCancel, onSubmit,
 }: WizardProps) {
   const [state, setState] = useState<ScratchState>(EMPTY_SCRATCH)
   const [hydrated, setHydrated] = useState(false)
@@ -298,6 +305,7 @@ export default function CreateCampaignWizard({
               audience={state.audience}
               includePreviouslySaved={state.includePreviouslySaved}
               options={options}
+              defaultTargetRole={defaultTargetRole}
               onAudienceChange={audience => setState(s => ({ ...s, audience }))}
               onTogglePrev={includePreviouslySaved => setState(s => ({ ...s, includePreviouslySaved }))}
             />
@@ -454,12 +462,13 @@ function sortBatchesNewestFirst(batches: string[]): string[] {
 const CHIP_VISIBLE_CAP = 10
 
 function StepFilters({
-  audience, includePreviouslySaved, options,
+  audience, includePreviouslySaved, options, defaultTargetRole,
   onAudienceChange, onTogglePrev,
 }: {
   audience: Audience
   includePreviouslySaved: boolean
   options: CampaignOptions
+  defaultTargetRole: RoleFamily | null
   onAudienceChange: (a: Audience) => void
   onTogglePrev: (v: boolean) => void
 }) {
@@ -488,7 +497,16 @@ function StepFilters({
   const visibleBatches = showAllBatches ? sortedBatches : sortedBatches.slice(0, 8)
 
   return (
-    <section>
+    <section className="space-y-8">
+      {/* Primary question: what role is the user looking for? Contact-side
+          targeting, not a company-pool filter — sits above the audience block
+          so the wizard reads role → companies → template → send. */}
+      <RolePicker
+        value={audience.targetRole}
+        defaultValue={defaultTargetRole}
+        onChange={role => onAudienceChange({ ...audience, targetRole: role })}
+      />
+
       <StepHeader
         icon={Filter}
         title="Who should Sparrow find?"
@@ -838,6 +856,120 @@ function StepReview({
 }
 
 // ---------- Shared bits ----------
+
+// Per-campaign role selector. Renders as a compact summary line until the
+// user clicks "Change" — then expands to four tile-cards (one per family).
+// `value` is the explicit per-campaign override (null = inherit). The
+// summary line always shows what's currently in effect (override > default
+// > engineering at apollo time), so users can see the live state without
+// expanding the picker.
+//
+// Single-select by design: each campaign targets one role family. The
+// email-generation strategy is going to fork on this value (step 6), and
+// reasoning about "what kind of pitch is this campaign" gets harder with
+// multiple roles in play.
+function RolePicker({
+  value, defaultValue, onChange,
+}: {
+  value: RoleFamily | null
+  defaultValue: RoleFamily | null
+  onChange: (next: RoleFamily | null) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  // The role rendered in the summary line — the explicit override if set,
+  // otherwise the user's workspace default, otherwise the registry default.
+  // Mirrors the resolution order in apollo.ts:resolveTargetTitles so the UI
+  // never lies about what Apollo will actually query.
+  const effective: RoleFamily = value ?? defaultValue ?? DEFAULT_ROLE_FAMILY
+  const overrideActive = value !== null && value !== defaultValue
+  // Picking the role that matches the inherited default clears the override
+  // instead of pinning it explicitly — keeps the campaign in "inherit" mode
+  // so a later Settings change still propagates here.
+  const handlePick = (next: RoleFamily) => {
+    if (defaultValue !== null && next === defaultValue) {
+      onChange(null)
+    } else {
+      onChange(next)
+    }
+    setExpanded(false)
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Users size={16} />
+        </div>
+        <div>
+          <p className="page-eyebrow">Start with</p>
+          <h2 className="mt-1 font-display text-[1.35rem] font-semibold leading-tight text-dark">
+            What role are you looking for?
+          </h2>
+        </div>
+      </div>
+
+      {!expanded && (
+        <div className="ml-12 flex items-start justify-between gap-4">
+          <p className="text-[14px] text-dark">
+            <span className="font-medium text-primary">{labelForRoleFamily(effective)}</span>
+            {overrideActive && (
+              <span className="ml-2 text-[11px] text-muted">(overrides your default)</span>
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="ml-12 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
+              Pick one
+            </p>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-[11px] font-medium text-muted hover:text-dark"
+            >
+              Done
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {ROLE_FAMILIES.map(family => {
+              const active = family.id === effective
+              return (
+                <button
+                  type="button"
+                  key={family.id}
+                  onClick={() => handlePick(family.id)}
+                  aria-pressed={active}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all ${
+                    active
+                      ? 'border-primary bg-primary/5'
+                      : 'border-warm-200 bg-warm-50 hover:border-primary/40'
+                  }`}
+                >
+                  <span
+                    className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
+                      active ? 'border-primary bg-primary' : 'border-warm-400 bg-transparent'
+                    }`}
+                  />
+                  <span className="text-[12px] font-medium text-dark">{family.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function StepHeader({
   icon: Icon, title, helper,

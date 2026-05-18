@@ -109,8 +109,20 @@ describe("Apollo HTTP primitives", () => {
     await searchContacts("example.com", "apollo-key", { retry: false, role: null });
 
     const titles = mockAxios.post.mock.calls[0][1].person_titles as string[];
-    // Same default as the pre-refactor TARGET_TITLES baseline.
-    expect(titles).toEqual(expect.arrayContaining(["Founder", "CEO", "CTO", "VP Engineering"]));
+    // Pin the FULL pre-refactor TARGET_TITLES baseline plus the deliberately
+    // added "Engineering Manager" — so a future registry edit (e.g.,
+    // dropping "Head of Engineering" because someone thinks it's redundant
+    // with "VP Engineering") can't silently regress existing users to a
+    // narrower Apollo query than the pre-refactor const had.
+    const REQUIRED = [
+      // Pre-refactor TARGET_TITLES const, verbatim:
+      "CTO", "Founder", "Co-Founder", "CEO", "Head of Engineering", "VP Engineering",
+      // Deliberate widening — flagged in the migration commit message:
+      "Engineering Manager",
+    ];
+    for (const title of REQUIRED) {
+      expect(titles).toContain(title);
+    }
   });
 
   it("can search contacts without title filters for fallback discovery", async () => {

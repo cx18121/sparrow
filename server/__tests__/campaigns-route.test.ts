@@ -132,6 +132,30 @@ describe("campaigns route — POST", () => {
     expect(createCall.data.status).toBe("ACTIVE");
   });
 
+  it("nulls out unknown filterTargetRole instead of writing junk to the DB", async () => {
+    // Defense-in-depth: even if a patched client posts e.g. "designer" (a
+    // role family that doesn't exist), the create path normalizes through
+    // normalizeRoleFamily(fallback: null) so the DB never holds an id that
+    // future Apollo queries would have to guard against.
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.campaign.create.mockResolvedValue({ id: "c-new", userId: USER_ID, name: "My Campaign", status: "ACTIVE" });
+    const req = makeReq({ method: "POST", body: { name: "My Campaign", filterTargetRole: "designer" } });
+    const res = makeRes();
+    await handler(req, res);
+    const createCall = mockPrisma.campaign.create.mock.calls[0][0];
+    expect(createCall.data.filterTargetRole).toBe(null);
+  });
+
+  it("preserves a valid filterTargetRole on create", async () => {
+    mockGetUserId.mockResolvedValue(USER_ID);
+    mockPrisma.campaign.create.mockResolvedValue({ id: "c-new", userId: USER_ID, name: "My Campaign", status: "ACTIVE" });
+    const req = makeReq({ method: "POST", body: { name: "My Campaign", filterTargetRole: "gtm" } });
+    const res = makeRes();
+    await handler(req, res);
+    const createCall = mockPrisma.campaign.create.mock.calls[0][0];
+    expect(createCall.data.filterTargetRole).toBe("gtm");
+  });
+
   it("creates campaign with explicit ACTIVE status and returns 201", async () => {
     mockGetUserId.mockResolvedValue(USER_ID);
     const newCampaign = { id: "c-new", userId: USER_ID, name: "My Campaign", status: "ACTIVE" };

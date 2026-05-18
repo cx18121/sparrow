@@ -1,6 +1,7 @@
 import { prisma } from "./prisma.js";
 import { parseBatchSize, parseNullableBoolean } from "./parse-params.js";
 import { HttpError } from "./user.js";
+import { normalizeRoleFamily } from "../../src/types/roleFamilies.js";
 
 export const CAMPAIGN_STATUSES = ["ACTIVE", "PAUSED", "COMPLETED"] as const;
 export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
@@ -133,9 +134,11 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
       filterStage: (filterStage as string | null) ?? null,
       filterBatch: (filterBatch as string | null) ?? null,
       filterIsHiring: parseNullableBoolean(filterIsHiring),
-      filterTargetRole: typeof filterTargetRole === "string" && filterTargetRole.length > 0
-        ? filterTargetRole
-        : null,
+      // Gate through normalizeRoleFamily so an unknown id (typo, deprecated
+      // family from before the 6→4 consolidation, junk from a patched
+      // client) lands in the DB as null instead of silently corrupting
+      // future Apollo queries for this campaign.
+      filterTargetRole: normalizeRoleFamily(filterTargetRole, { fallback: null }),
       batchSize: parseBatchSize(batchSize),
       tone: (tone as string | null) ?? null,
       attachmentIds: stringArray(attachmentIds),
@@ -187,9 +190,9 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
       ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
       ...(filterIsHiring !== undefined && { filterIsHiring: parseNullableBoolean(filterIsHiring) }),
       ...(filterTargetRole !== undefined && {
-        filterTargetRole: typeof filterTargetRole === "string" && filterTargetRole.length > 0
-          ? filterTargetRole
-          : null,
+        // Same normalization as create — bad ids in PATCH bodies must not
+        // corrupt the DB. See create branch above for rationale.
+        filterTargetRole: normalizeRoleFamily(filterTargetRole, { fallback: null }),
       }),
       ...(batchSize !== undefined && { batchSize: parseBatchSize(batchSize) }),
       ...(tone !== undefined && { tone: (tone as string | null) ?? null }),

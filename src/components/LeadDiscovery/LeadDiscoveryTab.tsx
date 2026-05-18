@@ -155,6 +155,15 @@ export { discoveryFiltersFromCampaign } from '../../lib/leadDiscoveryPrefetch'
 export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = null, campaignFilters = null }: LeadDiscoveryTabProps) {
   const { leads, refreshLeads } = useAppData()
   const campaignSeed = useMemo(() => discoveryFiltersFromCampaign(campaignFilters), [campaignFilters])
+  // Role passed to /api/apollo-search so the contact preview reflects what
+  // the campaign actually targets. Resolution: per-campaign override →
+  // workspace default → null (server falls back to engineering). Standalone
+  // discovery (no campaign) uses workspace default.
+  const apolloRole: string | null = (
+    (typeof campaignFilters?.filterTargetRole === 'string' && campaignFilters.filterTargetRole)
+    || (typeof workspaceConfig?.targetRole === 'string' && workspaceConfig.targetRole)
+    || null
+  )
   // Set of apolloPersonIds already saved as UserLeads — used to disable the
   // Save button on previously-saved contacts in the Find-contacts modal,
   // even after a tab switch or a re-open of the same company. Combined with
@@ -452,7 +461,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     try {
       const data = cached
         ? { previews: cached.previews ?? cached, usedFallback: Boolean(cached.usedFallback) }
-        : await apolloSearch(company.domain, company.id)
+        : await apolloSearch(company.domain, company.id, apolloRole)
       const previews = data.previews || []
       setApolloResults(previews)
       setApolloUsedFallback(Boolean(data.usedFallback))
@@ -552,7 +561,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     for (const company of toProcess) {
       if (!mountedRef.current || batchTokenRef.current !== myToken) break
       try {
-        const data = await apolloSearch(company.domain, company.id)
+        const data = await apolloSearch(company.domain, company.id, apolloRole)
         const previews = data.previews || []
         if (!previews.length) throw new Error('no contacts')
         const top = previews[0]

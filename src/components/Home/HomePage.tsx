@@ -306,6 +306,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
           templates={templates}
           options={options}
           saving={saving}
+          defaultTargetRole={workspaceConfig?.targetRole ?? null}
           onCancel={() => setWizardOpen(false)}
           onSubmit={handleWizardSubmit}
         />
@@ -395,6 +396,7 @@ export default function HomePage({ workspaceConfig }: HomePageProps) {
         templates={templates}
         options={options}
         saving={saving}
+        defaultTargetRole={workspaceConfig?.targetRole ?? null}
         onCancel={() => setWizardOpen(false)}
         onSubmit={handleWizardSubmit}
       />
