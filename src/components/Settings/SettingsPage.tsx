@@ -262,7 +262,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
 
       <FieldGroup
         title="Target role"
-        hint="Default for new campaigns — you can override per-campaign in the wizard. Sets which decision-makers Sparrow looks up at each company."
+        hint="Default for new campaigns. Override per-campaign in the wizard."
       >
         <RoleTiles
           value={form.targetRole ?? null}

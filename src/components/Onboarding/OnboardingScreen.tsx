@@ -169,10 +169,7 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
           <label className="label" id="onboarding-role-label">
             What role are you looking for?
           </label>
-          <p className="mb-2 text-xs text-muted">
-            We'll email decision-makers in this family at each company. You can override per-campaign later.
-          </p>
-          <div role="group" aria-labelledby="onboarding-role-label">
+          <div className="mt-2" role="group" aria-labelledby="onboarding-role-label">
             <RoleTiles value={form.targetRole} onChange={onPickRole} />
           </div>
         </div>
