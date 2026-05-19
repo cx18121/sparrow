@@ -56,19 +56,22 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             style={{
               fontSize: 'clamp(2.25rem, 4.6vw, 4.75rem)',
               lineHeight: 1.04,
-              letterSpacing: '-0.03em',
+              letterSpacing: '-0.032em',
               textWrap: 'balance',
+              fontKerning: 'normal',
             }}
           >
             Cold emailing actually works.
+            <span className="block text-primary-700">Sparrow makes it easy.</span>
           </h1>
 
           <div
-            className="mt-7 space-y-4 text-dark/85"
+            className="mt-7 space-y-3.5 text-dark/85"
             style={{
               maxWidth: '52ch',
               fontSize: 'clamp(16px, 1.15vw, 19px)',
               lineHeight: 1.6,
+              textWrap: 'pretty',
             }}
           >
             <p>

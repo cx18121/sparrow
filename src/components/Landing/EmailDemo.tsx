@@ -97,10 +97,12 @@ export default function EmailDemo() {
           </div>
 
           <div className="flex items-center justify-between border-t border-warm-200 bg-[linear-gradient(180deg,#FAF7F0_0%,#F8F4ED_100%)] px-6 py-3.5 font-display text-[13px] text-muted sm:px-7">
-            <span className="flex items-center"><span className="lp-dot" />Composed in 7s</span>
+            <span className="flex items-center">
+              <span className="lp-dot lp-dot-pulse" />Composed in 7s
+            </span>
             <button
               type="button"
-              className="rounded-full px-3 py-1 font-medium text-primary-700 transition-colors hover:bg-primary/10"
+              className="lp-approve rounded-full px-3 py-1 font-medium text-primary-700 transition-colors hover:bg-primary/10"
             >
               Approve →
             </button>
@@ -110,7 +112,7 @@ export default function EmailDemo() {
         {/* Annotation block tucked tight beneath the card. Numbered to
             match the markers in the email body so the reader can pair
             each caption with the highlight it explains. */}
-        <dl className="lp-reveal mt-6 grid gap-4 text-[13.5px] leading-[1.55] text-muted sm:grid-cols-2 sm:gap-6">
+        <dl className="lp-reveal mt-5 grid gap-4 text-[13.5px] leading-[1.55] text-muted sm:grid-cols-2 sm:gap-7">
           <div>
             <dt className="mb-1 flex items-center gap-2 font-medium text-dark">
               <Marker n={1} dark />From research
@@ -134,7 +136,10 @@ export default function EmailDemo() {
         {/* Pool-size trust line. Lives here (not in the footer) so it
             lands right after the visitor sees one specific draft — the
             numbers prove the breadth behind that one example. */}
-        <p className="lp-reveal mt-10 text-center text-[12.5px] leading-[1.6] text-muted/85">
+        <p
+          className="lp-reveal mt-12 text-center text-[12.5px] leading-[1.6] text-muted/85"
+          style={{ fontVariantNumeric: 'tabular-nums' }}
+        >
           One of <span className="font-medium text-dark">12,317</span> startups indexed across <span className="font-medium text-dark">44</span> sources. <span className="font-medium text-dark">6,281</span> with founder contacts.
         </p>
       </div>

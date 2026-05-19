@@ -20,10 +20,14 @@
 }
 
 .lp-hero-wash {
-  background: radial-gradient(48% 50% at 50% 50%,
-    rgba(248, 241, 226, 0.55) 0%,
-    rgba(248, 241, 226, 0.20) 55%,
-    rgba(248, 241, 226, 0) 80%);
+  /* Wider, slightly stronger wash so the body copy doesn't sit over
+     the branch's leaves on standard desktop. Shaped as a soft vertical
+     ellipse centered behind the type column. */
+  background: radial-gradient(62% 58% at 50% 52%,
+    rgba(248, 241, 226, 0.78) 0%,
+    rgba(248, 241, 226, 0.42) 45%,
+    rgba(248, 241, 226, 0.08) 78%,
+    rgba(248, 241, 226, 0) 95%);
 }
 
 /* Portrait phones: cover-fit with the focal point at the upper-right
@@ -241,4 +245,42 @@
   background: #557A57;
   margin-right: 8px;
   vertical-align: middle;
+}
+
+/* Slow heart-beat pulse on the "Composed in 7s" marker. Signals the
+   draft is fresh / live without being attention-grabbing. */
+.lp-dot-pulse {
+  position: relative;
+}
+.lp-dot-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: #557A57;
+  opacity: 0;
+  animation: lp-dot-ping 2400ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes lp-dot-ping {
+  0%   { transform: scale(0.6); opacity: 0.55; }
+  70%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Approve button: subtle one-shot attention pulse when the email card
+   first enters view. Catches the eye, then settles. */
+.lp-email-in-view .lp-approve {
+  animation: lp-approve-pulse 1600ms cubic-bezier(0.22, 1, 0.36, 1) 800ms 1 both;
+}
+@keyframes lp-approve-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(85, 122, 87, 0.45); }
+  50%  { box-shadow: 0 0 0 10px rgba(85, 122, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(85, 122, 87, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-dot-pulse::after,
+  .lp-email-in-view .lp-approve {
+    animation: none;
+  }
 }
