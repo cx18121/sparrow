@@ -34,7 +34,7 @@ export default function EmailDemo() {
   }, [])
 
   return (
-    <section className="relative px-5 py-24 sm:px-8 sm:py-32 lg:py-40">
+    <section className="relative px-5 py-20 sm:px-8 sm:py-28 lg:py-32">
       <div className="mx-auto grid w-full max-w-6xl gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-20">
         {/* Editorial prose column */}
         <div className="lp-reveal order-2 lg:order-1 lg:pt-12">

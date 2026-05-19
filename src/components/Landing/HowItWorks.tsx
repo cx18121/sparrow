@@ -7,7 +7,7 @@ import { ArrowRight, Check, X } from 'lucide-react'
 // artifact stacks above its prose so the artifact still leads.
 export default function HowItWorks() {
   return (
-    <section className="relative px-5 py-24 sm:px-8 sm:py-32 lg:py-40">
+    <section className="relative px-5 py-20 sm:px-8 sm:py-28 lg:py-32">
       <div className="mx-auto w-full max-w-6xl">
         <header className="lp-reveal mx-auto max-w-3xl text-center">
           <p className="lp-eyebrow">How it works</p>

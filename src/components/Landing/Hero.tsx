@@ -2,20 +2,22 @@ import React from 'react'
 import { ArrowRight } from 'lucide-react'
 import { SparrowMark } from './SparrowMark'
 
-// Sparrow flock placeholder. Five birds in the upper third, asymmetric, low
-// opacity. Swap-in plan per BRIEF.md §6: replace with a `background-image`
-// on .lp-hero once `src/assets/landing-hero.png` exists.
+// Sparrow flock placeholder. Asymmetric birds in the upper-right third
+// (kept clear of the headline column on the left). Swap-in plan per
+// BRIEF.md §6: replace with a `background-image` on .lp-hero once
+// `src/assets/landing-hero.png` exists.
 const FLOCK = [
-  { top: '14%', left: '58%', size: 84, opacity: 0.16, rotate: -8 },
-  { top: '8%',  left: '76%', size: 52, opacity: 0.14, rotate: -2 },
-  { top: '22%', left: '88%', size: 36, opacity: 0.12, rotate: 6  },
-  { top: '4%',  left: '40%', size: 28, opacity: 0.10, rotate: -14 },
-  { top: '30%', left: '70%', size: 26, opacity: 0.13, rotate: 3  },
+  { top: '12%', left: '62%', size: 88, opacity: 0.18, rotate: -8 },
+  { top: '6%',  left: '78%', size: 54, opacity: 0.16, rotate: -2 },
+  { top: '22%', left: '90%', size: 38, opacity: 0.14, rotate: 6  },
+  { top: '34%', left: '74%', size: 30, opacity: 0.15, rotate: 3  },
+  { top: '46%', left: '85%', size: 22, opacity: 0.12, rotate: -10 },
+  { top: '4%',  left: '52%', size: 24, opacity: 0.10, rotate: -14 },
 ]
 
 export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
-    <section className="lp-hero relative overflow-hidden pt-32 pb-24 sm:pt-40 sm:pb-32 lg:pt-48 lg:pb-40">
+    <section className="lp-hero relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-20 lg:pt-44 lg:pb-28">
       {/* CSS-only sparrow flock — placeholder for the editorial hero image */}
       <div className="lp-flock" aria-hidden="true">
         {FLOCK.map((b, i) => (
@@ -35,25 +37,26 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
       </div>
 
       <div className="relative mx-auto w-full max-w-6xl px-5 sm:px-8">
-        <div className="lp-reveal max-w-[18ch]">
-          <p className="lp-eyebrow">For graduating students</p>
+        <div className="lp-reveal max-w-[900px]">
+          <p className="lp-eyebrow whitespace-nowrap">For graduating students</p>
           <h1
             className="mt-6 font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.75rem, 8.5vw, 6.25rem)',
+              fontSize: 'clamp(2.5rem, 7.6vw, 5.75rem)',
               lineHeight: 0.98,
-              letterSpacing: '-0.038em',
+              letterSpacing: '-0.036em',
               textWrap: 'balance',
             }}
           >
-            Email people<br />worth emailing.
+            <span className="block">Email people</span>
+            <span className="block">worth emailing.</span>
           </h1>
 
           <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
             <button
               type="button"
               onClick={onSignInWithGoogle}
-              className="group inline-flex items-center gap-2.5 rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
+              className="group inline-flex items-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
             >
               <GoogleGlyph />
               Continue with Google

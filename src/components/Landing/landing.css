@@ -112,35 +112,43 @@
 
 /* ── Photographic reveal: section openers fade up on scroll ──────────── */
 
+/* Rest state: fully visible. Motion is layered additively so any path
+   without it (older browsers, JS disabled, server-rendered HTML before
+   hydration) still renders the page correctly. */
 .lp-reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 1100ms cubic-bezier(0.22, 1, 0.36, 1),
-              transform 1100ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.lp-reveal.lp-in-view {
-  opacity: 1;
-  transform: translateY(0);
+  /* visible by default */
 }
 
-/* Native scroll-driven timeline — Chromium 115+, behind feature elsewhere.
-   IntersectionObserver fallback toggles .lp-in-view for the rest. */
+/* Native scroll-driven timeline — Chromium 115+. `forwards` fill keeps the
+   "to" state after the range; before the range the rest CSS applies (which
+   is visible), so elements below the fold render fine on a full-page
+   screenshot even if they never entered the timeline. */
 @supports (animation-timeline: view()) {
   .lp-reveal {
-    opacity: 1;
-    transform: none;
-    animation: lp-fade-up linear both;
+    animation: lp-fade-up cubic-bezier(0.22, 1, 0.36, 1) forwards;
     animation-timeline: view();
-    animation-range: entry 5% cover 25%;
+    animation-range: entry 0% cover 25%;
   }
-  /* When the native timeline drives the animation we don't need the
-     observer's .lp-in-view fallback. Keep the same end-state. */
-  .lp-email-in-view .lp-hook,
   .lp-hook {
-    animation: lp-hook-draw linear both;
+    animation: lp-hook-draw cubic-bezier(0.22, 1, 0.36, 1) forwards;
     animation-timeline: view();
-    animation-range: entry 20% cover 35%;
+    animation-range: entry 30% cover 45%;
   }
+}
+
+/* JS-controlled fallback only activates when the root opts in. Landing.tsx
+   adds `.lp-js-fallback` to the root only on engines without the native
+   timeline, so Chromium keeps the @supports path above without double-running
+   transitions. */
+.lp-js-fallback .lp-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lp-js-fallback .lp-reveal.lp-in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @keyframes lp-fade-up {
@@ -156,10 +164,13 @@
 /* ── Reduced motion: kill the lift, keep static layout ────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-reveal {
+  .lp-reveal,
+  .lp-js-fallback .lp-reveal,
+  .lp-js-fallback .lp-reveal.lp-in-view {
     opacity: 1;
     transform: none;
     animation: none;
+    transition: none;
   }
   .lp-hook {
     background-size: 100% 100%;

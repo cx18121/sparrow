@@ -12,7 +12,7 @@ import { SparrowMark } from './SparrowMark'
 export default function WhyExists() {
   return (
     <section
-      className="relative px-5 py-24 sm:px-8 sm:py-32 lg:py-40"
+      className="relative px-5 py-20 sm:px-8 sm:py-28 lg:py-32"
       style={{ background: 'linear-gradient(180deg, #F8F1E2 0%, #F5EBD5 60%, #F8F1E2 100%)' }}
     >
       <div className="mx-auto w-full max-w-6xl">

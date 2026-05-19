@@ -24,15 +24,25 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
   }, [])
 
   // Scroll-driven reveal fallback. Chromium with `animation-timeline: view()`
-  // drives the entrance via CSS — the @supports block in landing.css promotes
-  // each `.lp-reveal` to the native timeline. For every other engine
-  // (Safari, Firefox today) an IntersectionObserver adds `.lp-in-view` on
-  // entry; the CSS transition does the rest. Both branches collapse to a
-  // no-op under prefers-reduced-motion (see landing.css).
+  // drives the entrance via CSS — the @supports block in landing.css handles
+  // it without JS. For engines without that (Safari, Firefox today) we opt
+  // the root into the `.lp-js-fallback` branch, which hides `.lp-reveal`
+  // elements until an IntersectionObserver flips them on entry. We gate the
+  // fallback on JS support so Chromium isn't double-running motion, and so
+  // the rest state of `.lp-reveal` remains "visible" — that way the page
+  // still renders correctly if JS never executes (e.g. SSR pre-hydration,
+  // user with JS disabled, or a full-page screenshot that never scrolls).
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
+    const nativeTimeline =
+      typeof CSS !== 'undefined' &&
+      typeof CSS.supports === 'function' &&
+      CSS.supports('animation-timeline: view()')
+    if (nativeTimeline) return
     if (typeof IntersectionObserver === 'undefined') return
+
+    root.classList.add('lp-js-fallback')
 
     const nodes = Array.from(root.querySelectorAll<HTMLElement>('.lp-reveal'))
     if (nodes.length === 0) return
@@ -49,7 +59,10 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
       { rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
     )
     nodes.forEach(n => io.observe(n))
-    return () => io.disconnect()
+    return () => {
+      io.disconnect()
+      root.classList.remove('lp-js-fallback')
+    }
   }, [])
 
   return (

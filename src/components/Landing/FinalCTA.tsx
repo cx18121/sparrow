@@ -8,7 +8,7 @@ import { SparrowMark } from './SparrowMark'
 export default function FinalCTA({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
     <section
-      className="relative overflow-hidden px-5 py-32 sm:px-8 sm:py-40"
+      className="relative overflow-hidden px-5 py-24 sm:px-8 sm:py-32"
       style={{ background: 'linear-gradient(180deg, #F8F1E2 0%, #F0E2C4 100%)' }}
     >
       {/* Quiet flock arc above the type — different composition from the
