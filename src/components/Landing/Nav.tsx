@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { SparrowMark } from './SparrowMark'
+import { SparrowLogo } from './SparrowMark'
 
-// Sticky top bar. Transparent at the top of the page; after 80px of scroll,
-// it gains a parchment backdrop with backdrop-blur. Per DESIGN.md this is
-// the one legitimate use of glassmorphism in the system.
+// Sticky top bar. Transparent at the top of the page; after 80px of
+// scroll, it gains a parchment backdrop with backdrop-blur. Per DESIGN.md
+// this is the one legitimate use of glassmorphism in the system.
 export default function LandingNav({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   const [scrolled, setScrolled] = useState(false)
 
@@ -25,9 +25,7 @@ export default function LandingNav({ onSignInWithGoogle }: { onSignInWithGoogle:
     >
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
         <Link to="/" className="group flex items-center gap-2.5" aria-label="Sparrow home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-warm-50 shadow-brand transition-transform duration-300 group-hover:-translate-y-0.5">
-            <SparrowMark size={16} />
-          </span>
+          <SparrowLogo size={28} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
           <span className="font-display text-[17px] font-semibold tracking-tight text-dark">
             Sparrow
           </span>

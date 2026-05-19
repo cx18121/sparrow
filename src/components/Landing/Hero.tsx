@@ -1,58 +1,67 @@
 import React from 'react'
 import { ArrowRight } from 'lucide-react'
-import { SparrowMark } from './SparrowMark'
 
-// Sparrow flock placeholder. Asymmetric birds in the upper-right third
-// (kept clear of the headline column on the left). Swap-in plan per
-// BRIEF.md §6: replace with a `background-image` on .lp-hero once
-// `src/assets/landing-hero.png` exists.
-const FLOCK = [
-  { top: '12%', left: '62%', size: 88, opacity: 0.18, rotate: -8 },
-  { top: '6%',  left: '78%', size: 54, opacity: 0.16, rotate: -2 },
-  { top: '22%', left: '90%', size: 38, opacity: 0.14, rotate: 6  },
-  { top: '34%', left: '74%', size: 30, opacity: 0.15, rotate: 3  },
-  { top: '46%', left: '85%', size: 22, opacity: 0.12, rotate: -10 },
-  { top: '4%',  left: '52%', size: 24, opacity: 0.10, rotate: -14 },
-]
-
+// Hero is full-bleed: the editorial sparrow illustration sits as a
+// background image, and the four-sentence pitch lives in the
+// negative-space middle-left where the illustration already leaves room.
+// If `public/landing-hero.png` is missing, the background falls through
+// to the page cream so the page still renders.
 export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
-    <section className="lp-hero relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-20 lg:pt-44 lg:pb-28">
-      {/* CSS-only sparrow flock — placeholder for the editorial hero image */}
-      <div className="lp-flock" aria-hidden="true">
-        {FLOCK.map((b, i) => (
-          <span
-            key={i}
-            className="lp-flock-bird"
-            style={{
-              top: b.top,
-              left: b.left,
-              opacity: b.opacity,
-              transform: `rotate(${b.rotate}deg)`,
-            }}
-          >
-            <SparrowMark size={b.size} />
-          </span>
-        ))}
-      </div>
+    <section
+      className="lp-hero relative isolate flex min-h-[88vh] items-center overflow-hidden pt-24 sm:min-h-[92vh] sm:pt-28"
+      style={{
+        backgroundImage: "url('/landing-hero.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#F8F1E2',
+      }}
+    >
+      {/* Soft cream wash on the left so the headline reads cleanly over the
+          illustration without darkening the artwork. Falls to fully
+          transparent on the right so the birds breathe. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(100deg, rgba(248,241,226,0.92) 0%, rgba(248,241,226,0.78) 32%, rgba(248,241,226,0.30) 58%, rgba(248,241,226,0) 78%)',
+        }}
+      />
 
-      <div className="relative mx-auto w-full max-w-6xl px-5 sm:px-8">
-        <div className="lp-reveal max-w-[900px]">
-          <p className="lp-eyebrow whitespace-nowrap">For graduating students</p>
+      <div className="relative mx-auto w-full max-w-6xl px-5 pb-20 sm:px-8 sm:pb-24 lg:pb-32">
+        <div className="lp-reveal max-w-[640px]">
+          <p className="lp-eyebrow">For students</p>
           <h1
             className="mt-6 font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.5rem, 7.6vw, 5.75rem)',
-              lineHeight: 0.98,
-              letterSpacing: '-0.036em',
+              fontSize: 'clamp(2.25rem, 5.6vw, 4.25rem)',
+              lineHeight: 1.02,
+              letterSpacing: '-0.034em',
               textWrap: 'balance',
             }}
           >
-            <span className="block">Email people</span>
-            <span className="block">worth emailing.</span>
+            Cold email works for internships and full-time roles.
+            <span className="block text-muted/70">LinkedIn easy-apply doesn't.</span>
           </h1>
 
-          <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div
+            className="mt-8 space-y-5 text-[17px] leading-[1.65] text-dark/85"
+            style={{ maxWidth: '52ch' }}
+          >
+            <p>
+              Sparrow drafts the hard part: what to actually say to each
+              company, pulled from real research and the line in your
+              resume that fits.
+            </p>
+            <p>
+              Drafts queue up in your Gmail. You review, edit, and hit
+              send.
+            </p>
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3">
             <button
               type="button"
               onClick={onSignInWithGoogle}
@@ -60,12 +69,13 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             >
               <GoogleGlyph />
               Continue with Google
-              <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2.2} />
+              <ArrowRight
+                size={16}
+                className="transition-transform duration-300 group-hover:translate-x-1"
+                strokeWidth={2.2}
+              />
             </button>
-            <p className="flex items-center gap-2 text-[13px] text-muted">
-              <SparrowMark size={14} className="text-primary" />
-              Free for students.
-            </p>
+            <p className="text-[13px] text-muted">Free for students.</p>
           </div>
         </div>
       </div>
