@@ -71,7 +71,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
               company, pulled from real research and the line in your
               resume that fits.
             </p>
-            <p>Drafts queue up in your Gmail. You review, edit, and hit send.</p>
+            <p>Drafts wait for you to review. Edit anything, then send straight from your Gmail.</p>
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2">

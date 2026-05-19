@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { SparrowLogo } from './SparrowMark'
 
-// Editorial nav: wordmark on the left, single sign-in link on the right.
-// No "Get started" pill — the hero CTA owns that action, and a duplicate
-// pill in the nav competes visually with the hero button.
+// Branding rail across the full viewport width. Brand is anchored to the
+// actual top-left corner (not the centered max-w-6xl that the body uses),
+// and Sign-in is anchored to the actual top-right. The green-circle Send
+// mark is back beside the wordmark: with Get-started gone from the nav
+// there's no more green-on-green conflict, and the brand needed real
+// presence on a wide watercolor backdrop where a 17px wordmark alone
+// disappears.
 //
-// No brand badge here either: the green-circle Send mark belongs in the
-// product UI (Sidebar / favicon), and shouts on a watercolor backdrop.
-// The illustration in the hero is the brand expression on this page.
-//
-// Transparent at top; gains a parchment backdrop with blur after 80px
-// of scroll. Per DESIGN.md the one legitimate use of glassmorphism.
+// Transparent at top; gains a parchment backdrop with blur after 80px of
+// scroll. Per DESIGN.md the one legitimate use of glassmorphism.
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false)
 
@@ -29,18 +30,27 @@ export default function LandingNav() {
           : 'border-b border-transparent bg-transparent backdrop-blur-0'
       }`}
     >
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
+      <div className="flex h-16 w-full items-center justify-between px-6 sm:h-[72px] sm:px-10 lg:px-12">
         <Link
           to="/"
           aria-label="Sparrow home"
-          className="font-display text-[17px] font-semibold tracking-tight text-dark transition-colors hover:text-primary-700"
+          className="group flex items-center gap-3 text-dark transition-opacity hover:opacity-90"
         >
-          Sparrow
+          <SparrowLogo
+            size={36}
+            className="transition-transform duration-300 group-hover:-translate-y-0.5"
+          />
+          <span
+            className="font-display font-semibold tracking-tight"
+            style={{ fontSize: '22px', letterSpacing: '-0.018em' }}
+          >
+            Sparrow
+          </span>
         </Link>
 
         <Link
           to="/login"
-          className="rounded-full px-3.5 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
+          className="rounded-full px-4 py-2 font-display text-[14px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
         >
           Sign in
         </Link>
