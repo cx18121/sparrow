@@ -1,28 +1,42 @@
 import React from 'react'
 
-// Thin landing footer. Wordmark-only (matches the nav), nav links,
-// copyright. The DB-coverage trust strip used to live here but has moved
-// down to the bottom of EmailDemo where it earns its place — right after
-// the visitor sees one specific email, the "here's how big the pool is"
-// signal lands as proof rather than as miscellaneous footer text.
+// Thin landing footer. Matches the nav wordmark treatment (green "S" +
+// ink "parrow"), carries a one-line tagline so the footer says something
+// about the brand instead of being utility links, and links Privacy /
+// Terms / Contact. Contact is a mailto link with "Contact" as the
+// visible text so the personal address doesn't sit in the page source
+// for scrapers to harvest.
 export default function LandingFooter() {
   return (
     <footer className="border-t border-accent/15 px-5 py-8 sm:px-8 sm:py-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-display text-[14px] font-semibold text-dark">Sparrow</p>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p
+            className="font-display font-semibold leading-none"
+            style={{
+              fontSize: '20px',
+              letterSpacing: '-0.024em',
+              color: '#2C1F10',
+            }}
+          >
+            <span className="text-primary-700">S</span>parrow
+          </p>
+          <p className="mt-3 text-[12.5px] leading-[1.5] text-muted/85">
+            Drafts in your Gmail. You hit send.
+          </p>
+        </div>
 
         <nav
           aria-label="Footer"
           className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-muted"
         >
-          <a href="/login" className="transition-colors hover:text-dark">Sign in</a>
           <a href="/privacy" className="transition-colors hover:text-dark">Privacy</a>
           <a href="/terms" className="transition-colors hover:text-dark">Terms</a>
           <a
             href="mailto:charlie.l.xue@gmail.com"
             className="transition-colors hover:text-dark"
           >
-            charlie.l.xue@gmail.com
+            Contact
           </a>
         </nav>
       </div>
