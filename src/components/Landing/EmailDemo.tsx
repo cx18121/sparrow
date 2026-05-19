@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { SparrowBird } from './SparrowMark'
 
 // Optional second screen. A visitor who scrolls past the hero is curious
 // and wants to see what the product actually produces before granting
@@ -15,13 +14,8 @@ import { SparrowBird } from './SparrowMark'
 // Draft content per BRIEF.md §7.1 (Draft A, Linear PM).
 export default function EmailDemo() {
   const cardRef = useRef<HTMLDivElement | null>(null)
-  const trustRef = useRef<HTMLParagraphElement | null>(null)
   const [inView, setInView] = useState(false)
   const [hoveredHook, setHoveredHook] = useState<1 | 2 | null>(null)
-  const [counts, setCounts] = useState<{ a: number; b: number }>({
-    a: 0,
-    b: 0,
-  })
 
   // IntersectionObserver: when the card enters view, kick off the
   // hook-highlight draw-in.
@@ -43,59 +37,12 @@ export default function EmailDemo() {
     return () => io.disconnect()
   }, [])
 
-  // Trust-strip count-up. Animates 0 → final once per entry. Respects
-  // prefers-reduced-motion by skipping straight to the final numbers.
-  useEffect(() => {
-    const el = trustRef.current
-    if (!el) return
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (reduced) {
-      setCounts({ a: 12317, b: 44 })
-      return
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue
-          io.unobserve(e.target)
-          const start = performance.now()
-          const duration = 900
-          const ease = (t: number) => 1 - Math.pow(1 - t, 4) // ease-out quart
-          const tick = (now: number) => {
-            const t = Math.min(1, (now - start) / duration)
-            const p = ease(t)
-            setCounts({
-              a: Math.round(12317 * p),
-              b: Math.round(44 * p),
-            })
-            if (t < 1) requestAnimationFrame(tick)
-          }
-          requestAnimationFrame(tick)
-        }
-      },
-      { threshold: 0.5 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
   const setHook = (n: 1 | 2 | null) => () => setHoveredHook(n)
 
   return (
     <section className="relative px-5 pt-10 pb-20 sm:px-8 sm:pt-12 sm:pb-24">
       <div className="mx-auto w-full max-w-[680px]">
-        <div
-          aria-hidden
-          className="lp-reveal mx-auto flex max-w-[260px] items-center gap-3"
-        >
-          <span className="h-px flex-1 bg-accent/35" />
-          <SparrowBird size={18} className="text-primary/70" />
-          <span className="h-px flex-1 bg-accent/35" />
-        </div>
-
-        <p className="lp-eyebrow lp-reveal mt-6 text-center">An actual draft</p>
+        <p className="lp-eyebrow lp-reveal text-center">Drafted by Sparrow</p>
 
         <div
           ref={cardRef}
@@ -153,7 +100,7 @@ export default function EmailDemo() {
         {/* Annotation block. Each caption is tied to its highlighted
             phrase above via the hoveredHook state — hovering brightens
             the partner in both directions. */}
-        <dl className="lp-reveal mt-5 grid gap-4 text-[13.5px] leading-[1.55] text-muted sm:grid-cols-2 sm:gap-7">
+        <dl className="lp-reveal mt-12 grid gap-4 text-[13.5px] leading-[1.55] text-muted sm:grid-cols-2 sm:gap-7">
           <div
             className={`lp-caption ${hoveredHook === 1 ? 'lp-caption-active' : ''}`}
             onMouseEnter={setHook(1)}
@@ -181,30 +128,24 @@ export default function EmailDemo() {
             </dd>
           </div>
         </dl>
-
-        {/* Pool-size trust line. Lives here (not in the footer) so it
-            lands right after the visitor sees one specific draft — the
-            numbers prove the breadth behind that one example. */}
-        <p
-          ref={trustRef}
-          className="lp-reveal mt-12 text-center text-[12.5px] leading-[1.6] text-muted/85"
-          style={{ fontVariantNumeric: 'tabular-nums' }}
-        >
-          Pulling from <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups across <span className="font-medium text-dark">{counts.b}</span> portfolio sources.
-        </p>
       </div>
     </section>
   )
 }
 
-function Marker({ n, dark, active }: { n: number; dark?: boolean; active?: boolean }) {
+// Unified marker. Same solid-forest pill in the email body and the
+// captions below — one visual language for the "look at this linked
+// phrase" callout, instead of a tinted-pill body variant vs solid-pill
+// caption variant. The `dark` prop is kept as a no-op so call sites
+// don't need to change.
+function Marker({ n, active }: { n: number; dark?: boolean; active?: boolean }) {
   if (n === 0) return null
   return (
     <span
-      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-medium align-baseline transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        dark
-          ? `bg-primary text-warm-50 ${active ? 'scale-110 shadow-[0_3px_10px_rgba(85,122,87,0.45)]' : 'shadow-[0_2px_6px_rgba(85,122,87,0.30)]'}`
-          : `bg-primary/15 text-primary-700 ring-1 ring-primary/25 ${active ? 'bg-primary/30 ring-primary/50 scale-110' : ''}`
+      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-warm-50 align-baseline transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        active
+          ? 'scale-110 shadow-[0_3px_10px_rgba(85,122,87,0.45)]'
+          : 'shadow-[0_2px_6px_rgba(85,122,87,0.30)]'
       }`}
       aria-hidden="true"
     >

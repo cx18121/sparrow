@@ -50,7 +50,10 @@
 .lp-hero-wash {
   /* Asymmetric ellipse centered behind the type column. Covers the
      headline + body + CTA area without flattening the branch on the
-     left or the horizon detail on the right. */
+     left or the horizon detail on the right. The CTA helper text
+     (qualifier + proof line) has its own focused backdrop in Hero.tsx
+     instead of widening this wash, so the painting stays as visible
+     as possible at the page edges. */
   background: radial-gradient(ellipse 60% 55% at 50% 50%,
     rgba(248, 241, 226, 0.78) 0%,
     rgba(248, 241, 226, 0.45) 45%,
@@ -58,21 +61,21 @@
     rgba(248, 241, 226, 0) 96%);
 }
 
-/* Portrait phones: cover-fit with the focal point at the upper-right
-   so the bird cluster stays in frame and the branch peeks in from the
-   bottom-left. Background-size stays at cover (no zoom) so the birds
-   render at natural scale and don't overlap the headline. */
+/* Portrait phones: cover-fit with the bird cluster pulled toward the
+   text column so the flock sits behind the headline as intentional
+   figures, not as lost background. Wash is lighter than before (peak
+   ~62% instead of 86%) so the painted detail stays visible while body
+   copy still reads. Background-size stays at cover (no zoom) so the
+   birds render at natural scale. */
 @media (max-width: 640px) and (orientation: portrait) {
   .lp-hero {
-    background-position: 78% top;
+    background-position: 62% top;
   }
   .lp-hero-wash {
-    /* Mobile crops bring illustration detail closer to the text;
-       a stronger, wider wash keeps body copy legible. */
     background: radial-gradient(72% 60% at 50% 55%,
-      rgba(248, 241, 226, 0.86) 0%,
-      rgba(248, 241, 226, 0.55) 45%,
-      rgba(248, 241, 226, 0.10) 80%);
+      rgba(248, 241, 226, 0.62) 0%,
+      rgba(248, 241, 226, 0.32) 45%,
+      rgba(248, 241, 226, 0.04) 80%);
   }
 }
 

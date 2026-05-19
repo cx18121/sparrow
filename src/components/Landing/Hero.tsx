@@ -84,7 +84,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             <p>You review every draft, then send from your Gmail.</p>
           </div>
 
-          <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <div className="mt-9">
             <button
               type="button"
               onClick={onSignInWithGoogle}
@@ -98,9 +98,39 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
                 strokeWidth={2.3}
               />
             </button>
-            <p className="text-[13px] text-muted">
-              Free for students. Built for finding internships and full-time roles.
-            </p>
+            {/* The two helper lines live inside a positioned wrapper so a
+                focused cream backdrop, sized to the wrapper itself, can
+                sit behind them. Hides the watercolor branch detail
+                directly under this text without widening the page-level
+                hero wash. The backdrop extends a small inset past the
+                text so its edges fall off softly instead of forming a
+                visible chip. */}
+            <div className="relative mt-4">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-x-6 -inset-y-2"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 60% 80% at 50% 50%, rgba(248,241,226,0.90) 0%, rgba(248,241,226,0.55) 60%, rgba(248,241,226,0) 100%)',
+                }}
+              />
+              {/* Qualifier on its own line, slightly larger size and full
+                  ink-with-alpha so it reads as a real signal rather than
+                  a footnote next to the CTA. */}
+              <p className="relative text-[14px] text-dark/70">
+                Free for students. Built for finding internships and full-time roles.
+              </p>
+              {/* Proof one-liner: surfaces the database scale at the moment
+                  of the OAuth ask. Lives here instead of below the email
+                  card so the credibility signal lands before the visitor
+                  clicks Continue with Google. */}
+              <p
+                className="relative mt-1.5 text-[12.5px] text-muted"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                Pulling from <span className="font-medium text-dark">12,317</span> startups across <span className="font-medium text-dark">44</span> portfolio sources.
+              </p>
+            </div>
           </div>
         </div>
       </div>
