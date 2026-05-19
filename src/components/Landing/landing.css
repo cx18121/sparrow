@@ -109,9 +109,10 @@
   border: 1px solid #E8DDD0;
   border-radius: 20px;
   overflow: hidden;
-  /* Multi-source photographic lighting per DESIGN.json shadows.email-card:
-     warm key from upper-left, cool ambient fill from upper-right, wide
-     ambient bounce, tight contact shadow. NOT replaceable by a tailwind
+  /* Multi-source photographic lighting for the signature email-card
+     artifact: warm key from upper-left, cool ambient fill from upper-right,
+     wide ambient bounce, tight contact shadow. Intentionally not a shared
+     token, this shape lives only here. NOT replaceable by a tailwind
      default — those are gray-black and would read cold on parchment. */
   box-shadow:
     18px 22px 48px rgba(140, 120, 80, 0.18),

@@ -190,7 +190,7 @@ export default function EmailDemo() {
           className="lp-reveal mt-12 text-center text-[12.5px] leading-[1.6] text-muted/85"
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
-          One of <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups indexed across <span className="font-medium text-dark">{counts.b}</span> sources.
+          Pulling from <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups across <span className="font-medium text-dark">{counts.b}</span> portfolio sources.
         </p>
       </div>
     </section>

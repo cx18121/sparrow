@@ -70,6 +70,12 @@ export default {
         // Two-layer warm drop shadow for the white workspace panel.
         // Tighter than `card` so the lift reads as "object on parchment".
         lift: '0 8px 24px rgba(44,31,16,0.10), 0 2px 6px rgba(44,31,16,0.06)',
+        // Landing-hero primary CTA: louder than `shadow-active` because
+        // it's the page's marquee call to action and carries brand weight
+        // at hero scale. The cream-tinted inset is a subtle specular
+        // highlight on the green button surface.
+        cta: '0 14px 36px rgba(85,122,87,0.32), inset 0 1px 0 rgba(255,255,255,0.18)',
+        'cta-hover': '0 20px 44px rgba(85,122,87,0.40), inset 0 1px 0 rgba(255,255,255,0.22)',
       },
     },
   },
