@@ -109,7 +109,7 @@ export default function EmailDemo() {
             <dt className="mb-1 flex items-center gap-2 font-medium text-dark">
               <Marker n={1} dark active={hoveredHook === 1} />From research
             </dt>
-            <dd>
+            <dd className="pl-[26px]">
               Three recent Linear posts on Triage. Sparrow picked the
               one that fit a PM hire.
             </dd>
@@ -122,7 +122,7 @@ export default function EmailDemo() {
             <dt className="mb-1 flex items-center gap-2 font-medium text-dark">
               <Marker n={2} dark active={hoveredHook === 2} />From the resume
             </dt>
-            <dd>
+            <dd className="pl-[26px]">
               Cornell, May, junior PM. Matched to a post about
               early-career hiring.
             </dd>

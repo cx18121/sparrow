@@ -52,17 +52,18 @@ export default function AuthScreen() {
       className="relative flex min-h-screen flex-col"
       style={{ background: '#F8F1E2', color: '#2C1F10' }}
     >
-      {/* Light chrome: wordmark left, back-to-home right. Same wordmark
-          treatment as the landing nav so the two surfaces feel like one
-          journey. */}
-      <header className="flex items-center justify-between px-6 pt-6 sm:px-10 sm:pt-8 lg:px-12">
+      {/* Light chrome: wordmark left, back-to-home right. Header height
+          and padding match the landing nav (h-16 sm:h-[72px], items-center)
+          so the wordmark sits at the exact same viewport position when
+          you bounce between the landing and the auth page. */}
+      <header className="flex h-16 items-center justify-between px-6 sm:h-[72px] sm:px-10 lg:px-12">
         <Link
           to="/"
           aria-label="Sparrow home"
           className="group inline-flex items-baseline font-display font-semibold leading-none"
           style={{
-            fontSize: 'clamp(22px, 1.8vw, 26px)',
-            letterSpacing: '-0.024em',
+            fontSize: 'clamp(26px, 2.4vw, 32px)',
+            letterSpacing: '-0.028em',
             color: '#2C1F10',
           }}
         >

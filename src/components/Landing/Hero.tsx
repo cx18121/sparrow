@@ -71,17 +71,26 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
           <div
             className="mt-7 space-y-3.5 text-dark/85"
             style={{
-              maxWidth: '52ch',
+              // No inline maxWidth — body fills the headline column so
+              // the right edges of h1, body, and the helper text block
+              // align. Parent column caps at max-w-[640px / 740px / 820px]
+              // by breakpoint, keeping the body inside the 65-75ch
+              // readability range from DESIGN.md.
               fontSize: 'clamp(16px, 1.15vw, 19px)',
               lineHeight: 1.6,
-              textWrap: 'pretty',
+              // `balance` actively evens line lengths per paragraph
+              // instead of just preventing single-word orphans (`pretty`).
+              // Stops the body's first line from running long while the
+              // second line wraps short.
+              textWrap: 'balance',
             }}
           >
             <p>
-              Sparrow drafts each email from real research about the
-              company and a matching line in your resume.
+              Sparrow drafts personalized cold emails to startups. Each
+              one is built from real research on the company and a
+              relevant line from your resume.
             </p>
-            <p>You review every draft, then send from your Gmail.</p>
+            <p>Review, send, and track your emails through Sparrow.</p>
           </div>
 
           <div className="mt-9">
@@ -128,7 +137,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
                 className="relative mt-1.5 text-[12.5px] text-muted"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                Pulling from <span className="font-medium text-dark">12,317</span> startups across <span className="font-medium text-dark">44</span> portfolio sources.
+                Search across <span className="font-medium text-dark">12,317</span> startups from <span className="font-medium text-dark">44</span> portfolio sources.
               </p>
             </div>
           </div>
