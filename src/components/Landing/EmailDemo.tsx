@@ -18,10 +18,9 @@ export default function EmailDemo() {
   const trustRef = useRef<HTMLParagraphElement | null>(null)
   const [inView, setInView] = useState(false)
   const [hoveredHook, setHoveredHook] = useState<1 | 2 | null>(null)
-  const [counts, setCounts] = useState<{ a: number; b: number; c: number }>({
+  const [counts, setCounts] = useState<{ a: number; b: number }>({
     a: 0,
     b: 0,
-    c: 0,
   })
 
   // IntersectionObserver: when the card enters view, kick off the
@@ -53,7 +52,7 @@ export default function EmailDemo() {
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (reduced) {
-      setCounts({ a: 12317, b: 44, c: 6281 })
+      setCounts({ a: 12317, b: 44 })
       return
     }
     const io = new IntersectionObserver(
@@ -70,7 +69,6 @@ export default function EmailDemo() {
             setCounts({
               a: Math.round(12317 * p),
               b: Math.round(44 * p),
-              c: Math.round(6281 * p),
             })
             if (t < 1) requestAnimationFrame(tick)
           }
@@ -204,7 +202,7 @@ export default function EmailDemo() {
           className="lp-reveal mt-12 text-center text-[12.5px] leading-[1.6] text-muted/85"
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
-          One of <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups indexed across <span className="font-medium text-dark">{counts.b}</span> sources. <span className="font-medium text-dark">{counts.c.toLocaleString()}</span> with founder contacts.
+          One of <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups indexed across <span className="font-medium text-dark">{counts.b}</span> sources.
         </p>
       </div>
     </section>
