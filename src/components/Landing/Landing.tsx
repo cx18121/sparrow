@@ -3,6 +3,7 @@ import LandingNav from './Nav'
 import Hero from './Hero'
 import EmailDemo from './EmailDemo'
 import WhyExists from './WhyExists'
+import HowItWorks from './HowItWorks'
 import './landing.css'
 
 // Public marketing surface. Composes the five-section landing per
@@ -25,6 +26,7 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
         <Hero onSignInWithGoogle={onSignInWithGoogle} />
         <EmailDemo />
         <WhyExists />
+        <HowItWorks />
       </main>
     </div>
   )
