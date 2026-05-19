@@ -15,6 +15,7 @@ import { hasRecoverableCompletedSetup } from './lib/profileSetup'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
 
 const HomePage = lazy(() => import('./components/Home/HomePage'))
+const Landing = lazy(() => import('./components/Landing/Landing'))
 const TemplatesTab = lazy(() => import('./components/Templates/TemplatesTab'))
 const SettingsPage = lazy(() => import('./components/Settings/SettingsPage'))
 const OnboardingScreen = lazy(() => import('./components/Onboarding/OnboardingScreen'))
@@ -89,7 +90,7 @@ function RouteFallback() {
 }
 
 function AppShell() {
-  const { user, loading, signOut, connectGoogle } = useAuth()
+  const { user, loading, signOut, connectGoogle, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
@@ -521,7 +522,18 @@ function AppShell() {
   }
 
   if (!user) {
-    return <AuthScreen />
+    // Public surface split: `/` is the marketing landing, everything else
+    // (`/login`, `/dashboard`, legacy bookmarks while signed out) routes to
+    // the existing AuthScreen so the password sign-in path stays reachable.
+    const triggerGoogleSignIn = () => { void signInWithGoogle() }
+    return (
+      <Suspense fallback={<AppSpinner />}>
+        <Routes>
+          <Route path="/" element={<Landing onSignInWithGoogle={triggerGoogleSignIn} />} />
+          <Route path="*" element={<AuthScreen />} />
+        </Routes>
+      </Suspense>
+    )
   }
 
   if (user && !onboardingState.loaded) {

@@ -1,0 +1,205 @@
+/* Landing-only styles. Imported by Landing.tsx. Kept out of index.css so the
+   reveal animations, multi-source email-card shadow, and hook-highlighter
+   draw-in don't load with the product shell. */
+
+/* ── Page surface ──────────────────────────────────────────────────────── */
+
+.lp-root {
+  /* Slightly warmer than the product's #F5F0E8 so the landing reads as
+     editorial paper, not an app surface. Still inside the parchment family. */
+  background: #F8F1E2;
+  color: #2C1F10;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Wide centered measure for prose-heavy sections. Spec'd in px (not max-w
+   tailwind tokens) so editorial rhythm doesn't depend on container width. */
+.lp-measure { max-width: 68ch; }
+.lp-measure-wide { max-width: 78ch; }
+
+/* ── Eyebrow ───────────────────────────────────────────────────────────── */
+
+.lp-eyebrow {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #334B34; /* Deep Forest — eyebrow ink per DESIGN.md */
+}
+
+/* ── Sparrow flock (hero background placeholder) ──────────────────────── */
+
+.lp-flock {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lp-flock-bird {
+  position: absolute;
+  color: #557A57; /* Forest Sage — but at low opacity so it tints, not paints */
+}
+
+/* ── Email card (signature artifact) ──────────────────────────────────── */
+
+.lp-email {
+  position: relative;
+  background: linear-gradient(180deg, #FDFCF8 0%, #F8F4ED 100%);
+  border: 1px solid #E8DDD0;
+  border-radius: 20px;
+  overflow: hidden;
+  /* Multi-source photographic lighting per DESIGN.json shadows.email-card:
+     warm key from upper-left, cool ambient fill from upper-right, wide
+     ambient bounce, tight contact shadow. NOT replaceable by a tailwind
+     default — those are gray-black and would read cold on parchment. */
+  box-shadow:
+    18px 22px 48px rgba(140, 120, 80, 0.18),
+    -12px 18px 40px rgba(90, 90, 160, 0.10),
+    0 60px 120px rgba(44, 31, 16, 0.10),
+    0 4px 8px rgba(44, 31, 16, 0.06);
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* Specular highlight — top edge catches light, bottom edge sits slightly
+   darker. CSS-only "real paper" cue. */
+.lp-email::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0) 18%,
+    rgba(255, 255, 255, 0) 82%,
+    rgba(232, 221, 208, 0.4) 100%
+  );
+  mix-blend-mode: overlay;
+}
+
+@media (hover: hover) {
+  .lp-email:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      22px 28px 58px rgba(140, 120, 80, 0.22),
+      -14px 22px 50px rgba(90, 90, 160, 0.13),
+      0 72px 144px rgba(44, 31, 16, 0.12),
+      0 6px 12px rgba(44, 31, 16, 0.07);
+  }
+}
+
+/* ── Hook highlighter (yellow underline on personalization phrases) ──── */
+
+.lp-hook {
+  display: inline;
+  padding: 0 2px;
+  background-image: linear-gradient(transparent 55%, #F4E5B8 55%);
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  transition: background-size 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--hook-delay, 200ms);
+}
+
+/* Container .lp-email-in-view is toggled by the view-timeline-fallback —
+   when the email card is on screen, hooks draw in left-to-right. */
+.lp-email-in-view .lp-hook {
+  background-size: 100% 100%;
+}
+
+/* ── Photographic reveal: section openers fade up on scroll ──────────── */
+
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 1100ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 1100ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lp-reveal.lp-in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Native scroll-driven timeline — Chromium 115+, behind feature elsewhere.
+   IntersectionObserver fallback toggles .lp-in-view for the rest. */
+@supports (animation-timeline: view()) {
+  .lp-reveal {
+    opacity: 1;
+    transform: none;
+    animation: lp-fade-up linear both;
+    animation-timeline: view();
+    animation-range: entry 5% cover 25%;
+  }
+  /* When the native timeline drives the animation we don't need the
+     observer's .lp-in-view fallback. Keep the same end-state. */
+  .lp-email-in-view .lp-hook,
+  .lp-hook {
+    animation: lp-hook-draw linear both;
+    animation-timeline: view();
+    animation-range: entry 20% cover 35%;
+  }
+}
+
+@keyframes lp-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes lp-hook-draw {
+  from { background-size: 0% 100%; }
+  to   { background-size: 100% 100%; }
+}
+
+/* ── Reduced motion: kill the lift, keep static layout ────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .lp-hook {
+    background-size: 100% 100%;
+    transition: none;
+    animation: none;
+  }
+  .lp-email {
+    transition: none;
+  }
+}
+
+/* ── Pull quote ───────────────────────────────────────────────────────── */
+
+.lp-pullquote {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 500;
+  font-style: italic;
+  font-size: clamp(1.625rem, 3vw, 2.5rem);
+  line-height: 1.18;
+  letter-spacing: -0.018em;
+  color: #2C1F10;
+}
+.lp-pullquote::before { content: '"'; margin-right: 0.05em; color: #557A57; }
+.lp-pullquote::after  { content: '"'; margin-left:  0.05em; color: #557A57; }
+
+/* ── Editorial spacers ────────────────────────────────────────────────── */
+
+.lp-hairline {
+  height: 1px;
+  background: rgba(168, 132, 92, 0.22);
+  width: 100%;
+}
+
+/* Inline marker dot — used in the email-card foot strip etc. */
+.lp-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #557A57;
+  margin-right: 8px;
+  vertical-align: middle;
+}
