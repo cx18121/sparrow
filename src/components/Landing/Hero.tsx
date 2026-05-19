@@ -72,14 +72,10 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             }}
           >
             <p>
-              Sparrow drafts the hard part: what to actually say to each
-              company, pulled from real research and the line in your
-              resume that fits.
+              Sparrow drafts each email from real research about the
+              company and a matching line in your resume.
             </p>
-            <p>
-              Drafts wait for you to review. Edit anything, then send
-              straight from your Gmail.
-            </p>
+            <p>You review every draft, then send from your Gmail.</p>
           </div>
 
           <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -97,7 +93,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
               />
             </button>
             <p className="text-[13px] text-muted">
-              Free for students. For internships and full-time roles.
+              Free for students. Internships and full-time roles.
             </p>
           </div>
         </div>

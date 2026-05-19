@@ -116,8 +116,8 @@ export default function EmailDemo() {
               <Marker n={1} dark />From research
             </dt>
             <dd>
-              Sparrow read three Linear posts about Triage and keyboard
-              navigation, then picked the one that fit the recipient.
+              Three recent Linear posts on Triage. Sparrow picked the
+              one that fit a PM hire.
             </dd>
           </div>
           <div>
@@ -125,8 +125,8 @@ export default function EmailDemo() {
               <Marker n={2} dark />From the resume
             </dt>
             <dd>
-              Cornell, May, junior PM. Picked because the post is about
-              early-career hiring, not Linear's roadmap.
+              Cornell, May, junior PM. Matched to a post about
+              early-career hiring.
             </dd>
           </div>
         </dl>
@@ -135,7 +135,7 @@ export default function EmailDemo() {
             lands right after the visitor sees one specific draft — the
             numbers prove the breadth behind that one example. */}
         <p className="lp-reveal mt-10 text-center text-[12.5px] leading-[1.6] text-muted/85">
-          One of <span className="font-medium text-dark">12,317</span> startups indexed across <span className="font-medium text-dark">44</span> sources. <span className="font-medium text-dark">6,281</span> with founder or hiring-manager contacts.
+          One of <span className="font-medium text-dark">12,317</span> startups indexed across <span className="font-medium text-dark">44</span> sources. <span className="font-medium text-dark">6,281</span> with founder contacts.
         </p>
       </div>
     </section>
