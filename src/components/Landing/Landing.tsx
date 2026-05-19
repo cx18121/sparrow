@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import LandingNav from './Nav'
 import Hero from './Hero'
 import EmailDemo from './EmailDemo'
+import WhyExists from './WhyExists'
 import './landing.css'
 
 // Public marketing surface. Composes the five-section landing per
@@ -23,6 +24,7 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
       <main>
         <Hero onSignInWithGoogle={onSignInWithGoogle} />
         <EmailDemo />
+        <WhyExists />
       </main>
     </div>
   )
