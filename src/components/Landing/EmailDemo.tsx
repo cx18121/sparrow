@@ -6,14 +6,26 @@ import { SparrowBird } from './SparrowMark'
 // Gmail access. They get exactly one beat: a real draft with the two
 // hooks called out by short captions tucked beneath it. Nothing else.
 //
-// Draft content per BRIEF.md §7.1 (Draft A, Linear PM). Hooks:
-//   (1) "the keyboard speed ... faster filing a bug than opening Slack"
-//       (from research on Linear's product)
-//   (2) "graduating Cornell in May" (from the sender's resume)
+// Delight: hovering a caption brightens its corresponding highlight in
+// the email above (and vice-versa) — a two-way visual tether that makes
+// the annotation system feel intelligent rather than static. Trust-line
+// numbers also count up from 0 when the strip enters view, so the DB
+// feels alive instead of frozen.
+//
+// Draft content per BRIEF.md §7.1 (Draft A, Linear PM).
 export default function EmailDemo() {
   const cardRef = useRef<HTMLDivElement | null>(null)
+  const trustRef = useRef<HTMLParagraphElement | null>(null)
   const [inView, setInView] = useState(false)
+  const [hoveredHook, setHoveredHook] = useState<1 | 2 | null>(null)
+  const [counts, setCounts] = useState<{ a: number; b: number; c: number }>({
+    a: 0,
+    b: 0,
+    c: 0,
+  })
 
+  // IntersectionObserver: when the card enters view, kick off the
+  // hook-highlight draw-in.
   useEffect(() => {
     const el = cardRef.current
     if (!el) return
@@ -32,13 +44,50 @@ export default function EmailDemo() {
     return () => io.disconnect()
   }, [])
 
+  // Trust-strip count-up. Animates 0 → final once per entry. Respects
+  // prefers-reduced-motion by skipping straight to the final numbers.
+  useEffect(() => {
+    const el = trustRef.current
+    if (!el) return
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduced) {
+      setCounts({ a: 12317, b: 44, c: 6281 })
+      return
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue
+          io.unobserve(e.target)
+          const start = performance.now()
+          const duration = 900
+          const ease = (t: number) => 1 - Math.pow(1 - t, 4) // ease-out quart
+          const tick = (now: number) => {
+            const t = Math.min(1, (now - start) / duration)
+            const p = ease(t)
+            setCounts({
+              a: Math.round(12317 * p),
+              b: Math.round(44 * p),
+              c: Math.round(6281 * p),
+            })
+            if (t < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        }
+      },
+      { threshold: 0.5 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  const setHook = (n: 1 | 2 | null) => () => setHoveredHook(n)
+
   return (
     <section className="relative px-5 pt-10 pb-20 sm:px-8 sm:pt-12 sm:pb-24">
       <div className="mx-auto w-full max-w-[680px]">
-        {/* Small printer's-mark ornament: a thin sage rule with a single
-            bird silhouette in the middle. Visually bridges the hero
-            illustration into this section so the page doesn't feel like
-            two halves stuck together. */}
         <div
           aria-hidden
           className="lp-reveal mx-auto flex max-w-[260px] items-center gap-3"
@@ -55,15 +104,11 @@ export default function EmailDemo() {
           className={`lp-email lp-reveal mx-auto mt-7 ${inView ? 'lp-email-in-view lp-in-view' : ''}`}
         >
           <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 border-b border-warm-200 bg-[linear-gradient(180deg,#FDFCF8_0%,#FAF7F0_100%)] px-6 py-5 sm:px-7 sm:py-6">
-            <dt className="self-center font-display text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted">
-              <Marker n={0} />To
-            </dt>
+            <dt className="self-center font-display text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted">To</dt>
             <dd className="self-center text-[15px] text-dark">
               Priya Shah <span className="text-muted">· Linear, Product</span>
             </dd>
-            <dt className="self-center font-display text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted">
-              <Marker n={0} />Subject
-            </dt>
+            <dt className="self-center font-display text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted">Subject</dt>
             <dd className="self-center font-display text-[16px] font-medium tracking-[-0.008em] text-dark">
               Question about how Linear hires new-grad PMs
             </dd>
@@ -74,21 +119,31 @@ export default function EmailDemo() {
             <p className="mb-3.5">
               I've been using Linear since one of my CS classes switched
               to it last spring.{' '}
-              <span className="lp-hook" style={{ ['--hook-delay' as any]: '200ms' }}>
+              <span
+                className={`lp-hook ${hoveredHook === 1 ? 'lp-hook-active' : ''}`}
+                style={{ ['--hook-delay' as any]: '200ms' }}
+                onMouseEnter={setHook(1)}
+                onMouseLeave={setHook(null)}
+              >
                 The thing I keep coming back to is the keyboard speed.
                 I'm faster filing a bug in Linear than I am opening Slack
                 to talk about one.
               </span>
-              <Marker n={1} />{' '}
+              <Marker n={1} active={hoveredHook === 1} />{' '}
               Most tools fight my muscle memory; Linear seems to design
               around it.
             </p>
             <p className="mb-3.5">
               I'm{' '}
-              <span className="lp-hook" style={{ ['--hook-delay' as any]: '500ms' }}>
+              <span
+                className={`lp-hook ${hoveredHook === 2 ? 'lp-hook-active' : ''}`}
+                style={{ ['--hook-delay' as any]: '500ms' }}
+                onMouseEnter={setHook(2)}
+                onMouseLeave={setHook(null)}
+              >
                 graduating Cornell in May
               </span>
-              <Marker n={2} />{' '}
+              <Marker n={2} active={hoveredHook === 2} />{' '}
               and looking at junior PM roles. Would love 15 minutes to
               learn how Linear thinks about hiring new grads. Happy to
               share what I've been working on if it's useful.
@@ -109,22 +164,30 @@ export default function EmailDemo() {
           </div>
         </div>
 
-        {/* Annotation block tucked tight beneath the card. Numbered to
-            match the markers in the email body so the reader can pair
-            each caption with the highlight it explains. */}
+        {/* Annotation block. Each caption is tied to its highlighted
+            phrase above via the hoveredHook state — hovering brightens
+            the partner in both directions. */}
         <dl className="lp-reveal mt-5 grid gap-4 text-[13.5px] leading-[1.55] text-muted sm:grid-cols-2 sm:gap-7">
-          <div>
+          <div
+            className={`lp-caption ${hoveredHook === 1 ? 'lp-caption-active' : ''}`}
+            onMouseEnter={setHook(1)}
+            onMouseLeave={setHook(null)}
+          >
             <dt className="mb-1 flex items-center gap-2 font-medium text-dark">
-              <Marker n={1} dark />From research
+              <Marker n={1} dark active={hoveredHook === 1} />From research
             </dt>
             <dd>
               Three recent Linear posts on Triage. Sparrow picked the
               one that fit a PM hire.
             </dd>
           </div>
-          <div>
+          <div
+            className={`lp-caption ${hoveredHook === 2 ? 'lp-caption-active' : ''}`}
+            onMouseEnter={setHook(2)}
+            onMouseLeave={setHook(null)}
+          >
             <dt className="mb-1 flex items-center gap-2 font-medium text-dark">
-              <Marker n={2} dark />From the resume
+              <Marker n={2} dark active={hoveredHook === 2} />From the resume
             </dt>
             <dd>
               Cornell, May, junior PM. Matched to a post about
@@ -137,31 +200,25 @@ export default function EmailDemo() {
             lands right after the visitor sees one specific draft — the
             numbers prove the breadth behind that one example. */}
         <p
+          ref={trustRef}
           className="lp-reveal mt-12 text-center text-[12.5px] leading-[1.6] text-muted/85"
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
-          One of <span className="font-medium text-dark">12,317</span> startups indexed across <span className="font-medium text-dark">44</span> sources. <span className="font-medium text-dark">6,281</span> with founder contacts.
+          One of <span className="font-medium text-dark">{counts.a.toLocaleString()}</span> startups indexed across <span className="font-medium text-dark">{counts.b}</span> sources. <span className="font-medium text-dark">{counts.c.toLocaleString()}</span> with founder contacts.
         </p>
       </div>
     </section>
   )
 }
 
-// Small numbered marker that pairs each highlight in the email body
-// with its caption underneath. `n={0}` renders nothing (used so the
-// To/Subject labels don't get a marker but stay in the same DL row).
-function Marker({ n, dark }: { n: number; dark?: boolean }) {
+function Marker({ n, dark, active }: { n: number; dark?: boolean; active?: boolean }) {
   if (n === 0) return null
   return (
     <span
-      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-medium align-baseline ${
+      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-medium align-baseline transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         dark
-          // Caption markers — solid forest sage so they tie to the brand
-          // color and pair visually with the lighter in-email markers.
-          ? 'bg-primary text-warm-50 shadow-[0_2px_6px_rgba(85,122,87,0.30)]'
-          // In-email markers — softer chip so they don't shout inside the
-          // email body, but stay green to match the caption pairs.
-          : 'bg-primary/15 text-primary-700 ring-1 ring-primary/25'
+          ? `bg-primary text-warm-50 ${active ? 'scale-110 shadow-[0_3px_10px_rgba(85,122,87,0.45)]' : 'shadow-[0_2px_6px_rgba(85,122,87,0.30)]'}`
+          : `bg-primary/15 text-primary-700 ring-1 ring-primary/25 ${active ? 'bg-primary/30 ring-primary/50 scale-110' : ''}`
       }`}
       aria-hidden="true"
     >
