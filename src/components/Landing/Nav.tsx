@@ -47,7 +47,7 @@ export default function LandingNav() {
 
         <Link
           to="/login"
-          className="rounded-full px-4 py-2 font-display text-[14px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
+          className="inline-flex min-h-[44px] items-center rounded-full px-4 font-display text-[14px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
         >
           Sign in
         </Link>

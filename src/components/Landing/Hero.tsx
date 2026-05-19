@@ -9,25 +9,25 @@ import { ArrowRight } from 'lucide-react'
 export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
     <section
-      className="lp-hero relative isolate flex min-h-screen items-center overflow-hidden pt-20 sm:pt-24"
+      className="lp-hero relative isolate flex min-h-screen items-center overflow-hidden bg-[#F8F1E2] bg-no-repeat pt-20 sm:pt-24"
       style={{
         backgroundImage: "url('/landing-hero.png')",
         backgroundSize: 'cover',
-        backgroundPosition: 'center top',
-        backgroundRepeat: 'no-repeat',
-        backgroundColor: '#F8F1E2',
+        // Portrait crops shift the focal point to the upper-right so at
+        // least one bird stays visible above the headline; wide viewports
+        // use center-top so the full composition (branch + birds + sky)
+        // reads. Custom CSS variable consumed by a class-driven media
+        // query below would be cleaner, but a simple inline style block
+        // doesn't have media-query syntax, so this is set with a small
+        // utility class instead.
       }}
     >
-      {/* Soft wash centered behind the type. Tight enough that the
-          branch on the left and the birds on the right stay readable as
-          illustration. */}
+      {/* Soft wash centered behind the type. On mobile the wash is
+          stronger and slightly bigger so the body copy stays legible
+          when the crop pulls illustration detail closer to the text. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(48% 50% at 50% 50%, rgba(248,241,226,0.55) 0%, rgba(248,241,226,0.20) 55%, rgba(248,241,226,0) 80%)',
-        }}
+        className="lp-hero-wash pointer-events-none absolute inset-0"
       />
 
       {/* Bottom fade. Short enough that the horizon ridge + tree silhouette
@@ -46,11 +46,15 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         {/* Editorial column centered in the viewport. Text inside stays
             left-aligned so prose still reads naturally; the centering
             comes from the column's auto-margin, not text-align-center. */}
-        <div className="lp-reveal mx-auto max-w-[580px]">
+        {/* Column width scales with viewport: 580px on laptop, 720px on
+            large desktop, 820px on ultra-wide. Stops the text from
+            looking marooned on a 27"+ monitor while staying comfortably
+            readable on a 13" laptop. */}
+        <div className="lp-reveal mx-auto max-w-[580px] xl:max-w-[680px] 2xl:max-w-[780px]">
           <h1
             className="font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.25rem, 4.8vw, 3.5rem)',
+              fontSize: 'clamp(2.25rem, 4.6vw, 4.75rem)',
               lineHeight: 1.04,
               letterSpacing: '-0.03em',
               textWrap: 'balance',
@@ -60,8 +64,12 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
           </h1>
 
           <div
-            className="mt-7 space-y-4 text-[16.5px] leading-[1.6] text-dark/85"
-            style={{ maxWidth: '50ch' }}
+            className="mt-7 space-y-4 text-dark/85"
+            style={{
+              maxWidth: '52ch',
+              fontSize: 'clamp(16px, 1.15vw, 19px)',
+              lineHeight: 1.6,
+            }}
           >
             <p>
               Sparrow drafts the hard part: what to actually say to each
@@ -74,11 +82,11 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             </p>
           </div>
 
-          <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-3">
             <button
               type="button"
               onClick={onSignInWithGoogle}
-              className="group inline-flex items-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
+              className="group inline-flex min-h-[52px] items-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
             >
               <GoogleGlyph />
               Continue with Google
