@@ -13,18 +13,18 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
       style={{
         backgroundImage: "url('/landing-hero.png')",
         backgroundSize: 'cover',
-        // Portrait crops shift the focal point to the upper-right so at
-        // least one bird stays visible above the headline; wide viewports
-        // use center-top so the full composition (branch + birds + sky)
-        // reads. Custom CSS variable consumed by a class-driven media
-        // query below would be cleaner, but a simple inline style block
-        // doesn't have media-query syntax, so this is set with a small
-        // utility class instead.
       }}
     >
-      {/* Soft wash centered behind the type. On mobile the wash is
-          stronger and slightly bigger so the body copy stays legible
-          when the crop pulls illustration detail closer to the text. */}
+      {/* Uniform dim across the whole illustration. Sits below the
+          focused wash and the type, brings the painting back a notch so
+          the headline reads cleanly without flattening the artwork. */}
+      <div
+        aria-hidden
+        className="lp-hero-dim pointer-events-none absolute inset-0"
+      />
+
+      {/* Soft wash centered behind the type. Stronger on mobile where
+          the crop pulls illustration detail closer to the text. */}
       <div
         aria-hidden
         className="lp-hero-wash pointer-events-none absolute inset-0"

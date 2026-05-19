@@ -39,16 +39,22 @@
   }
 }
 
+.lp-hero-dim {
+  /* Uniform cream veil. Brings the illustration's overall brightness
+     down a notch so type carries the page. ~28% opacity is enough to
+     calm the warm-saturated bands without making the painting look
+     muddy. Tune up/down by adjusting alpha. */
+  background-color: rgba(248, 241, 226, 0.30);
+}
+
 .lp-hero-wash {
-  /* Asymmetric ellipse: wider horizontally than vertically so it
-     covers the type column and reaches a bit further right where the
-     middle bird flies through. Strong center, soft edges; the branch
-     in the lower-left and the bird flock on the right stay readable
-     as illustration. */
-  background: radial-gradient(ellipse 58% 48% at 50% 50%,
-    rgba(248, 241, 226, 0.86) 0%,
-    rgba(248, 241, 226, 0.55) 45%,
-    rgba(248, 241, 226, 0.15) 78%,
+  /* Asymmetric ellipse centered behind the type column. Covers the
+     headline + body + CTA area without flattening the branch on the
+     left or the horizon detail on the right. */
+  background: radial-gradient(ellipse 60% 55% at 50% 50%,
+    rgba(248, 241, 226, 0.78) 0%,
+    rgba(248, 241, 226, 0.45) 45%,
+    rgba(248, 241, 226, 0.10) 78%,
     rgba(248, 241, 226, 0) 96%);
 }
 
