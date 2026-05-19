@@ -130,6 +130,13 @@ export default function EmailDemo() {
             </dd>
           </div>
         </dl>
+
+        {/* Pool-size trust line. Lives here (not in the footer) so it
+            lands right after the visitor sees one specific draft — the
+            numbers prove the breadth behind that one example. */}
+        <p className="lp-reveal mt-10 text-center text-[12.5px] leading-[1.6] text-muted/85">
+          One of <span className="font-medium text-dark">12,317</span> startups indexed across <span className="font-medium text-dark">44</span> sources. <span className="font-medium text-dark">6,281</span> with founder or hiring-manager contacts.
+        </p>
       </div>
     </section>
   )
