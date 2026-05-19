@@ -1,18 +1,24 @@
 import React, { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertCircle, ArrowLeft } from 'lucide-react'
 import Banner from '../ui/Banner'
 import { useAuth } from '../../contexts/AuthContext'
 
+// Sign-in page. Used to be the landing surface (black left panel, green
+// tagline) but the landing is now a real marketing page at `/`. This
+// surface is just the form now: parchment background matching the
+// landing, wordmark + back link as light chrome, a centered form. No
+// second pitch — the visitor already decided to sign in.
 export default function AuthScreen() {
   const { signIn, signUp, signInWithGoogle } = useAuth()
-  const [mode, setMode] = useState('signin')
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const authErrorMessage = (message) => {
+  const authErrorMessage = (message: string | undefined) => {
     const lower = `${message || ''}`.toLowerCase()
     if (lower.includes('invalid login credentials')) return 'That email and password do not match. Check them and try again.'
     if (lower.includes('email not confirmed')) return 'Confirm your email before signing in. Check your inbox for the confirmation link.'
@@ -22,7 +28,7 @@ export default function AuthScreen() {
     return message || 'We could not sign you in. Try again.'
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -39,98 +45,123 @@ export default function AuthScreen() {
     if (authError) setError(authErrorMessage(authError.message))
   }
 
+  const isSignIn = mode === 'signin'
+
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[1.1fr_0.9fr]">
-
-      {/* ── Left panel ── */}
-      <section
-        className="relative flex flex-col overflow-hidden px-8 py-10 text-warm-50 lg:min-h-screen lg:px-14 xl:px-20"
-        style={{ background: '#1C1C1A' }}
-      >
-        {/* Logo */}
-        <div className="relative shrink-0">
-          <span className="font-display text-[17px] font-semibold text-warm-50/90">Sparrow</span>
-        </div>
-
-        {/* Hero */}
-        <div className="relative my-auto pb-4 pt-16">
-          <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.28em]"
-            style={{ color: 'rgba(125,180,128,0.6)' }}>
-            Cold email for startups
-          </p>
-          <h1 className="font-display text-5xl font-semibold leading-tight text-warm-50 xl:text-6xl">
-            Email people<br />
-            <span style={{ color: '#7DB480' }}>worth emailing.</span>
-          </h1>
-          <p className="mt-6 max-w-[300px] text-[15px] leading-relaxed" style={{ color: 'rgba(253,250,245,0.48)' }}>
-            Find startup contacts and draft personal outreach faster.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="relative shrink-0 flex items-center justify-between">
-          <p className="text-[11px]" style={{ color: 'rgba(253,250,245,0.24)' }}>
-            © 2026 Sparrow
-          </p>
-          <div className="flex items-center gap-3 text-[11px]" style={{ color: 'rgba(253,250,245,0.24)' }}>
-            <a href="/privacy" className="transition-colors hover:text-warm-50/50">Privacy</a>
-            <span className="opacity-40">·</span>
-            <a href="/terms" className="transition-colors hover:text-warm-50/50">Terms</a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Right panel ── */}
-      <section className="flex min-h-[56vh] items-center bg-surface px-8 py-16 sm:px-10 lg:min-h-screen lg:px-14 xl:px-16">
-        <div className="w-full max-w-[360px]">
-
-          <div className="mb-7">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/60">Account</p>
-            <h2 className="mt-2.5 font-display text-[2rem] font-semibold text-dark">
-              {mode === 'signin' ? 'Welcome back' : 'Create account'}
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              {mode === 'signin' ? 'Sign in to your Sparrow workspace.' : 'Start reaching the right people today.'}
-            </p>
-          </div>
-
-          {/* Google */}
-          <button
-            onClick={handleGoogle}
-            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-accent/20 bg-warm-50 px-4 text-sm font-medium text-dark transition-all hover:border-accent/30 hover:bg-warm-50 hover:shadow-subtle"
+    <div
+      className="relative flex min-h-screen flex-col"
+      style={{ background: '#F8F1E2', color: '#2C1F10' }}
+    >
+      {/* Light chrome: wordmark left, back-to-home right. Same wordmark
+          treatment as the landing nav so the two surfaces feel like one
+          journey. */}
+      <header className="flex items-center justify-between px-6 pt-6 sm:px-10 sm:pt-8 lg:px-12">
+        <Link
+          to="/"
+          aria-label="Sparrow home"
+          className="group inline-flex items-baseline font-display font-semibold leading-none"
+          style={{
+            fontSize: 'clamp(22px, 1.8vw, 26px)',
+            letterSpacing: '-0.024em',
+            color: '#2C1F10',
+          }}
+        >
+          <span
+            className="text-primary-700 transition-[transform,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-[2px] group-hover:text-primary"
+            style={{ display: 'inline-block', transformOrigin: 'bottom center' }}
           >
-            <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
-              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
-              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853" />
-              <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
-              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
-            </svg>
+            S
+          </span>
+          <span className="transition-colors duration-300 group-hover:text-primary-700/85">
+            parrow
+          </span>
+        </Link>
+
+        <Link
+          to="/"
+          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 font-display text-[13px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
+        >
+          <ArrowLeft size={14} strokeWidth={2.2} />
+          Back to home
+        </Link>
+      </header>
+
+      {/* Form column, centered, single parchment panel. No card chrome:
+          a thin warm-tan hairline under the heading is the only divider
+          needed; the parchment background and the form's own structure
+          do the rest. */}
+      <main className="flex flex-1 items-center justify-center px-6 py-12 sm:px-10">
+        <div className="w-full max-w-[400px]">
+          <h1
+            className="font-display font-semibold text-dark"
+            style={{
+              fontSize: 'clamp(1.875rem, 2.4vw, 2.25rem)',
+              lineHeight: 1.04,
+              letterSpacing: '-0.024em',
+            }}
+          >
+            {isSignIn ? 'Welcome back' : 'Create account'}
+          </h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-muted">
+            {isSignIn
+              ? 'Sign in to your Sparrow workspace.'
+              : 'Start sending cold emails worth opening.'}
+          </p>
+
+          <button
+            type="button"
+            onClick={handleGoogle}
+            className="group mt-8 inline-flex min-h-[52px] w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
+          >
+            <GoogleGlyph />
             Continue with Google
           </button>
 
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-accent/15" />
-            <span className="text-[11px] font-medium uppercase tracking-widest text-muted/40">or</span>
-            <div className="h-px flex-1 bg-accent/15" />
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-accent/20" />
+            <span className="font-display text-[11px] font-medium uppercase tracking-[0.22em] text-muted/70">or</span>
+            <div className="h-px flex-1 bg-accent/20" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
             {mode === 'signup' && (
               <div>
                 <label htmlFor="auth-full-name" className="label">Full name</label>
-                <input id="auth-full-name" type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="Jane Smith" required className="input" />
+                <input
+                  id="auth-full-name"
+                  type="text"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="Jane Smith"
+                  required
+                  className="input"
+                />
               </div>
             )}
             <div>
               <label htmlFor="auth-email" className="label">Email</label>
-              <input id="auth-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com" required className="input" />
+              <input
+                id="auth-email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="input"
+              />
             </div>
             <div>
               <label htmlFor="auth-password" className="label">Password</label>
-              <input id="auth-password" type="password" value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••" required minLength={6} className="input" />
+              <input
+                id="auth-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                className="input"
+              />
             </div>
 
             {error && (
@@ -140,23 +171,45 @@ export default function AuthScreen() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-1 flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-warm-50 transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 flex h-12 w-full items-center justify-center rounded-full bg-dark px-4 font-display text-[14px] font-medium text-warm-50 transition-all duration-200 hover:bg-dark/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+              {loading ? 'Please wait…' : isSignIn ? 'Sign in' : 'Create account'}
             </button>
           </form>
 
-          <p className="mt-5 text-sm text-muted">
-            {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <p className="mt-6 text-center text-sm text-muted">
+            {isSignIn ? "Don't have an account?" : 'Already have an account?'}{' '}
             <button
-              onClick={() => { setError(''); setMode(mode === 'signin' ? 'signup' : 'signin') }}
-              className="font-semibold text-primary hover:underline"
+              type="button"
+              onClick={() => { setError(''); setMode(isSignIn ? 'signup' : 'signin') }}
+              className="font-medium text-primary-700 transition-colors hover:text-primary"
             >
-              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+              {isSignIn ? 'Sign up' : 'Sign in'}
             </button>
           </p>
         </div>
-      </section>
+      </main>
+
+      <footer className="border-t border-accent/15 px-6 py-5 sm:px-10 lg:px-12">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center justify-between gap-3 text-[12px] text-muted/80">
+          <p>© {new Date().getFullYear()} Sparrow.</p>
+          <div className="flex items-center gap-5">
+            <a href="/privacy" className="transition-colors hover:text-dark">Privacy</a>
+            <a href="/terms" className="transition-colors hover:text-dark">Terms</a>
+          </div>
+        </div>
+      </footer>
     </div>
+  )
+}
+
+function GoogleGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#fdfaf5" opacity=".95" />
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#fdfaf5" opacity=".7" />
+      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#fdfaf5" opacity=".55" />
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#fdfaf5" opacity=".85" />
+    </svg>
   )
 }
