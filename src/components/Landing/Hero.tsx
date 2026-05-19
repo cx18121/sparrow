@@ -18,15 +18,27 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         backgroundColor: '#F8F1E2',
       }}
     >
-      {/* Soft cream wash on the left so the headline reads cleanly over the
-          illustration without darkening the artwork. Falls to fully
-          transparent on the right so the birds breathe. */}
+      {/* Subtle wash only where the type sits. The illustration has plenty
+          of cream sky already, so the gradient only needs to lift contrast
+          in the bottom-left where the branch silhouette competes with the
+          body copy. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'linear-gradient(100deg, rgba(248,241,226,0.92) 0%, rgba(248,241,226,0.78) 32%, rgba(248,241,226,0.30) 58%, rgba(248,241,226,0) 78%)',
+            'radial-gradient(70% 60% at 22% 70%, rgba(248,241,226,0.62) 0%, rgba(248,241,226,0.30) 45%, rgba(248,241,226,0) 80%)',
+        }}
+      />
+
+      {/* Bottom fade so the hero hands off to the page cream instead of
+          ending on a sharp horizontal cutoff. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(248,241,226,0) 0%, rgba(248,241,226,1) 100%)',
         }}
       />
 
@@ -43,7 +55,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             }}
           >
             Cold email works for internships and full-time roles.
-            <span className="block text-muted/70">LinkedIn easy-apply doesn't.</span>
+            <span className="block text-muted">LinkedIn easy-apply doesn't.</span>
           </h1>
 
           <div
