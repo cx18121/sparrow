@@ -9,7 +9,7 @@ import { ArrowRight } from 'lucide-react'
 export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
     <section
-      className="lp-hero relative isolate flex min-h-[72vh] items-center overflow-hidden pt-20 sm:min-h-[78vh] sm:pt-24"
+      className="lp-hero relative isolate flex min-h-screen items-center overflow-hidden pt-20 sm:pt-24"
       style={{
         backgroundImage: "url('/landing-hero.png')",
         backgroundSize: 'cover',
@@ -43,7 +43,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         }}
       />
 
-      <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8 sm:pb-20">
+      <div className="relative mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8 sm:pb-16">
         {/* Text column shifted right on wide viewports so it sits in the
             negative-space middle of the illustration instead of over the
             branch. On mobile it stays left-aligned because the image
