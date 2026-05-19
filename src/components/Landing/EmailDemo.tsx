@@ -148,18 +148,6 @@ export default function EmailDemo() {
             </p>
             <p className="text-muted">Charlie</p>
           </div>
-
-          <div className="flex items-center justify-between border-t border-warm-200 bg-[linear-gradient(180deg,#FAF7F0_0%,#F8F4ED_100%)] px-6 py-3.5 font-display text-[13px] text-muted sm:px-7">
-            <span className="flex items-center">
-              <span className="lp-dot lp-dot-pulse" />Composed in 7s
-            </span>
-            <button
-              type="button"
-              className="lp-approve rounded-full px-3 py-1 font-medium text-primary-700 transition-colors hover:bg-primary/10"
-            >
-              Approve →
-            </button>
-          </div>
         </div>
 
         {/* Annotation block. Each caption is tied to its highlighted
