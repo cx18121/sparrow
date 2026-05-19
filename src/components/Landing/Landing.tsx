@@ -4,6 +4,8 @@ import Hero from './Hero'
 import EmailDemo from './EmailDemo'
 import WhyExists from './WhyExists'
 import HowItWorks from './HowItWorks'
+import FinalCTA from './FinalCTA'
+import LandingFooter from './Footer'
 import './landing.css'
 
 // Public marketing surface. Composes the five-section landing per
@@ -27,7 +29,9 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
         <EmailDemo />
         <WhyExists />
         <HowItWorks />
+        <FinalCTA onSignInWithGoogle={onSignInWithGoogle} />
       </main>
+      <LandingFooter />
     </div>
   )
 }
