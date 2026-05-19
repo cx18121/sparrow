@@ -46,28 +46,26 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         {/* Editorial column centered in the viewport. Text inside stays
             left-aligned so prose still reads naturally; the centering
             comes from the column's auto-margin, not text-align-center. */}
-        {/* Column width scales with viewport: 580px on laptop, 720px on
-            large desktop, 820px on ultra-wide. Stops the text from
-            looking marooned on a 27"+ monitor while staying comfortably
-            readable on a 13" laptop. */}
-        <div className="lp-reveal mx-auto max-w-[580px] xl:max-w-[680px] 2xl:max-w-[780px]">
-          {/* Four-line editorial poster treatment. Each phrase gets its
-              own line so the type can grow much larger without colliding
-              with the illustration. Breaks fall at natural phrase
-              boundaries so they read as intentional, not arbitrary. */}
+        {/* Column width scales with viewport: 640px on laptop, 740px on
+            large desktop, 820px on ultra-wide. Wide enough that the
+            full "Sparrow makes it easy." answer line fits without
+            wrapping at every common viewport. */}
+        <div className="lp-reveal mx-auto max-w-[640px] xl:max-w-[740px] 2xl:max-w-[820px]">
+          {/* Three-line editorial treatment. The claim splits across two
+              lines for poster-like drama; the green answer stays whole on
+              line three so it reads as a single confident statement. */}
           <h1
             className="font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.5rem, 5.6vw, 5rem)',
-              lineHeight: 1.02,
-              letterSpacing: '-0.034em',
+              fontSize: 'clamp(2.25rem, 4.8vw, 4.5rem)',
+              lineHeight: 1.04,
+              letterSpacing: '-0.032em',
               fontKerning: 'normal',
             }}
           >
             <span className="block">Cold emailing</span>
             <span className="block">actually works.</span>
-            <span className="mt-1 block text-primary-700">Sparrow makes</span>
-            <span className="block text-primary-700">it easy.</span>
+            <span className="mt-1 block text-primary-700">Sparrow makes it easy.</span>
           </h1>
 
           <div
