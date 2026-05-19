@@ -85,14 +85,14 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
             <button
               type="button"
               onClick={onSignInWithGoogle}
-              className="group inline-flex min-h-[52px] items-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-7 py-4 font-display text-[15px] font-medium text-warm-50 shadow-[0_10px_28px_rgba(85,122,87,0.26)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(85,122,87,0.32)]"
+              className="group inline-flex min-h-[56px] items-center gap-3 whitespace-nowrap rounded-full bg-primary px-8 py-4 font-display text-[16px] font-medium text-warm-50 shadow-[0_14px_36px_rgba(85,122,87,0.32),inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-300 hover:bg-primary-700 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(85,122,87,0.40),inset_0_1px_0_rgba(255,255,255,0.22)]"
             >
               <GoogleGlyph />
               Continue with Google
               <ArrowRight
-                size={16}
-                className="transition-transform duration-300 group-hover:translate-x-1"
-                strokeWidth={2.2}
+                size={18}
+                className="transition-transform duration-300 group-hover:translate-x-1.5"
+                strokeWidth={2.3}
               />
             </button>
             <p className="text-[13px] text-muted">

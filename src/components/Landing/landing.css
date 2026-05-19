@@ -17,6 +17,26 @@
 /* Desktop and tablet: full composition (branch + birds + sky). */
 .lp-hero {
   background-position: center top;
+  /* Gentle scroll-driven parallax on the illustration. The background
+     drifts upward as the user scrolls past, adding ~30px of depth
+     without any layout shift. Native scroll-timeline on Chromium;
+     no-op fallback elsewhere (the illustration just stays put). */
+}
+@supports (animation-timeline: scroll()) {
+  .lp-hero {
+    animation: lp-hero-parallax linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 100vh;
+  }
+}
+@keyframes lp-hero-parallax {
+  from { background-position-y: 0%; }
+  to   { background-position-y: -8%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-hero {
+    animation: none;
+  }
 }
 
 .lp-hero-wash {

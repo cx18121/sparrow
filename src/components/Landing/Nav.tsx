@@ -34,15 +34,25 @@ export default function LandingNav() {
         <Link
           to="/"
           aria-label="Sparrow home"
-          className="group inline-flex items-baseline font-display font-semibold leading-none transition-colors"
+          className="group inline-flex items-baseline font-display font-semibold leading-none"
           style={{
             fontSize: 'clamp(26px, 2.4vw, 32px)',
             letterSpacing: '-0.028em',
             color: '#2C1F10',
           }}
         >
-          <span className="text-primary-700 transition-colors group-hover:text-primary">S</span>
-          <span>parrow</span>
+          {/* The "S" gets a small delight: shifts up a hair on hover,
+              colour deepens. Subtle enough that it doesn't pull focus,
+              present enough to reward the curious cursor. */}
+          <span
+            className="text-primary-700 transition-[transform,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-[2px] group-hover:text-primary"
+            style={{ display: 'inline-block', transformOrigin: 'bottom center' }}
+          >
+            S
+          </span>
+          <span className="transition-colors duration-300 group-hover:text-primary-700/85">
+            parrow
+          </span>
         </Link>
 
         <Link

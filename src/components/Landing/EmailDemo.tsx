@@ -154,11 +154,15 @@ function Marker({ n, dark }: { n: number; dark?: boolean }) {
   if (n === 0) return null
   return (
     <span
-      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${
+      className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-medium align-baseline ${
         dark
-          ? 'bg-dark text-warm-50'
+          // Caption markers — solid forest sage so they tie to the brand
+          // color and pair visually with the lighter in-email markers.
+          ? 'bg-primary text-warm-50 shadow-[0_2px_6px_rgba(85,122,87,0.30)]'
+          // In-email markers — softer chip so they don't shout inside the
+          // email body, but stay green to match the caption pairs.
           : 'bg-primary/15 text-primary-700 ring-1 ring-primary/25'
-      } align-baseline`}
+      }`}
       aria-hidden="true"
     >
       {n}
