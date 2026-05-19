@@ -14,6 +14,7 @@ vi.mock("../routes/emails.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/generate.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/send.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/emails/send-test.js", () => ({ default: vi.fn() }));
+vi.mock("../routes/emails/angle.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/google/callback.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/google/connect.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/google/watch-renew.js", () => ({ default: vi.fn() }));
@@ -22,7 +23,9 @@ vi.mock("../routes/webhooks/gmail.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/health.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/leads.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/profile.js", () => ({ default: vi.fn() }));
+vi.mock("../routes/preview-fit-angle.js", () => ({ default: vi.fn() }));
 vi.mock("../routes/templates.js", () => ({ default: vi.fn() }));
+vi.mock("../routes/dev/inject-reply.js", () => ({ default: vi.fn() }));
 
 import { dispatchApiRequest, routeHandlers } from "../router.js";
 
