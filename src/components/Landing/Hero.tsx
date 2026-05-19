@@ -96,7 +96,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
               />
             </button>
             <p className="text-[13px] text-muted">
-              Free for students. Internships and full-time roles.
+              Free for students. Built for finding internships and full-time roles.
             </p>
           </div>
         </div>
