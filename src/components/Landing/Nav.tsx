@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { SparrowLogo } from './SparrowMark'
 
-// Sticky top bar. Transparent at the top of the page; after 80px of
-// scroll, it gains a parchment backdrop with backdrop-blur. Per DESIGN.md
-// this is the one legitimate use of glassmorphism in the system.
-export default function LandingNav({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
+// Editorial nav: wordmark on the left, single sign-in link on the right.
+// No "Get started" pill — the hero CTA owns that action, and a duplicate
+// pill in the nav competes visually with the hero button.
+//
+// No brand badge here either: the green-circle Send mark belongs in the
+// product UI (Sidebar / favicon), and shouts on a watercolor backdrop.
+// The illustration in the hero is the brand expression on this page.
+//
+// Transparent at top; gains a parchment backdrop with blur after 80px
+// of scroll. Per DESIGN.md the one legitimate use of glassmorphism.
+export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -24,28 +30,20 @@ export default function LandingNav({ onSignInWithGoogle }: { onSignInWithGoogle:
       }`}
     >
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
-        <Link to="/" className="group flex items-center gap-2.5" aria-label="Sparrow home">
-          <SparrowLogo size={28} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
-          <span className="font-display text-[17px] font-semibold tracking-tight text-dark">
-            Sparrow
-          </span>
+        <Link
+          to="/"
+          aria-label="Sparrow home"
+          className="font-display text-[17px] font-semibold tracking-tight text-dark transition-colors hover:text-primary-700"
+        >
+          Sparrow
         </Link>
 
-        <nav className="flex items-center gap-1">
-          <Link
-            to="/login"
-            className="hidden rounded-full px-3.5 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark sm:inline-flex"
-          >
-            Sign in
-          </Link>
-          <button
-            type="button"
-            onClick={onSignInWithGoogle}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[13px] font-medium text-warm-50 shadow-[0_8px_18px_rgba(85,122,87,0.20)] transition-all duration-200 hover:brightness-110 hover:translate-y-[-1px]"
-          >
-            Get started
-          </button>
-        </nav>
+        <Link
+          to="/login"
+          className="rounded-full px-3.5 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-accent/10 hover:text-dark"
+        >
+          Sign in
+        </Link>
       </div>
     </header>
   )

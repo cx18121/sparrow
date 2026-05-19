@@ -9,7 +9,7 @@ import { ArrowRight } from 'lucide-react'
 export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   return (
     <section
-      className="lp-hero relative isolate flex min-h-[88vh] items-center overflow-hidden pt-24 sm:min-h-[92vh] sm:pt-28"
+      className="lp-hero relative isolate flex min-h-[72vh] items-center overflow-hidden pt-20 sm:min-h-[78vh] sm:pt-24"
       style={{
         backgroundImage: "url('/landing-hero.png')",
         backgroundSize: 'cover',
@@ -18,62 +18,63 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         backgroundColor: '#F8F1E2',
       }}
     >
-      {/* Subtle wash only where the type sits. The illustration has plenty
-          of cream sky already, so the gradient only needs to lift contrast
-          in the bottom-left where the branch silhouette competes with the
-          body copy. */}
+      {/* Subtle wash centered behind the type column. Pushes far enough
+          right that the branch in the lower-left stays visible as
+          illustration, and stops short of the birds + horizon on the
+          right. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(70% 60% at 22% 70%, rgba(248,241,226,0.62) 0%, rgba(248,241,226,0.30) 45%, rgba(248,241,226,0) 80%)',
+            'radial-gradient(55% 55% at 40% 50%, rgba(248,241,226,0.55) 0%, rgba(248,241,226,0.22) 50%, rgba(248,241,226,0) 80%)',
         }}
       />
 
-      {/* Bottom fade so the hero hands off to the page cream instead of
-          ending on a sharp horizontal cutoff. */}
+      {/* Bottom fade. Short enough that the horizon ridge + tree silhouette
+          stay readable, just softening the section's bottom edge into the
+          page cream. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-16"
         style={{
           background:
             'linear-gradient(180deg, rgba(248,241,226,0) 0%, rgba(248,241,226,1) 100%)',
         }}
       />
 
-      <div className="relative mx-auto w-full max-w-6xl px-5 pb-20 sm:px-8 sm:pb-24 lg:pb-32">
-        <div className="lp-reveal max-w-[640px]">
+      <div className="relative mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8 sm:pb-20">
+        {/* Text column shifted right on wide viewports so it sits in the
+            negative-space middle of the illustration instead of over the
+            branch. On mobile it stays left-aligned because the image
+            crops the branch off-screen anyway. */}
+        <div className="lp-reveal max-w-[560px] lg:ml-[14%] xl:ml-[18%]">
           <p className="lp-eyebrow">For students</p>
           <h1
-            className="mt-6 font-display font-semibold text-dark"
+            className="mt-4 font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.25rem, 5.6vw, 4.25rem)',
-              lineHeight: 1.02,
-              letterSpacing: '-0.034em',
+              fontSize: 'clamp(2rem, 4.4vw, 3.25rem)',
+              lineHeight: 1.05,
+              letterSpacing: '-0.028em',
               textWrap: 'balance',
             }}
           >
-            Cold email works for internships and full-time roles.
-            <span className="block text-muted">LinkedIn easy-apply doesn't.</span>
+            Cold emailing actually works.
           </h1>
 
           <div
-            className="mt-8 space-y-5 text-[17px] leading-[1.65] text-dark/85"
-            style={{ maxWidth: '52ch' }}
+            className="mt-6 space-y-4 text-[16.5px] leading-[1.6] text-dark/85"
+            style={{ maxWidth: '50ch' }}
           >
             <p>
               Sparrow drafts the hard part: what to actually say to each
               company, pulled from real research and the line in your
               resume that fits.
             </p>
-            <p>
-              Drafts queue up in your Gmail. You review, edit, and hit
-              send.
-            </p>
+            <p>Drafts queue up in your Gmail. You review, edit, and hit send.</p>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2">
             <button
               type="button"
               onClick={onSignInWithGoogle}
@@ -87,7 +88,9 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
                 strokeWidth={2.2}
               />
             </button>
-            <p className="text-[13px] text-muted">Free for students.</p>
+            <p className="text-[13px] text-muted">
+              Free for students. For internships and full-time roles.
+            </p>
           </div>
         </div>
       </div>

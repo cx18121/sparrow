@@ -56,7 +56,7 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
 
   return (
     <div ref={rootRef} className="lp-root min-h-screen">
-      <LandingNav onSignInWithGoogle={onSignInWithGoogle} />
+      <LandingNav />
       <main>
         <Hero onSignInWithGoogle={onSignInWithGoogle} />
         <EmailDemo />
