@@ -18,16 +18,15 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
         backgroundColor: '#F8F1E2',
       }}
     >
-      {/* Subtle wash centered behind the type column. Pushes far enough
-          right that the branch in the lower-left stays visible as
-          illustration, and stops short of the birds + horizon on the
-          right. */}
+      {/* Soft wash centered behind the type. Tight enough that the
+          branch on the left and the birds on the right stay readable as
+          illustration. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(55% 55% at 40% 50%, rgba(248,241,226,0.55) 0%, rgba(248,241,226,0.22) 50%, rgba(248,241,226,0) 80%)',
+            'radial-gradient(48% 50% at 50% 50%, rgba(248,241,226,0.55) 0%, rgba(248,241,226,0.20) 55%, rgba(248,241,226,0) 80%)',
         }}
       />
 
@@ -44,18 +43,16 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
       />
 
       <div className="relative mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8 sm:pb-16">
-        {/* Text column shifted right on wide viewports so it sits in the
-            negative-space middle of the illustration instead of over the
-            branch. On mobile it stays left-aligned because the image
-            crops the branch off-screen anyway. */}
-        <div className="lp-reveal max-w-[560px] lg:ml-[14%] xl:ml-[18%]">
-          <p className="lp-eyebrow">For students</p>
+        {/* Editorial column centered in the viewport. Text inside stays
+            left-aligned so prose still reads naturally; the centering
+            comes from the column's auto-margin, not text-align-center. */}
+        <div className="lp-reveal mx-auto max-w-[580px]">
           <h1
-            className="mt-4 font-display font-semibold text-dark"
+            className="font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2rem, 4.4vw, 3.25rem)',
-              lineHeight: 1.05,
-              letterSpacing: '-0.028em',
+              fontSize: 'clamp(2.25rem, 4.8vw, 3.5rem)',
+              lineHeight: 1.04,
+              letterSpacing: '-0.03em',
               textWrap: 'balance',
             }}
           >
@@ -63,7 +60,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
           </h1>
 
           <div
-            className="mt-6 space-y-4 text-[16.5px] leading-[1.6] text-dark/85"
+            className="mt-7 space-y-4 text-[16.5px] leading-[1.6] text-dark/85"
             style={{ maxWidth: '50ch' }}
           >
             <p>
@@ -71,10 +68,13 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
               company, pulled from real research and the line in your
               resume that fits.
             </p>
-            <p>Drafts wait for you to review. Edit anything, then send straight from your Gmail.</p>
+            <p>
+              Drafts wait for you to review. Edit anything, then send
+              straight from your Gmail.
+            </p>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-2">
             <button
               type="button"
               onClick={onSignInWithGoogle}

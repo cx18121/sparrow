@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { SparrowLogo } from './SparrowMark'
 
-// Branding rail across the full viewport width. Brand is anchored to the
-// actual top-left corner (not the centered max-w-6xl that the body uses),
-// and Sign-in is anchored to the actual top-right. The green-circle Send
-// mark is back beside the wordmark: with Get-started gone from the nav
-// there's no more green-on-green conflict, and the brand needed real
-// presence on a wide watercolor backdrop where a 17px wordmark alone
-// disappears.
+// Branding rail across the full viewport width. Brand anchored to the
+// actual top-left corner, Sign-in to the actual top-right.
 //
-// Transparent at top; gains a parchment backdrop with blur after 80px of
-// scroll. Per DESIGN.md the one legitimate use of glassmorphism.
+// Wordmark-only. The green-circle paper-plane badge is the product UI
+// brand (Sidebar, favicon) and reads as an app icon when dropped onto
+// the watercolor backdrop. The page expresses brand through (1) the
+// hero illustration and (2) a confident wordmark in deep forest green
+// with the "S" set off as a soft accent. No badge.
+//
+// Transparent at top; gains a parchment backdrop with blur after 80px
+// of scroll. Per DESIGN.md the one legitimate use of glassmorphism.
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false)
 
@@ -34,18 +34,15 @@ export default function LandingNav() {
         <Link
           to="/"
           aria-label="Sparrow home"
-          className="group flex items-center gap-3 text-dark transition-opacity hover:opacity-90"
+          className="group inline-flex items-baseline font-display font-semibold leading-none transition-colors"
+          style={{
+            fontSize: 'clamp(26px, 2.4vw, 32px)',
+            letterSpacing: '-0.028em',
+            color: '#2C1F10',
+          }}
         >
-          <SparrowLogo
-            size={36}
-            className="transition-transform duration-300 group-hover:-translate-y-0.5"
-          />
-          <span
-            className="font-display font-semibold tracking-tight"
-            style={{ fontSize: '22px', letterSpacing: '-0.018em' }}
-          >
-            Sparrow
-          </span>
+          <span className="text-primary-700 transition-colors group-hover:text-primary">S</span>
+          <span>parrow</span>
         </Link>
 
         <Link
