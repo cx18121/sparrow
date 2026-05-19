@@ -54,9 +54,9 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
           <h1
             className="font-display font-semibold text-dark"
             style={{
-              fontSize: 'clamp(2.25rem, 4.6vw, 4.75rem)',
+              fontSize: 'clamp(2rem, 3.8vw, 3.75rem)',
               lineHeight: 1.04,
-              letterSpacing: '-0.032em',
+              letterSpacing: '-0.03em',
               textWrap: 'balance',
               fontKerning: 'normal',
             }}

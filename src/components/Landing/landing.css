@@ -20,14 +20,16 @@
 }
 
 .lp-hero-wash {
-  /* Wider, slightly stronger wash so the body copy doesn't sit over
-     the branch's leaves on standard desktop. Shaped as a soft vertical
-     ellipse centered behind the type column. */
-  background: radial-gradient(62% 58% at 50% 52%,
-    rgba(248, 241, 226, 0.78) 0%,
-    rgba(248, 241, 226, 0.42) 45%,
-    rgba(248, 241, 226, 0.08) 78%,
-    rgba(248, 241, 226, 0) 95%);
+  /* Asymmetric ellipse: wider horizontally than vertically so it
+     covers the type column and reaches a bit further right where the
+     middle bird flies through. Strong center, soft edges; the branch
+     in the lower-left and the bird flock on the right stay readable
+     as illustration. */
+  background: radial-gradient(ellipse 58% 48% at 50% 50%,
+    rgba(248, 241, 226, 0.86) 0%,
+    rgba(248, 241, 226, 0.55) 45%,
+    rgba(248, 241, 226, 0.15) 78%,
+    rgba(248, 241, 226, 0) 96%);
 }
 
 /* Portrait phones: cover-fit with the focal point at the upper-right
