@@ -161,3 +161,8 @@ images/
 
 # Playwright MCP session cache
 .playwright-mcp/
+
+# Impeccable skill context (per-contributor, not project artifacts)
+PRODUCT.md
+DESIGN.md
+DESIGN.json

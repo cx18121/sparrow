@@ -137,7 +137,7 @@ export default function Hero({ onSignInWithGoogle }: { onSignInWithGoogle: () =>
                 className="relative mt-1.5 text-[12.5px] text-muted"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                Search across <span className="font-medium text-dark">12,317</span> startups from <span className="font-medium text-dark">44</span> portfolio sources.
+                Search across <span className="font-medium text-dark">{__SPARROW_STARTUP_COUNT__.toLocaleString()}</span> startups from <span className="font-medium text-dark">{__SPARROW_SOURCE_COUNT__}</span> portfolio sources.
               </p>
             </div>
           </div>
