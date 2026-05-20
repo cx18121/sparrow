@@ -18,6 +18,8 @@ Output format:
 - No explanation, no source, no context — just the short phrase.
 - If you cannot find anything specific after searching, return exactly: NO_INTEREST_FOUND`;
 
+import type { RoleFamily } from "../../../src/types/roleFamilies.js";
+
 export const EMAIL_GENERATION_SYSTEM_PROMPT = `You write personalized cold outreach emails for a job-seeking candidate reaching out to people at startups.
 
 Rules:
@@ -26,6 +28,29 @@ Rules:
 - No "I hope this finds you well", "circling back", "leverage", "synergy", "passionate about", or em dashes.
 - First-person, genuine, specific.
 - Output ONLY the email body. No subject line, no preamble, no explanation.`;
+
+// One-line voice steers appended to the base prompt when the candidate's
+// target role family is known. Kept positive-only (no "avoid X" framing) so
+// the model doesn't drop a strong cross-functional anchor just because it's
+// off-tag — e.g. a GTM candidate's "shipped product that drove $2M ARR"
+// bullet is technically eng-coded but exactly the right signal.
+export const ROLE_SYSTEM_STEERS: Record<RoleFamily, string> = {
+  engineering:
+    "The candidate is targeting engineering roles — favor technical specificity (systems, stack, scale, shipping) over business framing.",
+  product:
+    "The candidate is targeting product / design roles — favor user-facing impact, decisions, and craft over implementation detail.",
+  gtm:
+    "The candidate is targeting GTM roles (sales, marketing, growth) — favor outcomes and motion (revenue, pipeline, funnel, customer wins) over implementation detail.",
+  operations:
+    "The candidate is targeting operations / finance / people roles — favor scale, process, and org-leverage framing over product or technical specifics.",
+};
+
+export function buildEmailGenerationSystemPrompt(role: RoleFamily | null): string {
+  if (!role) return EMAIL_GENERATION_SYSTEM_PROMPT;
+  const steer = ROLE_SYSTEM_STEERS[role];
+  if (!steer) return EMAIL_GENERATION_SYSTEM_PROMPT;
+  return `${EMAIL_GENERATION_SYSTEM_PROMPT}\n\n${steer}`;
+}
 
 export const DEFAULT_SUBJECT_TEMPLATE =
   'Interested in learning about {{company}}';

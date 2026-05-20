@@ -4,6 +4,8 @@ import {
   GENERIC_FALLBACK_SUBJECT,
   HUMANIZER_SYSTEM_PROMPT,
   EMAIL_GENERATION_SYSTEM_PROMPT,
+  ROLE_SYSTEM_STEERS,
+  buildEmailGenerationSystemPrompt,
   RESEARCH_SYSTEM_PROMPT,
   BUILT_IN_DEFAULT_TEMPLATE,
   DEFAULT_SUBJECT_TEMPLATE,
@@ -60,6 +62,30 @@ describe("EMAIL_GENERATION_SYSTEM_PROMPT", () => {
   it("bans corporate jargon like leverage and synergy", () => {
     expect(EMAIL_GENERATION_SYSTEM_PROMPT).toContain("leverage");
     expect(EMAIL_GENERATION_SYSTEM_PROMPT).toContain("synergy");
+  });
+});
+
+describe("buildEmailGenerationSystemPrompt", () => {
+  it("returns the base prompt unchanged when role is null", () => {
+    expect(buildEmailGenerationSystemPrompt(null)).toBe(EMAIL_GENERATION_SYSTEM_PROMPT);
+  });
+
+  it("appends the role-specific steer for each known family", () => {
+    for (const role of ["engineering", "product", "gtm", "operations"] as const) {
+      const prompt = buildEmailGenerationSystemPrompt(role);
+      expect(prompt.startsWith(EMAIL_GENERATION_SYSTEM_PROMPT)).toBe(true);
+      expect(prompt).toContain(ROLE_SYSTEM_STEERS[role]);
+    }
+  });
+
+  it("steers are positive-only — no 'avoid' or 'do not' framing", () => {
+    // The implementation deliberately avoids negative framing so the model
+    // doesn't drop cross-functional resume bullets that are off-tag but
+    // strong. If a steer ever adds a hard negative, the smoke comparison
+    // should drive that decision — not an incidental edit.
+    for (const steer of Object.values(ROLE_SYSTEM_STEERS)) {
+      expect(steer.toLowerCase()).not.toMatch(/\b(avoid|do not|don't|skip)\b/);
+    }
   });
 });
 
