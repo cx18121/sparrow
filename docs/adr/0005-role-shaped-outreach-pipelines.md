@@ -1,0 +1,55 @@
+# Cold outreach pipeline shape varies by target role
+
+Status: Proposed 2026-05-20.
+
+The current draft generation pipeline (research dossier → `pickFitAngle` → email body) is shaped around engineering cold outreach. It assumes the company has a *discrete product surface* the candidate can contribute to, and the candidate has a *discrete project* that bridges to it. The merge tags reflect this — `{{feature_line}}` (the surface) and `{{fit_angle}}` (the project). Every layer of personalization treats "feature × project" as the universal shape.
+
+Sales, product, and operations cold outreach don't actually work this way. The shapes diverge by role:
+
+- **Engineering** — company has a product surface (deterministic agent replay engine); candidate has a project that bridges (multi-agent eval harness). The current pipeline is dogfooded against this shape.
+- **Product** — shares the same bridge skeleton as engineering. Recent launches and UX decisions map onto "surfaces"; redesign stories with metric impact map onto "projects". UX research patterns and design portfolio shapes change the vocabulary and ranking, but not the cache or picker shape. The role steers shipped on 2026-05-20 (voice + bullet hint + fit-angle prompt) close the meaningful gap without a pipeline fork.
+- **GTM** — company has a *trigger*: recent Series B, new market entry, VP Sales hire, competitor move, fast-growing self-serve metric. Candidate has *proof of motion*: deals closed at similar stage, customer segments sold to, growth experiments shipped, pipeline built, demand-gen wins. Neither side maps onto feature × project. The bridge is a credibility match ("I drove this kind of motion at the stage you're at now"), not a contribution match. "Proof of motion" rather than literal "deals closed" so the shape covers marketing and growth roles where there is no closed deal to point to.
+- **Operations** — company has an *operational inflection*: team size jump, hiring pace, recent funding without an Ops hire, stage-typical org-gap signal. Candidate has a *relevant system built*: scaled team from 4 to 14, stood up the first hiring pipeline, ran ops through a fundraise, owned the finance close. Bridge is a stage match ("you're at the inflection where this becomes critical, and I built the system that handles it"). "Relevant system" rather than "org-build story" so the shape covers finance, people, and process titles, not just hiring.
+
+This ADR commits to four decisions.
+
+**1. Engineering and product share one pipeline.** Both share the same bridge skeleton; their differences are vocabulary and ranking, both addressed by the existing `targetRole` plumbing (`ROLE_HINTS` in `server/lib/ai/research-fit-angle.ts`, `ROLE_SYSTEM_STEERS` in `server/lib/ai/prompts.ts`, `ROLE_BULLET_HINTS` in `server/lib/sender-profile.ts`). The eng-shaped pipeline keeps its current name, prompt, and merge tags for both families.
+
+**2. GTM and operations each get their own concrete picker function and template merge tags.** GTM ships `pickGtmAngle(...)` returning `{triggerLine, proofOfMotion}` rendered through `{{trigger_line}}` / `{{proof_of_motion}}`. Operations ships `pickOpsAngle(...)` returning `{inflectionLine, systemBuilt}` rendered through `{{inflection_line}}` / `{{system_built}}`. There is deliberately no generic `{hook, pitch}` type — the three pickers each return their own concrete shape, and the orchestrator switches on `targetRole` to dispatch. Adding the generic abstraction up front would be premature; we can introduce it later if a fourth picker shows the type-level union is paying for itself.
+
+**3. Each pipeline gets its own research targets and its own cache slot, with a per-slot freshness timestamp.** The current Exa-first / Tavily-fallback retrieval is biased toward company websites, which is where product surfaces live but not where triggers or inflection signals live. GTM research hits press releases, TechCrunch, LinkedIn job posts, and other recency-biased sources. Ops research hits hiring posts, team pages, and stage-typical org-gap signals. Each role's dossier extraction prompt asks for what its picker needs. The retrieval provider stays the same (Exa neural with date filters, falling back to Tavily); the queries and synthesis prompts diverge. The cache key extends from `companyId` to `(companyId, role)` so each role gets its own role-shaped dossier — chosen over a single wide dossier so the engineering pipeline stays byte-identical to today (same retrieval, same synthesis prompt, same picker output, same email body). Freshness is per-slot, *not* a single global timestamp — otherwise a fresh eng dossier would falsely mark missing GTM/Ops slots as fresh. The retrieval cost trade-off — a company researched for all 4 roles pays 4× — is acceptable at current volume; most companies only ever get researched for one role anyway because each user has one workspace default.
+
+**4. The default email template body forks per family.** A GTM default that uses `{{feature_line}}` will leave broken grammar when the picker returns null. `DEFAULT_CUSTOM_TEMPLATE` in `src/lib/workspaceConfig.ts` becomes a per-family map, hydrated from `ws.targetRole`. Existing users with a saved `customTemplate` are untouched — the per-family default only kicks in when a user has no saved template.
+
+## Consequences
+
+`pickFitAngle` keeps its current shape and content for eng+product. Two new picker functions (`pickGtmAngle`, `pickOpsAngle`) land in their own files alongside `research-fit-angle.ts`. The orchestrator (`server/lib/draft-generation.ts`) switches on the resolved `targetRole` to dispatch — the same `targetRole` resolution chain that already determines Apollo titles and fit-angle role hints (per-campaign override → workspace default → null, resolved by `resolveCampaignTargetRole` at `draft-generation.ts:268`).
+
+The dispatch table is explicit: `engineering`, `product`, and `null` (no role resolved) all route to `pickFitAngle` and read from the `engineering` cache slot; `gtm` routes to `pickGtmAngle` and the `gtm` slot; `operations` routes to `pickOpsAngle` and the `operations` slot. Product sharing the engineering slot is the load-bearing reason a fresh engineering dossier for a company is automatically reusable when a different user targets product at the same company.
+
+The cached dossier ships as a wrapping JSON envelope on `Company.researchDossier`:
+
+```ts
+{
+  engineering: { dossier: EngDossier, researchedAt: string } | null,
+  gtm:         { dossier: GtmDossier, researchedAt: string } | null,
+  operations:  { dossier: OpsDossier, researchedAt: string } | null,
+}
+```
+
+Product reads from the `engineering` slot — they share a pipeline so they share the cache. Legacy flat rows (today's `Company.researchDossier` stores eng-shaped JSON directly) are upgraded in-memory only: the parser wraps `{ engineering: { dossier: <legacy>, researchedAt: Company.researchedAt }, gtm: null, operations: null }` on read. There is no write-back from the parser — parsers stay pure read/validate helpers — and no one-time backfill script. Because production today treats any cached dossier as fresh until a manual re-research path is added (see CLAUDE.md), legacy rows naturally persist in the envelope shape the first time research re-runs for that company via the existing write site at `draft-generation.ts:93`. The legacy `researchedAt` column stays — it remains useful as "last research touched at the company level" and is the source the in-memory upgrade reads from. No SQL migration is needed because `researchDossier` is already a JSON column.
+
+The persisted draft columns need new names. `Email.featureLine` / `Email.fitAngle` (generic at name level, eng-shaped at semantic level today) get role-aware siblings: `Email.gtmTriggerLine` / `Email.gtmProofOfMotion`, `Email.opsInflectionLine` / `Email.opsSystemBuilt`. Generic `hook` / `pitch` columns are rejected for the same reason the type contract is rejected — concrete names per role keep the schema readable and let queries filter by family without parsing JSON. This adds a Prisma migration in slices 2 and 3.
+
+The template tag substitution layer (`substituteVariables` in `server/lib/ai/generate-email.ts`) grows new tag names. The `dropEmptyTagParagraphs` heuristic that drops orphaned paragraphs when an AI tag substitutes to null needs to handle the new tags so a GTM template with `{{trigger_line}}` doesn't ship "We saw  caught our attention" when research returns nothing.
+
+The in-flight dossier dedupe (`draft-generation.ts:16`) keys on `companyId` today. Extending to `(companyId, role)` is required so a GTM research call doesn't block on an in-flight eng research call for the same company.
+
+Implementation slice ordering — each slice ships cleanly on its own:
+
+1. **Characterization tests, then cache envelope.** Snapshot 5–10 current eng drafts against fixed (resume, dossier, contact) triples so any cache-shape change has a regression guard. Then ship (a) the in-memory envelope upgrade in `parseCachedDossier`, (b) per-role freshness keying in `dossierIsFresh` (`(companyId, role)` instead of `companyId`), and (c) the in-flight dedupe key extension from `companyId` to `(companyId, role)`. Skip the `featureLine` → `hook` rename entirely — the type-contract decision above means it doesn't pay for itself, and skipping it keeps slice 1 a pure cache-layer change. The eng snapshot must remain byte-identical after this slice; that's the regression contract.
+2. Add `pickGtmAngle`, its dossier extraction prompt, GTM-specific research targets (press releases, TechCrunch, LinkedIn job posts), GTM `DEFAULT_CUSTOM_TEMPLATE`, GTM merge tag handling, GTM `Email` columns + migration. Wire the GTM family in the orchestrator switch.
+3. Same for operations — `pickOpsAngle`, ops dossier prompt, ops research targets (hiring posts, team pages), ops default template, ops merge tags, ops Email columns + migration.
+4. Polish — voice steers and bullet hints per family already exist; revisit them against real campaign output once each pipeline lands.
+
+The voice steers and bullet hints shipped on 2026-05-20 remain relevant — they shape body voice on top of whatever structural pipeline a role uses.
