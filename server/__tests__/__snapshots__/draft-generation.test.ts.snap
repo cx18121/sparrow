@@ -1,0 +1,34 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateDraft — dossier cache + per-user fit-angle pick > characterization — orchestrator wiring is byte-identical for the engineering happy path > draft input 1`] = `
+{
+  "company": {
+    "description": "AI ops platform",
+    "domain": undefined,
+    "industry": "Enterprise SaaS",
+    "isHiring": true,
+    "name": "Acme AI",
+    "oneLiner": "OS for AI ops",
+    "stage": "Series A",
+  },
+  "contact": {
+    "name": "Sarah Chen",
+    "title": "Head of Engineering",
+  },
+  "featureLine": "the agent eval harness",
+  "fitAngle": "my multi-agent eval project",
+  "interestHook": null,
+  "kind": "ai",
+  "senderName": "Alex",
+  "subjectTemplate": null,
+  "targetRole": null,
+}
+`;
+
+exports[`generateDraft — dossier cache + per-user fit-angle pick > characterization — orchestrator wiring is byte-identical for the engineering happy path > draft result 1`] = `
+{
+  "body": "Hi Sarah, …",
+  "emailId": null,
+  "subject": "Quick intro — Alex",
+}
+`;

@@ -638,6 +638,37 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     expect(mockPickFitAngle).toHaveBeenCalledTimes(2);
   });
 
+  it("characterization — orchestrator wiring is byte-identical for the engineering happy path", async () => {
+    // Regression guard for ADR-0005 slice 1. Captures the full DraftInput
+    // the orchestrator hands to generateEmailDraft when an engineering lead
+    // has a fresh cached dossier. Any slice 1 change that alters this
+    // payload — cache shape, dossier flow, role threading — will surface
+    // here without needing to inspect the orchestrator internals.
+    const recent = new Date("2026-05-19T12:00:00.000Z");
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: dossier,
+        researchedAt: recent,
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    const result = await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(result).toMatchSnapshot("draft result");
+
+    const pickArg = mockPickFitAngle.mock.calls[0][0];
+    expect(pickArg.dossier).toEqual(dossier);
+    expect(pickArg.targetRole).toBeNull();
+
+    const draftInput = mockGenerateEmailDraft.mock.calls[0][0];
+    // Strip apiKey (test-private) before snapshotting; senderContext is
+    // captured by a separate mockBuildContext spy so omit it too.
+    const { apiKey: _key, senderContext: _ctx, ...snapshotInput } = draftInput;
+    expect(snapshotInput).toMatchSnapshot("draft input");
+  });
+
   it("custom contact path skips dossier + pick entirely", async () => {
     mockPrisma.customContact.findUnique.mockResolvedValue({
       id: "cc-1",
