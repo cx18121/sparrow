@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1
 milestone_name: Sparrow campaign workspace
 status: active
-last_updated: "2026-05-13"
+last_updated: "2026-05-20"
 ---
 
 # Project State
