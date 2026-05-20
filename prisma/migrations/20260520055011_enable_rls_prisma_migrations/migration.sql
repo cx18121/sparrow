@@ -1,0 +1,15 @@
+-- Enable RLS on Prisma's internal migrations table so Supabase's PostgREST
+-- anon endpoint stops exposing migration metadata (migration names,
+-- timestamps, checksums). Closes the "RLS Disabled in Public" advisor
+-- finding on `public._prisma_migrations`.
+--
+-- No policies are added: with RLS enabled and no policy, anon/authenticated
+-- requests get zero rows by default — exactly the deny-all behavior we want
+-- for an internal bookkeeping table. Prisma's own DIRECT_URL connection
+-- runs as a postgres-role superuser that bypasses RLS, so future
+-- `db:migrate:create` and `db:migrate:deploy` runs are unaffected.
+--
+-- Idempotent: re-running ENABLE ROW LEVEL SECURITY on a table that already
+-- has it enabled is a no-op (no error), so this migration is safe under
+-- retry.
+ALTER TABLE "public"."_prisma_migrations" ENABLE ROW LEVEL SECURITY;
