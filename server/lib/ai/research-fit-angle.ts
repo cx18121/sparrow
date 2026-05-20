@@ -245,7 +245,11 @@ export function isEmptyDossier(d: CompanyDossier): boolean {
 // Runtime validation for values pulled from Company.researchDossier (Json
 // column → Prisma typed as `unknown`). Returns null on shape failure so
 // callers can treat it as a cache miss instead of flowing garbage through.
-export function parseCachedDossier(value: unknown): CompanyDossier | null {
+//
+// Used as a leaf parser by parseCachedDossierEnvelope below for the
+// legacy-flat-row path. Exported because the per-slot validator inside
+// the envelope reuses the same shape contract.
+export function parseFlatDossier(value: unknown): CompanyDossier | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const v = value as Record<string, unknown>
   if (typeof v.summary !== 'string') return null
@@ -259,6 +263,114 @@ export function parseCachedDossier(value: unknown): CompanyDossier | null {
     technicalAreas: v.technicalAreas as string[],
   }
 }
+
+// Per-slot cached dossier — the per-role research output plus when it was
+// produced. Lives inside the DossierEnvelope below. researchedAt is stored
+// as ISO 8601 in JSON; we parse it back to Date at read time.
+export interface CachedRoleSlot {
+  dossier: CompanyDossier
+  researchedAt: Date
+}
+
+// Envelope shape stored in Company.researchDossier per ADR-0005. Each
+// role family owns its own slot. Product reads from `engineering` —
+// they share a pipeline (see getDossierSlot below).
+//
+// Legacy flat rows (pre-ADR-0005) upgrade in-memory only — see
+// parseCachedDossierEnvelope. There is no DB migration; the upgrade
+// persists naturally the next time research re-runs and writes the
+// envelope back.
+export interface DossierEnvelope {
+  engineering: CachedRoleSlot | null
+  gtm: CachedRoleSlot | null
+  operations: CachedRoleSlot | null
+}
+
+const EMPTY_ENVELOPE: DossierEnvelope = Object.freeze({
+  engineering: null,
+  gtm: null,
+  operations: null,
+}) as DossierEnvelope
+
+function parseSlot(value: unknown): CachedRoleSlot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const v = value as Record<string, unknown>
+  const dossier = parseFlatDossier(v.dossier)
+  if (!dossier) return null
+  const at = typeof v.researchedAt === 'string' ? new Date(v.researchedAt) : null
+  if (!at || Number.isNaN(at.getTime())) return null
+  return { dossier, researchedAt: at }
+}
+
+// Parses Company.researchDossier into an envelope, handling two shapes:
+//   - Envelope (post-ADR-0005): { engineering, gtm, operations } JSON
+//   - Legacy flat (pre-ADR-0005): the raw eng dossier JSON written directly
+// Legacy rows fold into the `engineering` slot with `legacyAt` (which the
+// caller passes as Company.researchedAt — the column that recorded when
+// the flat dossier was last written). Invalid or missing values produce
+// an empty envelope so callers can treat shape failures the same as a
+// cache miss.
+export function parseCachedDossierEnvelope(
+  value: unknown,
+  legacyAt: Date | null,
+): DossierEnvelope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ...EMPTY_ENVELOPE }
+  }
+  const v = value as Record<string, unknown>
+
+  // Heuristic: if the JSON has slot keys, treat as envelope. If it has
+  // the flat dossier keys instead, treat as legacy. The two shapes are
+  // structurally exclusive (legacy has `summary` / `surfaces`; envelope
+  // has `engineering` / `gtm` / `operations`).
+  const hasEnvelopeKeys = 'engineering' in v || 'gtm' in v || 'operations' in v
+  if (!hasEnvelopeKeys) {
+    const legacy = parseFlatDossier(value)
+    if (!legacy) return { ...EMPTY_ENVELOPE }
+    return {
+      engineering: { dossier: legacy, researchedAt: legacyAt ?? new Date(0) },
+      gtm: null,
+      operations: null,
+    }
+  }
+
+  return {
+    engineering: parseSlot(v.engineering),
+    gtm: parseSlot(v.gtm),
+    operations: parseSlot(v.operations),
+  }
+}
+
+// Role → slot mapping per ADR-0005. Product shares the engineering slot
+// because they share the pipeline; null (no role resolved) also reads
+// engineering by default.
+type SlotRole = 'engineering' | 'gtm' | 'operations'
+function slotForRole(role: 'engineering' | 'product' | 'gtm' | 'operations' | null): SlotRole {
+  if (role === 'gtm') return 'gtm'
+  if (role === 'operations') return 'operations'
+  // engineering, product, null all read the eng slot
+  return 'engineering'
+}
+
+export function getDossierSlot(
+  envelope: DossierEnvelope,
+  role: 'engineering' | 'product' | 'gtm' | 'operations' | null,
+): CachedRoleSlot | null {
+  return envelope[slotForRole(role)]
+}
+
+// Returns a new envelope with the target slot replaced. Pure — the input
+// envelope is untouched. Used by the cache-write path so concurrent
+// research for different roles can't wipe each other's slots.
+export function setDossierSlot(
+  envelope: DossierEnvelope,
+  role: 'engineering' | 'product' | 'gtm' | 'operations' | null,
+  slot: CachedRoleSlot,
+): DossierEnvelope {
+  const key = slotForRole(role)
+  return { ...envelope, [key]: slot }
+}
+
 
 // Synthesis step shared by every retrieval provider. The dossier shape is
 // the contract; the choice of search vendor is invisible past this boundary.

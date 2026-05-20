@@ -524,7 +524,15 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     expect(mockPrisma.company.update).toHaveBeenCalledOnce();
     const updateArg = mockPrisma.company.update.mock.calls[0][0];
     expect(updateArg.where.id).toBe("co-1");
-    expect(updateArg.data.researchDossier).toEqual(dossier);
+    // Post-ADR-0005: cache write produces the per-role envelope, not the
+    // flat dossier. The engineering slot is the default for null targetRole
+    // (no workspace default in mockProfile.ws.targetRole), product, and
+    // engineering all share that slot.
+    expect(updateArg.data.researchDossier).toEqual({
+      engineering: { dossier, researchedAt: expect.any(Date) },
+      gtm: null,
+      operations: null,
+    });
     expect(updateArg.data.researchedAt).toBeInstanceOf(Date);
   });
 
@@ -636,6 +644,69 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     // Both drafts succeeded but Tavily/Claude was called only once.
     expect(mockResearchCompanyDossier).toHaveBeenCalledTimes(1);
     expect(mockPickFitAngle).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads from the envelope's engineering slot when researchDossier is already envelope-shaped", async () => {
+    // Post-ADR-0005 envelope shape. The orchestrator should pull the
+    // engineering slot for a null/eng/product target role and skip research.
+    const recent = new Date();
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: {
+          engineering: { dossier, researchedAt: recent.toISOString() },
+          gtm: null,
+          operations: null,
+        },
+        researchedAt: recent,
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPrisma.company.update).not.toHaveBeenCalled();
+    expect(mockPickFitAngle.mock.calls[0][0].dossier).toEqual(dossier);
+  });
+
+  it("read-modify-writes the envelope so a fresh research preserves other roles' slots", async () => {
+    // The eng slot is missing/stale; the gtm slot has prior research that
+    // must NOT be wiped when the eng pipeline writes back. This is the
+    // load-bearing contract for ADR-0005 slice 2+: each pipeline writes
+    // its own slot via read-modify-write, never the whole envelope.
+    const existingGtmDossier = {
+      summary: "GTM-shaped dossier",
+      surfaces: ["recent Series B announcement"],
+      recentLaunches: [],
+      technicalAreas: [],
+    };
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: {
+          engineering: null,
+          gtm: { dossier: existingGtmDossier, researchedAt: new Date().toISOString() },
+          operations: null,
+        },
+        researchedAt: new Date(),
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
+    const updateArg = mockPrisma.company.update.mock.calls[0][0];
+    expect(updateArg.data.researchDossier.gtm).toEqual({
+      dossier: existingGtmDossier,
+      researchedAt: expect.any(Date),
+    });
+    expect(updateArg.data.researchDossier.engineering).toEqual({
+      dossier,
+      researchedAt: expect.any(Date),
+    });
   });
 
   it("characterization — orchestrator wiring is byte-identical for the engineering happy path", async () => {

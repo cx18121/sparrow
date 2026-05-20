@@ -3,9 +3,13 @@ import { generateEmailDraft } from "./ai/generate-email.js";
 import {
   researchCompanyDossierHybrid,
   pickFitAngle,
-  parseCachedDossier,
+  parseCachedDossierEnvelope,
+  getDossierSlot,
+  setDossierSlot,
   isEmptyDossier,
   type CompanyDossier,
+  type CachedRoleSlot,
+  type DossierEnvelope,
 } from "./ai/research-fit-angle.js";
 import type { DraftInput } from "./ai/types.js";
 import type { RoleFamily } from "../../src/types/roleFamilies.js";
@@ -15,10 +19,16 @@ import { GenerationError } from "./generation-error.js";
 
 // In-process dedupe: when two drafts to the same company race a cache miss,
 // only one search+Claude call fires; the second await piggybacks on the
-// first's Promise. Keyed by Company.id; entry is cleared as soon as the
-// research settles. Multi-process deployments can still double-research, but
-// the cache write is idempotent (last-writer-wins on identical public data).
+// first's Promise. Keyed by (Company.id, role) so two drafts to the same
+// company targeting different roles each trigger their own research
+// (each role has its own dossier shape per ADR-0005). Entry is cleared
+// as soon as the research settles. Multi-process deployments can still
+// double-research, but the cache write is idempotent — read-modify-write
+// preserves other roles' slots.
 const inFlightDossier = new Map<string, Promise<CompanyDossier>>();
+function inFlightKey(companyId: string, role: PersonalizationInput["targetRole"]): string {
+  return `${companyId}:${role ?? "_default"}`;
+}
 
 interface PersonalizationInput {
   interestHook: string | null;
@@ -46,24 +56,28 @@ interface PersonalizationInput {
   targetRole: 'engineering' | 'product' | 'gtm' | 'operations' | null;
 }
 
-// A cached dossier is considered fresh when it has both a timestamp AND
-// non-empty content. Empty dossiers (zero surfaces, no recent launches,
-// no technical areas) are treated as stale so the next caller re-researches.
-// This guards against caching null results from a misconfigured retrieval
-// pipeline — observed on 2026-05-15 when EXA_API_KEY was missing from prod:
-// every researched company got a `{summary:"", surfaces:[], ...}` cache
-// that then survived the env-var fix, leaving drafts permanently
+// A cached slot is considered fresh when it has both a slot (with its own
+// per-role researchedAt timestamp from the envelope) AND non-empty content.
+// Empty dossiers (zero surfaces, no recent launches, no technical areas)
+// are treated as stale so the next caller re-researches. This guards
+// against caching null results from a misconfigured retrieval pipeline —
+// observed on 2026-05-15 when EXA_API_KEY was missing from prod: every
+// researched company got a `{summary:"", surfaces:[], ...}` cache that
+// then survived the env-var fix, leaving drafts permanently
 // personalization-less until the cache was manually invalidated.
-function dossierIsFresh(at: Date | null, dossier: CompanyDossier | null): boolean {
-  if (at === null) return false;
-  if (!dossier) return false;
-  if (isEmptyDossier(dossier)) return false;
+function dossierIsFresh(slot: CachedRoleSlot | null): boolean {
+  if (!slot) return false;
+  if (isEmptyDossier(slot.dossier)) return false;
   return true;
 }
 
-async function researchAndCacheDossier(input: PersonalizationInput): Promise<CompanyDossier> {
+async function researchAndCacheDossier(
+  input: PersonalizationInput,
+  priorEnvelope: DossierEnvelope,
+): Promise<CompanyDossier> {
   const companyId = input.companyId!; // caller checked
-  const existing = inFlightDossier.get(companyId);
+  const key = inFlightKey(companyId, input.targetRole);
+  const existing = inFlightDossier.get(key);
   if (existing) return existing;
 
   const envDepth = process.env.TAVILY_SEARCH_DEPTH?.trim();
@@ -85,12 +99,19 @@ async function researchAndCacheDossier(input: PersonalizationInput): Promise<Com
     tavilySearchDepth,
   })
     .then(async dossier => {
-      // Persist for the next caller. Failure to write is non-fatal —
-      // we still use the dossier for this draft.
+      // Persist for the next caller. Read-modify-write the envelope so
+      // concurrent research for a different role doesn't wipe this slot,
+      // and so existing slots stay intact when only this role re-researches.
+      // Failure to write is non-fatal — we still use the dossier for this draft.
+      const now = new Date();
+      const nextEnvelope = setDossierSlot(priorEnvelope, input.targetRole, {
+        dossier,
+        researchedAt: now,
+      });
       await prisma.company
         .update({
           where: { id: companyId },
-          data: { researchDossier: dossier as object, researchedAt: new Date() },
+          data: { researchDossier: nextEnvelope as object, researchedAt: now },
         })
         .catch(err => {
           console.warn("Failed to cache company dossier:", err);
@@ -100,10 +121,10 @@ async function researchAndCacheDossier(input: PersonalizationInput): Promise<Com
     .finally(() => {
       // Clear in-flight entry once the work settles so future callers re-read
       // the freshly written cache (or research again if persistence failed).
-      inFlightDossier.delete(companyId);
+      inFlightDossier.delete(key);
     });
 
-  inFlightDossier.set(companyId, promise);
+  inFlightDossier.set(key, promise);
   return promise;
 }
 
@@ -119,12 +140,15 @@ async function resolvePersonalization(
 
   try {
     let dossier: CompanyDossier;
-    const parsedCache = parseCachedDossier(input.cachedDossier);
-    const cached = dossierIsFresh(input.cachedDossierAt, parsedCache) ? parsedCache : null;
-    if (cached) {
-      dossier = cached;
+    // Parse the envelope once and reuse: getDossierSlot picks the role's
+    // slot for the freshness check; researchAndCacheDossier needs the full
+    // envelope to do its read-modify-write without wiping other slots.
+    const envelope = parseCachedDossierEnvelope(input.cachedDossier, input.cachedDossierAt);
+    const slot = getDossierSlot(envelope, input.targetRole);
+    if (dossierIsFresh(slot)) {
+      dossier = slot!.dossier;
     } else {
-      dossier = await researchAndCacheDossier(input);
+      dossier = await researchAndCacheDossier(input, envelope);
     }
 
     return await pickFitAngle({

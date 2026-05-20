@@ -4,7 +4,11 @@ import { getUserIdFromRequest } from "../../lib/supabaseAdmin.js";
 import { parseBody } from "../../lib/parse-params.js";
 import { sendRouteError } from "../../lib/route-error.js";
 import { invalidateEmailDashboardCache } from "../../lib/email-cache.js";
-import { parseCachedDossier, pickFitAngle } from "../../lib/ai/research-fit-angle.js";
+import {
+  parseCachedDossierEnvelope,
+  getDossierSlot,
+  pickFitAngle,
+} from "../../lib/ai/research-fit-angle.js";
 import { resolveProfileForGeneration } from "../../lib/sender-profile.js";
 
 // Swap the angle a verbatim draft is built around. The original draft
@@ -58,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userLead: {
           select: {
             userId: true,
-            company: { select: { id: true, name: true, researchDossier: true } },
+            company: { select: { id: true, name: true, researchDossier: true, researchedAt: true } },
           },
         },
         customContact: { select: { userId: true } },
@@ -86,7 +90,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!company) {
       return res.status(409).json({ error: "This draft has no company dossier" });
     }
-    const dossier = parseCachedDossier(company.researchDossier);
+    // Change-angle operates on a verbatim eng draft (it swaps Email.featureLine,
+    // which is engineering-shaped). Read from the engineering slot per ADR-0005.
+    const envelope = parseCachedDossierEnvelope(company.researchDossier, company.researchedAt);
+    const slot = getDossierSlot(envelope, "engineering");
+    const dossier = slot?.dossier ?? null;
     if (!dossier || dossier.surfaces.length === 0) {
       return res.status(409).json({ error: "No surfaces available for this company" });
     }
