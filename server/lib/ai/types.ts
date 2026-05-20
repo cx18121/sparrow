@@ -1,3 +1,5 @@
+import type { RoleFamily } from '../../../src/types/roleFamilies.js'
+
 export interface EmailDraft {
   subject: string
   body: string
@@ -40,6 +42,11 @@ export interface TemplateDraftInput extends DraftBase {
   apiKey: string
   featureLine?: string | null
   fitAngle?: string | null
+  // Resolved role family for this campaign (per-campaign override, falling
+  // back to workspace default). When set, the generation system prompt is
+  // augmented with a one-line role-specific voice steer — see
+  // server/lib/ai/prompts.ts:buildEmailGenerationSystemPrompt.
+  targetRole?: RoleFamily | null
 }
 
 // AI mode — Anthropic generates the body from sender context, company info,
@@ -55,6 +62,8 @@ export interface AiDraftInput extends DraftBase {
   apiKey: string
   featureLine?: string | null
   fitAngle?: string | null
+  // See TemplateDraftInput.targetRole — same semantics.
+  targetRole?: RoleFamily | null
 }
 
 // Verbatim mode — template body and subject are rendered exactly as

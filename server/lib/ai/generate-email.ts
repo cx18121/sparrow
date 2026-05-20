@@ -2,7 +2,7 @@ import { callClaude } from './anthropic.js'
 import { humanizeEmailBody } from './humanize.js'
 import {
   DEFAULT_SUBJECT_TEMPLATE,
-  EMAIL_GENERATION_SYSTEM_PROMPT,
+  buildEmailGenerationSystemPrompt,
   GENERIC_FALLBACK_SUBJECT,
   GENERIC_FALLBACK_BODY,
 } from './prompts.js'
@@ -241,7 +241,7 @@ async function draftFromTemplate(input: TemplateDraftInput): Promise<EmailDraft>
   const rawBody = await callClaude({
     apiKey: input.apiKey,
     model: GENERATION_MODEL,
-    system: EMAIL_GENERATION_SYSTEM_PROMPT,
+    system: buildEmailGenerationSystemPrompt(input.targetRole ?? null),
     userContent: buildTemplatePrompt(input, skeleton),
     maxTokens: 1024,
   })
@@ -332,7 +332,7 @@ async function draftFromAi(input: AiDraftInput): Promise<EmailDraft> {
   const rawBody = await callClaude({
     apiKey: input.apiKey,
     model: GENERATION_MODEL,
-    system: EMAIL_GENERATION_SYSTEM_PROMPT,
+    system: buildEmailGenerationSystemPrompt(input.targetRole ?? null),
     userContent: buildPrompt(input),
     maxTokens: 1024,
   })

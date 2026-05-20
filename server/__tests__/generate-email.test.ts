@@ -93,6 +93,27 @@ describe("generateEmailDraft — AI mode", () => {
     expect(body.messages[0].content).toContain("do not invent one");
   });
 
+  it("appends a role-specific voice steer to the system prompt when targetRole is set", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah.");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({ ...baseAi, targetRole: "gtm" });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    // The base prompt is always present; the role steer is what we're
+    // proving threads end-to-end from the DraftInput into the API call.
+    expect(body.system).toContain("targeting GTM roles");
+  });
+
+  it("omits the role steer from the system prompt when targetRole is null", async () => {
+    const fetchMock = makeAnthropicMock("Hi Sarah.");
+    vi.stubGlobal("fetch", fetchMock);
+    await generateEmailDraft({ ...baseAi, targetRole: null });
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(options.body as string);
+    expect(body.system).not.toContain("targeting GTM");
+    expect(body.system).not.toContain("targeting engineering");
+  });
+
   it("omits personalization block when featureLine and fitAngle are both null", async () => {
     const fetchMock = makeAnthropicMock("Hi Sarah.");
     vi.stubGlobal("fetch", fetchMock);

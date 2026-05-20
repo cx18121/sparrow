@@ -8,6 +8,7 @@ import {
   type CompanyDossier,
 } from "./ai/research-fit-angle.js";
 import type { DraftInput } from "./ai/types.js";
+import type { RoleFamily } from "../../src/types/roleFamilies.js";
 import { resolveProfileForGeneration, buildSenderContextFromProfile, ProfileError } from "./sender-profile.js";
 import { resolveDraftTarget } from "./draft-target.js";
 import { GenerationError } from "./generation-error.js";
@@ -323,7 +324,24 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
 
   // Resolve sender profile (throws ProfileError on missing API key or decrypt failure)
   const profile = await resolveProfileForGeneration(userId);
-  const senderContext = buildSenderContextFromProfile(profile, { tone, extraContext, includeResumeBullet });
+
+  // Per-campaign role overrides the workspace default. Both flow through
+  // normalizeRoleFamily upstream (campaign-definition for writes, on read
+  // via the Campaign column being TEXT). Resolved early so it can steer
+  // every downstream stage: resume-bullet preference in the sender context,
+  // surface ranking in pickFitAngle, voice in the generation system prompt.
+  const targetRole = await resolveCampaignTargetRole(
+    campaignId ?? null,
+    userId,
+    profile.ws.targetRole ?? null,
+  );
+
+  const senderContext = buildSenderContextFromProfile(profile, {
+    tone,
+    extraContext,
+    includeResumeBullet,
+    targetRole: targetRole as RoleFamily | null,
+  });
 
   // Two-stage personalization:
   //   1. companyDossier: cacheable per-company web research (Company.researchDossier)
@@ -334,17 +352,6 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
   // (no companyId) skip both — there's no Company row to cache against.
   // Failures at any stage are non-fatal: the email still drafts, just without
   // the personalization lines.
-  // Per-campaign role overrides the workspace default. Both flow through
-  // normalizeRoleFamily upstream (campaign-definition for writes, on read
-  // via the Campaign column being TEXT). Apollo discovery uses the
-  // per-campaign value at apolloSearch time; fit-angle picking now uses
-  // it here, closing the loop Codex review flagged.
-  const targetRole = await resolveCampaignTargetRole(
-    campaignId ?? null,
-    userId,
-    profile.ws.targetRole ?? null,
-  );
-
   const fit = await resolvePersonalization({
     interestHook: interestHook ?? null,
     companyId,
@@ -379,6 +386,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           apiKey: profile.apiKey,
           featureLine: fit.featureLine,
           fitAngle: fit.fitAngle,
+          targetRole: targetRole as RoleFamily | null,
         }
     : {
         kind: "ai",
@@ -391,6 +399,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
         apiKey: profile.apiKey,
         featureLine: fit.featureLine,
         fitAngle: fit.fitAngle,
+        targetRole: targetRole as RoleFamily | null,
       };
 
   let draft: { subject: string; body: string };
