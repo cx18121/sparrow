@@ -130,4 +130,41 @@ describe("buildSenderContextFromProfile", () => {
     expect(context).not.toContain("Tone:");
     expect(context).not.toContain("Use one relevant detail");
   });
+
+  it("appends a role-specific bullet hint when targetRole is set", () => {
+    const gtm = buildSenderContextFromProfile(profile, {
+      includeResumeBullet: true,
+      targetRole: "gtm",
+    });
+    expect(gtm).toContain("Use one relevant detail");
+    expect(gtm.toLowerCase()).toContain("go-to-market");
+
+    const eng = buildSenderContextFromProfile(profile, {
+      includeResumeBullet: true,
+      targetRole: "engineering",
+    });
+    expect(eng.toLowerCase()).toContain("engineering work");
+    // Each role produces a distinct instruction — guards against an empty
+    // map silently degrading to the generic base for every family.
+    expect(eng).not.toEqual(gtm);
+  });
+
+  it("falls back to the generic bullet instruction when targetRole is null", () => {
+    const context = buildSenderContextFromProfile(profile, {
+      includeResumeBullet: true,
+      targetRole: null,
+    });
+    expect(context).toContain("Use one relevant detail");
+    expect(context.toLowerCase()).not.toContain("engineering work");
+    expect(context.toLowerCase()).not.toContain("go-to-market");
+  });
+
+  it("ignores targetRole when includeResumeBullet is false", () => {
+    const context = buildSenderContextFromProfile(profile, {
+      includeResumeBullet: false,
+      targetRole: "gtm",
+    });
+    expect(context).not.toContain("Use one relevant detail");
+    expect(context.toLowerCase()).not.toContain("go-to-market");
+  });
 });
