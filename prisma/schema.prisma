@@ -140,9 +140,16 @@ model Email {
   attachmentIds   Json           @default("[]")
   // AI generation metadata (nullable — populated only by the draft-generation
   // path; rows pre-migration and rows written by other paths stay null).
-  featureLine     String?
-  fitAngle        String?
-  generationKind  String?
+  // Per ADR-0005, persistence columns are role-specific so the schema and
+  // queries stay readable. featureLine/fitAngle hold engineering+product
+  // role personalization; gtm* fields hold GTM role personalization.
+  // Only one role's fields are populated per row, selected by the
+  // generating campaign's targetRole.
+  featureLine       String?
+  fitAngle          String?
+  gtmTriggerLine    String?
+  gtmProofOfMotion  String?
+  generationKind    String?
   sentAt          DateTime?
   // Reply detection fields — populated at send time and on inbound webhook.
   gmailMessageId      String?
