@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   researchCompanyDossier,
+  researchCompanyDossierGtmHybrid,
   researchCompanyDossierOpsHybrid,
   pickFitAngle,
   parseCachedDossierEnvelope,
@@ -936,5 +937,160 @@ describe("researchCompanyDossierOpsHybrid — retrieval contract (ADR-0005 slice
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result).toEqual({ summary: "", inflections: [], recentHires: [], openRoles: [] });
+  });
+});
+
+describe("researchCompanyDossierGtmHybrid — retrieval contract (ADR-0005 slice 4)", () => {
+  // Slice 4 added a /contents arm running in parallel with the press /search,
+  // hitting the company's own /blog, /news, /careers, /press subpages.
+  // This suite pins the contract: both Exa endpoints fire when keys + domain
+  // present; results merge before synthesis; Tavily falls back only when
+  // BOTH Exa arms return zero combined results.
+  const gtmDossierJson = JSON.stringify({
+    summary: "Series A AI ops platform",
+    triggers: ["raised $50M led by Accel"],
+    recentMoves: [],
+    marketSignals: [],
+  });
+
+  it("calls both Exa /search and Exa /contents in parallel when keys + domain present", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/search")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "TechCrunch — Acme raises $50M", url: "https://techcrunch.com/acme-series-a", text: "Acme AI raised $50M Series A led by Accel." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "Acme blog: scaling", url: "https://acme.ai/blog/scaling", text: "We're scaling the team and shipping new features." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: gtmDossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await researchCompanyDossierGtmHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: null,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    expect(urls.some(u => u.includes("api.exa.ai/search"))).toBe(true);
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    // No Tavily fallback when at least one Exa arm produced results.
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(false);
+  });
+
+  it("synthesizes from /contents alone when /search returns zero press results", async () => {
+    // Linear's pre-slice-4 GTM case: press allowlist returns nothing, but
+    // the company's own /blog has shippable GTM signals. Slice 4 makes
+    // sure this path produces a non-empty dossier without needing Tavily.
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/search")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ results: [] }),
+        };
+      }
+      if (url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "Acme blog: launching the platform", url: "https://acme.ai/blog/launch", text: "We just shipped the platform expansion." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: gtmDossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await researchCompanyDossierGtmHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: TAVILY_KEY,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    // /contents fired and produced material; Tavily never needed.
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(false);
+    expect(result.triggers.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to Tavily only when BOTH Exa /search and /contents return zero results", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/search") || url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ results: [] }),
+        };
+      }
+      if (url.includes("api.tavily.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "Acme news", url: "https://news.example.com/acme", content: "Acme raised $50M." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: gtmDossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await researchCompanyDossierGtmHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: TAVILY_KEY,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    expect(urls.some(u => u.includes("api.exa.ai/search"))).toBe(true);
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(true);
   });
 });
