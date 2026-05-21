@@ -60,14 +60,31 @@ const GTM_DEFAULT_TEMPLATE = {
   isShared: false,
 };
 
+const OPS_DEFAULT_TEMPLATE = {
+  id: '',
+  name: 'Ops intro',
+  subject: 'Quick thought on {{company}}',
+  body: [
+    'Hi {{first_name}},',
+    '',
+    'Noticed {{inflection_line}} — that\'s the inflection where operational systems start to matter.',
+    '',
+    'For context, {{system_built}} is the closest analog to what your team is heading into.',
+    '',
+    'Worth a 15-min call this week?',
+    '',
+    'Best,',
+    '{{sender_name}}',
+  ].join('\n'),
+  attachmentIds: [] as string[],
+  isShared: false,
+};
+
 const DEFAULT_CUSTOM_TEMPLATE_BY_ROLE: Record<RoleFamily, typeof ENG_DEFAULT_TEMPLATE> = {
   engineering: ENG_DEFAULT_TEMPLATE,
   product: ENG_DEFAULT_TEMPLATE,
   gtm: GTM_DEFAULT_TEMPLATE,
-  // Ops stays on the eng template until slice 3 ships an ops picker.
-  // Until then ops uses the eng pipeline (degrades gracefully via the
-  // voice steer shipped on 2026-05-20).
-  operations: ENG_DEFAULT_TEMPLATE,
+  operations: OPS_DEFAULT_TEMPLATE,
 };
 
 function defaultCustomTemplateFor(role: RoleFamily): typeof ENG_DEFAULT_TEMPLATE {

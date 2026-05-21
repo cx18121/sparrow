@@ -36,14 +36,18 @@ describe('createWorkspaceConfig — per-family default customTemplate (ADR-0005 
     expect(ws.customTemplate.body).toContain('{{feature_line}}')
   })
 
-  it('operations targetRole reads the engineering default (until slice 3 ships ops picker)', () => {
+  it('operations targetRole gets the ops default template (slice 3)', () => {
     const ws = createWorkspaceConfig({
       user,
       templates: [],
       data: { targetRole: 'operations' },
     })
     expect(ws.targetRole).toBe('operations')
-    expect(ws.customTemplate.body).toContain('{{feature_line}}')
+    expect(ws.customTemplate.body).toContain('{{inflection_line}}')
+    expect(ws.customTemplate.body).toContain('{{system_built}}')
+    expect(ws.customTemplate.body).not.toContain('{{feature_line}}')
+    expect(ws.customTemplate.body).not.toContain('{{trigger_line}}')
+    expect(ws.customTemplate.name).toBe('Ops intro')
   })
 
   it('saved customTemplate is NOT clobbered by the per-family default when the user has one', () => {
