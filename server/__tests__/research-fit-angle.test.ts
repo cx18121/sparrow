@@ -425,8 +425,12 @@ describe("getDossierSlot — role → slot mapping (ADR-0005)", () => {
   });
 
   it("maps gtm to the gtm slot and operations to the operations slot", () => {
-    const gtmSlot = { ...slot };
-    const opsSlot = { ...slot };
+    // Each slot must carry its role-shaped dossier per ADR-0005 slice 2.
+    const gtmSlot = {
+      dossier: { summary: "g", triggers: ["t"], recentMoves: [], marketSignals: [] },
+      researchedAt: new Date(),
+    };
+    const opsSlot = { dossier: {} as unknown, researchedAt: new Date() };
     const full = { engineering: null, gtm: gtmSlot, operations: opsSlot };
     expect(getDossierSlot(full, "gtm")).toBe(gtmSlot);
     expect(getDossierSlot(full, "operations")).toBe(opsSlot);
@@ -438,23 +442,24 @@ describe("setDossierSlot — read-modify-write helper (ADR-0005)", () => {
     dossier: { summary: "a", surfaces: ["a"], recentLaunches: [], technicalAreas: [] },
     researchedAt: new Date(),
   };
-  const slotB = {
-    dossier: { summary: "b", surfaces: ["b"], recentLaunches: [], technicalAreas: [] },
+  // GTM slot uses GtmDossier shape per slice 2's typed envelope.
+  const gtmSlot = {
+    dossier: { summary: "g", triggers: ["t"], recentMoves: [], marketSignals: [] },
     researchedAt: new Date(),
   };
 
   it("replaces the target role's slot and preserves the others", () => {
     const before = { engineering: slotA, gtm: null, operations: null };
-    const after = setDossierSlot(before, "gtm", slotB);
+    const after = setDossierSlot(before, "gtm", gtmSlot);
     expect(after.engineering).toBe(slotA);
-    expect(after.gtm).toBe(slotB);
+    expect(after.gtm).toBe(gtmSlot);
     expect(after.operations).toBeNull();
   });
 
   it("returns a new envelope without mutating the input", () => {
     const before = { engineering: slotA, gtm: null, operations: null };
     const snapshot = { ...before };
-    setDossierSlot(before, "gtm", slotB);
+    setDossierSlot(before, "gtm", gtmSlot);
     expect(before).toEqual(snapshot);
   });
 

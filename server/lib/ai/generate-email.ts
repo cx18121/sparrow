@@ -27,12 +27,22 @@ export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
 // in either form. featureLine and fitAngle are filled when web research
 // produced them — substituted as empty strings otherwise so verbatim
 // templates don't render literal '{{feature_line}}' to the recipient.
+// Personalization fields a draft can carry, role-shaped per ADR-0005.
+// eng/product fills feature/fit; gtm fills trigger/proof. Only one pair is
+// non-null per draft, selected by the campaign's targetRole upstream.
+interface AiPersonalization {
+  featureLine?: string | null
+  fitAngle?: string | null
+  triggerLine?: string | null
+  proofOfMotion?: string | null
+}
+
 export function substituteVariables(
   text: string,
   contact: { name: string | null; title?: string | null },
   senderName: string | null,
   company?: { name: string },
-  ai?: { featureLine?: string | null; fitAngle?: string | null }
+  ai?: AiPersonalization
 ): string {
   const firstName = contact.name?.split(' ')[0] ?? ''
   const lastName = contact.name?.split(' ').slice(1).join(' ') ?? ''
@@ -40,6 +50,8 @@ export function substituteVariables(
   const companyName = company?.name ?? ''
   const featureLine = ai?.featureLine ?? ''
   const fitAngle = ai?.fitAngle ?? ''
+  const triggerLine = ai?.triggerLine ?? ''
+  const proofOfMotion = ai?.proofOfMotion ?? ''
   return text
     .replace(/\{\{first_name\}\}/g, firstName)
     .replace(/\{\{firstName\}\}/g, firstName)
@@ -55,6 +67,10 @@ export function substituteVariables(
     .replace(/\{\{featureLine\}\}/g, featureLine)
     .replace(/\{\{fit_angle\}\}/g, fitAngle)
     .replace(/\{\{fitAngle\}\}/g, fitAngle)
+    .replace(/\{\{trigger_line\}\}/g, triggerLine)
+    .replace(/\{\{triggerLine\}\}/g, triggerLine)
+    .replace(/\{\{proof_of_motion\}\}/g, proofOfMotion)
+    .replace(/\{\{proofOfMotion\}\}/g, proofOfMotion)
 }
 
 // Strip dangling separators and whitespace left behind when a merge tag
@@ -77,7 +93,7 @@ export function buildSubjectLine(
   contact: { name: string | null; title?: string | null },
   senderName: string | null,
   company?: { name: string },
-  ai?: { featureLine?: string | null; fitAngle?: string | null }
+  ai?: AiPersonalization
 ): string {
   return tidySubject(substituteVariables(template ?? DEFAULT_SUBJECT_TEMPLATE, contact, senderName, company, ai))
 }
@@ -91,15 +107,19 @@ export function buildSubjectLine(
 // merge tag — better to ship a shorter email than a hallucinated one.
 function dropEmptyTagParagraphs(
   body: string,
-  ai?: { featureLine?: string | null; fitAngle?: string | null }
+  ai?: AiPersonalization
 ): string {
   const featureEmpty = !ai?.featureLine
   const fitEmpty = !ai?.fitAngle
-  if (!featureEmpty && !fitEmpty) return body
+  const triggerEmpty = !ai?.triggerLine
+  const proofEmpty = !ai?.proofOfMotion
+  if (!featureEmpty && !fitEmpty && !triggerEmpty && !proofEmpty) return body
 
   const shouldDrop = (chunk: string) => {
     if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(chunk)) return true
     if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(chunk)) return true
+    if (triggerEmpty && /\{\{(trigger_line|triggerLine)\}\}/.test(chunk)) return true
+    if (proofEmpty && /\{\{(proof_of_motion|proofOfMotion)\}\}/.test(chunk)) return true
     return false
   }
 
@@ -121,7 +141,12 @@ function dropEmptyTagParagraphs(
 }
 
 function buildTemplateSkeleton(input: TemplateDraftInput): string {
-  const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
+  const ai: AiPersonalization = {
+    featureLine: input.featureLine ?? null,
+    fitAngle: input.fitAngle ?? null,
+    triggerLine: input.triggerLine ?? null,
+    proofOfMotion: input.proofOfMotion ?? null,
+  }
   return stripPlaceholders(substituteVariables(
     dropEmptyTagParagraphs(input.body, ai),
     input.contact,
@@ -147,15 +172,18 @@ function buildTemplatePrompt(input: TemplateDraftInput, skeleton = buildTemplate
     .filter(Boolean)
     .join('; ')
 
+  // Per ADR-0005 only one role's pair is populated per draft. The note
+  // labels each line for the role family that wrote it so the model
+  // reads it in the right register.
+  const personalizationLines = [
+    input.featureLine ? `- Feature to reference: "${input.featureLine}"` : null,
+    input.fitAngle ? `- Resume angle: "${input.fitAngle}"` : null,
+    input.triggerLine ? `- Recent company trigger: "${input.triggerLine}"` : null,
+    input.proofOfMotion ? `- Candidate proof of motion: "${input.proofOfMotion}"` : null,
+  ].filter(Boolean)
   const personalizationNote =
-    input.featureLine || input.fitAngle
-      ? [
-          'Personalization (use verbatim, do not paraphrase):',
-          input.featureLine ? `- Feature to reference: "${input.featureLine}"` : null,
-          input.fitAngle ? `- Resume angle: "${input.fitAngle}"` : null,
-        ]
-          .filter(Boolean)
-          .join('\n')
+    personalizationLines.length > 0
+      ? ['Personalization (use verbatim, do not paraphrase):', ...personalizationLines].join('\n')
       : null
 
   return [
@@ -266,7 +294,12 @@ function draftVerbatim(input: VerbatimDraftInput): EmailDraft {
   // from AI editing. We may drop paragraphs anchored on missing AI-only tags
   // before substitution so verbatim templates stay authored by the user
   // without shipping orphaned grammar when research has no grounded hook.
-  const ai = { featureLine: input.featureLine ?? null, fitAngle: input.fitAngle ?? null }
+  const ai: AiPersonalization = {
+    featureLine: input.featureLine ?? null,
+    fitAngle: input.fitAngle ?? null,
+    triggerLine: input.triggerLine ?? null,
+    proofOfMotion: input.proofOfMotion ?? null,
+  }
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company, ai)
   const body = substituteVariables(dropEmptyTagParagraphs(input.body, ai), input.contact, input.senderName, input.company, ai)
   return { subject, body }
@@ -294,18 +327,28 @@ function buildPrompt(input: AiDraftInput): string {
 
   const companyLabel = input.company.name ? ` at ${input.company.name}` : ''
 
-  const featureLine = input.kind === 'ai' ? input.featureLine ?? null : null
-  const fitAngle = input.kind === 'ai' ? input.fitAngle ?? null : null
-
+  // Per ADR-0005, AI mode receives the role-shaped personalization pair:
+  // eng/product → feature/fit; gtm → trigger/proof. Only one pair is
+  // populated per call. The labels here are role-specific so the model
+  // weaves each into the body in the right register — "Feature to work
+  // on" reads as eng intent; "Trigger" + "Proof of motion" reads as GTM.
+  const personalizationLines = [
+    input.featureLine
+      ? `- Feature to work on at the company: "${input.featureLine}". Reference it as the thing the sender wants to contribute to.`
+      : null,
+    input.fitAngle
+      ? `- Resume angle: "${input.fitAngle}". Use it as the bridge connecting the sender to that feature.`
+      : null,
+    input.triggerLine
+      ? `- Recent company trigger: "${input.triggerLine}". Lead the opener with this as the why-now signal.`
+      : null,
+    input.proofOfMotion
+      ? `- Candidate proof of motion: "${input.proofOfMotion}". Use it as the credibility bridge — what the sender has done that maps to this trigger.`
+      : null,
+  ].filter(Boolean)
   const personalizationNote =
-    featureLine || fitAngle
-      ? [
-          'Personalization (use these verbatim, do not paraphrase):',
-          featureLine ? `- Feature to work on at the company: "${featureLine}". Reference it as the thing the sender wants to contribute to.` : null,
-          fitAngle ? `- Resume angle: "${fitAngle}". Use it as the bridge connecting the sender to that feature.` : null,
-        ]
-          .filter(Boolean)
-          .join('\n')
+    personalizationLines.length > 0
+      ? ['Personalization (use these verbatim, do not paraphrase):', ...personalizationLines].join('\n')
       : null
 
   return [

@@ -19,9 +19,11 @@ exports[`generateDraft — dossier cache + per-user fit-angle pick > characteriz
   "fitAngle": "my multi-agent eval project",
   "interestHook": null,
   "kind": "ai",
+  "proofOfMotion": null,
   "senderName": "Alex",
   "subjectTemplate": null,
   "targetRole": null,
+  "triggerLine": null,
 }
 `;
 

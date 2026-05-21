@@ -2,12 +2,15 @@ import { prisma } from "./prisma.js";
 import { generateEmailDraft } from "./ai/generate-email.js";
 import {
   researchCompanyDossierHybrid,
+  researchCompanyDossierGtmHybrid,
   pickFitAngle,
+  pickGtmAngle,
   parseCachedDossierEnvelope,
-  getDossierSlot,
   setDossierSlot,
   isEmptyDossier,
+  isEmptyGtmDossier,
   type CompanyDossier,
+  type GtmDossier,
   type CachedRoleSlot,
   type DossierEnvelope,
 } from "./ai/research-fit-angle.js";
@@ -58,16 +61,22 @@ interface PersonalizationInput {
 
 // A cached slot is considered fresh when it has both a slot (with its own
 // per-role researchedAt timestamp from the envelope) AND non-empty content.
-// Empty dossiers (zero surfaces, no recent launches, no technical areas)
-// are treated as stale so the next caller re-researches. This guards
-// against caching null results from a misconfigured retrieval pipeline —
-// observed on 2026-05-15 when EXA_API_KEY was missing from prod: every
-// researched company got a `{summary:"", surfaces:[], ...}` cache that
-// then survived the env-var fix, leaving drafts permanently
-// personalization-less until the cache was manually invalidated.
-function dossierIsFresh(slot: CachedRoleSlot | null): boolean {
+// Empty dossiers are treated as stale so the next caller re-researches.
+// This guards against caching null results from a misconfigured retrieval
+// pipeline — observed on 2026-05-15 when EXA_API_KEY was missing from prod:
+// every researched company got an empty dossier that then survived the
+// env-var fix, leaving drafts permanently personalization-less until the
+// cache was manually invalidated.
+//
+// Generic over the dossier type so eng (CompanyDossier) and GTM
+// (GtmDossier) slots use the same freshness check with their own
+// emptiness predicate.
+function slotIsFresh<T>(
+  slot: CachedRoleSlot<T> | null,
+  isEmpty: (d: T) => boolean,
+): boolean {
   if (!slot) return false;
-  if (isEmptyDossier(slot.dossier)) return false;
+  if (isEmpty(slot.dossier)) return false;
   return true;
 }
 
@@ -128,7 +137,12 @@ async function researchAndCacheDossier(
       const currentEnvelope = refetched
         ? parseCachedDossierEnvelope(refetched.researchDossier ?? null, refetched.researchedAt ?? null)
         : priorEnvelope;
-      const nextEnvelope = setDossierSlot(currentEnvelope, input.targetRole, {
+      // Engineering writes always land in the engineering slot. Product
+      // shares the eng pipeline so it routes here too — slotForRole maps
+      // both 'engineering' and 'product' to the eng slot. Hardcoded to
+      // 'engineering' here because this branch is only reached when the
+      // orchestrator dispatched eng/product/null; gtm has its own branch.
+      const nextEnvelope = setDossierSlot(currentEnvelope, 'engineering', {
         dossier,
         researchedAt: now,
       });
@@ -152,41 +166,137 @@ async function researchAndCacheDossier(
   return promise;
 }
 
+// GTM analog of researchAndCacheDossier. Same in-flight dedupe + cross-role
+// re-read + RMW pattern; differs only in which research function runs
+// (researchCompanyDossierGtmHybrid with GTM-shaped query + press domain
+// allowlist) and which slot is written (gtm).
+async function researchAndCacheGtmDossier(
+  input: PersonalizationInput,
+  priorEnvelope: DossierEnvelope,
+): Promise<GtmDossier> {
+  const companyId = input.companyId!;
+  const key = inFlightKey(companyId, input.targetRole);
+  const existing = inFlightDossier.get(key) as Promise<GtmDossier> | undefined;
+  if (existing) return existing;
+
+  const envRecency = parseInt(process.env.EXA_RECENCY_DAYS_GTM?.trim() ?? "", 10);
+  const recencyDays = Number.isFinite(envRecency) && envRecency > 0 ? envRecency : undefined;
+
+  const promise = researchCompanyDossierGtmHybrid({
+    company: input.companyInfo,
+    apiKey: input.apiKey,
+    exaApiKey: process.env.EXA_API_KEY?.trim() || null,
+    tavilyApiKey: process.env.TAVILY_API_KEY?.trim() || null,
+    recencyDays,
+  })
+    .then(async dossier => {
+      // Same cross-role re-read defense as the eng path. See the comment
+      // in researchAndCacheDossier for the race details.
+      const now = new Date();
+      const refetched = await prisma.company
+        .findUnique({
+          where: { id: companyId },
+          select: { researchDossier: true, researchedAt: true },
+        })
+        .catch(err => {
+          console.warn("Failed to re-read envelope before GTM cache write:", err);
+          return null;
+        });
+      const currentEnvelope = refetched
+        ? parseCachedDossierEnvelope(refetched.researchDossier ?? null, refetched.researchedAt ?? null)
+        : priorEnvelope;
+      const nextEnvelope = setDossierSlot(currentEnvelope, 'gtm', {
+        dossier,
+        researchedAt: now,
+      });
+      await prisma.company
+        .update({
+          where: { id: companyId },
+          data: { researchDossier: nextEnvelope as object, researchedAt: now },
+        })
+        .catch(err => {
+          console.warn("Failed to cache GTM company dossier:", err);
+        });
+      return dossier;
+    })
+    .finally(() => {
+      inFlightDossier.delete(key);
+    });
+
+  // The map is typed as Promise<CompanyDossier>; GTM promises ride in via
+  // a structural cast (the slot is never read directly off the map — it's
+  // returned to the caller who knows the role context). The role-keyed
+  // inFlightKey isolates eng and gtm in-flight Promises.
+  inFlightDossier.set(key, promise as unknown as Promise<CompanyDossier>);
+  return promise;
+}
+
+interface ResolvedPersonalization {
+  featureLine: string | null;
+  fitAngle: string | null;
+  triggerLine: string | null;
+  proofOfMotion: string | null;
+}
+
+const EMPTY_PERSONALIZATION: ResolvedPersonalization = {
+  featureLine: null,
+  fitAngle: null,
+  triggerLine: null,
+  proofOfMotion: null,
+};
+
 async function resolvePersonalization(
   input: PersonalizationInput
-): Promise<{ featureLine: string | null; fitAngle: string | null }> {
-  const empty = { featureLine: null as string | null, fitAngle: null as string | null };
-
+): Promise<ResolvedPersonalization> {
   // Caller-supplied interest hook wins.
-  if (input.interestHook) return empty;
+  if (input.interestHook) return EMPTY_PERSONALIZATION;
   // Custom contact path — no Company row to cache against.
-  if (!input.companyId) return empty;
+  if (!input.companyId) return EMPTY_PERSONALIZATION;
 
   try {
-    let dossier: CompanyDossier;
-    // Parse the envelope once and reuse: getDossierSlot picks the role's
-    // slot for the freshness check; researchAndCacheDossier needs the full
-    // envelope to do its read-modify-write without wiping other slots.
+    // Parse the envelope once and reuse across the role branches: each
+    // branch reads its own typed slot for the freshness check, and
+    // researchAndCacheDossier needs the full envelope to do its
+    // read-modify-write without wiping other slots.
     const envelope = parseCachedDossierEnvelope(input.cachedDossier, input.cachedDossierAt);
-    const slot = getDossierSlot(envelope, input.targetRole);
-    if (dossierIsFresh(slot)) {
-      dossier = slot!.dossier;
+
+    if (input.targetRole === 'gtm') {
+      let dossier: GtmDossier;
+      if (slotIsFresh(envelope.gtm, isEmptyGtmDossier)) {
+        dossier = envelope.gtm!.dossier;
+      } else {
+        dossier = await researchAndCacheGtmDossier(input, envelope);
+      }
+      const picked = await pickGtmAngle({
+        dossier,
+        resumeText: input.resumeText,
+        apiKey: input.apiKey,
+      });
+      return { ...EMPTY_PERSONALIZATION, triggerLine: picked.triggerLine, proofOfMotion: picked.proofOfMotion };
+    }
+
+    // Engineering + product + null all use the eng pipeline per ADR-0005
+    // decision 1. Operations stays on this path too until slice 3 ships
+    // — degrades gracefully via the voice steer shipped on 2026-05-20.
+    let dossier: CompanyDossier;
+    if (slotIsFresh(envelope.engineering, isEmptyDossier)) {
+      dossier = envelope.engineering!.dossier;
     } else {
       dossier = await researchAndCacheDossier(input, envelope);
     }
-
-    return await pickFitAngle({
+    const picked = await pickFitAngle({
       dossier,
       resumeText: input.resumeText,
       apiKey: input.apiKey,
       targetRole: input.targetRole,
     });
+    return { ...EMPTY_PERSONALIZATION, featureLine: picked.featureLine, fitAngle: picked.fitAngle };
   } catch (err) {
     // Non-fatal: email still drafts without personalization. We log so
     // misconfiguration (e.g. invalid TAVILY_API_KEY → 401 throw) is visible
     // in production rather than silently degrading every email forever.
     console.warn("Personalization failed, drafting without feature/fit:", err);
-    return empty;
+    return EMPTY_PERSONALIZATION;
   }
 }
 
@@ -256,6 +366,8 @@ async function saveDraftOnce(params: {
   attachmentIds: string[];
   featureLine: string | null;
   fitAngle: string | null;
+  gtmTriggerLine: string | null;
+  gtmProofOfMotion: string | null;
   generationKind: "verbatim" | "template" | "ai" | "fallback";
 }): Promise<ExistingDraft> {
   const lockKey = draftLockKey(params.savedLeadId, params.savedCustomContactId);
@@ -269,6 +381,8 @@ async function saveDraftOnce(params: {
         attachmentIds: params.attachmentIds,
         featureLine: params.featureLine,
         fitAngle: params.fitAngle,
+        gtmTriggerLine: params.gtmTriggerLine,
+        gtmProofOfMotion: params.gtmProofOfMotion,
         generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
@@ -290,6 +404,8 @@ async function saveDraftOnce(params: {
         attachmentIds: params.attachmentIds,
         featureLine: params.featureLine,
         fitAngle: params.fitAngle,
+        gtmTriggerLine: params.gtmTriggerLine,
+        gtmProofOfMotion: params.gtmProofOfMotion,
         generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
@@ -422,6 +538,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           senderName: profile.senderName,
           featureLine: fit.featureLine,
           fitAngle: fit.fitAngle,
+          triggerLine: fit.triggerLine,
+          proofOfMotion: fit.proofOfMotion,
         }
       : {
           kind: "template",
@@ -434,6 +552,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           apiKey: profile.apiKey,
           featureLine: fit.featureLine,
           fitAngle: fit.fitAngle,
+          triggerLine: fit.triggerLine,
+          proofOfMotion: fit.proofOfMotion,
           targetRole: targetRole as RoleFamily | null,
         }
     : {
@@ -447,6 +567,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
         apiKey: profile.apiKey,
         featureLine: fit.featureLine,
         fitAngle: fit.fitAngle,
+        triggerLine: fit.triggerLine,
+        proofOfMotion: fit.proofOfMotion,
         targetRole: targetRole as RoleFamily | null,
       };
 
@@ -480,10 +602,14 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
       body: draft.body,
       attachmentIds,
       // Capture what was actually fed into the draft. fit values reflect what
-      // pickFitAngle returned (or null on NONE / disabled). generationKind
-      // reflects the path that ran — fallback wins if the primary path threw.
+      // the role's picker returned (or null on NONE / disabled / wrong role).
+      // generationKind reflects the path that ran — fallback wins if the
+      // primary path threw. Only one role's pair is populated per row
+      // by construction — the orchestrator branches in resolvePersonalization.
       featureLine: fit.featureLine,
       fitAngle: fit.fitAngle,
+      gtmTriggerLine: fit.triggerLine,
+      gtmProofOfMotion: fit.proofOfMotion,
       generationKind: fallback ? "fallback" : draftInput.kind,
     });
     emailId = saved.id;

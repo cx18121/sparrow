@@ -13,6 +13,8 @@ const {
   mockResearchCompanyDossier,
   mockPickFitAngle,
   mockResearchFitAngle,
+  mockResearchCompanyDossierGtm,
+  mockPickGtmAngle,
   MockProfileError,
 } = vi.hoisted(() => {
   const mockPrisma = {
@@ -35,6 +37,10 @@ const {
   const mockResearchCompanyDossier = vi.fn();
   const mockPickFitAngle = vi.fn();
   const mockResearchFitAngle = vi.fn();
+  // ADR-0005 slice 2: GTM pipeline mocks. The orchestrator dispatches to
+  // these when targetRole === 'gtm'; eng/product/null still hit the eng pair.
+  const mockResearchCompanyDossierGtm = vi.fn();
+  const mockPickGtmAngle = vi.fn();
 
   // ProfileError must be defined inside vi.hoisted() so the vi.mock() factory
   // (which is hoisted to the top of the file) can reference it safely.
@@ -55,6 +61,8 @@ const {
     mockResearchCompanyDossier,
     mockPickFitAngle,
     mockResearchFitAngle,
+    mockResearchCompanyDossierGtm,
+    mockPickGtmAngle,
     MockProfileError,
   };
 });
@@ -90,6 +98,11 @@ vi.mock("../lib/ai/research-fit-angle.js", async () => {
     researchCompanyDossier: mockResearchCompanyDossier,
     researchCompanyDossierHybrid: mockResearchCompanyDossier,
     pickFitAngle: mockPickFitAngle,
+    // ADR-0005 slice 2: GTM path is mocked independently so tests can
+    // assert dispatch (eng vs gtm) on the same orchestrator under different
+    // targetRole values.
+    researchCompanyDossierGtmHybrid: mockResearchCompanyDossierGtm,
+    pickGtmAngle: mockPickGtmAngle,
   };
 });
 
@@ -493,6 +506,15 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     // Default the cache-write re-read (ADR-0005 cross-role defense) to a
     // miss; specific tests that exercise the re-read override this.
     mockPrisma.company.findUnique.mockResolvedValue(null);
+    // ADR-0005 slice 2 defaults for the GTM pipeline. Eng-path tests
+    // don't hit these but they need to exist so the imports resolve.
+    mockResearchCompanyDossierGtm.mockResolvedValue({
+      summary: "",
+      triggers: [],
+      recentMoves: [],
+      marketSignals: [],
+    });
+    mockPickGtmAngle.mockResolvedValue({ triggerLine: null, proofOfMotion: null });
   });
 
   it("uses cached dossier from Company.researchDossier when fresh (< 30 days old)", async () => {
@@ -687,11 +709,12 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);
 
     // Simulate that mid-research, a GTM call landed and wrote its slot.
+    // Per ADR-0005 slice 2, the gtm slot carries GtmDossier shape.
     const concurrentGtmDossier = {
       summary: "GTM dossier from concurrent write",
-      surfaces: ["new VP Sales hire"],
-      recentLaunches: [],
-      technicalAreas: [],
+      triggers: ["new VP Sales hire"],
+      recentMoves: [],
+      marketSignals: [],
     };
     mockPrisma.company.findUnique.mockResolvedValue({
       researchDossier: {
@@ -729,9 +752,9 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     // its own slot via read-modify-write, never the whole envelope.
     const existingGtmDossier = {
       summary: "GTM-shaped dossier",
-      surfaces: ["recent Series B announcement"],
-      recentLaunches: [],
-      technicalAreas: [],
+      triggers: ["recent Series B announcement"],
+      recentMoves: [],
+      marketSignals: [],
     };
     const lead = makeUserLead({
       company: {
@@ -790,6 +813,69 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     // captured by a separate mockBuildContext spy so omit it too.
     const { apiKey: _key, senderContext: _ctx, ...snapshotInput } = draftInput;
     expect(snapshotInput).toMatchSnapshot("draft input");
+  });
+
+  it("dispatches to the GTM pipeline when workspace targetRole is gtm", async () => {
+    // ADR-0005 slice 2 dispatch contract: when targetRole resolves to
+    // 'gtm', the orchestrator routes to pickGtmAngle (not pickFitAngle),
+    // research goes through the GTM hybrid (not eng hybrid), the GTM cache
+    // slot is written, and the saved Email row populates gtm columns
+    // (not featureLine/fitAngle).
+    mockResolveProfile.mockResolvedValue({
+      ...mockProfile,
+      resumeText: "AE at YC fintech. Closed 6 pilots, $240k ARR.",
+      ws: { targetRole: "gtm" },
+    });
+    const gtmDossier = {
+      summary: "Series B AI SDR, hiring GTM",
+      triggers: ["Series B led by Accel in March 2026"],
+      recentMoves: [],
+      marketSignals: [],
+    };
+    mockResearchCompanyDossierGtm.mockResolvedValue(gtmDossier);
+    mockPickGtmAngle.mockResolvedValue({
+      triggerLine: "Series B led by Accel in March 2026",
+      proofOfMotion: "my pipeline build at the YC fintech",
+    });
+    const lead = makeUserLead({
+      company: { ...makeUserLead().company, researchDossier: null, researchedAt: null },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+    mockPrisma.email.create.mockResolvedValue({ id: "email-gtm-1" });
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1", save: true });
+
+    // Eng pipeline must not be touched.
+    expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
+    expect(mockPickFitAngle).not.toHaveBeenCalled();
+    // GTM pipeline runs end-to-end.
+    expect(mockResearchCompanyDossierGtm).toHaveBeenCalledOnce();
+    expect(mockPickGtmAngle).toHaveBeenCalledOnce();
+    expect(mockPickGtmAngle.mock.calls[0][0].dossier).toEqual(gtmDossier);
+
+    // DraftInput carries GTM personalization, not eng.
+    const draftInput = mockGenerateEmailDraft.mock.calls[0][0];
+    expect(draftInput.featureLine).toBeNull();
+    expect(draftInput.fitAngle).toBeNull();
+    expect(draftInput.triggerLine).toBe("Series B led by Accel in March 2026");
+    expect(draftInput.proofOfMotion).toBe("my pipeline build at the YC fintech");
+    expect(draftInput.targetRole).toBe("gtm");
+
+    // Cache write lands in the gtm slot (not engineering).
+    const updateArg = mockPrisma.company.update.mock.calls[0][0];
+    expect(updateArg.data.researchDossier.gtm).toEqual({
+      dossier: gtmDossier,
+      researchedAt: expect.any(Date),
+    });
+    expect(updateArg.data.researchDossier.engineering).toBeNull();
+
+    // Saved Email row populates gtm* columns, not featureLine/fitAngle.
+    const emailArg = mockPrisma.email.create.mock.calls[0][0];
+    expect(emailArg.data.gtmTriggerLine).toBe("Series B led by Accel in March 2026");
+    expect(emailArg.data.gtmProofOfMotion).toBe("my pipeline build at the YC fintech");
+    expect(emailArg.data.featureLine).toBeNull();
+    expect(emailArg.data.fitAngle).toBeNull();
   });
 
   it("custom contact path skips dossier + pick entirely", async () => {
