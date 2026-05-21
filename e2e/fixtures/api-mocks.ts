@@ -149,6 +149,185 @@ export async function createTestTemplate(page: Page, overrides: Record<string, u
   return resp.json()
 }
 
+// ─── Direct DB seeding (admin Supabase client, bypasses API auth) ────────────
+
+// Domain prefix that marks a Company row as test-owned. Cleanup uses this to
+// delete only e2e Companies, leaving production-style rows alone if any are
+// in the local DB.
+const E2E_COMPANY_DOMAIN_PREFIX = 'e2e-'
+
+// Generates a cuid-shaped id locally. Direct REST inserts via the Supabase
+// admin client bypass Prisma's @default(cuid()) behavior, so we have to
+// emit the id ourselves. Shape doesn't have to be a real cuid — it just
+// needs to be a unique string that Prisma will accept as a String @id.
+function localCuid(prefix = 'c'): string {
+  return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * Seeds a verbatim Email row + its Company (with role-shaped envelope
+ * dossier) + UserLead linking them to the user. Bypasses the
+ * /api/emails/generate path so we can pin exactly which role columns are
+ * populated — necessary for testing the AnglePicker (which discriminates
+ * role from the populated column) and the partial-personalization warning
+ * (which fires when one half of the role's pair is null).
+ *
+ * Returns { emailId, companyId, userLeadId }. Cleanup is handled by
+ * cleanupTestData (deletes the Company by its e2e-prefixed domain).
+ */
+export interface SeedDraftOptions {
+  userId: string
+  role: 'eng' | 'gtm' | 'ops'
+  // Which half of the role's (company-side, candidate-side) pair to leave
+  // null. `both` populates both (fully personalized — no warning fires).
+  // `candidate` is the most common partial-failure case (picker emitted the
+  // company-side line but not the candidate side).
+  partial?: 'company' | 'candidate' | 'both'
+  companyName?: string
+  // Body should reference the role's merge tags. The seed substitutes the
+  // values that are non-null so the rendered body matches what the server
+  // would have shipped post-dropEmptyTagParagraphs.
+  bodyTemplate?: string
+  // Optional campaign to attach this draft to via CampaignLead. Required
+  // for tests that navigate to /campaigns/:id/drafts — the workspace
+  // queries filter by campaignLeads.some({ campaignId }).
+  campaignId?: string
+}
+
+export interface SeededDraft {
+  emailId: string
+  companyId: string
+  userLeadId: string
+}
+
+export async function createTestDraft(
+  page: Page,
+  opts: SeedDraftOptions,
+): Promise<SeededDraft> {
+  const admin = createClient(LOCAL_SUPABASE_URL, SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const partial = opts.partial ?? 'both'
+  const companyName = opts.companyName ?? 'Acme E2E'
+  // Per-test unique domain so seeded Companies don't collide across tests.
+  const domain = `${E2E_COMPANY_DOMAIN_PREFIX}${Date.now()}-${Math.floor(Math.random() * 1e6)}.test`
+
+  // Envelope dossier per ADR-0005. Both gtm and operations slots populated
+  // so the picker has options regardless of which role we test against. Eng
+  // surfaces are also included for the eng path.
+  const now = new Date().toISOString()
+  const researchDossier = {
+    engineering: {
+      researchedAt: now,
+      dossier: {
+        summary: 'Eng dossier',
+        surfaces: ['the inference cost optimizer', 'the model router', 'per-tenant cost dashboards'],
+        recentLaunches: [],
+        technicalAreas: ['multi-model routing'],
+      },
+    },
+    gtm: {
+      researchedAt: now,
+      dossier: {
+        summary: 'Series B GTM ramp',
+        triggers: ['raised Series B in March', 'hired VP Sales from Stripe'],
+        recentMoves: ['expanded to EMEA'],
+        marketSignals: ['category leader in dev-tool sales'],
+      },
+    },
+    operations: {
+      researchedAt: now,
+      dossier: {
+        summary: 'Scaling past 200 employees',
+        inflections: ['Series D + AI agent launches', 'new EMEA office opening'],
+        recentHires: ['new VP Engineering'],
+        openRoles: ['Head of People'],
+      },
+    },
+  }
+
+  const companyId = localCuid('co_')
+  const { error: companyErr } = await admin
+    .from('Company')
+    .insert({
+      id: companyId,
+      name: companyName,
+      domain,
+      source: 'e2e',
+      isVerified: true,
+      researchDossier,
+      researchedAt: now,
+      updatedAt: now,
+    })
+  if (companyErr) throw new Error(`[createTestDraft] Company insert failed: ${companyErr.message}`)
+
+  const userLeadId = localCuid('ul_')
+  const { error: leadErr } = await admin
+    .from('UserLead')
+    .insert({ id: userLeadId, userId: opts.userId, companyId, status: 'SAVED', updatedAt: now })
+  if (leadErr) throw new Error(`[createTestDraft] UserLead insert failed: ${leadErr.message}`)
+
+  // Attach the lead to a campaign so the workspace drafts query
+  // (filters by campaignLeads.some) returns this draft.
+  if (opts.campaignId) {
+    // CampaignLead has no updatedAt — only createdAt (auto via @default(now())).
+    const { error: clErr } = await admin
+      .from('CampaignLead')
+      .insert({ id: localCuid('cl_'), campaignId: opts.campaignId, userLeadId })
+    if (clErr) throw new Error(`[createTestDraft] CampaignLead insert failed: ${clErr.message}`)
+  }
+
+  // Compute role-specific column values and a rendered body. Per
+  // dropEmptyTagParagraphs in server/lib/ai/generate-email.ts, any
+  // paragraph anchored on a null tag is removed before persistence — so
+  // the seed mirrors that by including only paragraphs whose tags are
+  // non-null.
+  const companyHalfFilled = partial !== 'company'
+  const candidateHalfFilled = partial !== 'candidate'
+  let role: Record<string, string | null> = {}
+  let bodyParas: string[] = []
+  const subject = `Quick note on ${companyName}`
+
+  if (opts.role === 'eng') {
+    const feature = companyHalfFilled ? 'the inference cost optimizer' : null
+    const fit = candidateHalfFilled ? 'my background' : null
+    role = { featureLine: feature, fitAngle: fit, gtmTriggerLine: null, gtmProofOfMotion: null, opsInflectionLine: null, opsSystemBuilt: null }
+    if (feature) bodyParas.push(`<p>Saw ${companyName} just shipped ${feature}.</p>`)
+    if (fit) bodyParas.push(`<p>For context, ${fit} feels like a stepping stone.</p>`)
+  } else if (opts.role === 'gtm') {
+    const trigger = companyHalfFilled ? 'raised Series B in March' : null
+    const proof = candidateHalfFilled ? 'my mid-market AE work' : null
+    role = { featureLine: null, fitAngle: null, gtmTriggerLine: trigger, gtmProofOfMotion: proof, opsInflectionLine: null, opsSystemBuilt: null }
+    if (trigger) bodyParas.push(`<p>Caught the news on ${trigger}.</p>`)
+    if (proof) bodyParas.push(`<p>For context, ${proof} is the closest analog.</p>`)
+  } else {
+    const inflection = companyHalfFilled ? 'Series D + AI agent launches' : null
+    const system = candidateHalfFilled ? 'my Chief of Staff role' : null
+    role = { featureLine: null, fitAngle: null, gtmTriggerLine: null, gtmProofOfMotion: null, opsInflectionLine: inflection, opsSystemBuilt: system }
+    if (inflection) bodyParas.push(`<p>Noticed ${inflection}.</p>`)
+    if (system) bodyParas.push(`<p>For context, ${system} is the closest analog.</p>`)
+  }
+  const body = opts.bodyTemplate ?? bodyParas.join('')
+
+  const emailId = localCuid('em_')
+  const { error: emailErr } = await admin
+    .from('Email')
+    .insert({
+      id: emailId,
+      userLeadId,
+      subject,
+      body,
+      status: 'draft',
+      attachmentIds: [],
+      generationKind: 'verbatim',
+      updatedAt: now,
+      ...role,
+    })
+  if (emailErr) throw new Error(`[createTestDraft] Email insert failed: ${emailErr.message}`)
+
+  return { emailId, companyId, userLeadId }
+}
+
 /**
  * Deletes all data rows owned by the e2e user directly via the Supabase admin
  * client. Prisma table names (camelCase) map to the DB names used below.
@@ -225,6 +404,14 @@ export async function cleanupTestData(userId: string) {
 
   // Delete user_profiles row (auth-adjacent, managed outside Prisma).
   await admin.from('user_profiles').delete().eq('user_id', userId)
+
+  // Delete e2e-seeded Companies. Companies have no userId (they're shared
+  // across users in production), so we identify test rows by the
+  // E2E_COMPANY_DOMAIN_PREFIX domain pattern that createTestDraft uses.
+  // Order matters: child rows (UserLead/Email/Contact) referencing these
+  // Companies are deleted above by userId; what's left after that are
+  // orphaned Companies, safe to remove.
+  await admin.from('Company').delete().like('domain', `${E2E_COMPANY_DOMAIN_PREFIX}%`)
 }
 
 // ─── External-service mocks only ─────────────────────────────────────────────
