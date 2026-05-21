@@ -1073,6 +1073,14 @@ export default function DraftsTab({
                           <Paperclip size={10} /> {sanitizeAttachmentIds(draft.attachmentIds).length}
                         </span>
                       )}
+                      {tab === 'draft' && draft.generationKind === 'fallback' && (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
+                          title="Research came back empty; this draft is a generic fallback."
+                        >
+                          <AlertCircle size={10} /> Fallback
+                        </span>
+                      )}
                       {tab === 'draft' && (() => {
                         const status = draftReadiness(draft)
                         return (
@@ -1365,6 +1373,21 @@ export default function DraftsTab({
                 </div>
               )
             })()}
+
+            {/* Generic-fallback banner: when generation degraded all the way
+                to the canned fallback template (server returned fallback:true
+                at gen time), the persisted row carries generationKind:
+                'fallback'. At gen time the user saw a toast — surface the
+                same signal here so the draft isn't mistaken for a
+                personalized one if they come back to it later. */}
+            {tab === 'draft' && !editing && preview.generationKind === 'fallback' && (
+              <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <span>
+                  Research came back empty{getCompanyName(preview) ? ` on ${getCompanyName(preview)}` : ''}, so this draft is a generic fallback. Edit it before sending or regenerate once the company has more public signal.
+                </span>
+              </div>
+            )}
 
             {/* Subject */}
             <div>

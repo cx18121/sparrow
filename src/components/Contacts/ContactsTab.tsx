@@ -374,11 +374,11 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
     // Track each row's outcome so the summary can distinguish three states:
     //   ok       — full personalized draft saved
     //   fallback — draft saved but server returned `fallback: true` (generic)
-    //   error    — generation threw; last error surfaces in the summary
+    //   error    — generation threw; failures keep their contact name so the
+    //              summary can name specific rows the user needs to retry.
     let okCount = 0
     let fallbackCount = 0
-    let errorCount = 0
-    let lastError: string | null = null
+    const failures: Array<{ name: string; message: string }> = []
     for (const row of targets) {
       try {
         const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
@@ -398,8 +398,9 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
         if (result.fallback) fallbackCount++
         else okCount++
       } catch (err) {
-        errorCount++
-        lastError = (err as Error)?.message || 'Draft generation failed.'
+        const message = (err as Error)?.message || 'Draft generation failed.'
+        const name = row.name?.trim() || row.email?.trim() || row.companyName?.trim() || 'Unnamed contact'
+        failures.push({ name, message })
       }
       setBulkAction(prev => (prev ? { ...prev, done: prev.done + 1 } : prev))
     }
@@ -407,12 +408,18 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
     setSelectedIds(new Set())
     void members.mutate()
     // Compose a single summary that distinguishes the three states. Order:
-    // saved count → fallback count (warning, still saved) → failures (last error).
+    // saved count → fallback count (warning, still saved) → failures (name
+    // the specific contacts that failed so the user can retry them).
     const saved = okCount + fallbackCount
     const parts: string[] = []
-    if (errorCount > 0) {
+    if (failures.length > 0) {
+      const NAMES_LIMIT = 3
+      const shown = failures.slice(0, NAMES_LIMIT).map(f => f.name)
+      const overflow = failures.length - shown.length
+      const nameList = overflow > 0 ? `${shown.join(', ')} and ${overflow} more` : shown.join(', ')
+      const lastError = failures[failures.length - 1]?.message
       parts.push(`${saved} of ${targets.length} drafts generated`)
-      parts.push(`${errorCount} failed${lastError ? ` (last: ${lastError})` : ''}`)
+      parts.push(`${failures.length} failed (${nameList})${lastError ? ` — last error: ${lastError}` : ''}`)
     } else if (fallbackCount > 0) {
       parts.push(`${targets.length} drafts generated`)
     }
