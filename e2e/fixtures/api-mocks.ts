@@ -94,8 +94,19 @@ export async function signInDemo(page: Page): Promise<{ session: any; userId: st
   await page.getByPlaceholder('••••••••').fill('SparrowE2E2024!')
   await page.getByRole('button', { name: /^Sign in$/i }).click()
 
-  // Wait for the auth heading to disappear — sign-in completed.
-  await page.waitForSelector('h2:has-text("Welcome back")', { state: 'detached', timeout: 15_000 })
+  // Wait for supabase to persist the session to localStorage. This is the
+  // load-bearing signal that subsequent page.goto() calls will pick up the
+  // session on reload. A DOM-element wait (heading detach) is brittle —
+  // the previous selector pinned `h2:has-text("Welcome back")` but the
+  // heading is `<h1>`, so the wait returned immediately and tests raced
+  // the sign-in API call, intermittently bouncing back to /login.
+  await page.waitForFunction(() => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('sb-')) return true
+    }
+    return false
+  }, undefined, { timeout: 15_000 })
 
   const session = { ...tokenData, user: tokenData.user }
 

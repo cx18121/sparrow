@@ -51,28 +51,28 @@ test.describe('Landing route', () => {
     })
 
     test('hero CTA triggers Google OAuth (signInWithOAuth call)', async ({ page }) => {
-      // Patch the OAuth redirect so the test doesn't navigate away — auth-ux
-      // uses the same trick at line 43-56.
-      await page.addInitScript(() => {
-        try {
-          Object.defineProperty(window.location, 'assign', {
-            value: (_url: string) => {},
-            configurable: true,
-            writable: true,
-          })
-        } catch {}
-      })
-
       await page.goto('/')
       const heroCta = page.getByRole('button', { name: /Continue with Google/i }).first()
       await expect(heroCta).toBeVisible({ timeout: 10_000 })
-      // Just clicking is enough — the contract here is "the button is wired
-      // to a handler that doesn't throw." A network-level assertion against
-      // Supabase OAuth would couple to the supabase-js wire format.
+
+      // Stub supabase.auth.signInWithOAuth so the click doesn't actually
+      // redirect off-origin. Patching window.location.assign alone is
+      // insufficient — supabase-js uses window.location.href for the redirect.
+      // Same pattern as auth-ux.spec.ts.
+      await page.evaluate(async () => {
+        const mod =
+          (window as any).__vite_module_cache__?.['src/lib/supabase.ts'] ??
+          (await import('/src/lib/supabase.ts'))
+        if (mod?.supabase?.auth) {
+          mod.supabase.auth.signInWithOAuth = async () => ({
+            data: { provider: 'google', url: '' },
+            error: null,
+          })
+        }
+      })
+
       await heroCta.click()
-      // If the click threw, the test would fail at the assertion above on
-      // re-evaluation. Belt-and-suspenders: confirm the page didn't navigate
-      // off `/` (the page.location.assign patch dropped any redirect).
+      // Confirm the click was wired and the page didn't navigate off `/`.
       await expect(page).toHaveURL(/\/$/)
     })
   })

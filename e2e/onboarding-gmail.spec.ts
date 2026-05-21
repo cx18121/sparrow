@@ -45,8 +45,15 @@ async function signInNeedsOnboarding(page: import('@playwright/test').Page) {
   await page.getByPlaceholder('••••••••').fill('SparrowE2E2024!')
   await page.getByRole('button', { name: /^Sign in$/i }).click()
 
-  // Wait for the auth form to disappear (sign-in completed).
-  await page.waitForSelector('h2:has-text("Welcome back")', { state: 'detached', timeout: 15_000 })
+  // Wait for supabase to persist the session — same pattern as signInDemo.
+  // (Heading-based wait is brittle because the heading is h1, not h2.)
+  await page.waitForFunction(() => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('sb-')) return true
+    }
+    return false
+  }, undefined, { timeout: 15_000 })
 
   // Get userId from the session stored by Supabase JS client.
   const userId = await page.evaluate(() => {
