@@ -28,13 +28,16 @@ export { GENERIC_FALLBACK_SUBJECT, GENERIC_FALLBACK_BODY }
 // produced them — substituted as empty strings otherwise so verbatim
 // templates don't render literal '{{feature_line}}' to the recipient.
 // Personalization fields a draft can carry, role-shaped per ADR-0005.
-// eng/product fills feature/fit; gtm fills trigger/proof. Only one pair is
-// non-null per draft, selected by the campaign's targetRole upstream.
+// eng/product fills feature/fit; gtm fills trigger/proof; ops fills
+// inflection/system. Only one pair is non-null per draft, selected by
+// the campaign's targetRole upstream.
 interface AiPersonalization {
   featureLine?: string | null
   fitAngle?: string | null
   triggerLine?: string | null
   proofOfMotion?: string | null
+  inflectionLine?: string | null
+  systemBuilt?: string | null
 }
 
 export function substituteVariables(
@@ -52,6 +55,8 @@ export function substituteVariables(
   const fitAngle = ai?.fitAngle ?? ''
   const triggerLine = ai?.triggerLine ?? ''
   const proofOfMotion = ai?.proofOfMotion ?? ''
+  const inflectionLine = ai?.inflectionLine ?? ''
+  const systemBuilt = ai?.systemBuilt ?? ''
   return text
     .replace(/\{\{first_name\}\}/g, firstName)
     .replace(/\{\{firstName\}\}/g, firstName)
@@ -71,6 +76,10 @@ export function substituteVariables(
     .replace(/\{\{triggerLine\}\}/g, triggerLine)
     .replace(/\{\{proof_of_motion\}\}/g, proofOfMotion)
     .replace(/\{\{proofOfMotion\}\}/g, proofOfMotion)
+    .replace(/\{\{inflection_line\}\}/g, inflectionLine)
+    .replace(/\{\{inflectionLine\}\}/g, inflectionLine)
+    .replace(/\{\{system_built\}\}/g, systemBuilt)
+    .replace(/\{\{systemBuilt\}\}/g, systemBuilt)
 }
 
 // Strip dangling separators and whitespace left behind when a merge tag
@@ -113,13 +122,17 @@ function dropEmptyTagParagraphs(
   const fitEmpty = !ai?.fitAngle
   const triggerEmpty = !ai?.triggerLine
   const proofEmpty = !ai?.proofOfMotion
-  if (!featureEmpty && !fitEmpty && !triggerEmpty && !proofEmpty) return body
+  const inflectionEmpty = !ai?.inflectionLine
+  const systemEmpty = !ai?.systemBuilt
+  if (!featureEmpty && !fitEmpty && !triggerEmpty && !proofEmpty && !inflectionEmpty && !systemEmpty) return body
 
   const shouldDrop = (chunk: string) => {
     if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(chunk)) return true
     if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(chunk)) return true
     if (triggerEmpty && /\{\{(trigger_line|triggerLine)\}\}/.test(chunk)) return true
     if (proofEmpty && /\{\{(proof_of_motion|proofOfMotion)\}\}/.test(chunk)) return true
+    if (inflectionEmpty && /\{\{(inflection_line|inflectionLine)\}\}/.test(chunk)) return true
+    if (systemEmpty && /\{\{(system_built|systemBuilt)\}\}/.test(chunk)) return true
     return false
   }
 
@@ -146,6 +159,8 @@ function buildTemplateSkeleton(input: TemplateDraftInput): string {
     fitAngle: input.fitAngle ?? null,
     triggerLine: input.triggerLine ?? null,
     proofOfMotion: input.proofOfMotion ?? null,
+    inflectionLine: input.inflectionLine ?? null,
+    systemBuilt: input.systemBuilt ?? null,
   }
   return stripPlaceholders(substituteVariables(
     dropEmptyTagParagraphs(input.body, ai),
@@ -180,6 +195,8 @@ function buildTemplatePrompt(input: TemplateDraftInput, skeleton = buildTemplate
     input.fitAngle ? `- Resume angle: "${input.fitAngle}"` : null,
     input.triggerLine ? `- Recent company trigger: "${input.triggerLine}"` : null,
     input.proofOfMotion ? `- Candidate proof of motion: "${input.proofOfMotion}"` : null,
+    input.inflectionLine ? `- Operational inflection at company: "${input.inflectionLine}"` : null,
+    input.systemBuilt ? `- Candidate system built: "${input.systemBuilt}"` : null,
   ].filter(Boolean)
   const personalizationNote =
     personalizationLines.length > 0
@@ -299,6 +316,8 @@ function draftVerbatim(input: VerbatimDraftInput): EmailDraft {
     fitAngle: input.fitAngle ?? null,
     triggerLine: input.triggerLine ?? null,
     proofOfMotion: input.proofOfMotion ?? null,
+    inflectionLine: input.inflectionLine ?? null,
+    systemBuilt: input.systemBuilt ?? null,
   }
   const subject = buildSubjectLine(input.subjectTemplate, input.contact, input.senderName, input.company, ai)
   const body = substituteVariables(dropEmptyTagParagraphs(input.body, ai), input.contact, input.senderName, input.company, ai)
@@ -344,6 +363,12 @@ function buildPrompt(input: AiDraftInput): string {
       : null,
     input.proofOfMotion
       ? `- Candidate proof of motion: "${input.proofOfMotion}". Use it as the credibility bridge — what the sender has done that maps to this trigger.`
+      : null,
+    input.inflectionLine
+      ? `- Operational inflection at the company: "${input.inflectionLine}". Lead the opener with this as the stage match — why operational help is needed now.`
+      : null,
+    input.systemBuilt
+      ? `- Candidate system built: "${input.systemBuilt}". Use it as the credibility bridge — the operational system the sender built that handles this inflection.`
       : null,
   ].filter(Boolean)
   const personalizationNote =

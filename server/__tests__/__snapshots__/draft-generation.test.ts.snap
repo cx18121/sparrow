@@ -17,11 +17,13 @@ exports[`generateDraft — dossier cache + per-user fit-angle pick > characteriz
   },
   "featureLine": "the agent eval harness",
   "fitAngle": "my multi-agent eval project",
+  "inflectionLine": null,
   "interestHook": null,
   "kind": "ai",
   "proofOfMotion": null,
   "senderName": "Alex",
   "subjectTemplate": null,
+  "systemBuilt": null,
   "targetRole": null,
   "triggerLine": null,
 }

@@ -3,14 +3,18 @@ import { generateEmailDraft } from "./ai/generate-email.js";
 import {
   researchCompanyDossierHybrid,
   researchCompanyDossierGtmHybrid,
+  researchCompanyDossierOpsHybrid,
   pickFitAngle,
   pickGtmAngle,
+  pickOpsAngle,
   parseCachedDossierEnvelope,
   setDossierSlot,
   isEmptyDossier,
   isEmptyGtmDossier,
+  isEmptyOpsDossier,
   type CompanyDossier,
   type GtmDossier,
+  type OpsDossier,
   type CachedRoleSlot,
   type DossierEnvelope,
 } from "./ai/research-fit-angle.js";
@@ -33,6 +37,7 @@ import { GenerationError } from "./generation-error.js";
 // add inFlightOpsDossier as a third map.
 const inFlightEngDossier = new Map<string, Promise<CompanyDossier>>();
 const inFlightGtmDossier = new Map<string, Promise<GtmDossier>>();
+const inFlightOpsDossier = new Map<string, Promise<OpsDossier>>();
 function inFlightKey(companyId: string, role: PersonalizationInput["targetRole"]): string {
   return `${companyId}:${role ?? "_default"}`;
 }
@@ -231,11 +236,69 @@ async function researchAndCacheGtmDossier(
   return promise;
 }
 
+// Ops analog of researchAndCacheDossier. Hits the company's /careers,
+// /team, /about, /jobs subpages via Exa /contents (no /search arm —
+// org structure is a today-snapshot, not date-bounded). Tavily fallback
+// when /contents whiffs.
+async function researchAndCacheOpsDossier(
+  input: PersonalizationInput,
+  priorEnvelope: DossierEnvelope,
+): Promise<OpsDossier> {
+  const companyId = input.companyId!;
+  const key = inFlightKey(companyId, input.targetRole);
+  const existing = inFlightOpsDossier.get(key);
+  if (existing) return existing;
+
+  const promise = researchCompanyDossierOpsHybrid({
+    company: input.companyInfo,
+    apiKey: input.apiKey,
+    exaApiKey: process.env.EXA_API_KEY?.trim() || null,
+    tavilyApiKey: process.env.TAVILY_API_KEY?.trim() || null,
+  })
+    .then(async dossier => {
+      // Same cross-role re-read defense as the eng + GTM paths.
+      const now = new Date();
+      const refetched = await prisma.company
+        .findUnique({
+          where: { id: companyId },
+          select: { researchDossier: true, researchedAt: true },
+        })
+        .catch(err => {
+          console.warn("Failed to re-read envelope before ops cache write:", err);
+          return null;
+        });
+      const currentEnvelope = refetched
+        ? parseCachedDossierEnvelope(refetched.researchDossier ?? null, refetched.researchedAt ?? null)
+        : priorEnvelope;
+      const nextEnvelope = setDossierSlot(currentEnvelope, 'operations', {
+        dossier,
+        researchedAt: now,
+      });
+      await prisma.company
+        .update({
+          where: { id: companyId },
+          data: { researchDossier: nextEnvelope as object, researchedAt: now },
+        })
+        .catch(err => {
+          console.warn("Failed to cache ops company dossier:", err);
+        });
+      return dossier;
+    })
+    .finally(() => {
+      inFlightOpsDossier.delete(key);
+    });
+
+  inFlightOpsDossier.set(key, promise);
+  return promise;
+}
+
 interface ResolvedPersonalization {
   featureLine: string | null;
   fitAngle: string | null;
   triggerLine: string | null;
   proofOfMotion: string | null;
+  inflectionLine: string | null;
+  systemBuilt: string | null;
 }
 
 const EMPTY_PERSONALIZATION: ResolvedPersonalization = {
@@ -243,6 +306,8 @@ const EMPTY_PERSONALIZATION: ResolvedPersonalization = {
   fitAngle: null,
   triggerLine: null,
   proofOfMotion: null,
+  inflectionLine: null,
+  systemBuilt: null,
 };
 
 async function resolvePersonalization(
@@ -275,9 +340,23 @@ async function resolvePersonalization(
       return { ...EMPTY_PERSONALIZATION, triggerLine: picked.triggerLine, proofOfMotion: picked.proofOfMotion };
     }
 
+    if (input.targetRole === 'operations') {
+      let dossier: OpsDossier;
+      if (slotIsFresh(envelope.operations, isEmptyOpsDossier)) {
+        dossier = envelope.operations!.dossier;
+      } else {
+        dossier = await researchAndCacheOpsDossier(input, envelope);
+      }
+      const picked = await pickOpsAngle({
+        dossier,
+        resumeText: input.resumeText,
+        apiKey: input.apiKey,
+      });
+      return { ...EMPTY_PERSONALIZATION, inflectionLine: picked.inflectionLine, systemBuilt: picked.systemBuilt };
+    }
+
     // Engineering + product + null all use the eng pipeline per ADR-0005
-    // decision 1. Operations stays on this path too until slice 3 ships
-    // — degrades gracefully via the voice steer shipped on 2026-05-20.
+    // decision 1.
     let dossier: CompanyDossier;
     if (slotIsFresh(envelope.engineering, isEmptyDossier)) {
       dossier = envelope.engineering!.dossier;
@@ -368,6 +447,8 @@ async function saveDraftOnce(params: {
   fitAngle: string | null;
   gtmTriggerLine: string | null;
   gtmProofOfMotion: string | null;
+  opsInflectionLine: string | null;
+  opsSystemBuilt: string | null;
   generationKind: "verbatim" | "template" | "ai" | "fallback";
 }): Promise<ExistingDraft> {
   const lockKey = draftLockKey(params.savedLeadId, params.savedCustomContactId);
@@ -383,6 +464,8 @@ async function saveDraftOnce(params: {
         fitAngle: params.fitAngle,
         gtmTriggerLine: params.gtmTriggerLine,
         gtmProofOfMotion: params.gtmProofOfMotion,
+        opsInflectionLine: params.opsInflectionLine,
+        opsSystemBuilt: params.opsSystemBuilt,
         generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
@@ -406,6 +489,8 @@ async function saveDraftOnce(params: {
         fitAngle: params.fitAngle,
         gtmTriggerLine: params.gtmTriggerLine,
         gtmProofOfMotion: params.gtmProofOfMotion,
+        opsInflectionLine: params.opsInflectionLine,
+        opsSystemBuilt: params.opsSystemBuilt,
         generationKind: params.generationKind,
       },
       select: { id: true, subject: true, body: true },
@@ -540,6 +625,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           fitAngle: fit.fitAngle,
           triggerLine: fit.triggerLine,
           proofOfMotion: fit.proofOfMotion,
+          inflectionLine: fit.inflectionLine,
+          systemBuilt: fit.systemBuilt,
         }
       : {
           kind: "template",
@@ -554,6 +641,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           fitAngle: fit.fitAngle,
           triggerLine: fit.triggerLine,
           proofOfMotion: fit.proofOfMotion,
+          inflectionLine: fit.inflectionLine,
+          systemBuilt: fit.systemBuilt,
           targetRole: targetRole as RoleFamily | null,
         }
     : {
@@ -569,6 +658,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
         fitAngle: fit.fitAngle,
         triggerLine: fit.triggerLine,
         proofOfMotion: fit.proofOfMotion,
+        inflectionLine: fit.inflectionLine,
+        systemBuilt: fit.systemBuilt,
         targetRole: targetRole as RoleFamily | null,
       };
 
@@ -610,6 +701,8 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
       fitAngle: fit.fitAngle,
       gtmTriggerLine: fit.triggerLine,
       gtmProofOfMotion: fit.proofOfMotion,
+      opsInflectionLine: fit.inflectionLine,
+      opsSystemBuilt: fit.systemBuilt,
       generationKind: fallback ? "fallback" : draftInput.kind,
     });
     emailId = saved.id;

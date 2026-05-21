@@ -7,6 +7,8 @@ import {
   setDossierSlot,
   parseGtmDossier,
   isEmptyGtmDossier,
+  parseOpsDossier,
+  isEmptyOpsDossier,
   type CompanyDossier,
 } from "../lib/ai/research-fit-angle.js";
 
@@ -427,12 +429,15 @@ describe("getDossierSlot — role → slot mapping (ADR-0005)", () => {
   });
 
   it("maps gtm to the gtm slot and operations to the operations slot", () => {
-    // Each slot must carry its role-shaped dossier per ADR-0005 slice 2.
+    // Each slot carries its role-shaped dossier per ADR-0005.
     const gtmSlot = {
       dossier: { summary: "g", triggers: ["t"], recentMoves: [], marketSignals: [] },
       researchedAt: new Date(),
     };
-    const opsSlot = { dossier: {} as unknown, researchedAt: new Date() };
+    const opsSlot = {
+      dossier: { summary: "o", inflections: ["i"], recentHires: [], openRoles: [] },
+      researchedAt: new Date(),
+    };
     const full = { engineering: null, gtm: gtmSlot, operations: opsSlot };
     expect(getDossierSlot(full, "gtm")).toBe(gtmSlot);
     expect(getDossierSlot(full, "operations")).toBe(opsSlot);
@@ -613,5 +618,98 @@ describe("isEmptyGtmDossier — emptiness predicate (ADR-0005 slice 2)", () => {
     expect(isEmptyGtmDossier({ summary: "", triggers: ["t"], recentMoves: [], marketSignals: [] })).toBe(false);
     expect(isEmptyGtmDossier({ summary: "", triggers: [], recentMoves: ["r"], marketSignals: [] })).toBe(false);
     expect(isEmptyGtmDossier({ summary: "", triggers: [], recentMoves: [], marketSignals: ["m"] })).toBe(false);
+  });
+});
+
+describe("parseOpsDossier — ops dossier validator (ADR-0005 slice 3)", () => {
+  const valid = {
+    summary: "Post-Series-A SaaS, scaling fast",
+    inflections: ["headcount doubling but no Head of People"],
+    recentHires: ["Sara Park as VP Engineering"],
+    openRoles: ["Head of People", "Finance Manager"],
+  };
+
+  it("accepts a well-formed OpsDossier shape", () => {
+    expect(parseOpsDossier(valid)).toEqual(valid);
+  });
+
+  it("returns null when summary is missing or wrong type", () => {
+    expect(parseOpsDossier({ ...valid, summary: undefined })).toBeNull();
+    expect(parseOpsDossier({ ...valid, summary: 42 })).toBeNull();
+  });
+
+  it("returns null when any list field is missing or not a string array", () => {
+    expect(parseOpsDossier({ ...valid, inflections: undefined })).toBeNull();
+    expect(parseOpsDossier({ ...valid, inflections: "no" })).toBeNull();
+    expect(parseOpsDossier({ ...valid, recentHires: [1, 2] })).toBeNull();
+    expect(parseOpsDossier({ ...valid, openRoles: [true] })).toBeNull();
+  });
+
+  it("returns null for null / non-object / array inputs", () => {
+    expect(parseOpsDossier(null)).toBeNull();
+    expect(parseOpsDossier(undefined)).toBeNull();
+    expect(parseOpsDossier("string")).toBeNull();
+    expect(parseOpsDossier([])).toBeNull();
+  });
+
+  it("does not mistake a CompanyDossier (eng) or GtmDossier shape for a valid OpsDossier", () => {
+    // Defensive cross-shape isolation: each parser should reject the
+    // other roles' shapes so the orchestrator cache-misses cleanly when
+    // a slot's stored shape doesn't match what its parser expects.
+    const eng = { summary: "e", surfaces: [], recentLaunches: [], technicalAreas: [] };
+    const gtm = { summary: "g", triggers: [], recentMoves: [], marketSignals: [] };
+    expect(parseOpsDossier(eng)).toBeNull();
+    expect(parseOpsDossier(gtm)).toBeNull();
+  });
+});
+
+describe("parseOpsSlot via parseCachedDossierEnvelope — ops slot validation (ADR-0005 slice 3)", () => {
+  const validOpsDossier = {
+    summary: "scaling",
+    inflections: ["no head of people"],
+    recentHires: [],
+    openRoles: [],
+  };
+  const validIso = new Date("2026-05-01T00:00:00.000Z").toISOString();
+
+  it("parses a well-formed ops slot from envelope JSON", () => {
+    const env = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: null,
+        operations: { dossier: validOpsDossier, researchedAt: validIso },
+      },
+      null,
+    );
+    expect(env.operations?.dossier).toEqual(validOpsDossier);
+    expect(env.operations?.researchedAt.toISOString()).toBe(validIso);
+  });
+
+  it("returns null ops slot when dossier is wrong shape (eng or gtm)", () => {
+    const wrong = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: null,
+        operations: {
+          dossier: { summary: "x", surfaces: ["s"], recentLaunches: [], technicalAreas: [] },
+          researchedAt: validIso,
+        },
+      },
+      null,
+    );
+    expect(wrong.operations).toBeNull();
+  });
+});
+
+describe("isEmptyOpsDossier — emptiness predicate (ADR-0005 slice 3)", () => {
+  it("returns true when all three list fields are empty regardless of summary", () => {
+    expect(isEmptyOpsDossier({ summary: "any", inflections: [], recentHires: [], openRoles: [] })).toBe(true);
+    expect(isEmptyOpsDossier({ summary: "", inflections: [], recentHires: [], openRoles: [] })).toBe(true);
+  });
+
+  it("returns false when any list has content", () => {
+    expect(isEmptyOpsDossier({ summary: "", inflections: ["i"], recentHires: [], openRoles: [] })).toBe(false);
+    expect(isEmptyOpsDossier({ summary: "", inflections: [], recentHires: ["r"], openRoles: [] })).toBe(false);
+    expect(isEmptyOpsDossier({ summary: "", inflections: [], recentHires: [], openRoles: ["o"] })).toBe(false);
   });
 });

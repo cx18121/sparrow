@@ -33,10 +33,11 @@ interface DraftBase {
 
 // Personalization payload threaded into every non-fallback draft mode.
 // Per ADR-0005 each role family populates its own pair: eng/product fills
-// featureLine + fitAngle; gtm fills triggerLine + proofOfMotion. Only
-// one role's pair is non-null per call, selected by targetRole upstream.
-// Flat optional fields rather than a discriminated union — same YAGNI
-// logic the ADR used to reject a generic {hook, pitch} type.
+// featureLine + fitAngle; gtm fills triggerLine + proofOfMotion; ops fills
+// inflectionLine + systemBuilt. Only one role's pair is non-null per call,
+// selected by targetRole upstream. Flat optional fields rather than a
+// discriminated union — same YAGNI logic the ADR used to reject a
+// generic {hook, pitch} type.
 interface PersonalizationFields {
   // Engineering + product personalization
   featureLine?: string | null
@@ -44,6 +45,9 @@ interface PersonalizationFields {
   // GTM personalization
   triggerLine?: string | null
   proofOfMotion?: string | null
+  // Operations personalization
+  inflectionLine?: string | null
+  systemBuilt?: string | null
 }
 
 // Template mode — the template body is a merge-tag skeleton. Variables are
