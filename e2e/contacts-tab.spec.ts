@@ -266,4 +266,119 @@ test.describe('Contacts sub-tab', () => {
     await page.getByLabel(/^Name$/).fill('Test Contact')
     await expect(page.getByLabel(/^Name$/)).toHaveValue('Test Contact')
   })
+
+  test('single generate surfaces a warning toast when server returns fallback: true', async ({
+    page,
+  }) => {
+    let draftGenerated = false
+    await page.route('**/api/campaign-leads**', route => {
+      const lead = draftGenerated
+        ? { ...SAVED_LEAD, emails: [{ id: 'em_fb', subject: 'Quick intro', status: 'draft' }] }
+        : SAVED_LEAD
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [lead] }),
+      })
+    })
+
+    await page.route('**/api/emails/generate', route => {
+      draftGenerated = true
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          subject: 'Quick intro',
+          body: 'Hi Sarah,',
+          emailId: 'em_fb',
+          fallback: true,
+        }),
+      })
+    })
+
+    await page.goto(`/campaigns/${campaignId}/contacts`)
+    await expect(page.locator('text=/Sarah Chen/').first()).toBeVisible({ timeout: 10_000 })
+    await page.getByRole('button', { name: /Generate draft/i }).click()
+
+    // Draft still saves; the toast warns the result is generic.
+    await expect(page.locator('text=/Draft ready/i')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('status').filter({ hasText: /generic fallback/i })).toBeVisible({
+      timeout: 5_000,
+    })
+  })
+
+  test('bulk generate summary reports fallback and failure counts separately', async ({
+    page,
+  }) => {
+    const SAVED_LEAD_2 = {
+      ...SAVED_LEAD,
+      id: 'lead_contacts_2',
+      contactId: 'contact_contacts_2',
+      contact: {
+        id: 'contact_contacts_2',
+        name: 'Devon Park',
+        email: 'devon@acme.test',
+        title: 'CTO',
+      },
+    }
+    const SAVED_LEAD_3 = {
+      ...SAVED_LEAD,
+      id: 'lead_contacts_3',
+      contactId: 'contact_contacts_3',
+      contact: {
+        id: 'contact_contacts_3',
+        name: 'Riley Stone',
+        email: 'riley@acme.test',
+        title: 'Eng',
+      },
+    }
+
+    await page.route('**/api/campaign-leads**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [SAVED_LEAD, SAVED_LEAD_2, SAVED_LEAD_3] }),
+      }),
+    )
+
+    // Three outcomes: ok, fallback, 500 error. Order is whatever Playwright
+    // hits — what matters is the final banner string.
+    let call = 0
+    await page.route('**/api/emails/generate', route => {
+      call += 1
+      if (call === 1) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ subject: 'Quick', body: 'Hi', emailId: 'em_ok' }),
+        })
+      }
+      if (call === 2) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ subject: 'Quick intro', body: 'Hi', emailId: 'em_fb', fallback: true }),
+        })
+      }
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Claude unavailable' }),
+      })
+    })
+
+    await page.goto(`/campaigns/${campaignId}/contacts`)
+    await expect(page.locator('text=/Sarah Chen/').first()).toBeVisible({ timeout: 10_000 })
+
+    await page.getByLabel('Select all').check()
+    await page.getByRole('button', { name: /^Generate \(3\)$/ }).click()
+
+    // Wait for the bulk loop to finish, then assert the summary banner
+    // names both the failure count AND the fallback count — old code
+    // collapsed everything into "N of total drafts generated".
+    const banner = page.locator('[role="status"], [role="alert"], .surface-panel').filter({
+      hasText: /failed.*generic fallback|generic fallback.*failed/i,
+    })
+    await expect(banner.first()).toBeVisible({ timeout: 15_000 })
+  })
 })

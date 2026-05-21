@@ -11,6 +11,7 @@ import {
 } from '../../lib/api'
 import { actionKey, createIdempotencyKey, runExclusive } from '../../lib/pendingActions'
 import { useCampaignMembers } from '../../hooks/useCampaignWorkspaceData'
+import { useToast } from '../../contexts/ToastContext'
 import type { EmailStatus, UserLead } from '../../types/api'
 
 interface ContactsTabProps {
@@ -204,6 +205,7 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
     ...(attachmentIds && attachmentIds.length ? { attachmentIds } : {}),
     ...(tone ? { tone } : {}),
   }
+  const { showToast } = useToast()
   const [leads, setLeads] = useState<UserLead[] | null>(null)
   const [customContacts, setCustomContacts] = useState<CustomMember[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -342,6 +344,17 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
         ))
       }
       void members.mutate()
+      // Server returns fallback: true when research returned no signal and
+      // the draft is the generic template (server/lib/ai/prompts.ts
+      // GENERIC_FALLBACK_*). The draft still saves — surface a non-blocking
+      // warning so the user knows it isn't personalized.
+      if (result.fallback) {
+        showToast({
+          type: 'warning',
+          title: 'Draft is a generic fallback',
+          message: `Research on ${row.companyName ?? 'this company'} came back empty. Consider editing before sending.`,
+        })
+      }
     } catch (err) {
       setError((err as Error)?.message || 'Draft generation failed.')
     } finally {
@@ -358,7 +371,14 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
     const targets = selectedNoDraftRows
     if (targets.length === 0) return
     setBulkAction({ kind: 'generate', done: 0, total: targets.length })
-    let succeeded = 0
+    // Track each row's outcome so the summary can distinguish three states:
+    //   ok       — full personalized draft saved
+    //   fallback — draft saved but server returned `fallback: true` (generic)
+    //   error    — generation threw; last error surfaces in the summary
+    let okCount = 0
+    let fallbackCount = 0
+    let errorCount = 0
+    let lastError: string | null = null
     for (const row of targets) {
       try {
         const key = actionKey('draft-save', row.rowKind, row.generateArgs.userLeadId ?? row.generateArgs.customContactId)
@@ -375,18 +395,32 @@ export default function ContactsTab({ campaignId, templateId, attachmentIds, ton
             : contact
           ))
         }
-        succeeded++
-      } catch {
-        // Continue on failure; the partial-success count surfaces in the toast.
+        if (result.fallback) fallbackCount++
+        else okCount++
+      } catch (err) {
+        errorCount++
+        lastError = (err as Error)?.message || 'Draft generation failed.'
       }
       setBulkAction(prev => (prev ? { ...prev, done: prev.done + 1 } : prev))
     }
     setBulkAction(null)
     setSelectedIds(new Set())
     void members.mutate()
-    if (succeeded < targets.length) {
-      setError(`${succeeded} of ${targets.length} drafts generated. The rest failed — try again.`)
+    // Compose a single summary that distinguishes the three states. Order:
+    // saved count → fallback count (warning, still saved) → failures (last error).
+    const saved = okCount + fallbackCount
+    const parts: string[] = []
+    if (errorCount > 0) {
+      parts.push(`${saved} of ${targets.length} drafts generated`)
+      parts.push(`${errorCount} failed${lastError ? ` (last: ${lastError})` : ''}`)
+    } else if (fallbackCount > 0) {
+      parts.push(`${targets.length} drafts generated`)
     }
+    if (fallbackCount > 0) {
+      const noun = fallbackCount === 1 ? 'draft is a generic fallback' : `drafts are generic fallbacks`
+      parts.push(`${fallbackCount} ${noun} — research came back empty`)
+    }
+    if (parts.length > 0) setError(parts.join('. ') + '.')
   }
 
   const handleBulkRemove = async () => {
