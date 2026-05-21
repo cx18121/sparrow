@@ -46,6 +46,38 @@ Historical phase documents under `.planning/phases/` and `.planning/research/` a
    - Continue verified company enrichment where ROI is clear.
    - Avoid reopening headcount filtering unless the product strategy changes.
 
+## Scoped, not started
+
+These were scoped during prior conversations but no implementation has begun. Each is concrete enough to pick up cold.
+
+### Exa bulk discovery (`scripts/discover-exa-deep.ts`)
+
+Goal: add thousands of net-new long-tail companies — ones not in any VC portfolio. Closes the "easier way to find non-VC-backed companies" ask.
+
+Two strategies, ranked by net-new yield:
+1. **`findSimilar` from existing DB rows.** Sample ~500 verified companies biased toward low-coverage clusters (regional non-US, non-VC sources like `hn-hiring` / `thehub`). For each, Exa `findSimilar` → dedupe by domain → ingest net-new via `runIngestor` with `source: exa-discovery`.
+2. **List-page mining via generic Exa search.** ~100 queries like `"AI startups to watch 2026"`. Returns curation articles; for each top result, fetch `/contents`, Haiku-extract company names + URLs, dedupe, ingest.
+
+**Don't use:** more topical `category=company` queries — empirically overlaps too heavily with VC portfolio companies. The current `ingest-exa-discovery.ts` pattern is exhausted for popular topics.
+
+Cap total Exa spend at ~10k credits. Target net-new count: ~12k to double the DB to ~25k verified. References: `scripts/ingest-exa-discovery.ts`, `scripts/_lib/ingestor.ts`, `scripts/ingest-yc.ts`. Read those + 2 other adapters before writing.
+
+### Self-administration dashboard
+
+Motivation: Charlie giving specific users higher send limits + tracking own usage. Not multi-tenant admin.
+
+Two independent layers:
+- **Usage tracking** (~1-2 days): per-user drafts generated, emails sent today/month, Apollo credits used (`DailyQuota`), Exa credits used, last active, Gmail connected, current sending limit, campaigns count. Read-only.
+- **Per-user send-limit override** (~2-3 days): `normalizeSendingLimits` hardcodes `maxDaily: 500`. Override field lives at user/profile level (not in `workspace_config` so user can't self-edit). Apply AFTER normalization so override is source of truth when present.
+
+Add a `role: 'admin' | 'user'` enum on `user_profiles` (the table `parseWorkspaceConfig` reads), middleware to gate `/admin/*`, seed Charlie as admin via one-off SQL.
+
+## Housekeeping
+
+- **Server-side tsc**: `npm run build` / pre-push only typechecks `src/`. Two pre-existing errors in `server/__tests__/campaigns-route.test.ts` (Vitest two-arg generic post-upgrade) and `server/lib/supabaseAdmin.ts` (`message` on `never`) go uncaught. Either extend the build to cover `server/` or fix the two.
+- **Untracked `scripts/enrich-industries-exa.ts`**: appeared in `git status` during role-targeting work, not authored as part of it. Confirm origin + commit or remove.
+- **e2e suite-level isolation flake**: tests pass alone but the second-and-after test in any spec file bounces to `/login`. Appears to be `page.route` mocks leaking across page contexts. Pre-existing across the suite; surfaces every time we add multi-test files. Worth a focused debug session.
+
 ## Deferred
 
 - Reply detection and follow-up automation.
@@ -57,4 +89,4 @@ Historical phase documents under `.planning/phases/` and `.planning/research/` a
 - BullMQ/Redis worker architecture.
 
 ---
-*Last updated: 2026-05-05*
+*Last updated: 2026-05-21*
