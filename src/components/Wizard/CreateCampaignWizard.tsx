@@ -130,6 +130,7 @@ export default function CreateCampaignWizard({
   const [hydrated, setHydrated] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitChoice, setSubmitChoice] = useState<'active' | 'paused' | null>(null)
+  const dialogRef = useRef<HTMLDivElement | null>(null)
 
   // Hydrate from localStorage on open. Reset everything when the wizard closes
   // so the next open isn't haunted by an in-flight submission's state.
@@ -165,6 +166,46 @@ export default function CreateCampaignWizard({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open, saving, submitChoice, onCancel])
+
+  // Tab trap: the wizard is full-screen but rendered in a portal, so without
+  // this Tab can still reach focusables in the underlying page (sidebar,
+  // home content). Wrap Tab from the last focusable back to the first
+  // (and Shift+Tab from first to last). Step-level focus is owned by each
+  // step's own effect — we only intervene at the boundaries.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const root = dialogRef.current
+      if (!root) return
+      const focusable = Array.from(root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter(el => !el.hasAttribute('hidden') && el.getAttribute('aria-hidden') !== 'true')
+      if (focusable.length === 0) {
+        e.preventDefault()
+        root.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      const insideDialog = active ? root.contains(active) : false
+      if (!insideDialog) {
+        e.preventDefault()
+        first.focus()
+        return
+      }
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
 
   if (!open) return null
 
