@@ -312,6 +312,7 @@ export default function TemplatesTab({ workspaceConfig }) {
     if (!selectedTpl) return Promise.resolve(true)
     if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return Promise.resolve(true)
     setSaveState('saving')
+    setPendingDirty(false)
     return onUpdate({ id: next.id, subject: next.subject, body: next.body })
       .then(() => {
         const latest = draftRef.current
@@ -334,6 +335,10 @@ export default function TemplatesTab({ workspaceConfig }) {
   const scheduleFlush = (next) => {
     draftDirtyRef.current = true
     setDraft(next)
+    // Flag the unload guard immediately — saveState only flips to 'saving'
+    // after the 500ms debounce, so without `pendingDirty` typing + closing
+    // the tab inside the debounce window would slip past the guard.
+    setPendingDirty(true)
     // Reset error state once the user resumes editing so the pill doesn't
     // claim failure indefinitely while they type a fix.
     setSaveState(s => (s === 'error' ? 'idle' : s))
@@ -343,7 +348,11 @@ export default function TemplatesTab({ workspaceConfig }) {
 
   // Guard the tab from `beforeunload` while a save is pending or the draft
   // is dirty — without this, navigation silently drops unsaved edits.
-  useUnsavedChanges(saveState === 'saving' || saveState === 'error')
+  // `saveState === 'idle'` while the debounce timer (500ms) hasn't fired
+  // yet, so we also flag the dirty-but-not-yet-saving window via `pendingDirty`.
+  // Otherwise a user typing and closing the tab within 500ms gets no prompt.
+  const [pendingDirty, setPendingDirty] = useState(false)
+  useUnsavedChanges(pendingDirty || saveState === 'saving' || saveState === 'error')
 
   const allFiltered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) || (t.subject || '').toLowerCase().includes(search.toLowerCase())
@@ -367,13 +376,18 @@ export default function TemplatesTab({ workspaceConfig }) {
   }
 
   // Flush pending auto-save for the current template, then switch to another.
-  // If the flush fails, keep the user on the current template so their edit
-  // isn't silently dropped when the next effect re-syncs `draft` from
-  // `selectedId`. flushDraft already surfaced an error toast.
+  // Guard on `draftDirtyRef.current` only — the previous `flushTimerRef`
+  // guard missed the case where an earlier save failed (timer cleared,
+  // dirty ref still true): switchTemplate would skip the flush and the
+  // next effect would overwrite the unsaved edit. If the flush fails now,
+  // keep the user on the current template (the error toast and the inline
+  // "Couldn't save — retry" indicator already surface the failure).
   const switchTemplate = async (id: string, view: string = 'template') => {
-    if (flushTimerRef.current && draftDirtyRef.current) {
-      clearTimeout(flushTimerRef.current)
-      flushTimerRef.current = null
+    if (draftDirtyRef.current) {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current)
+        flushTimerRef.current = null
+      }
       const ok = await flushDraft()
       if (!ok) return
     }

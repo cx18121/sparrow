@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check, X, Target, RefreshCw, Loader2, FileText, UploadCloud, Paperclip, AlertCircle,
   LogOut, Mail, Trash2, MessageSquare, Send as SendIcon,
@@ -120,7 +120,7 @@ function ClampedNumberInput({ value, onChange, min, max, onClamp, ...rest }: Cla
 
 // Per-tab forms ---------------------------------------------------------------
 
-function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave: (u: any) => Promise<boolean> }) {
+function ProfileTab({ workspaceConfig, onSave, onDirtyChange }: { workspaceConfig: any; onSave: (u: any) => Promise<boolean>; onDirtyChange?: (dirty: boolean) => void }) {
   const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
   const [saving, setSaving] = useState(false)
@@ -129,6 +129,10 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
   const initial = useMemo(() => JSON.stringify(pickProfileFields(workspaceConfig)), [workspaceConfig])
   const dirty = JSON.stringify(pickProfileFields(form)) !== initial
   useUnsavedChanges(dirty)
+  // Bubble dirty state up so SettingsPage can confirm before in-app
+  // navigation (tab switches). beforeunload only catches tab close.
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   useEffect(() => { setForm(workspaceConfig) }, [workspaceConfig])
 
@@ -298,7 +302,7 @@ function pickProfileFields(c: any) {
   }
 }
 
-function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: any; templates: any[]; onSave: (u: any) => Promise<boolean> }) {
+function SendingTab({ workspaceConfig, templates, onSave, onDirtyChange }: { workspaceConfig: any; templates: any[]; onSave: (u: any) => Promise<boolean>; onDirtyChange?: (dirty: boolean) => void }) {
   const { user } = useAuth()
   const { showToast } = useToast()
   const [form, setForm] = useState(workspaceConfig)
@@ -306,6 +310,8 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
   const initial = useMemo(() => JSON.stringify(pickSendingFields(workspaceConfig)), [workspaceConfig])
   const dirty = JSON.stringify(pickSendingFields(form)) !== initial
   useUnsavedChanges(dirty)
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   useEffect(() => { setForm(workspaceConfig) }, [workspaceConfig])
 
@@ -654,6 +660,18 @@ export default function SettingsPage({
   const { showToast } = useToast()
   const [oauthResult, setOauthResult] = useState<{ kind: 'success' } | { kind: 'error'; message: string } | null>(null)
   const [active, setActive] = useState<TabKey>('profile')
+  // Tracks the active tab's dirty state so switching tabs while unsaved
+  // edits exist can confirm before unmounting the form. Only the active
+  // tab is mounted at a time, so one flag is enough.
+  const activeDirtyRef = useRef(false)
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    activeDirtyRef.current = dirty
+  }, [])
+  const handleTabChange = useCallback((next: TabKey) => {
+    if (activeDirtyRef.current && !window.confirm('You have unsaved changes. Switch tabs and lose them?')) return
+    activeDirtyRef.current = false
+    setActive(next)
+  }, [])
 
   // The Gmail OAuth callback at /api/google/callback redirects back here with
   // either ?google_connected=1 (success) or ?google_error=<code> (failure).
@@ -725,7 +743,7 @@ export default function SettingsPage({
         )}
 
         <div className="border-b border-warm-200 px-3 sm:px-7">
-          <TabBar active={active} onChange={setActive} status={tabStatus} />
+          <TabBar active={active} onChange={handleTabChange} status={tabStatus} />
         </div>
 
         <div className="px-6 py-6 sm:px-10 sm:py-8">
@@ -733,6 +751,7 @@ export default function SettingsPage({
             <ProfileTab
               workspaceConfig={workspaceConfig}
               onSave={(updater) => saveWorkspace(updater, 'Profile saved')}
+              onDirtyChange={handleDirtyChange}
             />
           )}
           {active === 'sending' && (
@@ -740,6 +759,7 @@ export default function SettingsPage({
               workspaceConfig={workspaceConfig}
               templates={templates}
               onSave={(updater) => saveWorkspace(updater, 'Sending settings saved')}
+              onDirtyChange={handleDirtyChange}
             />
           )}
           {active === 'account' && (

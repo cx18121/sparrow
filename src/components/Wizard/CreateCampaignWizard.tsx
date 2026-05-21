@@ -255,6 +255,8 @@ export default function CreateCampaignWizard({
   // context and lets the overlay actually cover the sidebar.
   return createPortal(
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Create campaign"
