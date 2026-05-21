@@ -812,6 +812,117 @@ describe("researchCompanyDossierOpsHybrid — retrieval contract (ADR-0005 slice
     expect(urls.some(u => u.includes("api.exa.ai/search"))).toBe(false);
   });
 
+  it("falls back to Tavily when Exa /contents returns subpages but synthesis is empty (slice 4 thin-content)", async () => {
+    // The "Notion problem" from the slice 3 smoke: Exa /contents returns
+    // subpages, but they're thin enough that synthesis produces an empty
+    // dossier. Without the slice 4 thin-content fallback, the empty
+    // dossier would ship and the draft would have no operational anchor.
+    // With the fallback, Tavily fires and gets a second chance.
+    const emptyDossierJson = JSON.stringify({
+      summary: "",
+      inflections: [],
+      recentHires: [],
+      openRoles: [],
+    });
+    const richDossierJson = JSON.stringify({
+      summary: "post-Series-A SaaS",
+      inflections: ["headcount doubling"],
+      recentHires: [],
+      openRoles: ["Head of People"],
+    });
+    let claudeCallCount = 0;
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/contents")) {
+        // Subpages exist but are thin.
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [{ title: "About", url: "https://acme.ai/about", text: "We make software." }],
+          }),
+        };
+      }
+      if (url.includes("api.tavily.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [{ title: "Careers", url: "https://acme.ai/careers", content: "Hiring Head of People." }],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        claudeCallCount += 1;
+        // First synthesis returns empty (thin /about), second returns rich (Tavily).
+        const text = claudeCallCount === 1 ? emptyDossierJson : richDossierJson;
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await researchCompanyDossierOpsHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: TAVILY_KEY,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(true);
+    // Synthesis ran twice (once for thin Exa, once for richer Tavily).
+    expect(claudeCallCount).toBe(2);
+    // Final dossier is the Tavily-backed rich one, not the empty Exa one.
+    expect(result.inflections).toContain("headcount doubling");
+  });
+
+  it("skips the thin-content fallback when Tavily is unavailable (ships the empty dossier)", async () => {
+    // Without Tavily, there's no fallback to fire. Ship the empty dossier
+    // and let slotIsFresh catch it at the cache layer for the next call.
+    const emptyDossierJson = JSON.stringify({
+      summary: "",
+      inflections: [],
+      recentHires: [],
+      openRoles: [],
+    });
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [{ title: "About", url: "https://acme.ai/about", text: "thin" }],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: emptyDossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await researchCompanyDossierOpsHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: null,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(false);
+    expect(result).toEqual({ summary: "", inflections: [], recentHires: [], openRoles: [] });
+  });
+
   it("returns an empty dossier without calling Exa or Tavily when both keys are missing", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

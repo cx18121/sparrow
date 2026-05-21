@@ -794,9 +794,18 @@ export interface ResearchCompanyGtmHybridInput {
 //   - GTM-specific query (events, not product features)
 //   - includeDomains restricted to a press allowlist so results are press
 //     coverage of company events rather than the company's own pages
-// No /contents arm: a GTM candidate doesn't need the company's About page
-// — that's eng material. They need press coverage of what's happening
-// AT the company.
+// Two arms run in parallel and merge before synthesis:
+//   1. /search — press coverage (TechCrunch, BusinessWire, etc.) for funding,
+//      hires, market moves. The "external view" of the company.
+//   2. /contents — the company's own /blog, /news, /careers subpages.
+//      Captures companies whose news lives on their own site rather than
+//      in press (Linear's "how we hire" blog, OSS launches without
+//      press coverage). Closes the slice-2 LinkedIn-deferral gap by
+//      routing the same retrieval shape the ops pipeline uses for
+//      org-structure signals.
+// Merged with /search first so press takes precedence when both fire —
+// press is the higher-signal source for stage and motion. Tavily stays
+// as the final rescue branch when both Exa arms whiff.
 //
 // Tighter recencyDays default (90 days) than the eng pipeline (180 days)
 // because GTM triggers decay faster — a Series B announcement is great
@@ -809,21 +818,38 @@ export async function researchCompanyDossierGtmHybrid(
 
   if (exaApiKey) {
     const startDate = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString()
-    const searchResp = await exaSearch({
-      query: buildGtmSearchQuery(company),
-      apiKey: exaApiKey,
-      numResults: 5,
-      type: 'auto',
-      startPublishedDate: startDate,
-      textMaxCharacters: 2000,
-      includeDomains: [...GTM_INCLUDE_DOMAINS],
-    })
+    const url = company.domain
+      ? (company.domain.startsWith('http') ? company.domain : `https://${company.domain}`)
+      : null
 
-    if (searchResp.results.length > 0) {
-      return synthesizeGtmDossier(company, searchResp.results, apiKey)
+    const [searchResp, contentsResp] = await Promise.all([
+      exaSearch({
+        query: buildGtmSearchQuery(company),
+        apiKey: exaApiKey,
+        numResults: 5,
+        type: 'auto',
+        startPublishedDate: startDate,
+        textMaxCharacters: 2000,
+        includeDomains: [...GTM_INCLUDE_DOMAINS],
+      }),
+      url
+        ? exaContents({
+            urls: [url],
+            apiKey: exaApiKey,
+            subpageTarget: ['blog', 'news', 'careers', 'press'],
+            subpages: 5,
+            livecrawl: 'auto',
+            textMaxCharacters: 2000,
+          })
+        : Promise.resolve({ results: [] as ExaResult[] }),
+    ])
+
+    const merged = dedupeByUrl([...searchResp.results, ...contentsResp.results])
+    if (merged.length > 0) {
+      return synthesizeGtmDossier(company, merged, apiKey)
     }
     console.info(
-      `GTM hybrid retrieval: Exa search returned 0 press results for "${company.name}", falling back to Tavily`,
+      `GTM hybrid retrieval: Exa search+contents returned 0 results for "${company.name}", falling back to Tavily`,
     )
   }
 
@@ -1098,8 +1124,15 @@ export interface ResearchCompanyOpsHybridInput {
 // Ops-shaped retrieval. Hits the company's own /careers, /team, /about,
 // /jobs subpages via Exa /contents. No /search arm — funding events are
 // a weaker ops signal than current org structure visible in hiring posts.
-// Tavily fallback when Exa whiffs or returns no usable subpages (small
-// or new companies without much subpage content).
+// Tavily fallback fires on two conditions:
+//   1. Exa /contents returns zero subpages (small or new companies)
+//   2. Synthesis produces an empty dossier from non-zero subpages (thin
+//      /careers content — the "Notion problem" surfaced in the slice 3
+//      smoke and called out by Codex)
+// Condition 2 was added in slice 4 — without it, a company with a thin
+// /about page would silently produce a weak dossier (zero inflections /
+// recentHires / openRoles) and the draft would have no operational
+// anchor, with no signal to the caller.
 //
 // No recencyDays filter on the contents arm — org structure is what's
 // currently visible, not date-bounded. The Tavily fallback is also
@@ -1121,11 +1154,22 @@ export async function researchCompanyDossierOpsHybrid(
     })
 
     if (contentsResp.results.length > 0) {
-      return synthesizeOpsDossier(company, contentsResp.results, apiKey)
+      const opsDossier = await synthesizeOpsDossier(company, contentsResp.results, apiKey)
+      // Thin-content detection: if the company's own subpages exist but
+      // are sparse enough that synthesis extracted no ops signals, fall
+      // through to Tavily. Skip the fallback if Tavily isn't configured —
+      // shipping the empty dossier is better than throwing.
+      if (!isEmptyOpsDossier(opsDossier) || !tavilyApiKey) {
+        return opsDossier
+      }
+      console.info(
+        `Ops hybrid retrieval: Exa /contents produced empty dossier for "${company.name}" (thin subpages), falling back to Tavily`,
+      )
+    } else {
+      console.info(
+        `Ops hybrid retrieval: Exa /contents returned 0 subpages for "${company.name}", falling back to Tavily`,
+      )
     }
-    console.info(
-      `Ops hybrid retrieval: Exa /contents returned 0 subpages for "${company.name}", falling back to Tavily`,
-    )
   }
 
   if (!tavilyApiKey) return emptyOpsDossier()
