@@ -132,4 +132,46 @@ test.describe('Settings and workspace UX', () => {
     await expect(page.locator('text=/Campaign name is required to save/i')).toBeVisible()
     await expect(page.getByRole('button', { name: /Save changes/i })).toBeDisabled()
   })
+
+  test('template selection renders a sample-filled preview', async ({ page }) => {
+    // Seed two templates so we can prove switching the select swaps the
+    // visible preview body — proves the preview reads from form.templateId,
+    // not just from the campaign's initial template.
+    const tplA = await createTestTemplate(page, {
+      name: 'Cold intro A',
+      subject: 'Hi {{first_name}} from {{company}}',
+      body: '<p>Hey {{first_name}}, saw {{company}} is hiring.</p>',
+    })
+    const tplB = await createTestTemplate(page, {
+      name: 'Cold intro B',
+      subject: 'Different subject for {{first_name}}',
+      body: '<p>Distinct body for {{company}} testing.</p>',
+    })
+    const campaign = await createTestCampaign(page, {
+      name: 'Template preview campaign',
+      status: 'ACTIVE',
+      templateId: tplA.id,
+    })
+
+    await page.goto(`/campaigns/${campaign.id}/settings`)
+    const preview = page.locator('[aria-label="Template preview"]')
+
+    // Initial template (A) shows with merge tags substituted — PREVIEW_SAMPLE
+    // hardcodes Dario / Anthropic, so we assert against those concrete
+    // values. Changes to the sample (src/lib/previewSample.ts) will surface
+    // here, which is the right place to notice them.
+    await expect(preview).toBeVisible({ timeout: 10_000 })
+    await expect(preview).toContainText(/Dario/)
+    await expect(preview).toContainText(/Anthropic/)
+    await expect(preview).not.toContainText('{{first_name}}')
+
+    // Switching templates swaps the preview body.
+    await page.locator('#campaign-settings-template').selectOption(tplB.id)
+    await expect(preview).toContainText(/Distinct body for Anthropic/)
+    await expect(preview).toContainText(/Different subject for Dario/)
+
+    // Clearing the template hides the preview entirely.
+    await page.locator('#campaign-settings-template').selectOption('')
+    await expect(preview).toBeHidden()
+  })
 })

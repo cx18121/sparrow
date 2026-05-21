@@ -10,6 +10,7 @@ import { REGION_INTL, REGION_REMOTE, REGION_US } from '../../types/audience'
 import type { CampaignOptions } from '../../types/api'
 import type { WorkspaceOutletContext } from './WorkspaceShell'
 import { getAttachmentLibrary } from '../../lib/attachments'
+import { fillTemplateTags, stripPreviewHtml } from '../../lib/templatePreview'
 
 // Phase 4d: inline campaign editor that replaces CampaignFormModal in the
 // workspace. Same field set minus `tone` (dropped per redesign) and minus the
@@ -87,6 +88,10 @@ export default function SettingsTab() {
   }, [])
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(initial), [form, initial])
+  const selectedTemplate = useMemo(
+    () => (form.templateId ? templates.find(t => t.id === form.templateId) ?? null : null),
+    [form.templateId, templates],
+  )
 
   const field = <K extends keyof FormValue>(key: K, value: FormValue[K]) =>
     setForm(f => {
@@ -201,6 +206,29 @@ export default function SettingsTab() {
             </select>
           </div>
         </div>
+        {/* Live template preview so switching templates here gets the same
+            sample-filled preview the wizard shows. Without this, users
+            can re-point a running campaign at a new template and not see
+            what their next drafts will look like until generation runs. */}
+        {selectedTemplate && (
+          <div
+            className="rounded-xl border border-warm-200 bg-warm-50/60"
+            aria-label="Template preview"
+          >
+            <div className="border-b border-warm-200 px-4 py-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">Preview</p>
+                <p className="text-[11px] text-muted/70">filled with sample lead</p>
+              </div>
+              <p className="mt-1 text-sm font-medium text-dark">
+                {fillTemplateTags(selectedTemplate.subject || '') || '(no subject)'}
+              </p>
+            </div>
+            <div className="whitespace-pre-line px-4 py-4 text-sm leading-7 text-dark">
+              {stripPreviewHtml(fillTemplateTags(selectedTemplate.body || '')) || '(empty body)'}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Audience filters */}
