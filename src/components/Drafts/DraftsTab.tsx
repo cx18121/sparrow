@@ -73,8 +73,18 @@ function AnglePicker({ emailId, role, currentLine, options, onChanged, disabled 
       if (menuRef.current?.contains(e.target as Node) || triggerRef.current?.contains(e.target as Node)) return
       setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
   const pick = async (next: string) => {

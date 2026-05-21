@@ -128,4 +128,30 @@ test.describe('AnglePicker is role-aware', () => {
     expect(angleBody?.triggerLine).toBeUndefined()
     await expect(page.locator('text=/new EMEA office opening/i').first()).toBeVisible()
   })
+
+  test('Escape closes the open AnglePicker menu', async ({ page }) => {
+    await createTestDraft(page, {
+      userId,
+      role: 'gtm',
+      partial: 'both',
+      companyName: 'EscCo',
+      campaignId,
+    })
+
+    await page.goto(`/campaigns/${campaignId}/drafts`)
+    await expect(page.getByText('EscCo').first()).toBeVisible({ timeout: 10_000 })
+    await page.getByText('EscCo').first().click()
+
+    // Open the picker — its menu shows the alternate trigger options.
+    const pickerTrigger = page.getByRole('button', { name: /raised Series B in March/i })
+    await expect(pickerTrigger).toBeVisible({ timeout: 10_000 })
+    await pickerTrigger.click()
+
+    // Menu visible while open.
+    const menuItem = page.getByRole('button', { name: /hired VP Sales from Stripe/i })
+    await expect(menuItem).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(menuItem).toBeHidden()
+  })
 })
