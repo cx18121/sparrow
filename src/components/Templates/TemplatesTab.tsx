@@ -17,6 +17,7 @@ import EmptyState from '../ui/EmptyState'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { useToast } from '../../contexts/ToastContext'
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges'
 import { defaultAttachmentIds, getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 import { PREVIEW_SAMPLE } from '../../lib/previewSample'
 
@@ -290,16 +291,27 @@ export default function TemplatesTab({ workspaceConfig }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const flushDraft = (override = undefined) => {
+  // `saveState` drives the inline indicator next to the editor: idle (no
+  // pill), saving (during the auto-save fetch), saved (briefly after a
+  // successful save), or error (after a failed save until the next edit).
+  // It's separate from `saved` (kept for the existing visible "Saved" pill
+  // contract) so existing UI behavior is preserved while we add Saving…
+  // and a sticky error state.
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  // Returns true on success, false on failure. switchTemplate uses this so a
+  // failed flush doesn't drop the user's unsaved edit.
+  const flushDraft = (override = undefined): Promise<boolean> => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
     }
     const next = override || draftRef.current
-    if (!next.id) return Promise.resolve()
+    if (!next.id) return Promise.resolve(true)
     const selectedTpl = templates.find(t => t.id === next.id)
-    if (!selectedTpl) return Promise.resolve()
-    if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return Promise.resolve()
+    if (!selectedTpl) return Promise.resolve(true)
+    if (selectedTpl.subject === next.subject && selectedTpl.body === next.body) return Promise.resolve(true)
+    setSaveState('saving')
     return onUpdate({ id: next.id, subject: next.subject, body: next.body })
       .then(() => {
         const latest = draftRef.current
@@ -307,19 +319,31 @@ export default function TemplatesTab({ workspaceConfig }) {
           draftDirtyRef.current = false
         }
         setSaved(true)
+        setSaveState('saved')
         setTimeout(() => setSaved(false), 1500)
+        setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 1500)
+        return true
       })
       .catch(err => {
         showToast({ type: 'error', title: 'Could not save template', message: err?.message || 'Please try again.' })
+        setSaveState('error')
+        return false
       })
   }
 
   const scheduleFlush = (next) => {
     draftDirtyRef.current = true
     setDraft(next)
+    // Reset error state once the user resumes editing so the pill doesn't
+    // claim failure indefinitely while they type a fix.
+    setSaveState(s => (s === 'error' ? 'idle' : s))
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
     flushTimerRef.current = setTimeout(() => flushDraft(next), 500)
   }
+
+  // Guard the tab from `beforeunload` while a save is pending or the draft
+  // is dirty — without this, navigation silently drops unsaved edits.
+  useUnsavedChanges(saveState === 'saving' || saveState === 'error')
 
   const allFiltered = templates.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) || (t.subject || '').toLowerCase().includes(search.toLowerCase())
@@ -342,12 +366,16 @@ export default function TemplatesTab({ workspaceConfig }) {
     setEditModal(true)
   }
 
-  // Flush pending auto-save for the current template, then switch to another
+  // Flush pending auto-save for the current template, then switch to another.
+  // If the flush fails, keep the user on the current template so their edit
+  // isn't silently dropped when the next effect re-syncs `draft` from
+  // `selectedId`. flushDraft already surfaced an error toast.
   const switchTemplate = async (id: string, view: string = 'template') => {
     if (flushTimerRef.current && draftDirtyRef.current) {
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
-      await flushDraft()
+      const ok = await flushDraft()
+      if (!ok) return
     }
     setSelectedId(id)
     setView(view)
@@ -493,10 +521,24 @@ export default function TemplatesTab({ workspaceConfig }) {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {!selectedIsLibrary && saved && (
+                    {!selectedIsLibrary && saveState === 'saving' && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted">
+                        <Loader2 size={11} className="animate-spin" /> Saving…
+                      </span>
+                    )}
+                    {!selectedIsLibrary && saveState !== 'saving' && saveState !== 'error' && saved && (
                       <span className="inline-flex items-center gap-1 text-xs text-primary/80">
                         <Check size={11} /> Saved
                       </span>
+                    )}
+                    {!selectedIsLibrary && saveState === 'error' && (
+                      <button
+                        type="button"
+                        onClick={() => flushDraft()}
+                        className="inline-flex items-center gap-1 text-xs text-amber-700 hover:underline"
+                      >
+                        <X size={11} /> Couldn't save — retry
+                      </button>
                     )}
                     {selectedIsLibrary ? (
                       <button onClick={() => duplicate(selected)} className="btn-primary text-xs">

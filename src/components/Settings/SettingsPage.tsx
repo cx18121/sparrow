@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges'
 import { LEAD_BATCH_MAX, LEAD_BATCH_MIN } from '../../lib/workspaceConfig'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
 import { RoleTiles } from '../ui/RoleTiles'
@@ -127,6 +128,7 @@ function ProfileTab({ workspaceConfig, onSave }: { workspaceConfig: any; onSave:
   const fileInputRef = useRef<HTMLInputElement>(null)
   const initial = useMemo(() => JSON.stringify(pickProfileFields(workspaceConfig)), [workspaceConfig])
   const dirty = JSON.stringify(pickProfileFields(form)) !== initial
+  useUnsavedChanges(dirty)
 
   useEffect(() => { setForm(workspaceConfig) }, [workspaceConfig])
 
@@ -303,6 +305,7 @@ function SendingTab({ workspaceConfig, templates, onSave }: { workspaceConfig: a
   const [saving, setSaving] = useState(false)
   const initial = useMemo(() => JSON.stringify(pickSendingFields(workspaceConfig)), [workspaceConfig])
   const dirty = JSON.stringify(pickSendingFields(form)) !== initial
+  useUnsavedChanges(dirty)
 
   useEffect(() => { setForm(workspaceConfig) }, [workspaceConfig])
 
