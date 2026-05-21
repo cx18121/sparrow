@@ -199,4 +199,61 @@ test.describe('Templates UX', () => {
 
     await expect.poll(() => deletedId).toBe('tpl_copy')
   })
+
+  // Pins ADR-0005 merge-tag coverage in the editor. Per-role default
+  // templates ship with {{trigger_line}} / {{proof_of_motion}} (GTM) and
+  // {{inflection_line}} / {{system_built}} (ops) baked into the body —
+  // before this work, those rendered as literal "{{...}}" in the preview
+  // because PREVIEW_SAMPLE + fillVariables only covered the eng pair, and
+  // the editor chip toolbar only inserted feature_line + fit_angle. The
+  // test asserts both the substitution and the chip surface.
+  test('previews and inserts all six per-role personalization merge tags (ADR-0005)', async ({ page }) => {
+    // Seed a template that references every personalization tag we ship,
+    // so the preview path is forced to substitute each one.
+    const body = [
+      '<p>Hi {{first_name}},</p>',
+      '<p>Eng: {{feature_line}} | {{fit_angle}}.</p>',
+      '<p>GTM: {{trigger_line}} | {{proof_of_motion}}.</p>',
+      '<p>Ops: {{inflection_line}} | {{system_built}}.</p>',
+    ].join('')
+    const seeded = await createTestTemplate(page, {
+      name: 'All-tags template',
+      subject: 'For {{company}}',
+      body,
+    })
+
+    await page.route('**/api/templates**', route =>
+      json(route, { items: [seeded] })
+    )
+
+    await page.goto('/templates')
+    await page.getByRole('button', { name: /All-tags template/i }).click()
+    await page.getByRole('button', { name: /Preview/i }).click()
+
+    // Each personalization tag's sample value comes from PREVIEW_SAMPLE.
+    // company-side values are Anthropic-shaped; candidate-side fall back
+    // to "your background" so the rendered paragraph reads naturally.
+    await expect(page.locator('text=/Eng: claude code agentic coding \\| your background/i')).toBeVisible()
+    await expect(page.locator("text=/GTM: Anthropic's \\$4B Amazon round \\| your background/i")).toBeVisible()
+    await expect(page.locator("text=/Ops: Anthropic's hiring push across go-to-market \\| your background/i")).toBeVisible()
+
+    // No literal merge-tag braces should survive substitution. Failure here
+    // means PREVIEW_SAMPLE / fillVariables / the role's regex pair drifted.
+    const previewText = await page.locator('main, body').first().innerText()
+    expect(previewText).not.toMatch(/\{\{(feature_line|fit_angle|trigger_line|proof_of_motion|inflection_line|system_built)\}\}/)
+
+    // Editor chip palette must offer every personalization tag so authors
+    // of GTM/ops templates can insert them without typing braces by hand.
+    await page.getByRole('button', { name: 'Template', exact: true }).click()
+    for (const tag of [
+      '{{feature_line}}',
+      '{{fit_angle}}',
+      '{{trigger_line}}',
+      '{{proof_of_motion}}',
+      '{{inflection_line}}',
+      '{{system_built}}',
+    ]) {
+      await expect(page.getByRole('button', { name: tag, exact: true })).toBeVisible()
+    }
+  })
 })
