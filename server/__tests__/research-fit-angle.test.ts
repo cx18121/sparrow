@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   researchCompanyDossier,
+  researchCompanyDossierOpsHybrid,
   pickFitAngle,
   parseCachedDossierEnvelope,
   getDossierSlot,
@@ -711,5 +712,118 @@ describe("isEmptyOpsDossier — emptiness predicate (ADR-0005 slice 3)", () => {
     expect(isEmptyOpsDossier({ summary: "", inflections: ["i"], recentHires: [], openRoles: [] })).toBe(false);
     expect(isEmptyOpsDossier({ summary: "", inflections: [], recentHires: ["r"], openRoles: [] })).toBe(false);
     expect(isEmptyOpsDossier({ summary: "", inflections: [], recentHires: [], openRoles: ["o"] })).toBe(false);
+  });
+});
+
+describe("researchCompanyDossierOpsHybrid — retrieval contract (ADR-0005 slice 3)", () => {
+  // The ADR commits to "Exa /contents only, no /search arm" for ops
+  // retrieval. Codex slice 3 review flagged this as untested at the unit
+  // level. This suite pins the contract directly by inspecting which
+  // Exa endpoint the function calls.
+  const dossierJson = JSON.stringify({
+    summary: "scaling SaaS",
+    inflections: ["headcount doubling"],
+    recentHires: [],
+    openRoles: ["Head of People"],
+  });
+
+  it("hits Exa /contents and never /search when given an Exa key + domain", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "Careers", url: "https://acme.ai/careers", text: "We're hiring across People, Eng, and Finance." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: dossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await researchCompanyDossierOpsHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: null,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    // Contract: Exa /contents fired, Exa /search did NOT.
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    expect(urls.some(u => u.includes("api.exa.ai/search"))).toBe(false);
+  });
+
+  it("falls back to Tavily when Exa /contents returns zero subpages", async () => {
+    // The ADR amendment captures this fallback explicitly — ops retrieval
+    // is "Exa /contents primary, Tavily fallback on 0 subpages", not
+    // "Exa /contents only". Pin the fallback condition.
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.exa.ai/contents")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ results: [] }),
+        };
+      }
+      if (url.includes("api.tavily.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({
+            results: [
+              { title: "About", url: "https://acme.ai/about", content: "small team, hiring." },
+            ],
+          }),
+        };
+      }
+      if (url.includes("api.anthropic.com")) {
+        return {
+          ok: true,
+          text: () => Promise.resolve(""),
+          json: () => Promise.resolve({ content: [{ type: "text", text: dossierJson }] }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await researchCompanyDossierOpsHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: "exa-test-key",
+      tavilyApiKey: TAVILY_KEY,
+    });
+
+    const urls = fetchMock.mock.calls.map(call => call[0] as string);
+    expect(urls.some(u => u.includes("api.exa.ai/contents"))).toBe(true);
+    expect(urls.some(u => u.includes("api.tavily.com"))).toBe(true);
+    // Even on fallback, Exa /search is never called.
+    expect(urls.some(u => u.includes("api.exa.ai/search"))).toBe(false);
+  });
+
+  it("returns an empty dossier without calling Exa or Tavily when both keys are missing", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await researchCompanyDossierOpsHybrid({
+      company: baseCompany,
+      apiKey: ANTHROPIC_KEY,
+      exaApiKey: null,
+      tavilyApiKey: null,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ summary: "", inflections: [], recentHires: [], openRoles: [] });
   });
 });
