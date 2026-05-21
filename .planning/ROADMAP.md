@@ -22,11 +22,12 @@ Historical phase documents under `.planning/phases/` and `.planning/research/` a
 
 ## Near-Term Roadmap
 
-1. **Quality hardening**
-   - Programmatic form labels.
-   - Accessible modal focus trap/restore.
-   - Settings and template form resilience.
-   - E2E coverage for keyboard and dialog behavior.
+1. **Quality hardening** (largely closed out 2026-05-21)
+   - ~~Programmatic form labels~~ — audit found surfaces 95%+ compliant; only `ContactsTab` `AddContactForm` diverged from the explicit `htmlFor`+`id` pattern. Fixed in `f9bccc7`.
+   - ~~Accessible modal focus trap/restore~~ — `Modal.tsx` + `ConfirmDialog.tsx` were already full-PASS. Two gaps closed: AnglePicker now Escape-closes + restores focus to trigger (`07f7f75`); CreateCampaignWizard now exposes dialog ARIA + Escape dismisses (`d355816`).
+   - ~~E2E coverage for keyboard and dialog behavior~~ — pinned per fix. 79/79 e2e pass.
+   - **Open:** Settings and template form resilience — not audited yet. What "resilience" means is fuzzy (probably: error-state banners on save failure, draft-recovery on navigation away, optimistic-update rollback on 5xx). Worth a focused pass to make this concrete before picking it up.
+   - **Open (deferred from wizard work):** Tab focus trap inside `CreateCampaignWizard`. Currently the wizard is full-screen so visual coverage is correct, but Tab can still land on focusable elements behind the overlay (sidebar links, etc.). Adding a trap means querying focusables on every Tab key — meaningful change, not load-bearing today.
 
 2. **Performance and reliability**
    - Verify document parser chunks only load on upload paths.
@@ -74,7 +75,7 @@ Add a `role: 'admin' | 'user'` enum on `user_profiles` (the table `parseWorkspac
 
 ## Housekeeping
 
-- (No outstanding items as of 2026-05-21. Previous three closed out: server-side tsc errors already fixed; `scripts/enrich-industries-exa.ts` committed in 55b012a; e2e bounce-to-/login flake resolved in 7940745 — root cause was `signInDemo` waiting for `h2:has-text("Welcome back")` to detach when the heading is `<h1>`, so the wait returned immediately and tests raced supabase localStorage persistence. Fix replaces the DOM-element wait with a localStorage poll for the `sb-*-auth-token` key.)
+- (No outstanding items as of 2026-05-21. Previous list closed out — see `7940745` for the e2e flake root cause and fix.)
 
 ## Deferred
 
