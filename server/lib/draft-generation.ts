@@ -22,13 +22,17 @@ import { GenerationError } from "./generation-error.js";
 
 // In-process dedupe: when two drafts to the same company race a cache miss,
 // only one search+Claude call fires; the second await piggybacks on the
-// first's Promise. Keyed by (Company.id, role) so two drafts to the same
-// company targeting different roles each trigger their own research
-// (each role has its own dossier shape per ADR-0005). Entry is cleared
-// as soon as the research settles. Multi-process deployments can still
-// double-research, but the cache write is idempotent — read-modify-write
-// preserves other roles' slots.
-const inFlightDossier = new Map<string, Promise<CompanyDossier>>();
+// first's Promise. One map per role family per ADR-0005 — each carries
+// its concrete dossier type with no casts, mirroring the "three concrete
+// pickers" pattern. Entry is cleared as soon as the research settles.
+// Multi-process deployments can still double-research, but the cache write
+// is idempotent — read-modify-write preserves other roles' slots.
+//
+// Replaces an earlier single-map + `as unknown as Promise<CompanyDossier>`
+// cast that Codex flagged as a type lie in slice 2 review. Slice 3 will
+// add inFlightOpsDossier as a third map.
+const inFlightEngDossier = new Map<string, Promise<CompanyDossier>>();
+const inFlightGtmDossier = new Map<string, Promise<GtmDossier>>();
 function inFlightKey(companyId: string, role: PersonalizationInput["targetRole"]): string {
   return `${companyId}:${role ?? "_default"}`;
 }
@@ -86,7 +90,7 @@ async function researchAndCacheDossier(
 ): Promise<CompanyDossier> {
   const companyId = input.companyId!; // caller checked
   const key = inFlightKey(companyId, input.targetRole);
-  const existing = inFlightDossier.get(key);
+  const existing = inFlightEngDossier.get(key);
   if (existing) return existing;
 
   const envDepth = process.env.TAVILY_SEARCH_DEPTH?.trim();
@@ -159,10 +163,10 @@ async function researchAndCacheDossier(
     .finally(() => {
       // Clear in-flight entry once the work settles so future callers re-read
       // the freshly written cache (or research again if persistence failed).
-      inFlightDossier.delete(key);
+      inFlightEngDossier.delete(key);
     });
 
-  inFlightDossier.set(key, promise);
+  inFlightEngDossier.set(key, promise);
   return promise;
 }
 
@@ -176,7 +180,7 @@ async function researchAndCacheGtmDossier(
 ): Promise<GtmDossier> {
   const companyId = input.companyId!;
   const key = inFlightKey(companyId, input.targetRole);
-  const existing = inFlightDossier.get(key) as Promise<GtmDossier> | undefined;
+  const existing = inFlightGtmDossier.get(key);
   if (existing) return existing;
 
   const envRecency = parseInt(process.env.EXA_RECENCY_DAYS_GTM?.trim() ?? "", 10);
@@ -220,14 +224,10 @@ async function researchAndCacheGtmDossier(
       return dossier;
     })
     .finally(() => {
-      inFlightDossier.delete(key);
+      inFlightGtmDossier.delete(key);
     });
 
-  // The map is typed as Promise<CompanyDossier>; GTM promises ride in via
-  // a structural cast (the slot is never read directly off the map — it's
-  // returned to the caller who knows the role context). The role-keyed
-  // inFlightKey isolates eng and gtm in-flight Promises.
-  inFlightDossier.set(key, promise as unknown as Promise<CompanyDossier>);
+  inFlightGtmDossier.set(key, promise);
   return promise;
 }
 
