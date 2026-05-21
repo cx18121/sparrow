@@ -30,9 +30,9 @@ Historical phase documents under `.planning/phases/` and `.planning/research/` a
    - **Open (deferred from wizard work):** Tab focus trap inside `CreateCampaignWizard`. Currently the wizard is full-screen so visual coverage is correct, but Tab can still land on focusable elements behind the overlay (sidebar links, etc.). Adding a trap means querying focusables on every Tab key — meaningful change, not load-bearing today.
 
 2. **Performance and reliability**
-   - Verify document parser chunks only load on upload paths.
-   - Review vendor/manual chunks.
-   - Keep campaign/email cache invalidation predictable after send/generate/delete.
+   - ~~Verify document parser chunks only load on upload paths~~ — confirmed 2026-05-21. `pdf-parser` (413KB) and `docx-parser` (499KB) are separate chunks; only dynamic-imported by `resumeText.ts:45-47,62`, called only from SettingsPage/Onboarding file-upload handlers.
+   - ~~Review vendor/manual chunks~~ — closed 2026-05-21 in `cff1ff6`. Found ~530KB of ProseMirror + 63KB linkifyjs in initial `vendor` chunk even though only the lazy TemplatesTab uses TipTap; moved them into the `editor` chunk. Initial JS dropped 77KB gzip (~36%).
+   - **Open:** Keep campaign/email cache invalidation predictable after send/generate/delete. Has not been audited; the SWR + AppDataContext interaction is non-trivial and a focused pass would help.
 
 3. **Research freshness**
    - Add manual re-research action for stale or weak company dossiers.
