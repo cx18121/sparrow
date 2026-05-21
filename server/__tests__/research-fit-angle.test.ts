@@ -5,6 +5,8 @@ import {
   parseCachedDossierEnvelope,
   getDossierSlot,
   setDossierSlot,
+  parseGtmDossier,
+  isEmptyGtmDossier,
   type CompanyDossier,
 } from "../lib/ai/research-fit-angle.js";
 
@@ -467,5 +469,149 @@ describe("setDossierSlot — read-modify-write helper (ADR-0005)", () => {
     const before = { engineering: null, gtm: null, operations: null };
     const after = setDossierSlot(before, "product", slotA);
     expect(after.engineering).toBe(slotA);
+  });
+});
+
+describe("parseGtmDossier — GTM dossier validator (ADR-0005 slice 2)", () => {
+  const valid = {
+    summary: "Series B fintech",
+    triggers: ["raised $50M led by Accel"],
+    recentMoves: ["acquired Stripe Atlas competitor"],
+    marketSignals: ["sector consolidation accelerating"],
+  };
+
+  it("accepts a well-formed GtmDossier shape", () => {
+    expect(parseGtmDossier(valid)).toEqual(valid);
+  });
+
+  it("returns null when summary is missing or wrong type", () => {
+    expect(parseGtmDossier({ ...valid, summary: undefined })).toBeNull();
+    expect(parseGtmDossier({ ...valid, summary: 42 })).toBeNull();
+    expect(parseGtmDossier({ ...valid, summary: null })).toBeNull();
+  });
+
+  it("returns null when triggers is missing or not a string array", () => {
+    expect(parseGtmDossier({ ...valid, triggers: undefined })).toBeNull();
+    expect(parseGtmDossier({ ...valid, triggers: "not-an-array" })).toBeNull();
+    expect(parseGtmDossier({ ...valid, triggers: [1, 2, 3] })).toBeNull();
+  });
+
+  it("returns null when recentMoves is missing or not a string array", () => {
+    expect(parseGtmDossier({ ...valid, recentMoves: undefined })).toBeNull();
+    expect(parseGtmDossier({ ...valid, recentMoves: { a: 1 } })).toBeNull();
+  });
+
+  it("returns null when marketSignals is missing or not a string array", () => {
+    expect(parseGtmDossier({ ...valid, marketSignals: undefined })).toBeNull();
+    expect(parseGtmDossier({ ...valid, marketSignals: [true] })).toBeNull();
+  });
+
+  it("returns null for null / non-object / array inputs", () => {
+    expect(parseGtmDossier(null)).toBeNull();
+    expect(parseGtmDossier(undefined)).toBeNull();
+    expect(parseGtmDossier("string")).toBeNull();
+    expect(parseGtmDossier(42)).toBeNull();
+    expect(parseGtmDossier([])).toBeNull();
+  });
+
+  it("does not mistake a CompanyDossier (eng) shape for a valid GtmDossier", () => {
+    // Defensive: a row that happens to have eng-shape keys passed in here
+    // must NOT be accepted — the gtm slot parser rejects it cleanly so
+    // the orchestrator falls through to a cache miss for the gtm role.
+    const eng = {
+      summary: "eng dossier",
+      surfaces: ["s"],
+      recentLaunches: [],
+      technicalAreas: [],
+    };
+    expect(parseGtmDossier(eng)).toBeNull();
+  });
+});
+
+describe("parseGtmSlot via parseCachedDossierEnvelope — GTM slot validation (ADR-0005 slice 2)", () => {
+  // parseGtmSlot is internal to research-fit-angle.ts. Exercise it through
+  // parseCachedDossierEnvelope so behavior is tested at the public boundary.
+  const validGtmDossier = {
+    summary: "Series B fintech",
+    triggers: ["raised $50M"],
+    recentMoves: [],
+    marketSignals: [],
+  };
+  const validIso = new Date("2026-04-01T00:00:00.000Z").toISOString();
+
+  it("parses a well-formed gtm slot from envelope JSON", () => {
+    const env = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: { dossier: validGtmDossier, researchedAt: validIso },
+        operations: null,
+      },
+      null,
+    );
+    expect(env.gtm?.dossier).toEqual(validGtmDossier);
+    expect(env.gtm?.researchedAt.toISOString()).toBe(validIso);
+  });
+
+  it("returns null gtm slot when dossier is missing required GTM fields", () => {
+    const env = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: {
+          // Wrong shape — eng fields, not GTM. parseGtmSlot must reject.
+          dossier: { summary: "x", surfaces: ["s"], recentLaunches: [], technicalAreas: [] },
+          researchedAt: validIso,
+        },
+        operations: null,
+      },
+      null,
+    );
+    expect(env.gtm).toBeNull();
+    expect(env.engineering).toBeNull();
+  });
+
+  it("returns null gtm slot when researchedAt is missing or invalid", () => {
+    const env1 = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: { dossier: validGtmDossier },
+        operations: null,
+      },
+      null,
+    );
+    expect(env1.gtm).toBeNull();
+
+    const env2 = parseCachedDossierEnvelope(
+      {
+        engineering: null,
+        gtm: { dossier: validGtmDossier, researchedAt: "not-a-date" },
+        operations: null,
+      },
+      null,
+    );
+    expect(env2.gtm).toBeNull();
+  });
+
+  it("returns null gtm slot when slot value itself is malformed", () => {
+    const cases: unknown[] = ["string", 42, [], null];
+    for (const malformed of cases) {
+      const env = parseCachedDossierEnvelope(
+        { engineering: null, gtm: malformed, operations: null },
+        null,
+      );
+      expect(env.gtm).toBeNull();
+    }
+  });
+});
+
+describe("isEmptyGtmDossier — emptiness predicate (ADR-0005 slice 2)", () => {
+  it("returns true when all three list fields are empty", () => {
+    expect(isEmptyGtmDossier({ summary: "any", triggers: [], recentMoves: [], marketSignals: [] })).toBe(true);
+    expect(isEmptyGtmDossier({ summary: "", triggers: [], recentMoves: [], marketSignals: [] })).toBe(true);
+  });
+
+  it("returns false when any list has content (summary alone is not enough — empty cache guard)", () => {
+    expect(isEmptyGtmDossier({ summary: "", triggers: ["t"], recentMoves: [], marketSignals: [] })).toBe(false);
+    expect(isEmptyGtmDossier({ summary: "", triggers: [], recentMoves: ["r"], marketSignals: [] })).toBe(false);
+    expect(isEmptyGtmDossier({ summary: "", triggers: [], recentMoves: [], marketSignals: ["m"] })).toBe(false);
   });
 });
