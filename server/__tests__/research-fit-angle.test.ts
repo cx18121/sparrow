@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   researchCompanyDossier,
   pickFitAngle,
+  parseCachedDossierEnvelope,
+  getDossierSlot,
+  setDossierSlot,
   type CompanyDossier,
 } from "../lib/ai/research-fit-angle.js";
 
@@ -338,5 +341,126 @@ describe("pickFitAngle", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.featureLine).toBeNull();
     expect(result.fitAngle).toBeNull();
+  });
+});
+
+describe("parseCachedDossierEnvelope — cache shape adapter (ADR-0005)", () => {
+  const flatLegacy = {
+    summary: "AI ops platform.",
+    surfaces: ["the agent eval harness"],
+    recentLaunches: [],
+    technicalAreas: ["multi-agent orchestration"],
+  };
+  const legacyAt = new Date("2026-04-01T00:00:00.000Z");
+
+  it("wraps a legacy flat dossier into the engineering slot with legacyAt", () => {
+    const env = parseCachedDossierEnvelope(flatLegacy, legacyAt);
+    expect(env.engineering).toEqual({ dossier: flatLegacy, researchedAt: legacyAt });
+    expect(env.gtm).toBeNull();
+    expect(env.operations).toBeNull();
+  });
+
+  it("falls back to epoch when legacyAt is null", () => {
+    const env = parseCachedDossierEnvelope(flatLegacy, null);
+    expect(env.engineering?.researchedAt.getTime()).toBe(0);
+  });
+
+  it("returns an envelope-shaped value through unchanged", () => {
+    const recent = new Date("2026-05-19T12:00:00.000Z");
+    const envelopeJson = {
+      engineering: { dossier: flatLegacy, researchedAt: recent.toISOString() },
+      gtm: null,
+      operations: null,
+    };
+    const env = parseCachedDossierEnvelope(envelopeJson, null);
+    expect(env.engineering?.dossier).toEqual(flatLegacy);
+    expect(env.engineering?.researchedAt).toEqual(recent);
+  });
+
+  it("returns an empty envelope for null/undefined/non-object inputs", () => {
+    const empty = { engineering: null, gtm: null, operations: null };
+    expect(parseCachedDossierEnvelope(null, null)).toEqual(empty);
+    expect(parseCachedDossierEnvelope(undefined, null)).toEqual(empty);
+    expect(parseCachedDossierEnvelope("string", null)).toEqual(empty);
+    expect(parseCachedDossierEnvelope(42, null)).toEqual(empty);
+    expect(parseCachedDossierEnvelope([], null)).toEqual(empty);
+  });
+
+  it("returns an empty envelope when a legacy-looking row is missing required fields", () => {
+    // parseFlatDossier rejects shapes that don't have all 4 required fields;
+    // the discriminator should still classify as legacy attempt and fail
+    // gracefully, not get misclassified as a stale envelope.
+    const malformed = { summary: "ok", surfaces: "not-an-array" };
+    expect(parseCachedDossierEnvelope(malformed, null)).toEqual({
+      engineering: null,
+      gtm: null,
+      operations: null,
+    });
+  });
+
+  it("prefers legacy classification when JSON positively looks flat, even with an incidental envelope key", () => {
+    // Defensive: a legacy row that incidentally carries an `engineering`
+    // field (shouldn't happen in practice — all live legacy rows came
+    // from parseFlatDossier-conformant writes) must still classify as
+    // legacy and wrap correctly, not get misclassified as an envelope.
+    // Tightens against the discriminator's prior shape-absence heuristic.
+    const odd = { ...flatLegacy, engineering: "junk" };
+    const env = parseCachedDossierEnvelope(odd, legacyAt);
+    expect(env.engineering?.dossier).toEqual(flatLegacy);
+    expect(env.gtm).toBeNull();
+  });
+});
+
+describe("getDossierSlot — role → slot mapping (ADR-0005)", () => {
+  const slot = {
+    dossier: { summary: "x", surfaces: ["s"], recentLaunches: [], technicalAreas: [] },
+    researchedAt: new Date(),
+  };
+  const envelope = { engineering: slot, gtm: null, operations: null };
+
+  it("maps engineering, product, and null to the engineering slot", () => {
+    expect(getDossierSlot(envelope, "engineering")).toBe(slot);
+    expect(getDossierSlot(envelope, "product")).toBe(slot);
+    expect(getDossierSlot(envelope, null)).toBe(slot);
+  });
+
+  it("maps gtm to the gtm slot and operations to the operations slot", () => {
+    const gtmSlot = { ...slot };
+    const opsSlot = { ...slot };
+    const full = { engineering: null, gtm: gtmSlot, operations: opsSlot };
+    expect(getDossierSlot(full, "gtm")).toBe(gtmSlot);
+    expect(getDossierSlot(full, "operations")).toBe(opsSlot);
+  });
+});
+
+describe("setDossierSlot — read-modify-write helper (ADR-0005)", () => {
+  const slotA = {
+    dossier: { summary: "a", surfaces: ["a"], recentLaunches: [], technicalAreas: [] },
+    researchedAt: new Date(),
+  };
+  const slotB = {
+    dossier: { summary: "b", surfaces: ["b"], recentLaunches: [], technicalAreas: [] },
+    researchedAt: new Date(),
+  };
+
+  it("replaces the target role's slot and preserves the others", () => {
+    const before = { engineering: slotA, gtm: null, operations: null };
+    const after = setDossierSlot(before, "gtm", slotB);
+    expect(after.engineering).toBe(slotA);
+    expect(after.gtm).toBe(slotB);
+    expect(after.operations).toBeNull();
+  });
+
+  it("returns a new envelope without mutating the input", () => {
+    const before = { engineering: slotA, gtm: null, operations: null };
+    const snapshot = { ...before };
+    setDossierSlot(before, "gtm", slotB);
+    expect(before).toEqual(snapshot);
+  });
+
+  it("product writes land in the engineering slot (shared pipeline)", () => {
+    const before = { engineering: null, gtm: null, operations: null };
+    const after = setDossierSlot(before, "product", slotA);
+    expect(after.engineering).toBe(slotA);
   });
 });

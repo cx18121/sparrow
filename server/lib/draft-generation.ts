@@ -102,9 +102,33 @@ async function researchAndCacheDossier(
       // Persist for the next caller. Read-modify-write the envelope so
       // concurrent research for a different role doesn't wipe this slot,
       // and so existing slots stay intact when only this role re-researches.
-      // Failure to write is non-fatal — we still use the dossier for this draft.
+      //
+      // priorEnvelope was captured before the research call (~5-15s of
+      // network + Claude time). A different role's research for the same
+      // company may have completed and written its slot in that window.
+      // Re-fetch the envelope at write time so we merge into the latest
+      // state instead of clobbering whatever was just written. This shrinks
+      // the cross-role race window from the full research duration down to
+      // the DB read+write round-trip (~50ms); a row-level lock would close
+      // it entirely but the current volume doesn't warrant the complexity.
+      //
+      // Failure to write is non-fatal — we still use the dossier for this
+      // draft. A re-read failure falls back to priorEnvelope, which is no
+      // worse than the pre-fix behavior.
       const now = new Date();
-      const nextEnvelope = setDossierSlot(priorEnvelope, input.targetRole, {
+      const refetched = await prisma.company
+        .findUnique({
+          where: { id: companyId },
+          select: { researchDossier: true, researchedAt: true },
+        })
+        .catch(err => {
+          console.warn("Failed to re-read envelope before cache write:", err);
+          return null;
+        });
+      const currentEnvelope = refetched
+        ? parseCachedDossierEnvelope(refetched.researchDossier ?? null, refetched.researchedAt ?? null)
+        : priorEnvelope;
+      const nextEnvelope = setDossierSlot(currentEnvelope, input.targetRole, {
         dossier,
         researchedAt: now,
       });

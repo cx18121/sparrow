@@ -319,12 +319,17 @@ export function parseCachedDossierEnvelope(
   }
   const v = value as Record<string, unknown>
 
-  // Heuristic: if the JSON has slot keys, treat as envelope. If it has
-  // the flat dossier keys instead, treat as legacy. The two shapes are
-  // structurally exclusive (legacy has `summary` / `surfaces`; envelope
-  // has `engineering` / `gtm` / `operations`).
-  const hasEnvelopeKeys = 'engineering' in v || 'gtm' in v || 'operations' in v
-  if (!hasEnvelopeKeys) {
+  // Discriminator: prefer legacy when the JSON positively looks like a
+  // flat dossier (has `summary` as string AND `surfaces` as array). This
+  // is stronger than just checking absence of envelope keys — a malformed
+  // legacy row with an incidental `engineering` field would otherwise
+  // be misclassified as an envelope and silently produce a cache miss.
+  // The two shapes are structurally exclusive in normal use: legacy rows
+  // came from parseFlatDossier-conformant writes (no envelope keys);
+  // envelope rows came from setDossierSlot writes (no flat keys).
+  const looksLikeLegacy =
+    typeof v.summary === 'string' && Array.isArray(v.surfaces)
+  if (looksLikeLegacy) {
     const legacy = parseFlatDossier(value)
     if (!legacy) return { ...EMPTY_ENVELOPE }
     return {

@@ -21,7 +21,7 @@ const {
     contact: { findUnique: vi.fn() },
     template: { findUnique: vi.fn() },
     email: { create: vi.fn(), findFirst: vi.fn() },
-    company: { update: vi.fn() },
+    company: { update: vi.fn(), findUnique: vi.fn() },
     // resolveCampaignTargetRole hits this when generateDraft is called with
     // campaignId. Tests that omit campaignId never touch it.
     campaign: { findUnique: vi.fn() },
@@ -490,6 +490,9 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
       featureLine: "the agent eval harness",
       fitAngle: "my multi-agent eval project",
     });
+    // Default the cache-write re-read (ADR-0005 cross-role defense) to a
+    // miss; specific tests that exercise the re-read override this.
+    mockPrisma.company.findUnique.mockResolvedValue(null);
   });
 
   it("uses cached dossier from Company.researchDossier when fresh (< 30 days old)", async () => {
@@ -668,6 +671,55 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     expect(mockResearchCompanyDossier).not.toHaveBeenCalled();
     expect(mockPrisma.company.update).not.toHaveBeenCalled();
     expect(mockPickFitAngle.mock.calls[0][0].dossier).toEqual(dossier);
+  });
+
+  it("re-reads the envelope at write time to defend against cross-role concurrent clobber", async () => {
+    // Cross-role race scenario: at draft-generation start, the company has
+    // an empty envelope (no slots populated). Mid-research, a different
+    // role's research completes for the same company and writes its slot.
+    // The cache write here must merge into the latest DB state, not the
+    // stale envelope captured at the start. We simulate by returning a
+    // different envelope from company.findUnique (the re-read) than what
+    // was on the lead initially.
+    const lead = makeUserLead({
+      company: { ...makeUserLead().company, researchDossier: null, researchedAt: null },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+
+    // Simulate that mid-research, a GTM call landed and wrote its slot.
+    const concurrentGtmDossier = {
+      summary: "GTM dossier from concurrent write",
+      surfaces: ["new VP Sales hire"],
+      recentLaunches: [],
+      technicalAreas: [],
+    };
+    mockPrisma.company.findUnique.mockResolvedValue({
+      researchDossier: {
+        engineering: null,
+        gtm: { dossier: concurrentGtmDossier, researchedAt: new Date().toISOString() },
+        operations: null,
+      },
+      researchedAt: new Date(),
+    });
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+      where: { id: "co-1" },
+      select: { researchDossier: true, researchedAt: true },
+    });
+    const updateArg = mockPrisma.company.update.mock.calls[0][0];
+    // The eng slot got written, AND the gtm slot is preserved from the
+    // mid-research concurrent write.
+    expect(updateArg.data.researchDossier.engineering).toEqual({
+      dossier,
+      researchedAt: expect.any(Date),
+    });
+    expect(updateArg.data.researchDossier.gtm).toEqual({
+      dossier: concurrentGtmDossier,
+      researchedAt: expect.any(Date),
+    });
   });
 
   it("read-modify-writes the envelope so a fresh research preserves other roles' slots", async () => {
