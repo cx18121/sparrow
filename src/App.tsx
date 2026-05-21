@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AlertCircle, Home, FileText, Settings as SettingsIcon } from 'lucide-react'
 import Banner from './components/ui/Banner'
@@ -126,6 +126,32 @@ function AppShell() {
   const onboardingDraftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { templatesRef.current = templates }, [templates])
+
+  // Memoize the AppDataContext value so unrelated AppShell re-renders (URL
+  // changes, transient state) don't cascade into every useAppData() consumer.
+  // Handlers from useWorkspaceResources are already useCallback-stabilized;
+  // data fields are useState-backed. Declared up here so it runs on every
+  // render — moving it below the loading/auth early returns would violate
+  // the Rules of Hooks (hook count would change between renders).
+  const appData = useMemo(() => ({
+    campaigns, leads, customContacts, templates,
+    dataLoaded, hasResourceCache,
+    createCampaign: createCampaignHandler,
+    updateCampaign: updateCampaignHandler,
+    deleteCampaign: deleteCampaignHandler,
+    refreshLeads,
+    updateLead: updateLeadHandler,
+    deleteLead: deleteLeadHandler,
+    createTemplate: createTemplateHandler,
+    updateTemplate: updateTemplateHandler,
+    deleteTemplate: deleteTemplateHandler,
+  }), [
+    campaigns, leads, customContacts, templates,
+    dataLoaded, hasResourceCache,
+    createCampaignHandler, updateCampaignHandler, deleteCampaignHandler,
+    refreshLeads, updateLeadHandler, deleteLeadHandler,
+    createTemplateHandler, updateTemplateHandler, deleteTemplateHandler,
+  ])
 
   const refreshProfile = useCallback((force = false) => {
     if (!force && serverProfile && Date.now() - lastProfileRefreshRef.current < 60_000) {
@@ -564,19 +590,7 @@ function AppShell() {
   }
 
   return (
-    <AppDataProvider value={{
-      campaigns, leads, customContacts, templates,
-      dataLoaded, hasResourceCache,
-      createCampaign: createCampaignHandler,
-      updateCampaign: updateCampaignHandler,
-      deleteCampaign: deleteCampaignHandler,
-      refreshLeads,
-      updateLead: updateLeadHandler,
-      deleteLead: deleteLeadHandler,
-      createTemplate: createTemplateHandler,
-      updateTemplate: updateTemplateHandler,
-      deleteTemplate: deleteTemplateHandler,
-    }}>
+    <AppDataProvider value={appData}>
       <div className="flex min-h-screen bg-surface md:h-screen md:overflow-hidden">
         <div className="dashboard-backdrop fixed inset-0" />
         <Sidebar
