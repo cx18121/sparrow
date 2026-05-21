@@ -51,6 +51,14 @@ function fillTemplateTags(content: string) {
     .replace(/\{\{featureLine\}\}/g, PREVIEW_SAMPLE.feature_line)
     .replace(/\{\{fit_angle\}\}/g, PREVIEW_SAMPLE.fit_angle)
     .replace(/\{\{fitAngle\}\}/g, PREVIEW_SAMPLE.fit_angle)
+    .replace(/\{\{trigger_line\}\}/g, PREVIEW_SAMPLE.trigger_line)
+    .replace(/\{\{triggerLine\}\}/g, PREVIEW_SAMPLE.trigger_line)
+    .replace(/\{\{proof_of_motion\}\}/g, PREVIEW_SAMPLE.proof_of_motion)
+    .replace(/\{\{proofOfMotion\}\}/g, PREVIEW_SAMPLE.proof_of_motion)
+    .replace(/\{\{inflection_line\}\}/g, PREVIEW_SAMPLE.inflection_line)
+    .replace(/\{\{inflectionLine\}\}/g, PREVIEW_SAMPLE.inflection_line)
+    .replace(/\{\{system_built\}\}/g, PREVIEW_SAMPLE.system_built)
+    .replace(/\{\{systemBuilt\}\}/g, PREVIEW_SAMPLE.system_built)
 }
 
 // Strip HTML to readable plaintext for the preview pane. Mirrors the

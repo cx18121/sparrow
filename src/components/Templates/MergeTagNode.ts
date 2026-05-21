@@ -22,8 +22,15 @@ const KNOWN_TAGS = new Set([
   'company_name',
   'role',
   'sender_name',
+  // Eng / product personalization tags.
   'feature_line',
   'fit_angle',
+  // GTM personalization tags.
+  'trigger_line',
+  'proof_of_motion',
+  // Ops personalization tags.
+  'inflection_line',
+  'system_built',
 ])
 
 export const MergeTag = Node.create({

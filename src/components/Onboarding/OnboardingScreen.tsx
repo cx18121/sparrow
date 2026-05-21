@@ -14,16 +14,25 @@ const STEP_LABELS = ['About', 'Template', 'Gmail']
 
 function fillVariables(content, data) {
   if (!content) return ''
-  // Mirrors server-side dropEmptyTagParagraphs: when feature_line or fit_angle
-  // is missing, drop the entire paragraph anchored on that tag so the preview
-  // shows what production would actually ship — no orphaned "For context,
-  // feels like a stepping stone…" sentences.
+  // Mirrors server-side dropEmptyTagParagraphs: when any personalization
+  // tag is missing, drop the entire paragraph anchored on that tag so the
+  // preview shows what production would actually ship — no orphaned
+  // "For context, feels like a stepping stone…" sentences.
   const featureEmpty = !data.feature_line
   const fitEmpty = !data.fit_angle
-  const trimmed = (featureEmpty || fitEmpty)
+  const triggerEmpty = !data.trigger_line
+  const proofEmpty = !data.proof_of_motion
+  const inflectionEmpty = !data.inflection_line
+  const systemEmpty = !data.system_built
+  const anyEmpty = featureEmpty || fitEmpty || triggerEmpty || proofEmpty || inflectionEmpty || systemEmpty
+  const trimmed = anyEmpty
     ? content.split(/\n\s*\n/).filter(para => {
         if (featureEmpty && /\{\{(feature_line|featureLine)\}\}/.test(para)) return false
         if (fitEmpty && /\{\{(fit_angle|fitAngle)\}\}/.test(para)) return false
+        if (triggerEmpty && /\{\{(trigger_line|triggerLine)\}\}/.test(para)) return false
+        if (proofEmpty && /\{\{(proof_of_motion|proofOfMotion)\}\}/.test(para)) return false
+        if (inflectionEmpty && /\{\{(inflection_line|inflectionLine)\}\}/.test(para)) return false
+        if (systemEmpty && /\{\{(system_built|systemBuilt)\}\}/.test(para)) return false
         return true
       }).join('\n\n')
     : content
@@ -35,6 +44,10 @@ function fillVariables(content, data) {
     .replace(/\{\{sender_name\}\}/g, data.sender_name)
     .replace(/\{\{feature_line\}\}/g, data.feature_line ?? '')
     .replace(/\{\{fit_angle\}\}/g, data.fit_angle ?? '')
+    .replace(/\{\{trigger_line\}\}/g, data.trigger_line ?? '')
+    .replace(/\{\{proof_of_motion\}\}/g, data.proof_of_motion ?? '')
+    .replace(/\{\{inflection_line\}\}/g, data.inflection_line ?? '')
+    .replace(/\{\{system_built\}\}/g, data.system_built ?? '')
 }
 
 // Debounce delay for the preview fit-angle fetch. Long enough that users
@@ -179,13 +192,20 @@ function AboutStep({ form, updateField, onUploadResume, uploadState, showNameErr
 }
 
 const MERGE_TAGS: ReadonlyArray<{ tag: string; label: string }> = [
-  { tag: '{{first_name}}',  label: 'first name' },
-  { tag: '{{last_name}}',   label: 'last name' },
-  { tag: '{{company}}',     label: 'company' },
-  { tag: '{{role}}',        label: 'role' },
-  { tag: '{{sender_name}}', label: 'your name' },
-  { tag: '{{feature_line}}', label: 'feature line' },
-  { tag: '{{fit_angle}}',   label: 'fit angle' },
+  { tag: '{{first_name}}',     label: 'first name' },
+  { tag: '{{last_name}}',      label: 'last name' },
+  { tag: '{{company}}',        label: 'company' },
+  { tag: '{{role}}',           label: 'role' },
+  { tag: '{{sender_name}}',    label: 'your name' },
+  // Eng / product personalization tags.
+  { tag: '{{feature_line}}',   label: 'feature line' },
+  { tag: '{{fit_angle}}',      label: 'fit angle' },
+  // GTM personalization tags.
+  { tag: '{{trigger_line}}',   label: 'trigger line' },
+  { tag: '{{proof_of_motion}}', label: 'proof of motion' },
+  // Ops personalization tags.
+  { tag: '{{inflection_line}}', label: 'inflection line' },
+  { tag: '{{system_built}}',   label: 'system built' },
 ]
 
 function TemplateStep({ form, templates, selectedTemplate, updateField, updateCustomTemplate, setTemplateMode, aiPreview, isLoadingPreview, showBodyError }) {
@@ -208,6 +228,13 @@ function TemplateStep({ form, templates, selectedTemplate, updateField, updateCu
     sender_name: form.senderName || PREVIEW_SAMPLE.sender_name,
     feature_line: aiPreview.featureLine ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.feature_line),
     fit_angle: aiPreview.fitAngle ?? (isLoadingPreview ? '…' : PREVIEW_FALLBACK.fit_angle),
+    // GTM and ops merge tags don't have a live preview pipeline today
+    // (preview-fit-angle.ts is eng-only). Fall back to the sample values so
+    // ops/gtm default templates render a readable preview here.
+    trigger_line: PREVIEW_FALLBACK.trigger_line,
+    proof_of_motion: PREVIEW_FALLBACK.proof_of_motion,
+    inflection_line: PREVIEW_FALLBACK.inflection_line,
+    system_built: PREVIEW_FALLBACK.system_built,
   }
 
   // Insert a merge tag at the caret of whichever field was last focused.

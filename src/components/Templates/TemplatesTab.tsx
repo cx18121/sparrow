@@ -20,7 +20,22 @@ import { useToast } from '../../contexts/ToastContext'
 import { defaultAttachmentIds, getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
 import { PREVIEW_SAMPLE } from '../../lib/previewSample'
 
-const VARIABLES = ['{{first_name}}', '{{last_name}}', '{{company}}', '{{role}}', '{{sender_name}}', '{{feature_line}}', '{{fit_angle}}']
+const VARIABLES = [
+  '{{first_name}}',
+  '{{last_name}}',
+  '{{company}}',
+  '{{role}}',
+  '{{sender_name}}',
+  // Eng / product.
+  '{{feature_line}}',
+  '{{fit_angle}}',
+  // GTM.
+  '{{trigger_line}}',
+  '{{proof_of_motion}}',
+  // Ops.
+  '{{inflection_line}}',
+  '{{system_built}}',
+]
 
 function fillVariables(html, data) {
   if (!html) return ''
@@ -38,6 +53,14 @@ function fillVariables(html, data) {
     .replace(/\{\{featureLine\}\}/g, data.feature_line || PREVIEW_SAMPLE.feature_line)
     .replace(/\{\{fit_angle\}\}/g, data.fit_angle || PREVIEW_SAMPLE.fit_angle)
     .replace(/\{\{fitAngle\}\}/g, data.fit_angle || PREVIEW_SAMPLE.fit_angle)
+    .replace(/\{\{trigger_line\}\}/g, data.trigger_line || PREVIEW_SAMPLE.trigger_line)
+    .replace(/\{\{triggerLine\}\}/g, data.trigger_line || PREVIEW_SAMPLE.trigger_line)
+    .replace(/\{\{proof_of_motion\}\}/g, data.proof_of_motion || PREVIEW_SAMPLE.proof_of_motion)
+    .replace(/\{\{proofOfMotion\}\}/g, data.proof_of_motion || PREVIEW_SAMPLE.proof_of_motion)
+    .replace(/\{\{inflection_line\}\}/g, data.inflection_line || PREVIEW_SAMPLE.inflection_line)
+    .replace(/\{\{inflectionLine\}\}/g, data.inflection_line || PREVIEW_SAMPLE.inflection_line)
+    .replace(/\{\{system_built\}\}/g, data.system_built || PREVIEW_SAMPLE.system_built)
+    .replace(/\{\{systemBuilt\}\}/g, data.system_built || PREVIEW_SAMPLE.system_built)
 }
 
 function normalizeSafeLinkUrl(value) {
@@ -148,7 +171,7 @@ function RichEditor({ content, onChange, placeholder = 'Write your email…', ar
           <LinkIcon size={13} />
         </ToolbarButton>
         <div className="w-px h-4 bg-warm-200 mx-1 ml-auto" />
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {VARIABLES.map(v => (
             <button
               key={v}
