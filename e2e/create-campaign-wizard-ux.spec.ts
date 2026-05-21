@@ -175,4 +175,65 @@ test.describe('Create campaign wizard UX', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
   })
+
+  test('Escape during in-flight submit does not cancel the campaign create', async ({
+    page,
+  }) => {
+    const template = await createTestTemplate(page, { name: 'Cold intro' })
+
+    // Hold the POST open long enough to press Escape while the create is
+    // in flight. The Escape handler must respect submitChoice and refuse
+    // to dismiss until the request resolves.
+    let releasePost: (() => void) | null = null
+    const postReleased = new Promise<void>(resolve => {
+      releasePost = resolve
+    })
+    let createdPayload: any = null
+    await page.route('**/api/campaigns**', async route => {
+      if (route.request().method() === 'POST') {
+        createdPayload = route.request().postDataJSON()
+        await postReleased
+        return json(
+          route,
+          {
+            id: 'cmp_held',
+            userId,
+            name: createdPayload.name,
+            status: createdPayload.status,
+            templateId: createdPayload.templateId,
+            batchSize: 10,
+            currentBatch: 0,
+            filterTags: [],
+            attachmentIds: [],
+            includePreviouslySaved: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          201,
+        )
+      }
+      return json(route, { items: [] })
+    })
+
+    await page.goto('/dashboard?new=1')
+    const dialog = page.getByRole('dialog', { name: /Create campaign/i })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+    await page.getByLabel('Campaign name').fill('Race test')
+    await page.getByRole('button', { name: /Continue/i }).click()
+    await page.getByRole('button', { name: /Continue/i }).click()
+    await page.getByRole('button', { name: new RegExp(template.name) }).click()
+    await page.getByRole('button', { name: /Continue/i }).click()
+    await page.getByRole('button', { name: /Save as Paused/i }).click()
+
+    // Submit is in flight (POST held by the route mock). Press Escape —
+    // wizard should NOT close because submitChoice is set.
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeVisible()
+    expect(createdPayload?.name).toBe('Race test')
+
+    // Release the POST; wizard naturally closes after success.
+    releasePost?.()
+    await expect(dialog).toBeHidden({ timeout: 10_000 })
+  })
 })

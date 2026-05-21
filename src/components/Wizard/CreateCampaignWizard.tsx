@@ -149,18 +149,22 @@ export default function CreateCampaignWizard({
   }, [state, hydrated])
 
   // Escape dismisses the wizard. Suppressed during submit so a stray key
-  // press can't drop the user out mid-create.
+  // press can't drop the user out mid-create. Both flags matter:
+  // `submitChoice` is set synchronously when the user clicks Create, and
+  // `saving` flips when the parent's request actually starts — there's a
+  // brief window where submitChoice is truthy but saving is still false,
+  // and Escape during that gap would abort an in-flight create.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) {
+      if (e.key === 'Escape' && !saving && submitChoice === null) {
         clearScratch()
         onCancel()
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, saving, onCancel])
+  }, [open, saving, submitChoice, onCancel])
 
   if (!open) return null
 
