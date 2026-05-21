@@ -1215,6 +1215,8 @@ This is ONE coupled decision, not two independent ones. Search the cross-product
 
 Prefer INFLECTION from inflections (stage-defining org states) over openRoles (literal listings) and recentHires (proof points). Inflections explain *why* the company needs operational help right now; open roles just describe what they're hiring for; recent hires describe what they've already done. Only fall back to openRoles when no inflection plausibly matches the chosen SYSTEM.
 
+Prefer positive inflections (active events, visible scale, named transitions like "Series D + AI agent launches") over negative inferences (things missing from public pages, like "no visible Head of People"). Negative inferences can come across as presumptuous in cold outreach — the candidate is guessing at org gaps from absence rather than referencing a real signal. Only pick a negative-inference inflection when the dossier has no positive inflection that plausibly matches the chosen SYSTEM.
+
 Grounding rules for SYSTEM — keep it grounded in the resume, but use what the resume actually has:
 - Must anchor on something concrete: a named function the candidate stood up, a hiring or close process they owned, a team they scaled, a system they rolled out (ATS, performance review, billing, finance close), a Chief of Staff or BizOps function they held, an operating-cadence they ran. Use the resume's own words where natural.
 - Do NOT invent scale the resume doesn't mention. If the resume only lists "Chief of Staff to CEO at a 30-person seed startup," "my Chief of Staff role at a seed startup" is fine. "$5M finance close" would be forbidden if "$5M" isn't on the resume.
