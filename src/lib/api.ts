@@ -374,11 +374,38 @@ export const generateEmail = (data: {
 })
 export const sendEmail = (emailId: string) =>
   request<SendEmailResponse>('/emails/send', { method: 'POST', body: JSON.stringify({ emailId }) })
-export const changeEmailAngle = (emailId: string, featureLine: string | null) =>
-  request<{ id: string; subject: string; body: string; featureLine: string | null; fitAngle: string | null }>(
-    '/emails/angle',
-    { method: 'POST', body: JSON.stringify({ emailId, featureLine }) }
-  )
+// Change-angle response shape varies by role: eng returns featureLine +
+// fitAngle, gtm returns triggerLine + proofOfMotion, ops returns
+// inflectionLine + systemBuilt. The discriminator is the role argument,
+// which also maps to which body field the server expects.
+export interface ChangeAngleEngResult {
+  id: string; subject: string; body: string
+  featureLine: string | null; fitAngle: string | null
+}
+export interface ChangeAngleGtmResult {
+  id: string; subject: string; body: string
+  triggerLine: string | null; proofOfMotion: string | null
+}
+export interface ChangeAngleOpsResult {
+  id: string; subject: string; body: string
+  inflectionLine: string | null; systemBuilt: string | null
+}
+export type ChangeAngleResult = ChangeAngleEngResult | ChangeAngleGtmResult | ChangeAngleOpsResult
+
+export function changeEmailAngle(emailId: string, role: 'eng', companyLine: string): Promise<ChangeAngleEngResult>
+export function changeEmailAngle(emailId: string, role: 'gtm', companyLine: string): Promise<ChangeAngleGtmResult>
+export function changeEmailAngle(emailId: string, role: 'ops', companyLine: string): Promise<ChangeAngleOpsResult>
+export function changeEmailAngle(
+  emailId: string,
+  role: 'eng' | 'gtm' | 'ops',
+  companyLine: string,
+): Promise<ChangeAngleResult> {
+  const fieldName = role === 'eng' ? 'featureLine' : role === 'gtm' ? 'triggerLine' : 'inflectionLine'
+  return request<ChangeAngleResult>('/emails/angle', {
+    method: 'POST',
+    body: JSON.stringify({ emailId, [fieldName]: companyLine }),
+  })
+}
 export const sendTestEmail = (emailId: string, recipient: string) =>
   request<{ success: true; recipient: string }>('/emails/send-test', {
     method: 'POST',

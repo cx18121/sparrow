@@ -871,6 +871,10 @@ export interface PickGtmAngleInput {
   dossier: GtmDossier
   resumeText: string | null
   apiKey: string
+  // Set by the change-angle path when the user has picked a TRIGGER in the
+  // UI; the picker echoes it back verbatim and only re-derives PROOF.
+  // Mirrors forceFeatureLine on PickFitAngleInput.
+  forceTriggerLine?: string | null
 }
 
 export interface GtmAngleResult {
@@ -912,6 +916,7 @@ Output PROOF: NONE only when the resume has no concrete GTM element to anchor on
 
 function buildGtmPickPrompt(input: PickGtmAngleInput): string {
   const d = input.dossier
+  const forced = input.forceTriggerLine?.trim() || null
   const lines = [
     'GTM dossier:',
     d.summary ? `Summary: ${d.summary}` : null,
@@ -921,6 +926,11 @@ function buildGtmPickPrompt(input: PickGtmAngleInput): string {
     '',
     'Candidate resume (full):',
     input.resumeText ?? '(no resume provided)',
+    forced ? '' : null,
+    // The user has explicitly chosen TRIGGER in the UI. Echo it back
+    // verbatim and pick only PROOF to bridge to it. Mirrors the eng
+    // forceFeatureLine path in buildPickPrompt.
+    forced ? `TRIGGER is fixed: "${forced}". Output TRIGGER: "${forced}" exactly, then pick PROOF that bridges most directly to that trigger.` : null,
   ].filter(line => line !== null)
   return lines.join('\n')
 }
@@ -928,7 +938,7 @@ function buildGtmPickPrompt(input: PickGtmAngleInput): string {
 // Per-recipient personalization for GTM drafts. Token-only — no search.
 export async function pickGtmAngle(input: PickGtmAngleInput): Promise<GtmAngleResult> {
   if (isEmptyGtmDossier(input.dossier)) {
-    return { triggerLine: null, proofOfMotion: null }
+    return { triggerLine: input.forceTriggerLine?.trim() || null, proofOfMotion: null }
   }
 
   const text = await callClaude({
@@ -1196,6 +1206,10 @@ export interface PickOpsAngleInput {
   dossier: OpsDossier
   resumeText: string | null
   apiKey: string
+  // Set by the change-angle path when the user has picked an INFLECTION
+  // in the UI; the picker echoes it back verbatim and only re-derives
+  // SYSTEM. Mirrors forceFeatureLine on PickFitAngleInput.
+  forceInflectionLine?: string | null
 }
 
 export interface OpsAngleResult {
@@ -1239,6 +1253,7 @@ Output SYSTEM: NONE only when the resume has no concrete operational element to 
 
 function buildOpsPickPrompt(input: PickOpsAngleInput): string {
   const d = input.dossier
+  const forced = input.forceInflectionLine?.trim() || null
   const lines = [
     'Ops dossier:',
     d.summary ? `Summary: ${d.summary}` : null,
@@ -1248,6 +1263,11 @@ function buildOpsPickPrompt(input: PickOpsAngleInput): string {
     '',
     'Candidate resume (full):',
     input.resumeText ?? '(no resume provided)',
+    forced ? '' : null,
+    // The user has explicitly chosen INFLECTION in the UI. Echo it back
+    // verbatim and pick only SYSTEM to bridge to it. Mirrors the eng
+    // forceFeatureLine path in buildPickPrompt.
+    forced ? `INFLECTION is fixed: "${forced}". Output INFLECTION: "${forced}" exactly, then pick SYSTEM that bridges most directly to that inflection.` : null,
   ].filter(line => line !== null)
   return lines.join('\n')
 }
@@ -1255,7 +1275,7 @@ function buildOpsPickPrompt(input: PickOpsAngleInput): string {
 // Per-recipient personalization for ops drafts. Token-only — no search.
 export async function pickOpsAngle(input: PickOpsAngleInput): Promise<OpsAngleResult> {
   if (isEmptyOpsDossier(input.dossier)) {
-    return { inflectionLine: null, systemBuilt: null }
+    return { inflectionLine: input.forceInflectionLine?.trim() || null, systemBuilt: null }
   }
 
   const text = await callClaude({

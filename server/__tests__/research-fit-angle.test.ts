@@ -4,6 +4,8 @@ import {
   researchCompanyDossierGtmHybrid,
   researchCompanyDossierOpsHybrid,
   pickFitAngle,
+  pickGtmAngle,
+  pickOpsAngle,
   parseCachedDossierEnvelope,
   getDossierSlot,
   setDossierSlot,
@@ -12,6 +14,8 @@ import {
   parseOpsDossier,
   isEmptyOpsDossier,
   type CompanyDossier,
+  type GtmDossier,
+  type OpsDossier,
 } from "../lib/ai/research-fit-angle.js";
 
 const ANTHROPIC_KEY = "ant-test-key";
@@ -347,6 +351,99 @@ describe("pickFitAngle", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.featureLine).toBeNull();
     expect(result.fitAngle).toBeNull();
+  });
+});
+
+// The change-angle route (server/routes/emails/angle.ts) re-runs the role
+// picker with a user-chosen company-side line forced. These tests pin the
+// contract: the chosen line lands verbatim in the prompt with an
+// "<X> is fixed" directive so the model echoes it back instead of
+// re-picking. Mirrors the existing forceFeatureLine path for eng.
+describe("pickGtmAngle forceTriggerLine — change-angle re-pick (ADR-0005)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+
+  const gtm: GtmDossier = {
+    summary: "Series B GTM ramp",
+    triggers: ["raised Series B in March", "hired VP Sales from Stripe"],
+    recentMoves: ["expanded to EMEA"],
+    marketSignals: ["category leader in dev-tool sales"],
+  };
+
+  it("injects 'TRIGGER is fixed' directive when forceTriggerLine is provided", async () => {
+    const fetchMock = mockClaudeText("TRIGGER: raised Series B in March\nPROOF: my mid-market AE work");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pickGtmAngle({
+      dossier: gtm,
+      resumeText: "Sold mid-market SaaS at Acme.",
+      apiKey: API_KEY,
+      forceTriggerLine: "raised Series B in March",
+    });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const prompt = JSON.parse(options.body as string).messages[0].content as string;
+    expect(prompt).toContain('TRIGGER is fixed: "raised Series B in March"');
+  });
+
+  it("returns the forced trigger even when dossier is empty so the swap path still anchors text", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const empty: GtmDossier = { summary: "", triggers: [], recentMoves: [], marketSignals: [] };
+    const result = await pickGtmAngle({
+      dossier: empty,
+      resumeText: "resume",
+      apiKey: API_KEY,
+      forceTriggerLine: "raised Series B",
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.triggerLine).toBe("raised Series B");
+    expect(result.proofOfMotion).toBeNull();
+  });
+});
+
+describe("pickOpsAngle forceInflectionLine — change-angle re-pick (ADR-0005)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+
+  const ops: OpsDossier = {
+    summary: "Scaling past 200 employees",
+    inflections: ["Series D + AI agent launches", "new EMEA office opening"],
+    recentHires: ["new VP Engineering"],
+    openRoles: ["Head of People"],
+  };
+
+  it("injects 'INFLECTION is fixed' directive when forceInflectionLine is provided", async () => {
+    const fetchMock = mockClaudeText("INFLECTION: Series D + AI agent launches\nSYSTEM: my Chief of Staff role");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pickOpsAngle({
+      dossier: ops,
+      resumeText: "Chief of Staff at a YC seed-stage company.",
+      apiKey: API_KEY,
+      forceInflectionLine: "Series D + AI agent launches",
+    });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const prompt = JSON.parse(options.body as string).messages[0].content as string;
+    expect(prompt).toContain('INFLECTION is fixed: "Series D + AI agent launches"');
+  });
+
+  it("returns the forced inflection even when dossier is empty so the swap path still anchors text", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const empty: OpsDossier = { summary: "", inflections: [], openRoles: [], recentHires: [] };
+    const result = await pickOpsAngle({
+      dossier: empty,
+      resumeText: "resume",
+      apiKey: API_KEY,
+      forceInflectionLine: "Series D launches",
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.inflectionLine).toBe("Series D launches");
+    expect(result.systemBuilt).toBeNull();
   });
 });
 

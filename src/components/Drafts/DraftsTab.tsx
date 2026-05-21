@@ -37,25 +37,30 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// Picker that lets the user swap which company surface (featureLine) the
-// draft pivots on. Only shown for verbatim drafts with a non-empty
-// featureLine and a dossier; the server enforces the same constraint.
-// Calling /api/emails/angle does a token-only fitAngle re-derive and a
-// string substitution on the saved body/subject — no Claude rewrite, so
-// any user edits to other parts of the email survive.
-function AnglePicker({
-  emailId,
-  currentFeatureLine,
-  surfaces,
-  onChanged,
-  disabled,
-}: {
+// Picker that lets the user swap which company-side line the draft pivots
+// on. Only shown for verbatim drafts with a non-empty current line and
+// matching dossier options; the server enforces the same constraint.
+// Calling /api/emails/angle does a token-only re-derive of the
+// candidate-side line and a string substitution on the saved
+// body/subject — no Claude rewrite, so any user edits to other parts of
+// the email survive.
+//
+// Role-aware per ADR-0005:
+//   - eng: company-side = featureLine, candidate-side = fitAngle
+//   - gtm: company-side = triggerLine, candidate-side = proofOfMotion
+//   - ops: company-side = inflectionLine, candidate-side = systemBuilt
+type AngleRole = 'eng' | 'gtm' | 'ops'
+
+interface AnglePickerProps {
   emailId: string
-  currentFeatureLine: string
-  surfaces: string[]
-  onChanged: (next: { subject: string; body: string; featureLine: string | null; fitAngle: string | null }) => void
+  role: AngleRole
+  currentLine: string
+  options: string[]
+  onChanged: (next: { subject: string; body: string; companyLine: string | null; candidateLine: string | null }) => void
   disabled?: boolean
-}) {
+}
+
+function AnglePicker({ emailId, role, currentLine, options, onChanged, disabled }: AnglePickerProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -74,19 +79,35 @@ function AnglePicker({
 
   const pick = async (next: string) => {
     if (busy) return
-    if (next === currentFeatureLine) {
+    if (next === currentLine) {
       setOpen(false)
       return
     }
     setBusy(true)
     try {
-      const updated = await changeEmailAngle(emailId, next)
-      onChanged({
-        subject: updated.subject,
-        body: updated.body,
-        featureLine: updated.featureLine,
-        fitAngle: updated.fitAngle,
-      })
+      // The overloaded changeEmailAngle returns role-shaped fields; map
+      // them to the picker's generic (companyLine, candidateLine) shape
+      // so callers stay agnostic.
+      let companyLine: string | null = null
+      let candidateLine: string | null = null
+      let updated: { id: string; subject: string; body: string }
+      if (role === 'eng') {
+        const r = await changeEmailAngle(emailId, 'eng', next)
+        updated = r
+        companyLine = r.featureLine
+        candidateLine = r.fitAngle
+      } else if (role === 'gtm') {
+        const r = await changeEmailAngle(emailId, 'gtm', next)
+        updated = r
+        companyLine = r.triggerLine
+        candidateLine = r.proofOfMotion
+      } else {
+        const r = await changeEmailAngle(emailId, 'ops', next)
+        updated = r
+        companyLine = r.inflectionLine
+        candidateLine = r.systemBuilt
+      }
+      onChanged({ subject: updated.subject, body: updated.body, companyLine, candidateLine })
       setOpen(false)
     } catch (err: any) {
       showToast({ type: 'error', title: 'Could not change angle', message: err?.message ?? 'Try again.' })
@@ -105,7 +126,7 @@ function AnglePicker({
         className="inline-flex items-center gap-1.5 rounded-full border border-warm-200 bg-warm-50 px-3 py-1 text-xs font-medium text-dark transition-colors hover:border-primary/30 disabled:cursor-wait disabled:opacity-60"
       >
         {busy && <Loader2 size={11} className="animate-spin text-primary" />}
-        <span className="max-w-[32ch] truncate">{currentFeatureLine}</span>
+        <span className="max-w-[32ch] truncate">{currentLine}</span>
         <ChevronDown size={11} className="text-muted" />
       </button>
       {open && (
@@ -113,21 +134,69 @@ function AnglePicker({
           ref={menuRef}
           className="absolute left-0 top-full z-30 mt-1.5 min-w-[260px] max-w-[360px] overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 py-1 shadow-card"
         >
-          {surfaces.map(s => (
+          {options.map(s => (
             <button
               key={s}
               type="button"
               onClick={() => pick(s)}
-              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-xs transition-colors hover:bg-warm-100 ${s === currentFeatureLine ? 'font-semibold text-primary' : 'text-dark'}`}
+              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-xs transition-colors hover:bg-warm-100 ${s === currentLine ? 'font-semibold text-primary' : 'text-dark'}`}
             >
               <span className="truncate">{s}</span>
-              {s === currentFeatureLine && <Check size={11} className="shrink-0 text-primary" />}
+              {s === currentLine && <Check size={11} className="shrink-0 text-primary" />}
             </button>
           ))}
         </div>
       )}
     </div>
   )
+}
+
+// Pulls the per-role options + current line out of an Email + its company's
+// researchDossier. Returns null if the draft doesn't qualify for angle
+// swap — wrong generationKind, missing dossier, no options to choose
+// from. Handles both the legacy flat-dossier shape (pre-ADR-0005) and the
+// per-role envelope (post-ADR-0005) so legacy rows that haven't re-cached
+// still surface the picker.
+interface AngleContext {
+  role: AngleRole
+  currentLine: string
+  options: string[]
+}
+
+function resolveAngleContext(preview: any): AngleContext | null {
+  if (preview?.generationKind !== 'verbatim') return null
+  const dossierRaw = preview?.userLead?.company?.researchDossier
+  if (!dossierRaw || typeof dossierRaw !== 'object') return null
+
+  // Ops takes priority over GTM and eng: if an ops line is present, this
+  // draft was generated by the ops pipeline. Same for GTM. The Email row
+  // only carries one role's columns populated (per ADR-0005).
+  if (typeof preview.opsInflectionLine === 'string' && preview.opsInflectionLine.length > 0) {
+    const ops = dossierRaw.operations?.dossier
+    if (!ops) return null
+    const options = [...(ops.inflections ?? []), ...(ops.openRoles ?? []), ...(ops.recentHires ?? [])]
+    if (options.length === 0) return null
+    return { role: 'ops', currentLine: preview.opsInflectionLine, options }
+  }
+  if (typeof preview.gtmTriggerLine === 'string' && preview.gtmTriggerLine.length > 0) {
+    const gtm = dossierRaw.gtm?.dossier
+    if (!gtm) return null
+    const options = [...(gtm.triggers ?? []), ...(gtm.recentMoves ?? [])]
+    if (options.length === 0) return null
+    return { role: 'gtm', currentLine: preview.gtmTriggerLine, options }
+  }
+  if (typeof preview.featureLine === 'string' && preview.featureLine.length > 0) {
+    // Eng path supports both legacy flat (researchDossier.surfaces) and
+    // envelope (researchDossier.engineering.dossier.surfaces). Try the
+    // envelope first; fall back to the flat shape for pre-ADR-0005 rows.
+    const engOptions: string[] =
+      dossierRaw.engineering?.dossier?.surfaces ??
+      dossierRaw.surfaces ??
+      []
+    if (engOptions.length === 0) return null
+    return { role: 'eng', currentLine: preview.featureLine, options: engOptions }
+  }
+  return null
 }
 
 function readinessIcon(label) {
@@ -1186,26 +1255,38 @@ export default function DraftsTab({
             </div>
 
             {/* Angle picker: only verbatim drafts with a non-empty
-                featureLine and an attached dossier qualify. Backend
-                enforces the same constraint. */}
+                role-shaped company-side line and a matching dossier qualify.
+                Backend enforces the same constraint. resolveAngleContext
+                discriminates eng / gtm / ops by which Email column is
+                populated. */}
             {tab === 'draft' && !editing && (() => {
-              const surfaces: string[] = (preview.userLead?.company as any)?.researchDossier?.surfaces ?? []
-              const canChange =
-                preview.generationKind === 'verbatim' &&
-                typeof preview.featureLine === 'string' &&
-                preview.featureLine.length > 0 &&
-                Array.isArray(surfaces) && surfaces.length > 0
-              if (!canChange) return null
+              const ctx = resolveAngleContext(preview)
+              if (!ctx) return null
               return (
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/70">Angle</p>
                   <AnglePicker
                     emailId={preview.id}
-                    currentFeatureLine={preview.featureLine}
-                    surfaces={surfaces}
+                    role={ctx.role}
+                    currentLine={ctx.currentLine}
+                    options={ctx.options}
                     onChanged={(next) => {
-                      setPreview(p => p ? { ...p, subject: next.subject, body: next.body, featureLine: next.featureLine, fitAngle: next.fitAngle } : p)
-                      setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, subject: next.subject, body: next.body, featureLine: next.featureLine, fitAngle: next.fitAngle } : d))
+                      // Map the picker's generic (companyLine, candidateLine) pair
+                      // back to the role-specific Email columns so optimistic state
+                      // matches what /api/emails returns next refresh.
+                      const patch: any = { subject: next.subject, body: next.body }
+                      if (ctx.role === 'eng') {
+                        patch.featureLine = next.companyLine
+                        patch.fitAngle = next.candidateLine
+                      } else if (ctx.role === 'gtm') {
+                        patch.gtmTriggerLine = next.companyLine
+                        patch.gtmProofOfMotion = next.candidateLine
+                      } else {
+                        patch.opsInflectionLine = next.companyLine
+                        patch.opsSystemBuilt = next.candidateLine
+                      }
+                      setPreview(p => p ? { ...p, ...patch } : p)
+                      setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, ...patch } : d))
                     }}
                   />
                 </div>
