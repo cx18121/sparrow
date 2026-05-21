@@ -151,6 +151,49 @@ function AnglePicker({ emailId, role, currentLine, options, onChanged, disabled 
   )
 }
 
+// Detects partial personalization on a verbatim draft. The server's
+// dropEmptyTagParagraphs silently removes any paragraph whose only
+// specific content was a merge tag the picker couldn't fill — so the user
+// sees a shorter email than what they authored, with no signal in the UI
+// for why.
+//
+// We can detect *partial* failure when one half of a role's (company-side,
+// candidate-side) pair is populated and the other is null — that means
+// the model picked one line but not the other, and the paragraph
+// referencing the null line was dropped.
+//
+// We CANNOT detect total failure (both halves null) without persisting the
+// intended role on the Email row. A future server-side enhancement would
+// add a column for this; for now, total-failure drafts get a generic-
+// looking email and silently no warning. The trade-off here is honest UX
+// for the cases we can detect without a migration.
+export type DroppedTagWarning = { droppedTags: string[]; company: string | null }
+
+export function detectDroppedTags(preview: any): DroppedTagWarning | null {
+  if (preview?.generationKind !== 'verbatim') return null
+  const company = preview?.userLead?.company?.name ?? preview?.customContact?.companyName ?? null
+
+  const pairs: Array<{ companyTag: string; candidateTag: string; companyVal: unknown; candidateVal: unknown }> = [
+    { companyTag: '{{feature_line}}',   candidateTag: '{{fit_angle}}',       companyVal: preview.featureLine,       candidateVal: preview.fitAngle },
+    { companyTag: '{{trigger_line}}',   candidateTag: '{{proof_of_motion}}', companyVal: preview.gtmTriggerLine,    candidateVal: preview.gtmProofOfMotion },
+    { companyTag: '{{inflection_line}}', candidateTag: '{{system_built}}',   companyVal: preview.opsInflectionLine, candidateVal: preview.opsSystemBuilt },
+  ]
+  // Find the role this draft used by which pair is at least half-populated.
+  // Only one role's columns should be set per row (ADR-0005); if multiple
+  // are, prefer the first non-empty pair — they're consistent in practice.
+  const active = pairs.find(p => isNonEmpty(p.companyVal) || isNonEmpty(p.candidateVal))
+  if (!active) return null
+  const dropped: string[] = []
+  if (!isNonEmpty(active.companyVal)) dropped.push(active.companyTag)
+  if (!isNonEmpty(active.candidateVal)) dropped.push(active.candidateTag)
+  if (dropped.length === 0) return null
+  return { droppedTags: dropped, company }
+}
+
+function isNonEmpty(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0
+}
+
 // Pulls the per-role options + current line out of an Email + its company's
 // researchDossier. Returns null if the draft doesn't qualify for angle
 // swap — wrong generationKind, missing dossier, no options to choose
@@ -1289,6 +1332,26 @@ export default function DraftsTab({
                       setDrafts(prev => prev.map(d => d.id === preview.id ? { ...d, ...patch } : d))
                     }}
                   />
+                </div>
+              )
+            })()}
+
+            {/* Personalization warning: when the picker filled one half of
+                the role's (company-side, candidate-side) pair but not the
+                other, the server dropped the paragraph anchored on the
+                empty tag. Surface that so the user knows the draft is
+                shorter than the template they authored, not corrupted. */}
+            {tab === 'draft' && !editing && (() => {
+              const warn = detectDroppedTags(preview)
+              if (!warn) return null
+              const tagList = warn.droppedTags.join(' and ')
+              const target = warn.company ? `for ${warn.company}` : 'for this recipient'
+              return (
+                <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    We couldn't fill <span className="font-mono">{tagList}</span> {target}, so {warn.droppedTags.length > 1 ? 'those paragraphs were' : 'that paragraph was'} dropped from this draft. The rest of the template still sent verbatim.
+                  </span>
                 </div>
               )
             })()}
