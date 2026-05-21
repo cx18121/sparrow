@@ -125,9 +125,10 @@ function AddContactForm({ busy, onCancel, onSubmit }: AddFormProps) {
         onSubmit({ name: name.trim(), email: email.trim(), title: title.trim(), companyName: company.trim() })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs">
+      <label htmlFor="contact-add-name" className="flex flex-col gap-1 text-xs">
         <span className="font-medium text-muted">Name</span>
         <input
+          id="contact-add-name"
           autoFocus
           value={name}
           onChange={e => setName(e.target.value)}
@@ -135,9 +136,10 @@ function AddContactForm({ busy, onCancel, onSubmit }: AddFormProps) {
           className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs">
+      <label htmlFor="contact-add-email" className="flex flex-col gap-1 text-xs">
         <span className="font-medium text-muted">Email</span>
         <input
+          id="contact-add-email"
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
@@ -145,18 +147,20 @@ function AddContactForm({ busy, onCancel, onSubmit }: AddFormProps) {
           className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs">
+      <label htmlFor="contact-add-title" className="flex flex-col gap-1 text-xs">
         <span className="font-medium text-muted">Title</span>
         <input
+          id="contact-add-title"
           value={title}
           onChange={e => setTitle(e.target.value)}
           disabled={busy}
           className="rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs">
+      <label htmlFor="contact-add-company" className="flex flex-col gap-1 text-xs">
         <span className="font-medium text-muted">Company</span>
         <input
+          id="contact-add-company"
           value={company}
           onChange={e => setCompany(e.target.value)}
           disabled={busy}

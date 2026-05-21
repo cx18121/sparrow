@@ -241,4 +241,29 @@ test.describe('Contacts sub-tab', () => {
     await expect(page.locator('text=/Devon Park/')).toBeVisible()
     await expect(page.locator('text=/Sarah Chen/')).toHaveCount(0)
   })
+
+  test('Add contact form inputs have programmatic labels', async ({ page }) => {
+    await page.route('**/api/campaign-leads?**', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [] }),
+      }),
+    )
+
+    await page.goto(`/campaigns/${campaignId}/contacts`)
+    await page.getByRole('button', { name: /Add contact/i }).click()
+
+    // Each input is reachable by its visible label text via getByLabel —
+    // proves htmlFor+id pairs are wired correctly. Pre-this-work the
+    // wrapping <label> matched via implicit association in browsers but
+    // diverged from the rest of the codebase's explicit pattern.
+    await expect(page.getByLabel(/^Name$/)).toBeVisible()
+    await expect(page.getByLabel(/^Email$/)).toBeVisible()
+    await expect(page.getByLabel(/^Title$/)).toBeVisible()
+    await expect(page.getByLabel(/^Company$/)).toBeVisible()
+
+    await page.getByLabel(/^Name$/).fill('Test Contact')
+    await expect(page.getByLabel(/^Name$/)).toHaveValue('Test Contact')
+  })
 })
