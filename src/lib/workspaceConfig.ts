@@ -4,14 +4,23 @@ import {
   type RoleFamily,
 } from '../types/roleFamilies'
 
-// Pre-filled starter template for fresh onboarding sessions. Uses the
-// high-signal merge tags ({{first_name}}, {{company}}, {{feature_line}},
-// {{fit_angle}}, {{sender_name}}) so the Step 2 preview renders a real-
-// looking email immediately — minimum friction: user can either edit or
-// just hit Continue. Existing users with a saved customTemplate keep
-// theirs because the data merge below overrides this with whatever they
-// last saved (including an explicit empty body).
-const DEFAULT_CUSTOM_TEMPLATE = {
+// Pre-filled starter templates for fresh onboarding sessions, per role
+// family. Each uses merge tags that match its role's picker output so
+// the Step 2 preview renders a real-looking email immediately — minimum
+// friction: user can either edit or just hit Continue.
+//
+// Per ADR-0005 the engineering pipeline produces {{feature_line}} +
+// {{fit_angle}}; the GTM pipeline produces {{trigger_line}} +
+// {{proof_of_motion}}. Mismatched tags would substitute to empty
+// strings and trigger dropEmptyTagParagraphs, leaving the template
+// gutted on first use. Product shares the eng pipeline so it shares
+// the eng template; operations stays on the eng template too until
+// slice 3 ships an ops picker.
+//
+// Existing users with a saved customTemplate keep theirs because the
+// data merge below overrides the default with whatever they last saved
+// (including an explicit empty body).
+const ENG_DEFAULT_TEMPLATE = {
   id: '',
   name: 'Founder intro',
   subject: 'Interested in learning about {{company}}',
@@ -30,6 +39,40 @@ const DEFAULT_CUSTOM_TEMPLATE = {
   attachmentIds: [] as string[],
   isShared: false,
 };
+
+const GTM_DEFAULT_TEMPLATE = {
+  id: '',
+  name: 'GTM intro',
+  subject: 'Quick note on {{company}}',
+  body: [
+    'Hi {{first_name}},',
+    '',
+    'Caught the news on {{trigger_line}} — that\'s exactly the kind of motion I want to help build.',
+    '',
+    'For context, {{proof_of_motion}} is the closest analog to what your team is heading into.',
+    '',
+    'Worth a 15-min call this week?',
+    '',
+    'Best,',
+    '{{sender_name}}',
+  ].join('\n'),
+  attachmentIds: [] as string[],
+  isShared: false,
+};
+
+const DEFAULT_CUSTOM_TEMPLATE_BY_ROLE: Record<RoleFamily, typeof ENG_DEFAULT_TEMPLATE> = {
+  engineering: ENG_DEFAULT_TEMPLATE,
+  product: ENG_DEFAULT_TEMPLATE,
+  gtm: GTM_DEFAULT_TEMPLATE,
+  // Ops stays on the eng template until slice 3 ships an ops picker.
+  // Until then ops uses the eng pipeline (degrades gracefully via the
+  // voice steer shipped on 2026-05-20).
+  operations: ENG_DEFAULT_TEMPLATE,
+};
+
+function defaultCustomTemplateFor(role: RoleFamily): typeof ENG_DEFAULT_TEMPLATE {
+  return DEFAULT_CUSTOM_TEMPLATE_BY_ROLE[role] ?? ENG_DEFAULT_TEMPLATE;
+}
 
 export type WorkspaceFile = {
   id: string;
@@ -113,6 +156,17 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
   const personalTemplates = templates.filter((t: any) => t?.userId !== '__library__');
   const defaultTemplateId = personalTemplates[0]?.id || '';
 
+  // Resolve target role from saved data before building the base config
+  // so the per-family default customTemplate matches the user's role.
+  // Fresh users get DEFAULT_ROLE_FAMILY (engineering) and the eng default
+  // template. Users with saved targetRole='gtm' get the GTM default
+  // template — the merge tags match the GTM picker's output, so
+  // dropEmptyTagParagraphs doesn't gut the body on first use.
+  const resolvedTargetRole = normalizeRoleFamily(
+    data?.targetRole,
+    { fallback: DEFAULT_ROLE_FAMILY },
+  ) as RoleFamily;
+
   const baseConfig = {
     resumeText: '',
     resumeExtractedText: '',
@@ -129,7 +183,7 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     // mode through the data merge below.
     templateMode: defaultTemplateId ? 'existing' : 'custom',
     templateId: defaultTemplateId,
-    customTemplate: { ...DEFAULT_CUSTOM_TEMPLATE },
+    customTemplate: { ...defaultCustomTemplateFor(resolvedTargetRole) },
     files: [] as Array<{
       id: string;
       path: string;
@@ -146,8 +200,9 @@ export function createWorkspaceConfig({ user, templates = [], data = null }) {
     // Default role family for new campaigns. Onboarding overrides this with
     // the user's actual selection; existing users with no targetRole saved
     // get DEFAULT_ROLE_FAMILY ('engineering') preserving the pre-refactor
-    // TARGET_TITLES behavior.
-    targetRole: DEFAULT_ROLE_FAMILY as RoleFamily,
+    // TARGET_TITLES behavior. resolvedTargetRole above mirrors this so the
+    // per-family default customTemplate stays in sync with the role.
+    targetRole: resolvedTargetRole,
   };
 
   const merged = {
