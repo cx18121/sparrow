@@ -74,9 +74,7 @@ Add a `role: 'admin' | 'user'` enum on `user_profiles` (the table `parseWorkspac
 
 ## Housekeeping
 
-- **Server-side tsc**: `npm run build` / pre-push only typechecks `src/`. Two pre-existing errors in `server/__tests__/campaigns-route.test.ts` (Vitest two-arg generic post-upgrade) and `server/lib/supabaseAdmin.ts` (`message` on `never`) go uncaught. Either extend the build to cover `server/` or fix the two.
-- **Untracked `scripts/enrich-industries-exa.ts`**: appeared in `git status` during role-targeting work, not authored as part of it. Confirm origin + commit or remove.
-- **e2e suite-level isolation flake**: tests pass alone but the second-and-after test in any spec file bounces to `/login`. Appears to be `page.route` mocks leaking across page contexts. Pre-existing across the suite; surfaces every time we add multi-test files. Worth a focused debug session.
+- (No outstanding items as of 2026-05-21. Previous three closed out: server-side tsc errors already fixed; `scripts/enrich-industries-exa.ts` committed in 55b012a; e2e bounce-to-/login flake resolved in 7940745 — root cause was `signInDemo` waiting for `h2:has-text("Welcome back")` to detach when the heading is `<h1>`, so the wait returned immediately and tests raced supabase localStorage persistence. Fix replaces the DOM-element wait with a localStorage poll for the `sb-*-auth-token` key.)
 
 ## Deferred
 
