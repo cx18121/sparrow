@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { useGuardedNavigate } from '../../hooks/useUnsavedChanges'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAppData } from '../../contexts/AppDataContext'
 import type { UiCampaign } from '../../contexts/AppDataContext'
@@ -35,7 +36,7 @@ export default function Sidebar({
 }) {
   const { user, signOut } = useAuth()
   const { campaigns } = useAppData()
-  const navigate = useNavigate()
+  const navigate = useGuardedNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)

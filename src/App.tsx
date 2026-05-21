@@ -13,6 +13,7 @@ import { defaultAttachmentIds } from './lib/attachments'
 import { fetchProfile, saveProfile } from './lib/api'
 import { hasRecoverableCompletedSetup } from './lib/profileSetup'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
+import { useGuardedNavigate } from './hooks/useUnsavedChanges'
 
 const HomePage = lazy(() => import('./components/Home/HomePage'))
 const Landing = lazy(() => import('./components/Landing/Landing'))
@@ -92,6 +93,10 @@ function RouteFallback() {
 function AppShell() {
   const { user, loading, signOut, connectGoogle, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  // Separate guarded navigator for user-initiated nav from chrome (sidebar
+  // tabs). Internal/automatic redirects continue to use `navigate` directly
+  // so they don't prompt mid-flow (post-onboarding, post-create-campaign).
+  const guardedNavigate = useGuardedNavigate()
   const location = useLocation()
   const previousOnboardingKeyRef = useRef(null)
 
@@ -200,7 +205,7 @@ function AppShell() {
 
   const handleTabChange = (tabId) => {
     const tab = TABS.find(t => t.id === tabId)
-    if (tab) navigate(tab.path)
+    if (tab) guardedNavigate(tab.path)
   }
 
   // Only the Google-OAuth-callback query params actually feed the onboarding
