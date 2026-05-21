@@ -145,11 +145,13 @@ model Email {
   // role personalization; gtm* fields hold GTM role personalization.
   // Only one role's fields are populated per row, selected by the
   // generating campaign's targetRole.
-  featureLine       String?
-  fitAngle          String?
-  gtmTriggerLine    String?
-  gtmProofOfMotion  String?
-  generationKind    String?
+  featureLine        String?
+  fitAngle           String?
+  gtmTriggerLine     String?
+  gtmProofOfMotion   String?
+  opsInflectionLine  String?
+  opsSystemBuilt     String?
+  generationKind     String?
   sentAt          DateTime?
   // Reply detection fields — populated at send time and on inbound webhook.
   gmailMessageId      String?
