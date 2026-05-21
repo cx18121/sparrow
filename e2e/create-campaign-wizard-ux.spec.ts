@@ -165,4 +165,14 @@ test.describe('Create campaign wizard UX', () => {
     await page.getByRole('button', { name: /Continue/i }).click()
     await expect(page.locator('text=/Pick a template/i')).toBeVisible()
   })
+
+  test('wizard exposes dialog ARIA and Escape dismisses it', async ({ page }) => {
+    await page.goto('/dashboard?new=1')
+    const dialog = page.getByRole('dialog', { name: /Create campaign/i })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await expect(dialog).toHaveAttribute('aria-modal', 'true')
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  })
 })

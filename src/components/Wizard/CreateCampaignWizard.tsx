@@ -201,6 +201,20 @@ export default function CreateCampaignWizard({
     if (hydrated) persistScratch(state)
   }, [state, hydrated])
 
+  // Escape dismisses the wizard. Suppressed during submit so a stray key
+  // press can't drop the user out mid-create.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !saving) {
+        clearScratch()
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, saving, onCancel])
+
   if (!open) return null
 
   const step = state.step
@@ -248,7 +262,12 @@ export default function CreateCampaignWizard({
   // sidebar's z-20 layer at the outer flex level. Portaling escapes that
   // context and lets the overlay actually cover the sidebar.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create campaign"
+      className="fixed inset-0 z-50 flex flex-col bg-surface animate-fade-in"
+    >
       {/* Sticky stepper */}
       <header className="sticky top-0 z-10 border-b border-warm-200 bg-surface/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
