@@ -67,7 +67,17 @@ export default defineConfig(({ mode }) => {
         manualChunks(id) {
           if (id.includes('pdfjs-dist')) return 'pdf-parser'
           if (id.includes('mammoth')) return 'docx-parser'
-          if (id.includes('@tiptap')) return 'editor'
+          // TipTap's underlying engine. Without this, ~530KB of ProseMirror
+          // source + linkifyjs lands in the initial `vendor` chunk even
+          // though only the (lazy) TemplatesTab uses the editor.
+          if (
+            id.includes('@tiptap')
+            || id.includes('/prosemirror-')
+            || id.includes('/linkifyjs/')
+            || id.includes('/orderedmap/')
+            || id.includes('/rope-sequence/')
+            || id.includes('/w3c-keyname/')
+          ) return 'editor'
           if (id.includes('dompurify')) return 'html-sanitize'
           return packageChunk(id)
         },
