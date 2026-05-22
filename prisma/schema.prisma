@@ -95,6 +95,8 @@ model UserLead {
   @@unique([userId, companyId, contactId])
   @@index([userId])
   @@index([status])
+  @@index([companyId])
+  @@index([contactId])
   @@schema("public")
 }
 
@@ -287,6 +289,7 @@ model CampaignSeenCompany {
 
   @@unique([campaignId, companyId])
   @@index([campaignId])
+  @@index([companyId])
   @@schema("public")
 }
 
@@ -299,6 +302,7 @@ model DiscoverySeenCompany {
 
   @@unique([userId, companyId])
   @@index([userId])
+  @@index([companyId])
   @@schema("public")
 }
 
