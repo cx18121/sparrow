@@ -1,5 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma, type Db } from "./prisma.js";
-import { audienceFromCampaign, audienceToPrismaWhere, type CampaignFilters } from "./audience-query.js";
+import { audienceFromCampaign, audienceToPrismaWhere, audienceToSqlPredicates, type CampaignFilters } from "./audience-query.js";
 import type { Audience } from "../../src/types/audience.js";
 
 const SAMPLE_SIZE = 6;
@@ -65,30 +66,45 @@ export async function selectAudienceCandidateIds(params: {
   batchSize: number;
   db?: Db;
 }): Promise<{ selectedIds: string[]; usingFallback: boolean }> {
+  // Same anti-join pattern as server/routes/companies.ts random discovery,
+  // but the exclusion set is different here: we exclude (a) the caller's
+  // precomputed seenIds (typically CampaignSeenCompany rows) and (b) any
+  // company already attached to this campaign via CampaignLead → UserLead.
+  // Old shape did all this with `notIn: [...thousands of IDs]` + JS shuffle
+  // — fine at 12k Company but bad as the table grew past 30k.
   const db = params.db ?? prisma;
-  const existingLeads = await db.campaignLead.findMany({
-    where: { campaignId: params.campaignId },
-    select: { userLead: { select: { companyId: true } } },
-  });
-  const alreadyInCampaignIds = existingLeads
-    .map(row => row.userLead.companyId)
-    .filter((id): id is string => Boolean(id));
-  const excludedIds = Array.from(new Set([...params.seenIds, ...alreadyInCampaignIds]));
+  const audience = audienceFromCampaign(params.campaign);
+  const predicates = audienceToSqlPredicates(audience);
+  const whereClause = Prisma.join(predicates, " AND ");
 
-  const baseWhere = audienceToPrismaWhere(audienceFromCampaign(params.campaign));
+  const selected = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT c.id
+    FROM "Company" c
+    WHERE ${whereClause}
+      AND c.id != ALL(${params.seenIds}::text[])
+      AND NOT EXISTS (
+        SELECT 1 FROM "CampaignLead" cl
+        JOIN "UserLead" ul ON ul.id = cl."userLeadId"
+        WHERE cl."campaignId" = ${params.campaignId}
+          AND ul."companyId" = c.id
+      )
+    ORDER BY random()
+    LIMIT ${params.batchSize}
+  `);
 
-  let candidates = await db.company.findMany({
-    where: { ...baseWhere, ...(excludedIds.length > 0 && { id: { notIn: excludedIds } }) },
-    select: { id: true },
-  });
-
-  const usingFallback = candidates.length === 0;
-  if (usingFallback) {
-    candidates = await db.company.findMany({ where: baseWhere, select: { id: true } });
+  let selectedIds = selected.map(r => r.id);
+  let usingFallback = false;
+  if (selectedIds.length === 0) {
+    const fallback = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT c.id
+      FROM "Company" c
+      WHERE ${whereClause}
+      ORDER BY random()
+      LIMIT ${params.batchSize}
+    `);
+    selectedIds = fallback.map(r => r.id);
+    usingFallback = true;
   }
 
-  return {
-    selectedIds: shuffle(candidates).slice(0, params.batchSize).map(c => c.id),
-    usingFallback,
-  };
+  return { selectedIds, usingFallback };
 }

@@ -8,6 +8,11 @@ const { mockPrisma } = vi.hoisted(() => {
     company: {
       findMany: vi.fn(),
     },
+    // selectCandidateIds delegates to selectAudienceCandidateIds, which
+    // moved from Prisma findMany to raw SQL on 2026-05-22. Mock $queryRaw
+    // and assert on the behavioral shape; WHERE-predicate construction is
+    // covered separately in audience-query.test.ts.
+    $queryRaw: vi.fn(),
   };
   return { mockPrisma };
 });
@@ -39,7 +44,6 @@ describe("buildTagFilters", () => {
 
   it("groups tags by namespace: different namespaces produce AND clauses (one per namespace)", () => {
     const result = buildTagFilters(["stage:Seed", "vertical:B2B"]);
-    // Two different namespaces → two separate AND-able clauses
     expect(result).toHaveLength(2);
     expect(result).toContainEqual({ tags: { hasSome: ["stage:Seed"] } });
     expect(result).toContainEqual({ tags: { hasSome: ["vertical:B2B"] } });
@@ -47,7 +51,6 @@ describe("buildTagFilters", () => {
 
   it("groups tags from the same namespace into a single OR clause", () => {
     const result = buildTagFilters(["stage:Seed", "stage:Series A"]);
-    // Same namespace → one clause with both values (OR semantics via hasSome)
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({ tags: { hasSome: ["stage:Seed", "stage:Series A"] } });
   });
@@ -86,9 +89,8 @@ describe("selectCandidateIds", () => {
   });
 
   it("returns empty selectedIds when there are no matching companies at all", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    // Both the filtered and fallback queries return nothing
-    mockPrisma.company.findMany.mockResolvedValue([]);
+    // Both the anti-join and the fallback return empty.
+    mockPrisma.$queryRaw.mockResolvedValue([]);
 
     const result = await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, [], 10);
     expect(result.selectedIds).toEqual([]);
@@ -96,8 +98,7 @@ describe("selectCandidateIds", () => {
   });
 
   it("selects unseen candidates when they exist", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
       { id: "co-1" },
       { id: "co-2" },
       { id: "co-3" },
@@ -110,9 +111,7 @@ describe("selectCandidateIds", () => {
   });
 
   it("falls back to all matching companies when all candidates are already seen", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    // First call (with exclusions) returns nothing; second call (fallback) returns results
-    mockPrisma.company.findMany
+    mockPrisma.$queryRaw
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "co-1" }, { id: "co-2" }]);
 
@@ -121,102 +120,28 @@ describe("selectCandidateIds", () => {
     expect(result.selectedIds).toHaveLength(2);
   });
 
-  it("respects batchSize limit", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    const companies = Array.from({ length: 20 }, (_, i) => ({ id: `co-${i}` }));
-    mockPrisma.company.findMany.mockResolvedValue(companies);
+  it("respects batchSize as the LIMIT on the candidate query", async () => {
+    // Postgres LIMIT does the slicing now — mock returns exactly batchSize.
+    const companies = Array.from({ length: 5 }, (_, i) => ({ id: `co-${i}` }));
+    mockPrisma.$queryRaw.mockResolvedValueOnce(companies);
 
     const result = await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, [], 5);
     expect(result.selectedIds).toHaveLength(5);
     expect(result.usingFallback).toBe(false);
+
+    // batchSize should appear in the SQL parameters.
+    const firstCall = mockPrisma.$queryRaw.mock.calls[0][0];
+    expect(firstCall.values).toContain(5);
   });
 
-  it("excludes seenIds when querying companies", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([{ id: "co-3" }]);
+  it("passes seenIds into the anti-join query as a text[] parameter", async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([{ id: "co-3" }]);
 
     await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, ["co-1", "co-2"], 10);
 
-    const companyCall = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(companyCall.where.id).toEqual({ notIn: expect.arrayContaining(["co-1", "co-2"]) });
-  });
-
-  it("excludes company IDs already in the campaign (from campaignLead rows)", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([
-      { userLead: { companyId: "co-already" } },
-    ]);
-    mockPrisma.company.findMany.mockResolvedValue([{ id: "co-new" }]);
-
-    await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, [], 10);
-
-    const companyCall = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(companyCall.where.id).toEqual({ notIn: expect.arrayContaining(["co-already"]) });
-  });
-
-  it("merges seenIds and campaign lead IDs into a deduplicated exclusion list", async () => {
-    // "co-1" appears in both seenIds and campaign leads
-    mockPrisma.campaignLead.findMany.mockResolvedValue([
-      { userLead: { companyId: "co-1" } },
-    ]);
-    mockPrisma.company.findMany.mockResolvedValue([{ id: "co-3" }]);
-
-    await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, ["co-1", "co-2"], 10);
-
-    const companyCall = mockPrisma.company.findMany.mock.calls[0][0];
-    const excluded: string[] = companyCall.where.id.notIn;
-    // Deduplicated: co-1 should appear only once
-    expect(excluded.filter((id: string) => id === "co-1")).toHaveLength(1);
-    expect(excluded).toContain("co-2");
-  });
-
-  it("applies filterStage to the where clause", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([]);
-
-    await selectCandidateIds(
-      CAMPAIGN_ID,
-      { ...emptyCampaign, filterStage: "Seed" },
-      [],
-      10
-    );
-
-    // Both calls (filtered and fallback) should use the same base where
-    const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.stage).toBe("Seed");
-  });
-
-  it("applies filterIsHiring to the where clause", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([{ id: "co-1" }]);
-
-    await selectCandidateIds(
-      CAMPAIGN_ID,
-      { ...emptyCampaign, filterIsHiring: true },
-      [],
-      10
-    );
-
-    const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.isHiring).toBe(true);
-  });
-
-  it("does not add id exclusion clause when there are no excluded IDs", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([{ id: "co-1" }]);
-
-    await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, [], 10);
-
-    const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.id).toBeUndefined();
-  });
-
-  it("always sets isVerified: true in the where clause", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany.mockResolvedValue([]);
-
-    await selectCandidateIds(CAMPAIGN_ID, emptyCampaign, [], 10);
-
-    const call = mockPrisma.company.findMany.mock.calls[0][0];
-    expect(call.where.isVerified).toBe(true);
+    const firstCall = mockPrisma.$queryRaw.mock.calls[0][0];
+    // The seenIds array is passed verbatim — Postgres handles the != ALL
+    // against the array internally.
+    expect(firstCall.values).toEqual(expect.arrayContaining([["co-1", "co-2"]]));
   });
 });

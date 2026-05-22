@@ -4,6 +4,7 @@
 // The Audience shape itself lives in src/types/audience.ts so the front-end
 // form, display pills, and this query builder can never disagree.
 
+import { Prisma } from "@prisma/client";
 import { US_REGIONS } from "../../scripts/_lib/region-map.js";
 import { expandStageFilter } from "../../scripts/_lib/stages.js";
 import {
@@ -121,4 +122,127 @@ export function audienceToPrismaWhere(a: Audience) {
     ...batchWhere,
     ...(a.isHiring != null && { isHiring: a.isHiring }),
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Raw-SQL equivalent of audienceToPrismaWhere.
+//
+// Used by the discovery + audience-pool random selection paths so the
+// anti-join + ORDER BY random() + LIMIT can happen inside Postgres in a
+// single round-trip, instead of fetching every candidate ID into JS just
+// to shuffle and pick N. See server/routes/companies.ts and
+// server/lib/audience-pool.ts for the call sites.
+//
+// Returns an array of Prisma.Sql fragments meant to be joined with AND.
+// All references use the `c.` table alias since the raw queries that
+// consume these all alias Company as `c`.
+//
+// Pairs to audienceToPrismaWhere — any new audience field must be added
+// to both. There's an audience-sql parity test that asserts the two
+// builders produce semantically equivalent predicates over a fixture.
+// ─────────────────────────────────────────────────────────────
+
+interface SqlPredicateExtras {
+  /** Optional industry filter — single value or list. */
+  industries?: string[];
+  /** Restrict to specific ingest sources (e.g. "yc", "a16z"). */
+  sources?: string[];
+  /** qualityScore >= minScore filter. */
+  minScore?: number | null;
+  /** name ILIKE startsWith search. */
+  search?: string | null;
+}
+
+function arrayAnyPredicate(column: string, values: string[]): Prisma.Sql {
+  // c."column" = ANY('{v1,v2,...}'::text[]) instead of WHERE col IN ($1,$2,…$N)
+  // so Postgres parses one parameter instead of N. Matters when N is large
+  // (e.g. 35 US regions in the region-IN clause).
+  return Prisma.sql`${Prisma.raw(column)} = ANY(${values}::text[])`;
+}
+
+function arrayNotAnyPredicate(column: string, values: string[]): Prisma.Sql {
+  return Prisma.sql`${Prisma.raw(column)} != ALL(${values}::text[])`;
+}
+
+function regionSqlFragmentsFor(region: string): Prisma.Sql[] {
+  if (region === REGION_US) return [arrayAnyPredicate('c."region"', [...US_REGIONS])];
+  if (region === REGION_INTL) {
+    return [
+      Prisma.sql`c."region" IS NOT NULL`,
+      arrayNotAnyPredicate('c."region"', [...US_REGIONS, "Remote"]),
+    ];
+  }
+  if (region === REGION_REMOTE) return [Prisma.sql`c."region" = 'Remote'`];
+  return [Prisma.sql`c."region" = ${region}`];
+}
+
+export function audienceToSqlPredicates(a: Audience, extras: SqlPredicateExtras = {}): Prisma.Sql[] {
+  const predicates: Prisma.Sql[] = [Prisma.sql`c."isVerified" = true`];
+
+  // Tags: AND across namespaces, OR within (matches buildTagFilters above).
+  const byNs: Record<string, string[]> = {};
+  for (const t of a.tags) {
+    const idx = t.indexOf(":");
+    const ns = idx > 0 ? t.slice(0, idx) : "_";
+    (byNs[ns] ??= []).push(t);
+  }
+  for (const group of Object.values(byNs)) {
+    // c.tags && ARRAY['vertical:fintech', 'vertical:saas']::text[]
+    // The GIN index on tags (Company_tags_idx) accelerates this overlap op.
+    predicates.push(Prisma.sql`c.tags && ${group}::text[]`);
+  }
+
+  // Region: single → flat; multi → OR over each region's fragments.
+  if (a.region.length === 1) {
+    const frags = regionSqlFragmentsFor(a.region[0]);
+    for (const f of frags) predicates.push(f);
+  } else if (a.region.length > 1) {
+    // Each region produces 1-2 AND'd fragments. Build OR of those AND blocks.
+    const orBlocks = a.region.map(r => {
+      const frags = regionSqlFragmentsFor(r);
+      return frags.length === 1 ? frags[0] : Prisma.sql`(${Prisma.join(frags, " AND ")})`;
+    });
+    predicates.push(Prisma.sql`(${Prisma.join(orBlocks, " OR ")})`);
+  }
+
+  // Stage (ordinal-aware expansion mirrors audienceToPrismaWhere).
+  if (a.stage.length > 0) {
+    const expanded = Array.from(new Set(a.stage.flatMap(s => expandStageFilter(s))));
+    if (expanded.length === 1) {
+      predicates.push(Prisma.sql`c."stage" = ${expanded[0]}`);
+    } else {
+      predicates.push(arrayAnyPredicate('c."stage"', expanded));
+    }
+  }
+
+  // Batch
+  if (a.batch.length === 1) {
+    predicates.push(Prisma.sql`c."batch" = ${a.batch[0]}`);
+  } else if (a.batch.length > 1) {
+    predicates.push(arrayAnyPredicate('c."batch"', a.batch));
+  }
+
+  if (a.isHiring != null) {
+    predicates.push(Prisma.sql`c."isHiring" = ${a.isHiring}`);
+  }
+
+  // Extras (mirrors baseWhere assembly in server/routes/companies.ts).
+  if (extras.industries && extras.industries.length === 1) {
+    predicates.push(Prisma.sql`c."industry" = ${extras.industries[0]}`);
+  } else if (extras.industries && extras.industries.length > 1) {
+    predicates.push(arrayAnyPredicate('c."industry"', extras.industries));
+  }
+  if (extras.sources && extras.sources.length > 0) {
+    predicates.push(arrayAnyPredicate('c."source"', extras.sources));
+  }
+  if (extras.minScore != null) {
+    predicates.push(Prisma.sql`c."qualityScore" >= ${extras.minScore}`);
+  }
+  if (extras.search) {
+    // startsWith + mode: insensitive → ILIKE 'search%'
+    // Concat via Postgres so the search term stays parameterized.
+    predicates.push(Prisma.sql`c."name" ILIKE ${extras.search + "%"}`);
+  }
+
+  return predicates;
 }

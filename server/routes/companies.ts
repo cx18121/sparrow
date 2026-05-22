@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { getUserIdFromRequest } from "../lib/supabaseAdmin.js";
-import { audienceToPrismaWhere } from "../lib/audience-query.js";
-import { REGION_US, REGION_INTL, REGION_REMOTE } from "../../src/types/audience.js";
-import { shuffle } from "../lib/company-selection.js";
+import { audienceToPrismaWhere, audienceToSqlPredicates } from "../lib/audience-query.js";
+import { REGION_US, REGION_INTL, REGION_REMOTE, type Audience } from "../../src/types/audience.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await getUserIdFromRequest(req);
@@ -80,7 +80,21 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 
   try {
     if (random === "1" || random === "true") {
-      const result = await selectRandomDiscoveryCompanies(userId, baseWhere, take, withContact === "1");
+      const audience: Audience = {
+        tags: tagsList,
+        region: regionFromQuery(regionType, region),
+        stage: stage ? [stage] : [],
+        batch: batch ? [batch] : [],
+        isHiring: isHiring === "true" ? true : isHiring === "false" ? false : null,
+        targetRole: null,
+      };
+      const industriesList = industries ? industries.split(",") : (industry ? [industry] : []);
+      const result = await selectRandomDiscoveryCompanies(userId, audience, {
+        industries: industriesList,
+        sources: sourcesList,
+        minScore: minScoreNum,
+        search,
+      }, take, withContact === "1");
       return res.status(200).json(result);
     }
 
@@ -134,32 +148,62 @@ async function resetDiscoverySeen(_req: VercelRequest, res: VercelResponse, user
   res.status(200).json({ reset: true });
 }
 
+// Random discovery picks `take` unseen companies matching the audience
+// filter. Pre-2026-05-22 this fetched every matching candidate ID into JS
+// and shuffled — quadratic-feeling tax on engaged users as their seen set
+// grew (the NOT IN ($1..$N) parameter list got expensive to parse, AND
+// the result set could be tens of thousands of IDs returned over the wire
+// just to throw 99.9% away). New shape: one raw-SQL round-trip that
+// anti-joins against DiscoverySeenCompany + UserLead and uses
+// ORDER BY random() LIMIT N inside Postgres. The FK indexes from
+// 20260522233500 make the anti-joins index-only.
 async function selectRandomDiscoveryCompanies(
   userId: string,
-  baseWhere: Record<string, unknown>,
+  audience: Audience,
+  extras: { industries: string[]; sources: string[]; minScore: number | null; search: string | null | undefined },
   take: number,
-  withContact: boolean
+  withContact: boolean,
 ) {
-  const [seen, saved] = await Promise.all([
-    prisma.discoverySeenCompany.findMany({ where: { userId }, select: { companyId: true } }),
-    prisma.userLead.findMany({ where: { userId }, select: { companyId: true } }),
-  ]);
+  const predicates = audienceToSqlPredicates(audience, extras);
+  const whereClause = Prisma.join(predicates, " AND ");
 
-  const seenIds = seen.map(row => row.companyId);
-  const savedIds = saved.map(row => row.companyId).filter((id): id is string => Boolean(id));
-  const excludedIds = Array.from(new Set([...seenIds, ...savedIds]));
+  // Anti-join path: exclude DiscoverySeenCompany (already shown) + UserLead
+  // (already saved as a lead by this user). ORDER BY random() + LIMIT runs
+  // inside Postgres as a top-N selection — does NOT sort the full set.
+  const selected = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT c.id
+    FROM "Company" c
+    WHERE ${whereClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM "DiscoverySeenCompany" s
+        WHERE s."companyId" = c.id AND s."userId" = ${userId}
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM "UserLead" u
+        WHERE u."companyId" = c.id AND u."userId" = ${userId}
+      )
+    ORDER BY random()
+    LIMIT ${take}
+  `);
 
-  let candidates = await prisma.company.findMany({
-    where: { ...baseWhere, ...(excludedIds.length > 0 && { id: { notIn: excludedIds } }) },
-    select: { id: true },
-  });
-
-  const usingFallback = candidates.length === 0;
-  if (usingFallback) {
-    candidates = await prisma.company.findMany({ where: baseWhere, select: { id: true } });
+  // Fallback: every matching company has been seen / saved. Re-run without
+  // the anti-join so the user can re-browse. This matches the legacy
+  // usingFallback semantics so the client banner ("All matching companies
+  // have been seen…") still fires correctly.
+  let selectedIds = selected.map(r => r.id);
+  let usingFallback = false;
+  if (selectedIds.length === 0) {
+    const fallback = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT c.id
+      FROM "Company" c
+      WHERE ${whereClause}
+      ORDER BY random()
+      LIMIT ${take}
+    `);
+    selectedIds = fallback.map(r => r.id);
+    usingFallback = true;
   }
 
-  const selectedIds = shuffle(candidates).slice(0, take).map(company => company.id);
   const companies = selectedIds.length
     ? await prisma.company.findMany({
         where: { id: { in: selectedIds } },
@@ -168,6 +212,11 @@ async function selectRandomDiscoveryCompanies(
     : [];
   const byId = new Map(companies.map(company => [company.id, company]));
   const items = selectedIds.map(id => byId.get(id)).filter(Boolean);
+
+  // seenTotal is the count of companies this user has marked seen across
+  // all discovery sessions — we still need a separate count because the
+  // anti-join query doesn't surface it. Cheap (indexed on userId).
+  const seenTotalBefore = await prisma.discoverySeenCompany.count({ where: { userId } });
 
   if (!usingFallback && selectedIds.length > 0) {
     await prisma.discoverySeenCompany.createMany({
@@ -179,7 +228,7 @@ async function selectRandomDiscoveryCompanies(
   return {
     items,
     nextCursor: null,
-    seenTotal: usingFallback ? seenIds.length : seenIds.length + selectedIds.length,
+    seenTotal: usingFallback ? seenTotalBefore : seenTotalBefore + selectedIds.length,
     usingFallback,
     random: true,
   };

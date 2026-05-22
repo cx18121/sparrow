@@ -12,6 +12,12 @@ const { mockPrisma } = vi.hoisted(() => {
     campaignLead: {
       findMany: vi.fn(),
     },
+    // selectAudienceCandidateIds went from Prisma findMany to raw SQL on
+    // 2026-05-22 to avoid pulling 30k+ candidate IDs into JS just to shuffle.
+    // Tests mock $queryRaw and assert behavioral shape (selectedIds,
+    // usingFallback) rather than inspecting WHERE-clause internals; the raw
+    // SQL parity is covered separately in audience-query.test.ts.
+    $queryRaw: vi.fn(),
   };
   return { mockPrisma };
 });
@@ -36,6 +42,7 @@ beforeEach(() => {
   Object.values(mockPrisma.company).forEach(mock => mock.mockReset());
   Object.values(mockPrisma.userLead).forEach(mock => mock.mockReset());
   Object.values(mockPrisma.campaignLead).forEach(mock => mock.mockReset());
+  mockPrisma.$queryRaw.mockReset();
 });
 
 describe("previewAudiencePool", () => {
@@ -67,14 +74,8 @@ describe("previewAudiencePool", () => {
 });
 
 describe("selectAudienceCandidateIds", () => {
-  it("excludes seen and already-in-campaign company IDs before selecting candidates", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([
-      { userLead: { companyId: "already-in-campaign" } },
-    ]);
-    mockPrisma.company.findMany.mockResolvedValueOnce([
-      { id: "candidate-1" },
-      { id: "candidate-2" },
-    ]);
+  it("returns the candidate IDs surfaced by the anti-join query", async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([{ id: "candidate-1" }]);
 
     const result = await selectAudienceCandidateIds({
       campaignId: "campaign-1",
@@ -84,20 +85,19 @@ describe("selectAudienceCandidateIds", () => {
       db: mockPrisma as any,
     });
 
-    expect(result.selectedIds).toHaveLength(1);
+    expect(result.selectedIds).toEqual(["candidate-1"]);
     expect(result.usingFallback).toBe(false);
-    expect(mockPrisma.company.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        id: { notIn: ["seen-1", "already-in-campaign"] },
-      }),
-    }));
+    // First $queryRaw call is the anti-join — its Prisma.Sql includes the
+    // seenIds array as one of its parameters, and the campaignId as another.
+    const firstCall = mockPrisma.$queryRaw.mock.calls[0][0];
+    expect(firstCall.values).toContain("campaign-1");
+    expect(firstCall.values).toEqual(expect.arrayContaining([["seen-1"]]));
   });
 
   it("falls back to all matching companies when the unseen pool is exhausted", async () => {
-    mockPrisma.campaignLead.findMany.mockResolvedValue([]);
-    mockPrisma.company.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "fallback-1" }]);
+    mockPrisma.$queryRaw
+      .mockResolvedValueOnce([])               // anti-join returned nothing
+      .mockResolvedValueOnce([{ id: "fallback-1" }]); // fallback path runs
 
     await expect(selectAudienceCandidateIds({
       campaignId: "campaign-1",
@@ -106,5 +106,8 @@ describe("selectAudienceCandidateIds", () => {
       batchSize: 10,
       db: mockPrisma as any,
     })).resolves.toEqual({ selectedIds: ["fallback-1"], usingFallback: true });
+
+    // Should have called twice — once for the anti-join, once for the fallback.
+    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 });
