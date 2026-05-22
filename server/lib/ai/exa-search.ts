@@ -159,6 +159,74 @@ export async function exaSearch(input: ExaSearchInput): Promise<ExaSearchRespons
   }
 }
 
+// Exa /findSimilar — given a seed URL, return canonical company pages that
+// are semantically similar. Same response shape as exaSearch so the discovery
+// ingest script can reuse parseIndustry/parseOneLiner. Used by
+// scripts/discover-exa-deep.ts to expand the DB beyond what VC portfolio
+// scrapes can reach.
+export interface ExaFindSimilarInput {
+  url: string
+  apiKey: string
+  numResults?: number
+  category?: string
+  textMaxCharacters?: number
+  excludeDomains?: string[]
+  // Skip results from the seed's own host. Exa's docs flag this as a common
+  // ask; without it /findSimilar can surface the seed's own subpages.
+  excludeSourceDomain?: boolean
+}
+
+export async function exaFindSimilar(input: ExaFindSimilarInput): Promise<ExaSearchResponse> {
+  const body: Record<string, unknown> = {
+    url: input.url,
+    numResults: input.numResults ?? 10,
+    contents: {
+      text: { maxCharacters: input.textMaxCharacters ?? 800 },
+    },
+  }
+  if (input.category) body.category = input.category
+  if (input.excludeDomains && input.excludeDomains.length > 0) {
+    body.excludeDomains = input.excludeDomains
+  }
+  if (input.excludeSourceDomain) body.excludeSourceDomain = true
+
+  let resp: Response
+  try {
+    resp = await fetch('https://api.exa.ai/findSimilar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': input.apiKey },
+      body: JSON.stringify(body),
+    })
+  } catch (err) {
+    console.warn('Exa /findSimilar network error:', err)
+    return { results: [] }
+  }
+
+  if (resp.status === 401 || resp.status === 403) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(`Exa /findSimilar ${resp.status}: ${text || 'auth failed — check EXA_API_KEY'}`)
+  }
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    console.warn(`Exa /findSimilar ${resp.status}:`, text)
+    return { results: [] }
+  }
+
+  let data: { results?: unknown[] }
+  try {
+    data = (await resp.json()) as { results?: unknown[] }
+  } catch (err) {
+    console.warn('Exa /findSimilar JSON parse error:', err)
+    return { results: [] }
+  }
+
+  const results = Array.isArray(data.results)
+    ? data.results.map(normalize).filter((r): r is ExaResult => r !== null)
+    : []
+  return { results }
+}
+
 // Exa /contents — fetch cleaned text/highlights for URLs you already have,
 // without burning a search-credit on retrieval. Pair with subpageTarget to
 // pick up /about, /team, /careers etc. in one shot. Returns the same

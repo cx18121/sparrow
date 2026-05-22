@@ -90,7 +90,7 @@ function parseOneLiner(content: string): string | null {
   return null;
 }
 
-function resultToRecord(r: ExaResult, topic: string): CompanyRecord | null {
+export function resultToRecord(r: ExaResult, topic: string): CompanyRecord | null {
   const name = r.title.trim();
   const website = r.url.trim();
   if (!name || !website) return null;
