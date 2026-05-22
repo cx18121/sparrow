@@ -19,7 +19,17 @@ import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/in
 // considers an exit to be acquisition, IPO, or shutdown).
 
 const TYPESENSE_URL = "https://8gbms7c94riane0lp-1.a1.typesense.net";
-const TYPESENSE_TOKEN = "0QKFSu4mIDX9UalfCNQN4qjg2xmukDE0"; // public search-only key from www.techstars.com bundle
+// Search-only Typesense key from the public www.techstars.com JS bundle —
+// read-only access to one public portfolio collection. Not a real secret,
+// but moved to env so gitleaks doesn't flag it as a generic-api-key.
+// Grab it from window.__TYPESENSE_CONFIG on the Techstars portfolio page.
+const TYPESENSE_TOKEN = process.env.TECHSTARS_TYPESENSE_TOKEN ?? "";
+if (!TYPESENSE_TOKEN) {
+  console.error("TECHSTARS_TYPESENSE_TOKEN env var required.");
+  console.error("It's a public search-only key — grab it from the Techstars");
+  console.error("portfolio page's client bundle (DevTools → Network).");
+  process.exit(1);
+}
 
 const PAGE_SIZE = 250;
 

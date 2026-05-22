@@ -1,0 +1,28 @@
+# gitleaks config — extends the default rule set with an allowlist for
+# false positives that already landed in our history.
+#
+# We don't want to rewrite history just for a non-secret, but CI's
+# gitleaks-action scans the full commit graph and would otherwise fail
+# on every PR. Adding the specific match to an allowlist tells gitleaks
+# "yes I know, ignore it."
+
+# Inherit gitleaks' default rules (generic-api-key, AWS keys, etc.).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Repo-wide allowlist"
+
+# Public search-only Typesense key shipped in www.techstars.com client JS
+# bundle. Landed in commit f09723d (scripts/ingest-techstars.ts). HEAD has
+# been moved to env, but the commit stays in history. Search-only keys
+# have no write capability and read only public portfolio data.
+regexes = [
+  '''0QKFSu4mIDX9UalfCNQN4qjg2xmukDE0''',
+]
+commits = [
+  "f09723d",
+]
+paths = [
+  '''scripts/ingest-techstars\.ts''',
+]
