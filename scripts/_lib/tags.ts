@@ -286,6 +286,7 @@ const INVESTOR_TAGS = [
   "coatue",
   "costanoa",
   "craft",
+  "dcvc",
   "felicis",
   "firstround",
   "foundersfund",
