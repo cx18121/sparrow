@@ -304,6 +304,7 @@ const INVESTOR_TAGS = [
   "lightspeed",
   "menlo",
   "mosaic",
+  "nea",
   "norwest",
   "notion-capital",
   "pear",
