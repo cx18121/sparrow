@@ -223,8 +223,10 @@ alter table user_profiles enable row level security;
 -- Users may read their own profile via the anon/authenticated client.
 -- Writes go through the service-role key in /api/profile so encrypted
 -- fields never round-trip through the browser.
+-- (select auth.uid()) wraps the call into an InitPlan so Postgres
+-- evaluates it once per query rather than once per row scanned.
 create policy "Users can read own profile" on user_profiles
-  for select using (auth.uid() = user_id);
+  for select using ((select auth.uid()) = user_id);
 
 -- ──────────────────────────────────────────────
 -- Resumes storage bucket
