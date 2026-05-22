@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import LandingNav from './Nav'
 import Hero from './Hero'
-import EmailDemo from './EmailDemo'
+// EmailDemo archived for now — component lives at ./EmailDemo.tsx if needed.
+// import EmailDemo from './EmailDemo'
 import LandingFooter from './Footer'
 import './landing.css'
 
@@ -59,7 +60,7 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
       <LandingNav />
       <main>
         <Hero onSignInWithGoogle={onSignInWithGoogle} />
-        <EmailDemo />
+        {/* <EmailDemo /> */}
       </main>
       <LandingFooter />
     </div>
