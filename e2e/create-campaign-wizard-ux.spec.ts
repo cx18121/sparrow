@@ -108,7 +108,9 @@ test.describe('Create campaign wizard UX', () => {
 
     await expect.poll(() => createdPayload?.name).toBe('YC infra outreach')
     expect(createdPayload.filterTags ?? []).not.toContain('signal:yc-backed')
-    expect(createdPayload.filterBatch ?? null).toBeNull()
+    // filterBatch is String[] after the 20260522224124 migration. The wizard
+    // posts an empty array when no batch is selected (vs null pre-migration).
+    expect(createdPayload.filterBatch ?? []).toEqual([])
   })
 
   test('can save a campaign as paused with a selected template', async ({ page }) => {
