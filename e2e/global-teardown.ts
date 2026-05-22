@@ -14,7 +14,14 @@ export default async function globalTeardown() {
   })
 
   const { data, error: listErr } = await admin.auth.admin.listUsers()
-  if (listErr) throw new Error(`[global-teardown] Could not list users: ${listErr.message}`)
+  if (listErr) {
+    const detail = listErr.message || JSON.stringify(listErr, null, 2) || String(listErr)
+    throw new Error(
+      `[global-teardown] Could not list users: ${detail}\n` +
+      `Hint: admin.* calls need the legacy SERVICE_ROLE_KEY JWT, not the new ` +
+      `sb_secret_* publishable/secret keys.`
+    )
+  }
 
   const user = data?.users?.find(u => u.email === 'e2e@sparrow.test')
   if (user) {

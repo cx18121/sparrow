@@ -21,7 +21,9 @@ if (existsSync(envFile)) {
     const json = JSON.parse(status)
     process.env.E2E_SUPABASE_URL = json.API_URL ?? 'http://127.0.0.1:54321'
     process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
-    process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
+    // Prefer SERVICE_ROLE_KEY (legacy service-role JWT) over SECRET_KEY (new
+    // opaque sb_secret_* format). supabase-js admin.* calls expect the JWT.
+    process.env.E2E_SUPABASE_SERVICE_KEY = json.SERVICE_ROLE_KEY ?? json.SECRET_KEY ?? ''
     process.env.E2E_DB_URL = json.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
   } catch {
     // Supabase not running yet — globalSetup will start it and keys will be set after.
@@ -58,8 +60,9 @@ export default async function globalSetup() {
       const json = JSON.parse(status)
       process.env.E2E_SUPABASE_URL = json.API_URL ?? LOCAL_URL
       process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
-      process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
-      SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY
+      // Same SERVICE_ROLE_KEY-first preference as the top-level loader.
+      process.env.E2E_SUPABASE_SERVICE_KEY = json.SERVICE_ROLE_KEY ?? json.SECRET_KEY ?? ''
+      SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
     } catch {
       throw new Error('[global-setup] Could not read Supabase keys. Run `supabase start` first.')
     }
@@ -94,7 +97,16 @@ export default async function globalSetup() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
   const { data: existing, error: listErr } = await admin.auth.admin.listUsers()
-  if (listErr) throw new Error(`[global-setup] Could not list users: ${listErr.message}`)
+  if (listErr) {
+    // Stringify the full error — message can be undefined when supabase-js
+    // wraps a low-level fetch failure or a new opaque-key auth error.
+    const detail = listErr.message || JSON.stringify(listErr, null, 2) || String(listErr)
+    throw new Error(
+      `[global-setup] Could not list users: ${detail}\n` +
+      `Hint: admin.* calls need the legacy SERVICE_ROLE_KEY JWT, not the new ` +
+      `sb_secret_* publishable/secret keys.`
+    )
+  }
 
   const alreadyExists = existing?.users?.some(u => u.email === 'e2e@sparrow.test')
   if (!alreadyExists) {
