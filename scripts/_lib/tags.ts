@@ -276,6 +276,7 @@ const STAGE_TAGS = ["pre-seed", "seed", "series-a", "series-b", "series-c-plus",
 // `signal:yc-backed` instead, so YC alumni are filterable via the signal
 // namespace, not the investor namespace.
 const INVESTOR_TAGS = [
+  "500global",
   "8vc",
   "a16z",
   "accel",
@@ -302,6 +303,7 @@ const INVESTOR_TAGS = [
   "foundersfund",
   "general-atlantic",
   "general-catalyst",
+  "gener8tor",
   "greycroft",
   "greylock",
   "gv",
@@ -338,6 +340,7 @@ const INVESTOR_TAGS = [
   "spark",
   "summit",
   "tcv",
+  "techstars",
   "true-ventures",
   "usv",
   "wave",
