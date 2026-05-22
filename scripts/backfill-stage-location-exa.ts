@@ -354,6 +354,7 @@ export async function backfillStageLocationExa(): Promise<void> {
   const dryRun = hasFlag("--dry-run");
   const skipTavilyTried = hasFlag("--skip-tavily-tried");
   const only = parseFlag("--only"); // 'stage' | 'location' | 'both' | null=>either
+  const source = parseFlag("--source"); // optional source-scope filter
 
   let nullPredicate: Record<string, unknown> = { OR: [{ stage: null }, { location: null }] };
   if (only === "stage") nullPredicate = { stage: null };
@@ -375,6 +376,7 @@ export async function backfillStageLocationExa(): Promise<void> {
   const all = await prisma.company.findMany({
     where: {
       isVerified: true,
+      ...(source ? { source } : {}),
       ...nullPredicate,
       NOT: notFilter,
     },
