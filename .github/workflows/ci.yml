@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# GitHub is removing Node 20 from runners after 2026-09-16 and forcing Node
+# 24 as the default on 2026-06-02. Opt our JS-based actions in early to
+# silence the deprecation warnings and surface any breakage now rather than
+# the morning of the cutover.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   verify:
     name: Type check + unit tests
