@@ -1,0 +1,85 @@
+# Exa query expansion — cohorts the 2025-only baked-in DEFAULT_QUERIES miss.
+# Format: <topic-slug>\t<query>.  Topic slug lands as a Company tag.
+#
+# Run with:
+#   npx tsx scripts/discover-exa-deep.ts --queries-file scripts/queries-2026-expansion.tsv --per-query 50
+
+# === 2026 stage-cohort coverage ===
+seed-ai-2026	seed stage AI startup 2026 raised funding
+seed-saas-2026	seed stage SaaS startup 2026 raised funding
+seed-fintech-2026	seed stage fintech startup 2026 raised funding
+seed-devtools-2026	seed stage developer tools startup 2026 raised funding
+seed-security-2026	seed stage cybersecurity startup 2026 raised funding
+seed-health-2026	seed stage healthtech startup 2026 raised funding
+seed-bio-2026	seed stage biotech startup 2026 raised funding
+seed-climate-2026	seed stage climate tech startup 2026 raised funding
+a-ai-2026	Series A AI startup 2026 raised funding
+a-saas-2026	Series A SaaS startup 2026 raised funding
+a-fintech-2026	Series A fintech startup 2026 raised funding
+a-security-2026	Series A cybersecurity startup 2026 raised funding
+a-health-2026	Series A healthtech startup 2026 raised funding
+a-data-2026	Series A data infrastructure startup 2026 raised funding
+b-ai-2026	Series B AI company 2026 raised funding
+b-saas-2026	Series B SaaS company 2026 raised funding
+b-fintech-2026	Series B fintech company 2026 raised funding
+b-health-2026	Series B healthtech company 2026 raised funding
+c-ai-2026	Series C AI company 2026 raised funding
+c-saas-2026	Series C SaaS company 2026 raised funding
+
+# === Underrepresented sectors ===
+agritech-startup	agritech startup company raised funding 2025 2026
+foodtech-startup	foodtech startup company raised funding 2025 2026
+edtech-startup	edtech education technology startup raised funding 2025 2026
+legaltech-startup	legaltech legal technology startup raised funding 2025 2026
+proptech-startup	proptech real estate technology startup raised funding 2025 2026
+insurtech-startup	insurtech insurance technology startup raised funding 2025 2026
+hrtech-startup	hrtech HR technology startup raised funding 2025 2026
+construction-tech	construction technology contech startup raised funding 2025 2026
+manufacturing-tech	manufacturing software industrial tech startup raised funding 2025 2026
+logistics-tech	logistics supply chain tech startup raised funding 2025 2026
+creator-economy	creator economy creator tools startup raised funding 2025 2026
+gaming-startup	gaming game studio startup raised funding 2025 2026
+ar-vr-startup	augmented reality virtual reality startup raised funding 2025 2026
+quantum-startup	quantum computing startup raised funding 2025 2026
+spacetech-startup	spacetech satellite startup raised funding 2025 2026
+defense-tech	defense technology dual-use startup raised funding 2025 2026
+mental-health-tech	mental health digital health startup raised funding 2025 2026
+elder-care-tech	elder care senior tech startup raised funding 2025 2026
+women-health-tech	women's health femtech startup raised funding 2025 2026
+sustainability-tech	sustainability ESG climate tech startup raised funding 2025 2026
+
+# === AI-specific verticals (current trend) ===
+ai-agents	AI agent autonomous agents startup raised funding 2025 2026
+ai-copilot	AI copilot assistant productivity startup raised funding 2025 2026
+ai-coding	AI coding code generation developer tools startup raised funding 2025 2026
+ai-vertical	vertical AI domain-specific AI startup raised funding 2025 2026
+ai-infra	AI infrastructure GPU inference training startup raised funding 2025 2026
+ai-data-labeling	AI data labeling annotation startup raised funding 2025 2026
+ai-evaluation	AI evaluation eval testing startup raised funding 2025 2026
+ai-customer-support	AI customer support automation startup raised funding 2025 2026
+ai-sales-tools	AI sales prospecting tools startup raised funding 2025 2026
+ai-marketing-tools	AI marketing content generation startup raised funding 2025 2026
+ai-legal	AI legal contracts startup raised funding 2025 2026
+ai-medical	AI medical diagnostic clinical startup raised funding 2025 2026
+ai-robotics	AI robotics autonomy startup raised funding 2025 2026
+ai-voice	AI voice speech audio startup raised funding 2025 2026
+ai-video	AI video generation editing startup raised funding 2025 2026
+
+# === Untouched regions ===
+canada-startup	Canada startup Series A B raised funding 2025 2026
+australia-startup	Australia startup Series A B raised funding 2025 2026
+israel-startup	Israel startup Series A B raised funding 2025 2026
+africa-startup	Africa startup Series A B raised funding 2025 2026
+japan-startup	Japan startup Series A B raised funding 2025 2026
+korea-startup	South Korea startup Series A B raised funding 2025 2026
+nordic-startup	Nordic Scandinavia startup Series A B raised funding 2025 2026
+spain-startup	Spain Iberia startup Series A B raised funding 2025 2026
+netherlands-startup	Netherlands Benelux startup Series A B raised funding 2025 2026
+
+# === Business model cuts ===
+open-source-startup	open source startup commercial OSS raised funding 2025 2026
+embedded-finance	embedded finance fintech infrastructure startup raised funding 2025 2026
+neobank-startup	neobank challenger bank startup raised funding 2025 2026
+b2b-marketplace	B2B marketplace platform startup raised funding 2025 2026
+api-startup	API-first developer infrastructure startup raised funding 2025 2026
+no-code-startup	no-code low-code platform startup raised funding 2025 2026
