@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { prisma } from "./_lib/prisma.js";
 import { runIngestor, type CompanyRecord, type IngestorAdapter } from "./_lib/ingestor.js";
 import { exaSearch, type ExaResult } from "../server/lib/ai/exa-search.js";
+import { detectExaJunk } from "./_lib/exa-junk-filter.js";
 
 // Topical company discovery via Exa's `category=company` filter. Unlike every
 // other adapter in the pipeline (which scrapes a specific VC's portfolio
@@ -96,18 +97,27 @@ export function resultToRecord(r: ExaResult, topic: string): CompanyRecord | nul
   if (!name || !website) return null;
   if (!/^https?:\/\//i.test(website)) return null;
 
+  const description = r.content?.slice(0, 1200) || null;
+  // Apply the shared regex filter so consultancies, VC funds, agencies,
+  // non-profits, and .gov/.edu domains never land as isVerified=true.
+  // Run classify-exa-startups.ts after ingest for the LLM second pass that
+  // catches ambiguous junk this regex can't.
+  let domain: string | null = null;
+  try { domain = new URL(website).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+  const junkHit = detectExaJunk({ name, domain, description });
+
   return {
     name,
     website,
-    description: r.content?.slice(0, 1200) || null,
+    description,
     oneLiner: parseOneLiner(r.content ?? ""),
     industry: parseIndustry(r.content ?? ""),
     topics: [topic],
     signals: ["exa-discovery"],
-    // Exa's `category=company` filter only returns canonical company pages,
-    // and the row already carries a strong primary-source signal. Mark as
-    // verified so the wizard surfaces it by default.
-    isVerified: true,
+    // Verified only if the regex filter didn't catch obvious junk. Real
+    // verification still flows through the LLM classifier as a separate
+    // post-ingest step (classify-exa-startups.ts).
+    isVerified: !junkHit,
   };
 }
 
