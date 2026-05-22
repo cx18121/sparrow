@@ -49,7 +49,7 @@ describe("POST /audience-query", () => {
 
   it("accepts a JSON string body", async () => {
     const req = makeReq({
-      body: JSON.stringify({ audience: { tags: [], region: null, stage: null, batch: null, isHiring: null } }),
+      body: JSON.stringify({ audience: { tags: [], region: [], stage: [], batch: [], isHiring: null } }),
     });
     const res = makeRes();
 

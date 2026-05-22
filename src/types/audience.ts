@@ -13,9 +13,12 @@ import {
 
 export interface Audience {
   tags: string[]
-  region: RegionFilter | null
-  stage: string | null
-  batch: string | null
+  // Multi-select. Empty array means "no region filter" (any region).
+  region: RegionFilter[]
+  // Multi-select. Empty array means "no stage filter" (any stage).
+  stage: string[]
+  // Multi-select. Empty array means "no batch filter" (any batch).
+  batch: string[]
   isHiring: boolean | null
   // Per-campaign override of the user's default target role. null means
   // "inherit the user's workspace default at apply time" — the wizard and
@@ -36,24 +39,34 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 export const EMPTY_AUDIENCE: Audience = {
-  tags: [], region: null, stage: null, batch: null, isHiring: null, targetRole: null,
+  tags: [], region: [], stage: [], batch: [], isHiring: null, targetRole: null,
+}
+
+// Accept both the new array shape and the legacy scalar shape so a row written
+// before the multi-select migration (or a client that hasn't redeployed yet)
+// still round-trips correctly. Anything truthy becomes a 1-element array;
+// null/undefined/'' becomes [].
+function coerceFilterArray(value: string[] | string | null | undefined): string[] {
+  if (Array.isArray(value)) return value.filter(v => typeof v === 'string' && v.length > 0)
+  if (typeof value === 'string' && value.length > 0) return [value]
+  return []
 }
 
 // Build an Audience from raw Campaign fields stored in the DB / wire format.
 // Keeps callers from having to know which fields are nullable how.
 export function audienceFromCampaign(c: {
   filterTags?: string[] | null
-  filterRegion?: string | null
-  filterStage?: string | null
-  filterBatch?: string | null
+  filterRegion?: string[] | string | null
+  filterStage?: string[] | string | null
+  filterBatch?: string[] | string | null
   filterIsHiring?: boolean | null
   filterTargetRole?: string | null
 }): Audience {
   return {
     tags: c.filterTags ?? [],
-    region: c.filterRegion ?? null,
-    stage: c.filterStage ?? null,
-    batch: c.filterBatch ?? null,
+    region: coerceFilterArray(c.filterRegion),
+    stage: coerceFilterArray(c.filterStage),
+    batch: coerceFilterArray(c.filterBatch),
     isHiring: c.filterIsHiring ?? null,
     // null fallback (not engineering default) when the campaign hasn't
     // specified a role — caller decides how to resolve "inherit user
@@ -75,12 +88,14 @@ export function audienceToCampaignFields(a: Audience) {
 }
 
 // Display pills — short human labels for each active filter, ordered consistently.
+// Each selected region/stage/batch emits its own pill so the user sees the
+// full multi-select selection at a glance.
 export function audienceToDisplayPills(a: Audience): string[] {
   return [
     ...a.tags.map(t => t.split(':')[1] ?? t),
-    a.region ? (REGION_LABELS[a.region] ?? a.region) : null,
-    a.stage,
-    a.batch,
+    ...a.region.map(r => REGION_LABELS[r] ?? r),
+    ...a.stage,
+    ...a.batch,
     a.isHiring != null ? (a.isHiring ? 'Hiring' : 'Not hiring') : null,
     a.targetRole ? labelForRoleFamily(a.targetRole) : null,
   ].filter((v): v is string => Boolean(v))
@@ -90,5 +105,9 @@ export function audienceToDisplayPills(a: Audience): string[] {
 // contact-level filter (applied at Apollo searchContacts time), not a
 // company-pool filter, so it intentionally doesn't count here.
 export function isAudienceEmpty(a: Audience): boolean {
-  return a.tags.length === 0 && !a.region && !a.stage && !a.batch && a.isHiring == null
+  return a.tags.length === 0
+    && a.region.length === 0
+    && a.stage.length === 0
+    && a.batch.length === 0
+    && a.isHiring == null
 }

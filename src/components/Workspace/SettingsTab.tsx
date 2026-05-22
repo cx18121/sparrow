@@ -34,13 +34,20 @@ interface FormValue {
   status: 'active' | 'paused' | 'completed'
   templateId: string
   filterTags: string[]
-  filterRegion: string
-  filterStage: string
-  filterBatch: string
+  filterRegion: string[]
+  filterStage: string[]
+  filterBatch: string[]
   filterIsHiring: boolean
   batchSize: string
   attachmentIds: string[]
   includePreviouslySaved: boolean
+}
+
+// Accept legacy scalar-shape campaigns until cached clients refresh.
+function toFilterArray(value: string[] | string | null | undefined): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  if (typeof value === 'string' && value.length > 0) return [value]
+  return []
 }
 
 function fromCampaign(c: UiCampaign): FormValue {
@@ -50,9 +57,9 @@ function fromCampaign(c: UiCampaign): FormValue {
     status: c.status,
     templateId: c.templateId || '',
     filterTags: c.filterTags || [],
-    filterRegion: c.filterRegion || '',
-    filterStage: c.filterStage || '',
-    filterBatch: c.filterBatch || '',
+    filterRegion: toFilterArray(c.filterRegion),
+    filterStage: toFilterArray(c.filterStage),
+    filterBatch: toFilterArray(c.filterBatch),
     filterIsHiring: c.filterIsHiring === true,
     batchSize: String(c.batchSize ?? 10),
     attachmentIds: Array.isArray(c.attachmentIds) ? c.attachmentIds : [],
@@ -121,9 +128,9 @@ export default function SettingsTab() {
         status: form.status,
         templateId: form.templateId || null,
         filterTags: form.filterTags || [],
-        filterRegion: form.filterRegion || null,
-        filterStage: form.filterStage || null,
-        filterBatch: form.filterBatch || null,
+        filterRegion: form.filterRegion,
+        filterStage: form.filterStage,
+        filterBatch: form.filterBatch,
         filterIsHiring: form.filterIsHiring || null,
         batchSize: Number(form.batchSize) || 10,
         attachmentIds: form.attachmentIds || [],
@@ -252,20 +259,28 @@ export default function SettingsTab() {
               { value: REGION_US, label: 'US' },
               { value: REGION_INTL, label: 'International' },
               { value: REGION_REMOTE, label: 'Remote' },
-            ] as const).map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => field('filterRegion', form.filterRegion === value ? '' : value)}
-                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
-                  form.filterRegion === value
-                    ? 'border-primary bg-primary text-warm-50'
-                    : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            ] as const).map(({ value, label }) => {
+              const active = form.filterRegion.includes(value)
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => field(
+                    'filterRegion',
+                    active
+                      ? form.filterRegion.filter(r => r !== value)
+                      : [...form.filterRegion, value],
+                  )}
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                    active
+                      ? 'border-primary bg-primary text-warm-50'
+                      : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/40 hover:text-dark'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
 
           <div className="space-y-2.5 pt-0.5">
@@ -273,20 +288,28 @@ export default function SettingsTab() {
               <div className="flex items-start gap-3">
                 <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/50">Stage</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {(options.stages || []).map(stage => (
-                    <button
-                      key={stage}
-                      type="button"
-                      onClick={() => field('filterStage', form.filterStage === stage ? '' : stage)}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
-                        form.filterStage === stage
-                          ? 'border-primary bg-primary text-warm-50'
-                          : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
-                      }`}
-                    >
-                      {stage}
-                    </button>
-                  ))}
+                  {(options.stages || []).map(stage => {
+                    const active = form.filterStage.includes(stage)
+                    return (
+                      <button
+                        key={stage}
+                        type="button"
+                        onClick={() => field(
+                          'filterStage',
+                          active
+                            ? form.filterStage.filter(s => s !== stage)
+                            : [...form.filterStage, stage],
+                        )}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                          active
+                            ? 'border-primary bg-primary text-warm-50'
+                            : 'border-warm-300 bg-warm-50 text-muted hover:border-primary/30 hover:text-dark'
+                        }`}
+                      >
+                        {stage}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}

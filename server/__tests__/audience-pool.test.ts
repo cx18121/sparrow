@@ -25,9 +25,9 @@ import {
 
 const audience = {
   tags: ["sector:ai"],
-  region: null,
-  stage: null,
-  batch: null,
+  region: [],
+  stage: [],
+  batch: [],
   isHiring: null,
   targetRole: null,
 };

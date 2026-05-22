@@ -7,6 +7,20 @@ import type { CompanyListResponse } from '../types/api'
 
 export type DiscoveryRegionFilter = 'us' | 'international' | 'remote' | null
 
+// Campaign filter columns went multi-select (region/stage/batch are now
+// string[]). The LeadDiscovery browse UI is still single-select, so we seed
+// it with the first selected value of each — users can change it inside the
+// tab. Anything beyond the first value is intentionally dropped here; the
+// saved campaign filter remains the source of truth at generation time.
+function firstFilterValue(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    const first = value.find((v): v is string => typeof v === 'string' && v.length > 0)
+    return first ?? null
+  }
+  if (typeof value === 'string' && value.length > 0) return value
+  return null
+}
+
 export function discoveryFiltersFromCampaign(campaignFilters: any): {
   selectedTags: string[]
   regionFilter: DiscoveryRegionFilter
@@ -19,11 +33,12 @@ export function discoveryFiltersFromCampaign(campaignFilters: any): {
     __INTL__: 'international',
     __REMOTE__: 'remote',
   }
+  const firstRegion = firstFilterValue(campaignFilters?.filterRegion)
   return {
     selectedTags: Array.isArray(campaignFilters?.filterTags) ? campaignFilters.filterTags : [],
-    regionFilter: campaignFilters?.filterRegion ? (regionMap[campaignFilters.filterRegion] ?? null) : null,
-    stageFilter: typeof campaignFilters?.filterStage === 'string' && campaignFilters.filterStage ? campaignFilters.filterStage : null,
-    batchFilter: typeof campaignFilters?.filterBatch === 'string' && campaignFilters.filterBatch ? campaignFilters.filterBatch : null,
+    regionFilter: firstRegion ? (regionMap[firstRegion] ?? null) : null,
+    stageFilter: firstFilterValue(campaignFilters?.filterStage),
+    batchFilter: firstFilterValue(campaignFilters?.filterBatch),
     isHiring: campaignFilters?.filterIsHiring === true,
   }
 }

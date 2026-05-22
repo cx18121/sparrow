@@ -16,11 +16,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-function regionFromQuery(regionType: string | undefined, region: string | undefined): string | null {
-  if (regionType === "us") return REGION_US;
-  if (regionType === "international") return REGION_INTL;
-  if (regionType === "remote") return REGION_REMOTE;
-  return region ?? null;
+// Companies endpoint takes a single regionType / region from the query
+// string (the discover/browse UI is single-select), so this returns a 0- or
+// 1-element array to feed the multi-select audience adapter.
+function regionFromQuery(regionType: string | undefined, region: string | undefined): string[] {
+  if (regionType === "us") return [REGION_US];
+  if (regionType === "international") return [REGION_INTL];
+  if (regionType === "remote") return [REGION_REMOTE];
+  return region ? [region] : [];
 }
 
 async function list(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -58,8 +61,8 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
   const audienceWhere = audienceToPrismaWhere({
     tags: tagsList,
     region: regionFromQuery(regionType, region),
-    stage: stage ?? null,
-    batch: batch ?? null,
+    stage: stage ? [stage] : [],
+    batch: batch ? [batch] : [],
     isHiring: isHiring === "true" ? true : isHiring === "false" ? false : null,
     // Discover endpoint scopes by company attributes only; target role is a
     // contact-side concern resolved later via Apollo. Pass null to skip.

@@ -245,9 +245,9 @@ model Campaign {
   template               Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
   scheduledAt            DateTime?
   filterIndustry         String?
-  filterRegion           String?
-  filterStage            String?
-  filterBatch            String?
+  filterRegion           String[]
+  filterStage            String[]
+  filterBatch            String[]
   filterIsHiring         Boolean?
   filterTags             String[]
   // Per-campaign override of user.workspace_config.targetRole. One of the

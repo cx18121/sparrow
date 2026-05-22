@@ -72,15 +72,32 @@ const EMPTY_SCRATCH: ScratchState = {
   step: 0,
 }
 
+// Coerce a possibly-legacy audience filter field (scalar or array) to the
+// current array shape. Pre-multi-select scratch state in localStorage stored
+// region/stage/batch as `string | null`; ignoring that would let `null`
+// overwrite EMPTY_AUDIENCE's `[]` and crash the wizard on first render.
+function coerceAudienceArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  if (typeof value === 'string' && value.length > 0) return [value]
+  return []
+}
+
 function loadScratch(): ScratchState {
   if (typeof window === 'undefined') return EMPTY_SCRATCH
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return EMPTY_SCRATCH
     const parsed = JSON.parse(raw)
+    const rawAudience = parsed.audience || {}
     return {
       name: typeof parsed.name === 'string' ? parsed.name : '',
-      audience: { ...EMPTY_AUDIENCE, ...(parsed.audience || {}) },
+      audience: {
+        ...EMPTY_AUDIENCE,
+        ...rawAudience,
+        region: coerceAudienceArray(rawAudience.region),
+        stage: coerceAudienceArray(rawAudience.stage),
+        batch: coerceAudienceArray(rawAudience.batch),
+      },
       templateId: typeof parsed.templateId === 'string' ? parsed.templateId : null,
       includePreviouslySaved: Boolean(parsed.includePreviouslySaved),
       batchSize: Number.isFinite(parsed.batchSize) ? parsed.batchSize : 10,
@@ -505,22 +522,42 @@ function StepFilters({
   const [showAllBatches, setShowAllBatches] = useState(false)
   const [expandedNs, setExpandedNs] = useState<Set<string>>(() => new Set())
 
-  const setRegion = (r: RegionFilter | null) =>
-    onAudienceChange({ ...audience, region: audience.region === r ? null : r })
+  const toggleRegion = (r: RegionFilter) =>
+    onAudienceChange({
+      ...audience,
+      region: audience.region.includes(r)
+        ? audience.region.filter(x => x !== r)
+        : [...audience.region, r],
+    })
+
+  const toggleStage = (s: string) =>
+    onAudienceChange({
+      ...audience,
+      stage: audience.stage.includes(s)
+        ? audience.stage.filter(x => x !== s)
+        : [...audience.stage, s],
+    })
 
   const toggleTag = (namespaced: string) => {
     const has = audience.tags.includes(namespaced)
     let nextTags = has ? audience.tags.filter(t => t !== namespaced) : [...audience.tags, namespaced]
-    // Clearing yc-backed must also clear the batch - otherwise a stale
-    // batch keeps applying silently and the preview drops without a
+    // Clearing yc-backed must also clear any selected batches - otherwise a
+    // stale batch keeps applying silently and the preview drops without a
     // visible reason.
     const next: Audience = { ...audience, tags: nextTags }
-    if (namespaced === SIGNAL_YC && has) next.batch = null
+    if (namespaced === SIGNAL_YC && has) next.batch = []
     onAudienceChange(next)
   }
 
-  const setBatch = (batch: string | null) =>
-    onAudienceChange({ ...audience, batch: audience.batch === batch ? null : batch })
+  const toggleBatch = (batch: string) =>
+    onAudienceChange({
+      ...audience,
+      batch: audience.batch.includes(batch)
+        ? audience.batch.filter(x => x !== batch)
+        : [...audience.batch, batch],
+    })
+
+  const clearBatch = () => onAudienceChange({ ...audience, batch: [] })
 
   const ycSelected = audience.tags.includes(SIGNAL_YC)
   const sortedBatches = useMemo(() => sortBatchesNewestFirst(options.batches || []), [options.batches])
@@ -545,9 +582,9 @@ function StepFilters({
         {/* Filter pills */}
         <div className="space-y-5">
           <FilterRow label="Region">
-            <FilterChip active={audience.region === REGION_US} onClick={() => setRegion(REGION_US)}>US</FilterChip>
-            <FilterChip active={audience.region === REGION_INTL} onClick={() => setRegion(REGION_INTL)}>International</FilterChip>
-            <FilterChip active={audience.region === REGION_REMOTE} onClick={() => setRegion(REGION_REMOTE)}>Remote</FilterChip>
+            <FilterChip active={audience.region.includes(REGION_US)} onClick={() => toggleRegion(REGION_US)}>US</FilterChip>
+            <FilterChip active={audience.region.includes(REGION_INTL)} onClick={() => toggleRegion(REGION_INTL)}>International</FilterChip>
+            <FilterChip active={audience.region.includes(REGION_REMOTE)} onClick={() => toggleRegion(REGION_REMOTE)}>Remote</FilterChip>
           </FilterRow>
 
           <FilterRow label="Hiring">
@@ -565,8 +602,8 @@ function StepFilters({
               {(options.stages || []).map(stage => (
                 <FilterChip
                   key={stage}
-                  active={audience.stage === stage}
-                  onClick={() => onAudienceChange({ ...audience, stage: audience.stage === stage ? null : stage })}
+                  active={audience.stage.includes(stage)}
+                  onClick={() => toggleStage(stage)}
                 >
                   {stage}
                 </FilterChip>
@@ -623,11 +660,11 @@ function StepFilters({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted/60">
                       Batch
                     </span>
-                    <FilterChip active={!audience.batch} onClick={() => setBatch(null)}>
+                    <FilterChip active={audience.batch.length === 0} onClick={clearBatch}>
                       Any
                     </FilterChip>
                     {visibleBatches.map(b => (
-                      <FilterChip key={b} active={audience.batch === b} onClick={() => setBatch(b)}>
+                      <FilterChip key={b} active={audience.batch.includes(b)} onClick={() => toggleBatch(b)}>
                         {b}
                       </FilterChip>
                     ))}
@@ -708,7 +745,10 @@ function AudiencePreview({
     }, 350)
     return () => { cancelled = true; window.clearTimeout(handle) }
   }, [
-    audience.tags.join(','), audience.region, audience.stage, audience.batch,
+    audience.tags.join(','),
+    audience.region.join(','),
+    audience.stage.join(','),
+    audience.batch.join(','),
     audience.isHiring,
     excludePreviouslySaved,
   ])

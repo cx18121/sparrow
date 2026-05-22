@@ -100,9 +100,9 @@ export interface Campaign {
   template?: { id: string; name: string } | null
   scheduledAt: string | null
   filterIndustry: string | null
-  filterRegion: string | null
-  filterStage: string | null
-  filterBatch: string | null
+  filterRegion: string[]
+  filterStage: string[]
+  filterBatch: string[]
   filterIsHiring: boolean | null
   filterTags: string[]
   batchSize: number

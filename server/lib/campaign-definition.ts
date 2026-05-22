@@ -43,6 +43,15 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
 }
 
+// Accept the array shape from current clients and the legacy scalar shape
+// from any pre-multi-select callers that haven't shipped yet. Empty string
+// scalars become [] (mirrors how the wizard treated "" as "no filter").
+function filterStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (typeof value === "string" && value.length > 0) return [value];
+  return [];
+}
+
 export async function listCampaignDefinitions(userId: string, status?: string) {
   const allowedStatus =
     status && CAMPAIGN_STATUSES.includes(status as CampaignStatus)
@@ -130,9 +139,9 @@ export async function createCampaignDefinition(userId: string, body: Record<stri
       templateId: ownedTemplateId,
       scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       filterTags: Array.isArray(filterTags) ? (filterTags as string[]) : [],
-      filterRegion: (filterRegion as string | null) ?? null,
-      filterStage: (filterStage as string | null) ?? null,
-      filterBatch: (filterBatch as string | null) ?? null,
+      filterRegion: filterStringArray(filterRegion),
+      filterStage: filterStringArray(filterStage),
+      filterBatch: filterStringArray(filterBatch),
       filterIsHiring: parseNullableBoolean(filterIsHiring),
       // Gate through normalizeRoleFamily so an unknown id (typo, deprecated
       // family from before the 6→4 consolidation, junk from a patched
@@ -185,9 +194,9 @@ export async function updateCampaignDefinition(userId: string, body: Record<stri
         scheduledAt: scheduledAt ? new Date(scheduledAt as string) : null,
       }),
       ...(filterTags !== undefined && { filterTags: Array.isArray(filterTags) ? (filterTags as string[]) : [] }),
-      ...(filterRegion !== undefined && { filterRegion: (filterRegion as string | null) ?? null }),
-      ...(filterStage !== undefined && { filterStage: (filterStage as string | null) ?? null }),
-      ...(filterBatch !== undefined && { filterBatch: (filterBatch as string | null) ?? null }),
+      ...(filterRegion !== undefined && { filterRegion: filterStringArray(filterRegion) }),
+      ...(filterStage !== undefined && { filterStage: filterStringArray(filterStage) }),
+      ...(filterBatch !== undefined && { filterBatch: filterStringArray(filterBatch) }),
       ...(filterIsHiring !== undefined && { filterIsHiring: parseNullableBoolean(filterIsHiring) }),
       ...(filterTargetRole !== undefined && {
         // Same normalization as create — bad ids in PATCH bodies must not

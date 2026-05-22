@@ -21,12 +21,22 @@ function isAudienceLike(value: unknown): value is Partial<Audience> {
   return Boolean(value) && typeof value === "object";
 }
 
-function normaliseAudience(input: Partial<Audience>): Audience {
+// Accept the array shape from current clients and the legacy scalar shape
+// from any pre-multi-select callers that haven't shipped yet.
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  if (typeof value === "string" && value.length > 0) return [value];
+  return [];
+}
+
+function normaliseAudience(input: Partial<Audience> & {
+  region?: unknown; stage?: unknown; batch?: unknown;
+}): Audience {
   return {
     tags: Array.isArray(input.tags) ? input.tags.filter((t): t is string => typeof t === "string") : [],
-    region: typeof input.region === "string" ? input.region : null,
-    stage: typeof input.stage === "string" ? input.stage : null,
-    batch: typeof input.batch === "string" ? input.batch : null,
+    region: asStringArray(input.region),
+    stage: asStringArray(input.stage),
+    batch: asStringArray(input.batch),
     isHiring: typeof input.isHiring === "boolean" ? input.isHiring : null,
     // Audience preview does not filter by role — role only affects contact
     // resolution (Apollo title scope), not company pool. Pass null so the
