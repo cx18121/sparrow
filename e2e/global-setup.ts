@@ -21,9 +21,11 @@ if (existsSync(envFile)) {
     const json = JSON.parse(status)
     process.env.E2E_SUPABASE_URL = json.API_URL ?? 'http://127.0.0.1:54321'
     process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
-    // Prefer SERVICE_ROLE_KEY (legacy service-role JWT) over SECRET_KEY (new
-    // opaque sb_secret_* format). supabase-js admin.* calls expect the JWT.
-    process.env.E2E_SUPABASE_SERVICE_KEY = json.SERVICE_ROLE_KEY ?? json.SECRET_KEY ?? ''
+    // Prefer the new sb_secret_* SECRET_KEY (Supabase's forward-looking
+    // server key) over the legacy SERVICE_ROLE_KEY JWT. Both keys work
+    // with admin.* on current supabase-js + CLI; the JWT is the fallback
+    // for older local stacks that don't emit SECRET_KEY yet.
+    process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
     process.env.E2E_DB_URL = json.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
   } catch {
     // Supabase not running yet — globalSetup will start it and keys will be set after.
@@ -60,8 +62,8 @@ export default async function globalSetup() {
       const json = JSON.parse(status)
       process.env.E2E_SUPABASE_URL = json.API_URL ?? LOCAL_URL
       process.env.E2E_SUPABASE_ANON_KEY = json.PUBLISHABLE_KEY ?? json.ANON_KEY ?? ''
-      // Same SERVICE_ROLE_KEY-first preference as the top-level loader.
-      process.env.E2E_SUPABASE_SERVICE_KEY = json.SERVICE_ROLE_KEY ?? json.SECRET_KEY ?? ''
+      // Same SECRET_KEY-first preference as the top-level loader.
+      process.env.E2E_SUPABASE_SERVICE_KEY = json.SECRET_KEY ?? json.SERVICE_ROLE_KEY ?? ''
       SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_KEY ?? ''
     } catch {
       throw new Error('[global-setup] Could not read Supabase keys. Run `supabase start` first.')
@@ -91,21 +93,28 @@ export default async function globalSetup() {
 
   // 4. Ensure e2e test user exists — must run after any DB reset so the auth
   //    row isn't wiped before tests can sign in.
+  //
+  // `supabase db reset` restarts containers (incl. GoTrue/Auth). On CI we've
+  // observed listUsers() returning an opaque error right after reset because
+  // the auth container isn't accepting connections yet. Retry with backoff
+  // so a 1-2s window of unavailability doesn't blow up the whole run.
   const adminUrl = process.env.E2E_SUPABASE_URL ?? LOCAL_URL
   const adminKey = process.env.E2E_SUPABASE_SERVICE_KEY ?? SERVICE_KEY
   const admin = createClient(adminUrl, adminKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
-  const { data: existing, error: listErr } = await admin.auth.admin.listUsers()
-  if (listErr) {
-    // Stringify the full error — message can be undefined when supabase-js
-    // wraps a low-level fetch failure or a new opaque-key auth error.
-    const detail = listErr.message || JSON.stringify(listErr, null, 2) || String(listErr)
-    throw new Error(
-      `[global-setup] Could not list users: ${detail}\n` +
-      `Hint: admin.* calls need the legacy SERVICE_ROLE_KEY JWT, not the new ` +
-      `sb_secret_* publishable/secret keys.`
-    )
+
+  let existing: { users?: Array<{ email?: string }> } | null = null
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await admin.auth.admin.listUsers()
+    if (!res.error) { existing = res.data; lastErr = null; break }
+    lastErr = res.error
+    await new Promise(r => setTimeout(r, 500 * (attempt + 1))) // 0.5s, 1s, 1.5s, ...
+  }
+  if (lastErr) {
+    const detail = (lastErr as any).message || JSON.stringify(lastErr, null, 2) || String(lastErr)
+    throw new Error(`[global-setup] Could not list users after 6 retries: ${detail}`)
   }
 
   const alreadyExists = existing?.users?.some(u => u.email === 'e2e@sparrow.test')

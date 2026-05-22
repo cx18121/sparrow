@@ -13,14 +13,19 @@ export default async function globalTeardown() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { data, error: listErr } = await admin.auth.admin.listUsers()
-  if (listErr) {
-    const detail = listErr.message || JSON.stringify(listErr, null, 2) || String(listErr)
-    throw new Error(
-      `[global-teardown] Could not list users: ${detail}\n` +
-      `Hint: admin.* calls need the legacy SERVICE_ROLE_KEY JWT, not the new ` +
-      `sb_secret_* publishable/secret keys.`
-    )
+  // Same retry-with-backoff as global-setup. Teardown runs after Playwright
+  // completes; auth should be stable, but cheap insurance.
+  let data: { users?: Array<{ id: string; email?: string }> } | null = null
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await admin.auth.admin.listUsers()
+    if (!res.error) { data = res.data; lastErr = null; break }
+    lastErr = res.error
+    await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+  }
+  if (lastErr) {
+    const detail = (lastErr as any).message || JSON.stringify(lastErr, null, 2) || String(lastErr)
+    throw new Error(`[global-teardown] Could not list users after 6 retries: ${detail}`)
   }
 
   const user = data?.users?.find(u => u.email === 'e2e@sparrow.test')
