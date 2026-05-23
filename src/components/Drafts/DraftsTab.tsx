@@ -682,13 +682,11 @@ export default function DraftsTab({
     }
   }
 
-  const { scheduleSend, cancelPendingSend } = usePendingSendQueue({
+  const { scheduleSend } = usePendingSendQueue({
     onFire: (ids) => {
-      // Drop ids whose drafts were deleted during the undo window so we
-      // don't even attempt the send. markSent does its own canSendDraft
-      // filtering on top — this just suppresses the "X skipped" toast for
-      // user-initiated deletions, which would otherwise feel like the
-      // app blaming the user for their own action.
+      // Suppress the "X skipped" toast that markSent would otherwise emit
+      // for drafts the user deleted during the undo window. markSent's own
+      // canSendDraft filter handles every other not-ready case.
       const liveIds = ids.filter(id => draftsRef.current.some(d => d.id === id))
       if (liveIds.length === 0) return
       markSent(liveIds)

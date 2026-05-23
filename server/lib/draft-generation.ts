@@ -106,16 +106,10 @@ function slotIsFresh<T>(
   return true;
 }
 
-// Shared in-flight dedupe + cross-role read-modify-write persistence for
-// role-specific dossier research. Each role family (eng, GTM, ops) has its
-// own in-flight map and own slot in the envelope; this helper owns the
-// orchestration that's identical across them: in-flight check, research
-// call, cross-role re-read at write time, RMW persist, map cleanup.
-//
-// runResearch closes over the role-specific research function + env-derived
-// knobs (recency days, Tavily depth) so the helper stays neutral on per-role
-// retrieval shape. writeSlot closes over the role-specific setDossierSlot
-// overload so the helper doesn't need to discriminate.
+// Shared orchestration for role-specific dossier research: in-flight dedupe,
+// research call, cross-role re-read at write time, RMW persist, map cleanup.
+// runResearch + writeSlot are closures so the helper stays neutral on which
+// role it's running.
 //
 // priorEnvelope was captured before the research call (~5-15s of network +
 // Claude time). A different role's research for the same company may have
