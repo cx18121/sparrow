@@ -11,7 +11,7 @@ Sparrow does the research and drafting work around the user's review loop. Pick 
 ## How it works
 
 1. **Pick a startup.**  
-   Filter ~6.3k verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, other VC firms, and verified startup lists.
+   Filter 40k+ verified companies by tags (sector, tech, stage, investor, region). Sources include YC, a16z, Sequoia, Kleiner Perkins, Greylock, dozens of other VC and accelerator portfolios, and verified startup lists.
 
 2. **Find contacts.**  
    Apollo search returns contact previews for a company. Revealing an email is the paid Apollo-credit step.
@@ -39,24 +39,34 @@ npm install
 cp .env.example .env
 ```
 
-Fill in `.env`:
+Fill in `.env` (see `.env.example` for the full list and inline setup notes). Required:
 
-- Supabase URL + anon key + service role key
+- Supabase: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (client) and `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (server)
 - `ENCRYPTION_KEY` (`openssl rand -base64 48`)
-- Google OAuth client ID + secret + state secret
-- `ANTHROPIC_API_KEY`, `EXA_API_KEY`, `TAVILY_API_KEY`
+- Google OAuth: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_OAUTH_STATE_SECRET`
+- `APP_ORIGIN` (required in production — the public app origin used for OAuth redirects)
+- `ANTHROPIC_API_KEY` (Claude key for draft generation and LLM enrichment)
+- `APOLLO_API_KEY` (free search + paid reveal; required by `/api/apollo-search`)
+- `EXA_API_KEY` (primary research retrieval)
+- `TAVILY_API_KEY` (fallback retrieval; optional but recommended)
 - `DATABASE_URL` + `DIRECT_URL` pointing at your Supabase project
 
-Then:
+Start the local Supabase stack (requires Docker), then push the schema and activate the pre-push hook:
 
 ```bash
+supabase start
 npx prisma generate
-npx prisma db push
+npm run db:push:local
+git config core.hooksPath .githooks   # one-time per clone
 ```
+
+For prod schema changes, use `npm run db:migrate:create` + `npm run db:migrate:deploy` — never `prisma db push`. See `CLAUDE.md` § Database migrations.
 
 In two terminals:
 
 ```bash
 npm run dev            # frontend (Vite, http://localhost:5173)
-npm run dev:api:local  # API (tsx watch local-api.ts)
+npm run dev:api:local  # API (tsx watch local-api.ts) — use this without a linked Vercel project
+# or:
+npm run dev:api        # API (vercel dev) — use this if you have a linked Vercel project
 ```
