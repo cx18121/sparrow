@@ -41,7 +41,7 @@ function draft(role: 'eng' | 'gtm' | 'ops', partial: 'company' | 'candidate' | '
     cols.opsSystemBuilt = candidate
   }
   return {
-    generationKind: 'verbatim',
+    generationKind: 'verbatim' as const,
     userLead: { company: baseCompany },
     ...cols,
   }

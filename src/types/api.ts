@@ -133,12 +133,25 @@ export interface Email {
   createdAt: string
   updatedAt: string
   // Personalization metadata. Populated by the draft-generation path;
-  // null for rows written by other paths or pre-migration. The picker on
-  // the drafts review pane reads featureLine + userLead.company.researchDossier.surfaces
-  // to surface the angle currently chosen and the alternatives available.
+  // null for rows written by other paths or pre-migration. Exactly one
+  // role's pair is populated per row (per ADR-0005): eng → featureLine +
+  // fitAngle, GTM → gtmTriggerLine + gtmProofOfMotion, ops →
+  // opsInflectionLine + opsSystemBuilt. The change-angle picker reads
+  // the populated pair to know which role + which dossier slot to
+  // surface in the picker.
   featureLine?: string | null
   fitAngle?: string | null
+  gtmTriggerLine?: string | null
+  gtmProofOfMotion?: string | null
+  opsInflectionLine?: string | null
+  opsSystemBuilt?: string | null
   generationKind?: "verbatim" | "template" | "ai" | "fallback" | null
+  // Tracking metadata on Sent rows: openedAt comes from the tracking
+  // pixel; repliedAt + replyClassification come from the Gmail webhook
+  // classifier (BOUNCE / AUTO_REPLY / REPLY). Always null on draft rows.
+  openedAt?: string | null
+  repliedAt?: string | null
+  replyClassification?: "REPLY" | "AUTO_REPLY" | "BOUNCE" | null
   contact?: ContactSummary | null
   customContact?: { id: string; name: string | null; email: string | null; title: string | null; companyName: string | null } | null
   userLead?: {
@@ -151,12 +164,50 @@ export interface Email {
 // Cached web-research output per company. The `surfaces` list seeds the
 // "change angle" picker on the drafts review pane; the rest of the
 // fields are reserved for downstream UI that wants to show the dossier.
-export interface ResearchDossier {
+// Per-role cached dossier from Company.researchDossier. Two shapes coexist
+// in the DB per ADR-0005:
+//   - Legacy flat (pre-ADR-0005): eng-only, fields at the top level
+//   - Envelope (post-ADR-0005): per-role slots, each carrying its own
+//     dossier shape + researchedAt timestamp
+// resolveAngleContext in DraftsTab handles both shapes at runtime; the
+// type union here makes that dual access type-safe.
+export interface EngDossier {
   summary: string
   surfaces: string[]
   recentLaunches: string[]
   technicalAreas: string[]
 }
+
+export interface GtmDossier {
+  summary: string
+  triggers: string[]
+  recentMoves: string[]
+  marketSignals: string[]
+}
+
+export interface OpsDossier {
+  summary: string
+  inflections: string[]
+  recentHires: string[]
+  openRoles: string[]
+}
+
+export interface DossierSlot<D> {
+  dossier: D
+  researchedAt: string  // ISO 8601
+}
+
+// Wire shape of Company.researchDossier. The envelope and the legacy flat
+// shape are structurally distinct (no key overlap with each other), so
+// `'engineering' in dossier` discriminates safely. Either may be returned
+// — server returns whatever is stored in the JSON column.
+export type ResearchDossier =
+  | EngDossier
+  | {
+      engineering: DossierSlot<EngDossier> | null
+      gtm: DossierSlot<GtmDossier> | null
+      operations: DossierSlot<OpsDossier> | null
+    }
 
 // -------------------- API request/response envelopes --------------------
 
