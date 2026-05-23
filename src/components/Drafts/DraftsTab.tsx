@@ -23,6 +23,7 @@ import {
   textToDraftHtml,
 } from '../../lib/draftQueue'
 import { DRAFT_QUEUE_LIMIT, invalidateSentQueue, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
+import { usePendingSendQueue } from '../../hooks/usePendingSendQueue'
 import { writeDraftQueueCache } from '../../lib/workspaceCache'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
 import Badge from '../ui/Badge'
@@ -289,12 +290,7 @@ export default function DraftsTab({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState(null)
   const [sending, setSending] = useState(false)
-  const { showToast, dismissToast } = useToast()
-  // Tracks the in-flight "Sending in 5s… (Undo)" toast so cancelPendingSend
-  // can dismiss it explicitly when a new send replaces or aborts the pending
-  // one. Action-click already auto-dismisses, so this is only needed for the
-  // programmatic-cancel path.
-  const pendingToastIdRef = useRef<string | null>(null)
+  const { showToast } = useToast()
   const attachmentLibrary = useMemo(() => getAttachmentLibrary(workspaceConfig), [workspaceConfig])
   const [gmailStatus, setGmailStatus] = useState(() =>
     profileLoading ? 'loading' : profile?.hasGoogleRefreshToken ? 'connected' : 'disconnected'
@@ -324,7 +320,6 @@ export default function DraftsTab({
   const [testSendOpen, setTestSendOpen] = useState<string | null>(null)
   const [testSendRecipient, setTestSendRecipient] = useState('')
   const [testSendBusy, setTestSendBusy] = useState(false)
-  const pendingSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelBatchRef = useRef(false)
 
   // Refs that mirror state - read by async callbacks (the 5s setTimeout in
@@ -687,54 +682,25 @@ export default function DraftsTab({
     }
   }
 
-  useEffect(() => () => {
-    if (pendingSendTimerRef.current) clearTimeout(pendingSendTimerRef.current)
-  }, [])
-
-  const cancelPendingSend = () => {
-    if (pendingSendTimerRef.current) {
-      clearTimeout(pendingSendTimerRef.current)
-      pendingSendTimerRef.current = null
-    }
-    if (pendingToastIdRef.current) {
-      dismissToast(pendingToastIdRef.current)
-      pendingToastIdRef.current = null
-    }
-  }
-
-  const scheduleSend = (ids: string[]) => {
-    cancelPendingSend()
-    const targetDraft = ids.length === 1 ? draftsRef.current.find(d => d.id === ids[0]) : null
-    const label = targetDraft ? getRecipientName(targetDraft) : null
-    pendingToastIdRef.current = showToast({
-      type: 'info',
-      title: label ? `Sending to ${label} in 5 seconds…` : `Sending ${ids.length} emails in 5 seconds…`,
-      message: '',
-      duration: 5500,
-      // Pin: this toast carries the only Undo affordance for the deferred
-      // send. If three other toasts arrive during the 5s window, eviction
-      // would otherwise drop this one and strand the user.
-      pinned: true,
-      action: { label: 'Undo', onClick: cancelPendingSend },
-    })
-    pendingSendTimerRef.current = setTimeout(() => {
-      pendingSendTimerRef.current = null
-      // Dismiss the "Sending in 5s… (Undo)" toast as the send fires so the
-      // Undo button can't outlive the cancel window — hover-pause means the
-      // toast might otherwise stay visible past the 5s timer with a button
-      // that no longer cancels anything.
-      if (pendingToastIdRef.current) {
-        dismissToast(pendingToastIdRef.current)
-        pendingToastIdRef.current = null
-      }
-      // Re-derive against current drafts at fire time - markSent already uses
-      // the ref, but filtering ids here drops any that were deleted during
-      // the undo window so we don't even attempt the network call.
+  const { scheduleSend, cancelPendingSend } = usePendingSendQueue({
+    onFire: (ids) => {
+      // Drop ids whose drafts were deleted during the undo window so we
+      // don't even attempt the send. markSent does its own canSendDraft
+      // filtering on top — this just suppresses the "X skipped" toast for
+      // user-initiated deletions, which would otherwise feel like the
+      // app blaming the user for their own action.
       const liveIds = ids.filter(id => draftsRef.current.some(d => d.id === id))
       if (liveIds.length === 0) return
       markSent(liveIds)
-    }, 5000)
-  }
+    },
+    toastTitleFor: (ids) => {
+      const targetDraft = ids.length === 1 ? draftsRef.current.find(d => d.id === ids[0]) : null
+      const label = targetDraft ? getRecipientName(targetDraft) : null
+      return label
+        ? `Sending to ${label} in 5 seconds…`
+        : `Sending ${ids.length} emails in 5 seconds…`
+    },
+  })
 
   const initiateSend = (ids: string[]) => {
     if (ids.length > 1) {
