@@ -69,7 +69,11 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
     targetRole: null,
   });
 
-  const take = Math.min(parseInt(limit ?? "50", 10) || 50, 200);
+  // Clamp take to [1, 200]. The random-discovery path passes `take` straight
+  // into a raw `LIMIT ${take}` — a negative value (e.g. `?limit=-1`) would
+  // produce a Postgres syntax error, whereas the legacy JS-slice path
+  // silently returned []. Match the old behavior with the floor at 1.
+  const take = Math.max(1, Math.min(parseInt(limit ?? "50", 10) || 50, 200));
   const baseWhere = {
     ...audienceWhere,
     ...industryFilter,
