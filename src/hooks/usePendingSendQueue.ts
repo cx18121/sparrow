@@ -26,15 +26,19 @@ interface PendingSendQueue {
 export function usePendingSendQueue(
   options: UsePendingSendQueueOptions,
 ): PendingSendQueue {
+  const { onFire, toastTitleFor, delayMs = 5000 } = options
   const { showToast, dismissToast } = useToast()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastIdRef = useRef<string | null>(null)
 
-  // Mirror options through a ref so a closure captured at schedule time still
-  // calls the latest onFire / toastTitleFor — the consumer often rebinds
-  // these every render against fresh draft state.
-  const optionsRef = useRef(options)
-  optionsRef.current = options
+  // Only onFire needs the latest-render binding — it's the one option called
+  // from inside the setTimeout, so the consumer's most recent closure (e.g.
+  // a freshly-bound markSent against current draft state) must win over the
+  // one captured at schedule time. toastTitleFor and delayMs are read
+  // synchronously in scheduleSend, so their per-call values are already
+  // correct without indirection.
+  const onFireRef = useRef(onFire)
+  onFireRef.current = onFire
 
   const cancelPendingSend = () => {
     if (timerRef.current) {
@@ -49,10 +53,9 @@ export function usePendingSendQueue(
 
   const scheduleSend = (ids: string[]) => {
     cancelPendingSend()
-    const delayMs = optionsRef.current.delayMs ?? 5000
     toastIdRef.current = showToast({
       type: 'info',
-      title: optionsRef.current.toastTitleFor(ids),
+      title: toastTitleFor(ids),
       message: '',
       duration: delayMs + 500,
       // Pinned: this toast carries the only Undo affordance. If three other
@@ -70,14 +73,27 @@ export function usePendingSendQueue(
         dismissToast(toastIdRef.current)
         toastIdRef.current = null
       }
-      optionsRef.current.onFire(ids)
+      onFireRef.current(ids)
     }, delayMs)
   }
 
-  // Clear any pending timer when the consumer unmounts so a deferred send
-  // doesn't fire against torn-down state.
+  // On unmount: clear the timer AND dismiss the in-flight toast. Without
+  // the dismiss, an unmount mid-window leaves a "Sending in 5s… (Undo)"
+  // toast stranded — the timer is cancelled (no send fires) but the toast
+  // still implies a send is imminent, with an Undo button that no longer
+  // corresponds to anything.
   useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (toastIdRef.current) {
+      dismissToast(toastIdRef.current)
+      toastIdRef.current = null
+    }
+  // dismissToast is stable across renders (useCallback in ToastContext),
+  // so empty deps is correct — we want exactly one cleanup, on unmount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return { scheduleSend, cancelPendingSend }

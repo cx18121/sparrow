@@ -19,7 +19,7 @@ import {
   type DossierEnvelope,
 } from "./ai/research-fit-angle.js";
 import type { DraftInput } from "./ai/types.js";
-import type { RoleFamily } from "../../src/types/roleFamilies.js";
+import { normalizeRoleFamily, type RoleFamily } from "../../src/types/roleFamilies.js";
 import { resolveProfileForGeneration, buildSenderContextFromProfile, ProfileError } from "./sender-profile.js";
 import { resolveDraftTarget } from "./draft-target.js";
 import { GenerationError } from "./generation-error.js";
@@ -65,7 +65,7 @@ interface PersonalizationInput {
   // is this candidate applying to" signal at draft-generation time. Apollo
   // discovery (which DOES know the campaign) uses the per-campaign value;
   // this stage uses the user-level default.
-  targetRole: 'engineering' | 'product' | 'gtm' | 'operations' | null;
+  targetRole: RoleFamily | null;
 }
 
 // 150-day cache TTL for company research dossiers. Anthropic ships
@@ -441,14 +441,20 @@ export interface DraftGenerationResult {
 // pickFitAngle prompt then omits the role hint and ranks surfaces by resume
 // match alone.
 //
+// Normalizes the campaign's filterTargetRole at this boundary because it's
+// stored as TEXT in Postgres and Prisma types it as `string | null` — a
+// typo'd manual SQL update shouldn't leak a junk role through to downstream
+// callers. The workspace default already arrives normalized (see
+// workspace-config.ts) so it passes through unchanged.
+//
 // Exported so it can be unit-tested directly — the full draft-generation
 // orchestrator path is heavy to mock end-to-end, and the resolution chain
 // here is exactly the kind of pure logic that benefits from isolated tests.
 export async function resolveCampaignTargetRole(
   campaignId: string | null | undefined,
   userId: string,
-  workspaceDefault: string | null,
-): Promise<string | null> {
+  workspaceDefault: RoleFamily | null,
+): Promise<RoleFamily | null> {
   if (campaignId) {
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
@@ -458,7 +464,8 @@ export async function resolveCampaignTargetRole(
     // leak across users, and don't throw because draft generation should
     // degrade gracefully rather than fail on stale client state.
     if (campaign && campaign.userId === userId && campaign.filterTargetRole) {
-      return campaign.filterTargetRole;
+      const normalized = normalizeRoleFamily(campaign.filterTargetRole, { fallback: null });
+      if (normalized) return normalized;
     }
   }
   return workspaceDefault;
@@ -518,7 +525,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     tone,
     extraContext,
     includeResumeBullet,
-    targetRole: targetRole as RoleFamily | null,
+    targetRole,
   });
 
   // Two-stage personalization:
@@ -538,7 +545,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
     cachedDossierAt,
     resumeText: profile.resumeText,
     apiKey: profile.apiKey,
-    targetRole: targetRole as PersonalizationInput["targetRole"],
+    targetRole,
   });
 
   const draftInput: DraftInput = userTemplate
@@ -572,7 +579,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
           proofOfMotion: fit.proofOfMotion,
           inflectionLine: fit.inflectionLine,
           systemBuilt: fit.systemBuilt,
-          targetRole: targetRole as RoleFamily | null,
+          targetRole,
         }
     : {
         kind: "ai",
@@ -589,7 +596,7 @@ export async function generateDraft(params: DraftGenerationParams): Promise<Draf
         proofOfMotion: fit.proofOfMotion,
         inflectionLine: fit.inflectionLine,
         systemBuilt: fit.systemBuilt,
-        targetRole: targetRole as RoleFamily | null,
+        targetRole,
       };
 
   let draft: { subject: string; body: string };

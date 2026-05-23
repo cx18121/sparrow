@@ -7,7 +7,7 @@ export default defineConfig({
     include: [
       "scripts/__tests__/**/*.test.ts",
       "server/__tests__/**/*.test.ts",
-      "src/__tests__/**/*.test.ts",
+      "src/__tests__/**/*.test.{ts,tsx}",
     ],
   },
 });
