@@ -536,7 +536,7 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     mockPickOpsAngle.mockResolvedValue({ inflectionLine: null, systemBuilt: null });
   });
 
-  it("uses cached dossier from Company.researchDossier when fresh (< 30 days old)", async () => {
+  it("uses cached dossier from Company.researchDossier when fresh (within TTL)", async () => {
     const recent = new Date();
     const lead = makeUserLead({
       company: {
@@ -599,14 +599,37 @@ describe("generateDraft — dossier cache + per-user fit-angle pick", () => {
     expect(mockPrisma.company.update).toHaveBeenCalledOnce();
   });
 
-  it("does not re-research even when the dossier is months old (cache is indefinite)", async () => {
-    const ancient = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+  it("re-researches when the cached dossier is older than the 150-day TTL", async () => {
+    // Per slotIsFresh in draft-generation.ts — dossiers older than 150
+    // days are treated as cache miss so the next draft re-fetches fresh
+    // research. Prevents silent quality regression as the target company
+    // ships new products / sunsets cited ones.
+    const ancient = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year old → stale
     const cachedDossier = { summary: "old", surfaces: ["old surface"], recentLaunches: [], technicalAreas: [] };
     const lead = makeUserLead({
       company: {
         ...makeUserLead().company,
         researchDossier: cachedDossier,
         researchedAt: ancient,
+      },
+    });
+    mockPrisma.userLead.findUnique.mockResolvedValue(lead);
+    mockPrisma.company.update.mockResolvedValue({});
+
+    await generateDraft({ userId: USER_ID, userLeadId: "lead-1" });
+
+    expect(mockResearchCompanyDossier).toHaveBeenCalledOnce();
+    expect(mockPrisma.company.update).toHaveBeenCalledOnce();
+  });
+
+  it("uses the cached dossier when it's within the 150-day TTL", async () => {
+    const recent = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000); // 100 days old → fresh
+    const cachedDossier = { summary: "recent", surfaces: ["a surface"], recentLaunches: [], technicalAreas: [] };
+    const lead = makeUserLead({
+      company: {
+        ...makeUserLead().company,
+        researchDossier: cachedDossier,
+        researchedAt: recent,
       },
     });
     mockPrisma.userLead.findUnique.mockResolvedValue(lead);

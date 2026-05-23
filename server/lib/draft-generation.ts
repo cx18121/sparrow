@@ -68,14 +68,29 @@ interface PersonalizationInput {
   targetRole: 'engineering' | 'product' | 'gtm' | 'operations' | null;
 }
 
-// A cached slot is considered fresh when it has both a slot (with its own
-// per-role researchedAt timestamp from the envelope) AND non-empty content.
-// Empty dossiers are treated as stale so the next caller re-researches.
-// This guards against caching null results from a misconfigured retrieval
-// pipeline — observed on 2026-05-15 when EXA_API_KEY was missing from prod:
-// every researched company got an empty dossier that then survived the
-// env-var fix, leaving drafts permanently personalization-less until the
-// cache was manually invalidated.
+// 150-day cache TTL for company research dossiers. Anthropic ships
+// products on the order of months; a half-year-old dossier risks citing
+// retired surfaces or missing recent launches. Stale slots are treated
+// as cache miss so the next draft for that company triggers a fresh
+// research call. Chosen at 150 days as the longest interval where
+// "missed launch in cited dossier" is unlikely to be embarrassing.
+const DOSSIER_TTL_MS = 150 * 24 * 60 * 60 * 1000;
+
+// A cached slot is considered fresh when it (a) exists, (b) is non-empty,
+// and (c) was researched within DOSSIER_TTL_MS ago.
+//
+// The empty-dossier check guards against caching null results from a
+// misconfigured retrieval pipeline — observed on 2026-05-15 when
+// EXA_API_KEY was missing from prod: every researched company got an
+// empty dossier that then survived the env-var fix, leaving drafts
+// permanently personalization-less until the cache was manually
+// invalidated.
+//
+// The age check guards against silent quality regression as targets
+// evolve. Legacy flat rows whose researchedAt fell back to epoch zero
+// (parseCachedDossierEnvelope, no legacyAt available) trigger this
+// check immediately, which is the desired behavior — re-research rows
+// of unknown vintage.
 //
 // Generic over the dossier type so eng (CompanyDossier) and GTM
 // (GtmDossier) slots use the same freshness check with their own
@@ -86,6 +101,8 @@ function slotIsFresh<T>(
 ): boolean {
   if (!slot) return false;
   if (isEmpty(slot.dossier)) return false;
+  const ageMs = Date.now() - slot.researchedAt.getTime();
+  if (ageMs > DOSSIER_TTL_MS) return false;
   return true;
 }
 
