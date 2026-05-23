@@ -84,4 +84,4 @@ There is no `NEW` status in the active schema. There is no `REJECTED` status; us
 
 - `Company.headcount` still exists and ingestion scripts may write it, but the user-facing audience filter no longer uses headcount.
 - `Template.isShared` exists in the schema. User templates should remain private unless a deliberate shared-library feature is being handled.
-- Cached company dossiers currently stay fresh until replaced manually or by code that explicitly re-runs research. Do not assume an automatic 30-day refresh unless the implementation changes.
+- Cached company dossiers have a 150-day freshness TTL (`DOSSIER_TTL_MS` + `slotIsFresh` in `server/lib/draft-generation.ts`). Older slots are treated as cache-miss and re-researched on demand the next time a draft is generated for that company. There is no background refresh and no per-company override. See ADR-0007.
