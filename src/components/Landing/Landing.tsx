@@ -1,15 +1,10 @@
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import LandingNav from './Nav'
 import Hero from './Hero'
-// EmailDemo archived for now — component lives at ./EmailDemo.tsx if needed.
-// import EmailDemo from './EmailDemo'
 import LandingFooter from './Footer'
 import './landing.css'
 
-// Public marketing surface. Two screens of content: the hero (single
-// fold, no scroll required) and an optional email-card artifact below
-// for visitors who want to see the product before granting Gmail access.
-// Nothing more.
+// Public marketing surface. Single fold — hero + footer, no scroll required.
 export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: () => void }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
 
@@ -60,7 +55,6 @@ export default function Landing({ onSignInWithGoogle }: { onSignInWithGoogle: ()
       <LandingNav />
       <main>
         <Hero onSignInWithGoogle={onSignInWithGoogle} />
-        {/* <EmailDemo /> */}
       </main>
       <LandingFooter />
     </div>
