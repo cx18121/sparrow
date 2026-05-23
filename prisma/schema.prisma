@@ -48,7 +48,6 @@ model Company {
   @@index([source])
   @@index([headcount])
   @@index([isVerified])
-  @@index([qualityScore])
   @@index([tags], type: Gin)
   @@schema("public")
 }
@@ -274,7 +273,6 @@ model Campaign {
   customContacts CampaignCustomContact[]
 
   @@index([userId])
-  @@index([status])
   @@index([templateId])
   @@schema("public")
 }
@@ -317,7 +315,6 @@ model CampaignLead {
 
   @@unique([campaignId, batchNumber, userLeadId])
   @@index([campaignId])
-  @@index([campaignId, batchNumber])
   @@index([userLeadId])
   @@index([campaignId, userLeadId])
   @@schema("public")
@@ -346,7 +343,6 @@ model DailyQuota {
   updatedAt DateTime @updatedAt
 
   @@id([scope, subjectId, action, day])
-  @@index([day])
   @@schema("public")
 }
 

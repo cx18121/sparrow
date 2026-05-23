@@ -106,11 +106,20 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
       where: baseWhere,
       take: take + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      // Default sort is recency. The previous default ordered by
+      // _count: { contacts: 'desc' }, which forced a LEFT JOIN Contact
+      // + GROUP BY COUNT on every paginated list — fine at 6k Contact,
+      // would scale linearly. Verified 2026-05-22 that no frontend caller
+      // hits this branch (every real /api/companies request sets
+      // random=true), so the expensive sort was paying cost for no
+      // consumer. If a future feature wants contacts-count-desc, add it
+      // back as an explicit sort=contacts branch backed by a maintained
+      // contactsCount column rather than a live aggregation.
       orderBy: sort === "name"
         ? [{ name: "asc" }, { id: "asc" }]
         : sort === "score"
         ? [{ qualityScore: "desc" }, { id: "asc" }]
-        : [{ contacts: { _count: "desc" } }, { createdAt: "desc" }, { id: "asc" }],
+        : [{ createdAt: "desc" }, { id: "asc" }],
       select: {
         id: true,
         name: true,
