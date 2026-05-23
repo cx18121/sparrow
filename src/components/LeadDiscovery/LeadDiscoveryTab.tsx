@@ -25,19 +25,7 @@ const DISCOVERY_NS = ['vertical', 'tech', 'model', 'investor', 'signal']
 // in-campaign Leads tab share the chip filter contract.
 const CHIP_VISIBLE_CAP = 10
 
-const DISCOVER_CACHE_KEY = 'cf_discover_state'
-function discoverCacheKey(campaignId?: string | null) {
-  return campaignId ? `${DISCOVER_CACHE_KEY}:${campaignId}` : DISCOVER_CACHE_KEY
-}
-function readDiscoverCache(campaignId?: string | null) {
-  try { return JSON.parse(sessionStorage.getItem(discoverCacheKey(campaignId)) || 'null') } catch { return null }
-}
-function writeDiscoverCache(state: object, campaignId?: string | null) {
-  try { sessionStorage.setItem(discoverCacheKey(campaignId), JSON.stringify(state)) } catch {}
-}
-function clearDiscoverCache(campaignId?: string | null) {
-  try { sessionStorage.removeItem(discoverCacheKey(campaignId)) } catch {}
-}
+import { clearDiscoverCache, readDiscoverCache, writeDiscoverCache } from './_discoverCache'
 const NS_LABELS = {
   stage: 'Stage',
   vertical: 'Sector',
