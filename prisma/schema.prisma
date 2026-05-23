@@ -359,6 +359,22 @@ enum CampaignStatus {
   @@schema("public")
 }
 
+// Single-row precomputed snapshot of /api/campaign-options.
+// Refreshed manually via scripts/refresh-company-options.ts after ingest
+// sessions complete. The endpoint reads this table directly instead of
+// firing 10 parallel aggregations on every Leads-tab mount — see the
+// 2026-05-22 incident retro in the commit log for the motivation.
+// Always exactly one row (id = "singleton"). If the row is missing
+// (e.g., immediately after deploy on a fresh DB), the endpoint falls
+// back to live compute + writes the row.
+model CompanyOptionsSnapshot {
+  id        String   @id
+  payload   Json
+  updatedAt DateTime @updatedAt
+
+  @@schema("public")
+}
+
 /// Managed by Supabase Auth via supabase/schema.sql — not tracked by Prisma migrations.
 model UserProfile {
   userId                      String    @id @map("user_id") @db.Uuid
