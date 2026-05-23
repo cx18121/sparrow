@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Keyboard, Trash2, MoreHorizontal, Paperclip, MailCheck,
   Loader2, MessageSquare, Eye, XCircle,
 } from 'lucide-react'
-import { fetchEmails, fetchSentTodayCount, updateEmail, sendEmail, sendTestEmail, deleteEmails, updateEmailAttachments, changeEmailAngle } from '../../lib/api'
+import { fetchEmails, updateEmail, sendEmail, deleteEmails, updateEmailAttachments, changeEmailAngle } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { getAttachmentLibrary, sanitizeAttachmentIds } from '../../lib/attachments'
@@ -24,6 +24,9 @@ import {
 } from '../../lib/draftQueue'
 import { DRAFT_QUEUE_LIMIT, invalidateSentQueue, useDraftQueue } from '../../hooks/useCampaignWorkspaceData'
 import { usePendingSendQueue } from '../../hooks/usePendingSendQueue'
+import { useTestSendDialog } from '../../hooks/useTestSendDialog'
+import { useDeleteConfirm } from '../../hooks/useDeleteConfirm'
+import { useBatchSendConfirm } from '../../hooks/useBatchSendConfirm'
 import { writeDraftQueueCache } from '../../lib/workspaceCache'
 import { actionKey, runExclusive } from '../../lib/pendingActions'
 import type { Email, ResearchDossier } from '../../types/api'
@@ -331,18 +334,12 @@ export default function DraftsTab({
 
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [batchSendConfirm, setBatchSendConfirm] = useState<string[] | null>(null)
-  const [batchDailyInfo, setBatchDailyInfo] = useState<{ sentToday: number; dailyMax: number } | null>(null)
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
   const draftQueue = useDraftQueue(user?.id, campaignId, tab)
-  const [testSendOpen, setTestSendOpen] = useState<string | null>(null)
-  const [testSendRecipient, setTestSendRecipient] = useState('')
-  const [testSendBusy, setTestSendBusy] = useState(false)
+  const testSend = useTestSendDialog({ defaultRecipient: user?.email })
   const cancelBatchRef = useRef(false)
 
   // Refs that mirror state - read by async callbacks (the 5s setTimeout in
@@ -723,51 +720,17 @@ export default function DraftsTab({
     },
   })
 
+  const batchConfirm = useBatchSendConfirm({ onConfirm: markSent })
+
   const initiateSend = (ids: string[]) => {
     if (ids.length > 1) {
-      setBatchSendConfirm(ids)
-      setBatchDailyInfo(null)
-      const dailyMax = workspaceConfig?.sendingLimits?.dailyMax ?? 250
-      fetchSentTodayCount()
-        .then(({ count }) => setBatchDailyInfo({ sentToday: count, dailyMax }))
-        .catch(() => {})
+      batchConfirm.openFor(ids, workspaceConfig?.sendingLimits?.dailyMax ?? 250)
     } else {
       scheduleSend(ids)
     }
   }
 
-  const openTestSend = (emailId: string) => {
-    setTestSendRecipient(user?.email || '')
-    setTestSendOpen(emailId)
-  }
-
-  const submitTestSend = async () => {
-    if (!testSendOpen) return
-    setTestSendBusy(true)
-    try {
-      await runExclusive(
-        actionKey('test-send-email', testSendOpen, testSendRecipient.trim().toLowerCase()),
-        () => sendTestEmail(testSendOpen, testSendRecipient),
-      )
-      showToast({
-        type: 'success',
-        title: 'Test email sent',
-        message: `Delivered to ${testSendRecipient.trim().toLowerCase()}`,
-      })
-      setTestSendOpen(null)
-    } catch (err) {
-      showToast({
-        type: 'error',
-        title: 'Test send failed',
-        message: (err as Error)?.message || 'Try again.',
-      })
-    } finally {
-      setTestSendBusy(false)
-    }
-  }
-
   const deleteDrafts = async (ids: string[]) => {
-    setDeleting(true)
     const originalDrafts = drafts
     const originalPreview = preview
     const remaining = drafts.filter(d => !ids.includes(d.id))
@@ -792,11 +755,10 @@ export default function DraftsTab({
       setPreview(originalPreview)
       draftQueue.mutate({ items: originalDrafts, nextCursor }, { revalidate: false })
       showToast({ type: 'error', title: 'Could not delete', message: err?.message || 'Please try again.' })
-    } finally {
-      setDeleting(false)
-      setDeleteConfirm(null)
     }
   }
+
+  const deleteConfirm = useDeleteConfirm<string[]>({ onConfirm: deleteDrafts })
 
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return <ChevronDown size={11} className="text-muted/40" />
@@ -868,19 +830,19 @@ export default function DraftsTab({
                 <>
                   <button
                     onClick={() => initiateSend(selectedArr)}
-                    disabled={deleting}
+                    disabled={deleteConfirm.busy}
                     className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-3"
                   >
                     <Send size={13} />
                     {`Send ${selectedArr.length}`}
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm(selectedArr)}
-                    disabled={deleting}
+                    onClick={() => deleteConfirm.openFor(selectedArr)}
+                    disabled={deleteConfirm.busy}
                     className="btn-ghost flex items-center gap-1.5 text-sm py-1.5 px-3 text-red-600 hover:bg-red-50"
                   >
                     <Trash2 size={13} />
-                    {deleting ? 'Deleting…' : `Delete ${selectedArr.length}`}
+                    {deleteConfirm.busy ? 'Deleting…' : `Delete ${selectedArr.length}`}
                   </button>
                 </>
               )
@@ -1096,8 +1058,8 @@ export default function DraftsTab({
                           <Send size={11} /> Send
                         </button>
                         <button
-                          onClick={() => setDeleteConfirm([draft.id])}
-                          disabled={deleting}
+                          onClick={() => deleteConfirm.openFor([draft.id])}
+                          disabled={deleteConfirm.busy}
                           title="Delete draft"
                           className="btn-ghost px-2 py-1 text-xs flex items-center gap-1 hover:text-red-600 disabled:opacity-40"
                         >
@@ -1247,7 +1209,7 @@ export default function DraftsTab({
                     {tab === 'draft' && (
                       <button
                         type="button"
-                        onClick={() => { openTestSend(preview.id); setMoreMenuOpen(false) }}
+                        onClick={() => { testSend.openFor(preview.id); setMoreMenuOpen(false) }}
                         className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-warm-50 hover:text-dark"
                       >
                         <MailCheck size={13} />
@@ -1257,8 +1219,8 @@ export default function DraftsTab({
                     {tab === 'draft' && (
                       <button
                         type="button"
-                        onClick={() => { setDeleteConfirm([preview.id]); setMoreMenuOpen(false) }}
-                        disabled={deleting}
+                        onClick={() => { deleteConfirm.openFor([preview.id]); setMoreMenuOpen(false) }}
+                        disabled={deleteConfirm.busy}
                         className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                       >
                         <Trash2 size={13} /> Delete draft
@@ -1517,50 +1479,48 @@ export default function DraftsTab({
         </div>
       )}
       <ConfirmDialog
-        open={!!batchSendConfirm}
-        onClose={() => { setBatchSendConfirm(null); setBatchDailyInfo(null) }}
+        open={batchConfirm.isOpen}
+        onClose={batchConfirm.close}
         onConfirm={() => {
-          const ids = batchSendConfirm ?? []
-          const remaining = batchDailyInfo.dailyMax - batchDailyInfo.sentToday
-          const capped = ids.slice(0, Math.max(0, remaining))
-          setBatchSendConfirm(null)
-          setBatchDailyInfo(null)
-          if (capped.length > 0) markSent(capped)
-          else showToast({ type: 'error', title: 'Daily send limit already reached', message: 'No emails sent. Limit resets tomorrow.' })
+          const fired = batchConfirm.confirm()
+          if (!fired) {
+            showToast({ type: 'error', title: 'Daily send limit already reached', message: 'No emails sent. Limit resets tomorrow.' })
+          }
         }}
         confirmLabel="Send"
         danger={false}
-        confirmDisabled={!batchDailyInfo}
-        title={`Send ${batchSendConfirm?.length} emails`}
+        confirmDisabled={batchConfirm.confirmDisabled}
+        title={`Send ${batchConfirm.pendingIds?.length} emails`}
         message={(() => {
           const base = `Emails will be sent one at a time with a ${workspaceConfig?.sendingLimits?.delaySeconds ?? 15}s delay between each.`
-          if (!batchDailyInfo) return `${base} Checking daily limit…`
-          const remaining = batchDailyInfo.dailyMax - batchDailyInfo.sentToday
-          if (remaining <= 0) return `You've reached your daily send limit (${batchDailyInfo.dailyMax}/day). No emails will be sent.`
-          if (remaining < (batchSendConfirm?.length ?? 0)) return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day) - only ${remaining} of ${batchSendConfirm?.length} will be sent.`
-          return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchDailyInfo.dailyMax}/day).`
+          if (!batchConfirm.dailyInfo) return `${base} Checking daily limit…`
+          const { remaining } = batchConfirm
+          const count = batchConfirm.pendingIds?.length ?? 0
+          if (remaining === null || remaining <= 0) return `You've reached your daily send limit (${batchConfirm.dailyInfo.dailyMax}/day). No emails will be sent.`
+          if (remaining < count) return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchConfirm.dailyInfo.dailyMax}/day) - only ${remaining} of ${count} will be sent.`
+          return `${base} You have ${remaining} send${remaining !== 1 ? 's' : ''} left today (limit: ${batchConfirm.dailyInfo.dailyMax}/day).`
         })()}
       />
       <ConfirmDialog
-        open={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => deleteConfirm && deleteDrafts(deleteConfirm)}
-        title={deleteConfirm?.length === 1 ? 'Delete draft' : `Delete ${deleteConfirm?.length} drafts`}
+        open={deleteConfirm.isOpen}
+        onClose={deleteConfirm.close}
+        onConfirm={deleteConfirm.run}
+        title={deleteConfirm.target?.length === 1 ? 'Delete draft' : `Delete ${deleteConfirm.target?.length} drafts`}
         message={
-          deleteConfirm?.length === 1
+          deleteConfirm.target?.length === 1
             ? 'This draft will be permanently deleted.'
-            : `These ${deleteConfirm?.length} drafts will be permanently deleted.`
+            : `These ${deleteConfirm.target?.length} drafts will be permanently deleted.`
         }
       />
       <Modal
-        open={!!testSendOpen}
-        onClose={() => { if (!testSendBusy) setTestSendOpen(null) }}
+        open={testSend.isOpen}
+        onClose={testSend.close}
         title="Send test email"
         size="sm"
       >
         <form
           className="px-5 py-5"
-          onSubmit={e => { e.preventDefault(); submitTestSend() }}
+          onSubmit={e => { e.preventDefault(); testSend.submit() }}
         >
           <p className="text-sm text-muted">
             Sends this draft to the address below with <span className="font-medium text-dark">[TEST]</span> on the subject. The original draft stays a draft.
@@ -1573,26 +1533,26 @@ export default function DraftsTab({
             type="email"
             autoFocus
             required
-            value={testSendRecipient}
-            onChange={e => setTestSendRecipient(e.target.value)}
-            disabled={testSendBusy}
+            value={testSend.recipient}
+            onChange={e => testSend.setRecipient(e.target.value)}
+            disabled={testSend.busy}
             className="mt-1 w-full rounded-md border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           />
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
-              onClick={() => setTestSendOpen(null)}
-              disabled={testSendBusy}
+              onClick={testSend.close}
+              disabled={testSend.busy}
               className="btn-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={testSendBusy || !testSendRecipient.trim()}
+              disabled={testSend.busy || !testSend.recipient.trim()}
               className="btn-primary disabled:opacity-50"
             >
-              {testSendBusy ? 'Sending…' : 'Send test'}
+              {testSend.busy ? 'Sending…' : 'Send test'}
             </button>
           </div>
         </form>
