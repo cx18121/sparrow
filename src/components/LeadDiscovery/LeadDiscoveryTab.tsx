@@ -1,14 +1,11 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   Search, Users, Globe, Filter,
   CheckCircle, AlertCircle, Loader2, RotateCcw, Shuffle,
 } from 'lucide-react'
 import Banner from '../ui/Banner'
-import EmptyState from '../ui/EmptyState'
-import Modal from '../ui/Modal'
 import Pill from '../ui/Pill'
 import { apolloSearch, saveLead, revealApolloContact, generateEmail, fetchCompanies as apiFetchCompanies, fetchCampaignOptions, resetDiscoverySeen, addCampaignLead } from '../../lib/api'
-import { actionKey, runExclusive } from '../../lib/pendingActions'
 import {
   discoveryFiltersFromCampaign,
   consumeLeadDiscoveryPrefetch,
@@ -17,6 +14,8 @@ import {
 } from '../../lib/leadDiscoveryPrefetch'
 import { useAppData } from '../../contexts/AppDataContext'
 import { useToast } from '../../contexts/ToastContext'
+import ApolloDialog from './ApolloDialog'
+import { emptyApolloCache, type ApolloCache } from './ApolloDialog/_apolloCache'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50]
 const DISCOVERY_NS = ['vertical', 'tech', 'model', 'investor', 'signal']
@@ -86,49 +85,11 @@ function CompanyRow({ company, onSelect, hasSavedContact, checked, onToggle }) {
   )
 }
 
-function ContactRow({ preview, email, onSave, saving, saved }) {
-  return (
-    <div className="dense-list-row flex items-center justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-dark">
-          {preview.firstName} {preview.lastNameObfuscated}
-        </div>
-        <div className="mt-0.5 text-xs text-muted">{preview.title || '-'}</div>
-        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${email ? 'text-primary' : 'text-muted'}`}>
-          {email === undefined
-            ? <><Loader2 size={10} className="animate-spin" />Resolving</>
-            : email || 'No email on file'}
-        </div>
-      </div>
-      <div className="shrink-0">
-        <button
-          onClick={() => onSave(preview)}
-          disabled={saving || saved}
-          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed ${
-            saved
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : saving
-                ? 'border-transparent bg-primary/80 text-warm-50'
-                : 'border-transparent bg-primary text-warm-50 hover:brightness-105'
-          }`}
-        >
-          {saving
-            ? <><Loader2 size={10} className="animate-spin" />Saving</>
-            : saved
-              ? 'Saved'
-              : 'Save lead'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // Phase 4e folded the legacy /leads route away - this component is now
 // only mounted from the workspace Leads sub-tab, which always passes
 // activeCampaign + campaignFilters. The standalone (no-campaign) toast
 // branches and the "Browsing for X" banner were removed because the
 // workspace header makes the campaign context obvious.
-type EmailRevealState = string | null | undefined
 
 interface LeadDiscoveryTabProps {
   workspaceConfig: any
@@ -207,33 +168,11 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
   useEffect(() => { return () => { mountedRef.current = false } }, [])
   const batchTokenRef = useRef(0)
 
-  const [selectedCompany, setSelectedCompany] = useState(null)
-  const [apolloResults, setApolloResults] = useState([])
-  const [apolloLoading, setApolloLoading] = useState(false)
-  const [apolloError, setApolloError] = useState(null)
-  const [apolloUsedFallback, setApolloUsedFallback] = useState(false)
-  const [savedIds, setSavedIds] = useState(new Set())
-  const [savingIds, setSavingIds] = useState(new Set())
-  const savingIdsRef = useRef(new Set())
-  const [cachedPreviews, setCachedPreviews] = useState({})
-  // Bug 05: the per-contact reveal loop inside handleCompanySelect used to
-  // skip already-revealed contacts by reading `revealedEmails[p.id]` from
-  // the closure, which is a snapshot from the render that produced the
-  // current handleCompanySelect binding. State updates queued earlier in
-  // the same handler (line 1's "seed previews to undefined" call) hadn't
-  // committed yet, so the gate read stale data. We now keep a ref that
-  // tracks the live value of the dictionary, write to it synchronously
-  // inside every functional setRevealedEmails, and read the gate from
-  // the ref so it reflects updates queued in the same tick.
-  const [revealedEmails, _setRevealedEmails] = useState<Record<string, EmailRevealState>>({})
-  const revealedEmailsRef = useRef<Record<string, EmailRevealState>>({})
-  const setRevealedEmails = useCallback((updater: (prev: Record<string, EmailRevealState>) => Record<string, EmailRevealState>) => {
-    _setRevealedEmails(prev => {
-      const next = updater(prev)
-      revealedEmailsRef.current = next
-      return next
-    })
-  }, [])
+  const [selectedCompany, setSelectedCompany] = useState<any>(null)
+  // Cache shared with ApolloDialog so close+reopen never re-spends Apollo
+  // credits. Lives here because the dialog unmounts on close — see
+  // ApolloDialog/_apolloCache.ts.
+  const [apolloCache, setApolloCache] = useState<ApolloCache>(emptyApolloCache)
   const fetchGenRef = useRef(0)
 
   const fetchCompanies = useCallback(async (cursor = null, overrides: any = {}) => {
@@ -432,111 +371,17 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
     }
   }, [fetchCompanies])
 
-  const handleCompanySelect = async (company) => {
-    setSelectedCompany(company)
-    setApolloError(null)
-    setApolloUsedFallback(false)
-    setSavedIds(new Set())
-    const cached = cachedPreviews[company.id]
-    if (cached) {
-      setApolloResults(cached.previews ?? cached)
-      setApolloUsedFallback(Boolean(cached.usedFallback))
-      setApolloLoading(false)
-    } else {
-      setApolloResults([])
-      setApolloLoading(true)
-    }
-    try {
-      const data = cached
-        ? { previews: cached.previews ?? cached, usedFallback: Boolean(cached.usedFallback) }
-        : await apolloSearch(company.domain, company.id, apolloRole)
-      const previews = data.previews || []
-      setApolloResults(previews)
-      setApolloUsedFallback(Boolean(data.usedFallback))
-      if (!cached) setCachedPreviews(prev => ({ ...prev, [company.id]: { previews, usedFallback: Boolean(data.usedFallback) } }))
-      setRevealedEmails(prev => {
-        const next = { ...prev }
-        previews.forEach(p => { if (!(p.id in next)) next[p.id] = undefined })
-        return next
-      })
-      // Only reveal contacts not yet fetched - avoids re-spending Apollo
-      // credits on re-open (a null result from a prior attempt counts as
-      // "fetched" too). Read the gate from the ref so updates queued
-      // earlier in this same tick (the "seed to undefined" set above)
-      // are visible to the loop.
-      previews.forEach(async (p) => {
-        if (!p.hasEmail) { setRevealedEmails(prev => ({ ...prev, [p.id]: null })); return }
-        if (revealedEmailsRef.current[p.id] !== undefined) return
-        try {
-          const result = await revealApolloContact(p.id, company.id, company.domain)
-          setRevealedEmails(prev => ({ ...prev, [p.id]: result.contact?.email ?? null }))
-        } catch {
-          setRevealedEmails(prev => ({ ...prev, [p.id]: null }))
-        }
-      })
-    } catch (err) {
-      // Bug 08 fix: a 404 from /api/apollo-search means this company is no
-      // longer searchable (deleted or flipped to isVerified=false) but the
-      // discover cache is still showing it. Drop the stale cache and the
-      // stale row so the user can keep working without a hard refresh.
-      if (err?.status === 404) {
-        clearDiscoverCache()
-        setCompanies(prev => prev.filter(c => c.id !== company.id))
-        setApolloError('This company is no longer available. Closing - pick another from the refreshed list.')
-        setSelectedCompany(null)
-      } else {
-        setApolloError(err.message)
-      }
-    } finally {
-      setApolloLoading(false)
-    }
-  }
-
-  const handleSaveLead = async (preview) => {
-    if (!selectedCompany) return
-    if (savingIdsRef.current.has(preview.id) || savedIds.has(preview.id) || persistedSavedApolloIds.has(preview.id)) return
-    savingIdsRef.current = new Set(savingIdsRef.current).add(preview.id)
-    setSavingIds(prev => new Set(prev).add(preview.id))
-    setSavedIds(prev => new Set(prev).add(preview.id))
-    try {
-      const savedLead = await runExclusive(actionKey('save-lead', selectedCompany.id, preview.id), () => saveLead({
-        companyId: selectedCompany.id,
-        contactId: null,
-        apolloPersonId: preview.id,
-        notes: `Apollo contact: ${preview.firstName} ${preview.lastNameObfuscated} - ${preview.title || 'unknown title'}`,
-      }))
-      // Keep modal open so the user can save more people from the same company.
-      // Refresh leads so the saved indicator on the row updates.
-      refreshLeads()
-      if (activeCampaign?.id && savedLead?.id) {
-        try {
-          await addCampaignLead(activeCampaign.id, savedLead.id)
-        } catch (campaignErr) {
-          showToast({ type: 'error', title: 'Saved, but not added to campaign', message: campaignErr?.message || 'Please try again.' })
-          return
-        }
-      }
-      showToast({
-        type: 'success',
-        title: activeCampaign
-          ? `${preview.firstName} added to ${activeCampaign.name}`
-          : `${preview.firstName} saved`,
-        message: activeCampaign
-          ? 'Go to the Contacts tab to generate a draft.'
-          : 'View them in Contacts to generate a draft.',
-      })
-    } catch (err) {
-      setSavedIds(prev => { const n = new Set(prev); n.delete(preview.id); return n })
-      showToast({ type: 'error', title: 'Could not save prospect', message: err?.message || 'Please try again.' })
-    } finally {
-      setSavingIds(prev => {
-        const n = new Set(prev)
-        n.delete(preview.id)
-        savingIdsRef.current = n
-        return n
-      })
-    }
-  }
+  // Apollo dialog flow (fetch contacts, reveal emails, save leads) is owned
+  // by ApolloDialog. Parent just sets which company's dialog is open.
+  const handleCompanyNoLongerAvailable = useCallback((companyId: string) => {
+    // Bug 08 fix: a 404 from /api/apollo-search means this company is no
+    // longer searchable but the discover cache is still showing it. Drop
+    // the stale cache and the stale row so the user can keep working
+    // without a hard refresh.
+    clearDiscoverCache()
+    setCompanies(prev => prev.filter(c => c.id !== companyId))
+    showToast({ type: 'error', title: 'Company unavailable', message: 'This company is no longer available. Pick another from the refreshed list.' })
+  }, [showToast])
 
   const handleBatch = useCallback(async (mode: 'contacts' | 'emails') => {
     const toProcess = companies.filter(c => selectedCompanyIds.has(c.id))
@@ -845,7 +690,7 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
             <CompanyRow
               key={company.id}
               company={company}
-              onSelect={handleCompanySelect}
+              onSelect={setSelectedCompany}
               hasSavedContact={savedCompanyIds.has(company.id)}
               checked={selectedCompanyIds.has(company.id)}
               onToggle={() => setSelectedCompanyIds(prev => {
@@ -869,78 +714,22 @@ export default function LeadDiscoveryTab({ workspaceConfig, activeCampaign = nul
         </div>
       )}
 
-      {/* Company contact modal */}
-      <Modal
-        open={!!selectedCompany}
-        onClose={() => setSelectedCompany(null)}
-        title={selectedCompany ? `${selectedCompany.name}: Contacts` : 'Contacts'}
-        size="lg"
-      >
-        {selectedCompany && (
-          <div className="px-6 py-4 space-y-4">
-            <div className="flex flex-col gap-1">
-              {selectedCompany.oneLiner && (
-                <p className="text-sm text-muted">{selectedCompany.oneLiner}</p>
-              )}
-              {selectedCompany.website && (
-                <a
-                  href={selectedCompany.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex w-fit items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <Globe size={11} />{selectedCompany.domain}
-                </a>
-              )}
-            </div>
-
-            <div className="border-t border-warm-200 pt-4">
-              {apolloLoading && (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted">
-                  <Loader2 size={16} className="animate-spin text-primary/50" />
-                  Searching for contacts…
-                </div>
-              )}
-              {apolloError && (
-                <Banner variant="danger" icon={AlertCircle} size="sm">{apolloError}</Banner>
-              )}
-              {!apolloLoading && !apolloError && apolloResults.length === 0 && (
-                <EmptyState className="py-6">
-                  Apollo had no contacts on file for this company. Try another from the list - small startups often aren&apos;t indexed.
-                </EmptyState>
-              )}
-              {!apolloLoading && !apolloError && apolloResults.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">
-                    {apolloResults.length} contact{apolloResults.length !== 1 ? 's' : ''}
-                    {apolloUsedFallback && (
-                      <span className="ml-2 normal-case tracking-normal text-muted/70">
-                        · no senior matches, showing all
-                      </span>
-                    )}
-                  </p>
-                  {apolloResults.map(preview => (
-                    <ContactRow
-                      key={preview.id}
-                      preview={preview}
-                      email={revealedEmails[preview.id]}
-                      onSave={handleSaveLead}
-                      saving={savingIds.has(preview.id)}
-                      saved={savedIds.has(preview.id) || persistedSavedApolloIds.has(preview.id)}
-                    />
-                  ))}
-                  {savedIds.size > 0 && (
-                    <p className="pt-2 text-center text-xs text-muted">
-                      <CheckCircle size={11} className="mr-1 inline text-emerald-500" />
-                      {savedIds.size} lead{savedIds.size !== 1 ? 's' : ''} saved this session
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* Company contact dialog — keyed by company.id so switching companies
+          gives a clean unmount/remount with its own effect lifecycle. */}
+      {selectedCompany && (
+        <ApolloDialog
+          key={selectedCompany.id}
+          company={selectedCompany}
+          apolloRole={apolloRole}
+          activeCampaign={activeCampaign}
+          persistedSavedApolloIds={persistedSavedApolloIds}
+          cache={apolloCache}
+          onCacheUpdate={setApolloCache}
+          onClose={() => setSelectedCompany(null)}
+          onLeadSaved={refreshLeads}
+          onCompanyNoLongerAvailable={handleCompanyNoLongerAvailable}
+        />
+      )}
     </div>
   )
 }
