@@ -251,3 +251,33 @@ export interface DashboardEmailsResponse {
 export interface SentTodayCountResponse {
   count: number
 }
+
+// Server-side profile shape returned by /api/profile. The DB carries
+// workspaceConfig and defaultFilters as JSON columns (Postgres jsonb), so
+// the wire type is `unknown` — clients normalize via createWorkspaceConfig
+// before reading individual fields. The capability booleans (hasClaudeKey,
+// hasGoogleRefreshToken, hasGmailWatch) are derived server-side from env
+// vars + DB columns so the client doesn't need to know about secrets.
+//
+// /api/profile returns { profile: null } for non-UUID user IDs (local dev
+// bypass paths); the FetchProfileResponse type below carries that null.
+export interface ServerProfile {
+  // workspaceConfig is a JSON column from Supabase normalized to an object
+  // by the server's sanitizeWorkspaceConfig — never null/undefined/array on
+  // the wire. Inner shape is the client's WorkspaceConfig schema; callers
+  // pass through createWorkspaceConfig to normalize.
+  workspaceConfig: Record<string, unknown>
+  defaultFilters: Record<string, unknown>
+  resumePath: string | null
+  resumeText: string | null
+  onboardingCompleted: boolean
+  onboardingCompletedAt: string | null
+  hasClaudeKey: boolean
+  hasGoogleRefreshToken: boolean
+  hasGmailWatch: boolean
+  updatedAt: string | null
+}
+
+export interface FetchProfileResponse {
+  profile: ServerProfile | null
+}

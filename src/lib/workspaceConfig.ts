@@ -104,6 +104,38 @@ export type AttachmentFile = WorkspaceFile & {
   source?: 'resume' | 'library';
 };
 
+// Public workspaceConfig shape produced by createWorkspaceConfig. Captures
+// the merged result of (defaults + saved data); extra saved fields flow
+// through via the index signature so we don't lie about the contract for
+// fields the type doesn't enumerate. Settings tabs and other consumers
+// reach into these strongly-typed fields and accept the loose index for
+// anything they don't know about.
+export interface WorkspaceConfig {
+  resumeText: string;
+  resumeExtractedText: string;
+  resumeFileName: string;
+  resumePath: string;
+  resumeUploadedAt: string;
+  senderName: string;
+  templateMode: 'existing' | 'custom';
+  templateId: string;
+  customTemplate: {
+    id: string;
+    name: string;
+    subject: string;
+    body: string;
+    [key: string]: unknown;
+  };
+  files: WorkspaceFile[];
+  leadsPerGeneration: number;
+  sendingLimits: {
+    dailyMax: number;
+    delaySeconds: number;
+  };
+  targetRole: RoleFamily;
+  [key: string]: unknown;
+}
+
 // Bounds for the per-campaign lead batch size. The number ends up driving how
 // many companies one campaign run will ingest at once, so it needs a ceiling to
 // avoid runaway Apollo cost / draft-generation latency. Kept here because it
@@ -161,7 +193,7 @@ export function getAttachmentLibrary(workspaceConfig: any): AttachmentFile[] {
   ];
 }
 
-export function createWorkspaceConfig({ user, templates = [], data = null }) {
+export function createWorkspaceConfig({ user, templates = [], data = null }): WorkspaceConfig {
   const defaultName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||

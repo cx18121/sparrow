@@ -11,10 +11,18 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { canExtractResumeText, extractResumeTextFromFile } from '../../lib/resumeText'
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges'
-import { LEAD_BATCH_MAX, LEAD_BATCH_MIN } from '../../lib/workspaceConfig'
+import { LEAD_BATCH_MAX, LEAD_BATCH_MIN, type WorkspaceConfig } from '../../lib/workspaceConfig'
 import { SETTINGS_TABS, getGoogleErrorMessage, getSettingsTabStatus, type SettingsTabKey } from '../../lib/profileSetup'
 import { RoleTiles } from '../ui/RoleTiles'
 import type { RoleFamily } from '../../types/roleFamilies'
+import type { Template } from '../../types/api'
+
+// onSave on a tab forwards through App.tsx's updateWorkspaceConfig, which
+// accepts either a full config to persist or a functional updater that
+// receives the current config. The union mirrors React's setState signature
+// so tabs can do partial updates without re-reading workspaceConfig.
+type WorkspaceConfigUpdater = WorkspaceConfig | ((current: WorkspaceConfig) => WorkspaceConfig)
+type SaveWorkspaceConfig = (updater: WorkspaceConfigUpdater) => Promise<boolean>
 
 const TABS = SETTINGS_TABS
 type TabKey = SettingsTabKey
@@ -120,7 +128,7 @@ function ClampedNumberInput({ value, onChange, min, max, onClamp, ...rest }: Cla
 
 // Per-tab forms ---------------------------------------------------------------
 
-function ProfileTab({ workspaceConfig, onSave, onDirtyChange }: { workspaceConfig: any; onSave: (u: any) => Promise<boolean>; onDirtyChange?: (dirty: boolean) => void }) {
+function ProfileTab({ workspaceConfig, onSave, onDirtyChange }: { workspaceConfig: WorkspaceConfig; onSave: SaveWorkspaceConfig; onDirtyChange?: (dirty: boolean) => void }) {
   const { user } = useAuth()
   const [form, setForm] = useState(workspaceConfig)
   const [saving, setSaving] = useState(false)
@@ -302,7 +310,7 @@ function pickProfileFields(c: any) {
   }
 }
 
-function SendingTab({ workspaceConfig, templates, onSave, onDirtyChange }: { workspaceConfig: any; templates: any[]; onSave: (u: any) => Promise<boolean>; onDirtyChange?: (dirty: boolean) => void }) {
+function SendingTab({ workspaceConfig, templates, onSave, onDirtyChange }: { workspaceConfig: WorkspaceConfig; templates: Template[]; onSave: SaveWorkspaceConfig; onDirtyChange?: (dirty: boolean) => void }) {
   const { user } = useAuth()
   const { showToast } = useToast()
   const [form, setForm] = useState(workspaceConfig)

@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import type {
   Campaign, CampaignOptions, CompanyListResponse, CustomContact,
-  DashboardEmailsResponse, Email, GenerateEmailResponse, PageResponse, SendEmailResponse,
+  DashboardEmailsResponse, Email, FetchProfileResponse, GenerateEmailResponse, PageResponse, SendEmailResponse,
   SentTodayCountResponse, Template, UserLead,
   ApolloSearchResponse, ApolloRevealResponse,
 } from '../types/api'
@@ -416,7 +416,7 @@ export const deleteEmails = (ids: string[]) =>
 export const updateEmailAttachments = (id: string, attachmentIds: string[]) =>
   request<Email>('/emails', { method: 'PATCH', body: JSON.stringify({ id, attachmentIds }) })
 
-export const fetchProfile = () => request<{ profile: any }>('/profile')
+export const fetchProfile = () => request<FetchProfileResponse>('/profile')
 export const saveProfile = (data: Record<string, unknown>) =>
   request<{ profile: any }>('/profile', { method: 'POST', body: JSON.stringify(data) })
 export const connectGoogle = (returnTo: string) =>

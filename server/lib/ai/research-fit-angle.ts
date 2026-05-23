@@ -113,21 +113,21 @@ The fit phrase has to grammatically slot into "For context, <FIT> feels like a n
 Output FEATURE: NONE only if no dossier surface plausibly fits.
 Output FIT: NONE only when the resume has no concrete element to anchor on — when FIT is NONE, still pick the most relevant FEATURE based on the resume's broad area (e.g. an engineering resume → a code/tooling surface). The opener still works without a fit angle.`
 
-function buildSearchQuery(input: ResearchCompanyInput): string {
-  const parts = [input.company.name]
-  if (input.company.domain) parts.push(input.company.domain)
+function buildSearchQuery(company: ResearchCompanyInput['company']): string {
+  const parts = [company.name]
+  if (company.domain) parts.push(company.domain)
   parts.push('product features recent launches')
   return parts.join(' ')
 }
 
-function buildSynthesisPrompt(input: ResearchCompanyInput, results: TavilyResult[]): string {
+function buildSynthesisPrompt(company: ResearchCompanyInput['company'], results: TavilyResult[]): string {
   const ctx = [
-    `Company name: ${input.company.name}`,
-    input.company.domain ? `Website: ${input.company.domain}` : null,
-    input.company.oneLiner ? `One-liner: ${input.company.oneLiner}` : null,
-    input.company.description ? `Description: ${input.company.description}` : null,
-    input.company.stage ? `Stage: ${input.company.stage}` : null,
-    input.company.industry ? `Industry: ${input.company.industry}` : null,
+    `Company name: ${company.name}`,
+    company.domain ? `Website: ${company.domain}` : null,
+    company.oneLiner ? `One-liner: ${company.oneLiner}` : null,
+    company.description ? `Description: ${company.description}` : null,
+    company.stage ? `Stage: ${company.stage}` : null,
+    company.industry ? `Industry: ${company.industry}` : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -447,9 +447,7 @@ export async function synthesizeDossier(
     apiKey,
     model: SYNTH_MODEL,
     system: SYNTH_SYSTEM,
-    // buildSynthesisPrompt only reads input.company, so a partial input shape
-    // is fine — keeps both Tavily and Exa callers out of each other's typing.
-    userContent: buildSynthesisPrompt({ company } as ResearchCompanyInput, results),
+    userContent: buildSynthesisPrompt(company, results),
     // 2048 is comfortable for summary + ~7 surfaces + ~5 launches + ~5 areas.
     // Lower (1024) was observed to truncate JSON mid-array.
     maxTokens: 2048,
@@ -465,7 +463,7 @@ export async function researchCompanyDossier(
   if (!input.tavilyApiKey) return emptyDossier()
 
   const search = await tavilySearch({
-    query: buildSearchQuery(input),
+    query: buildSearchQuery(input.company),
     apiKey: input.tavilyApiKey,
     maxResults: 5,
     searchDepth: input.searchDepth,
@@ -497,7 +495,7 @@ export async function researchCompanyDossierExa(
   const startDate = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString()
 
   const search = await exaSearch({
-    query: buildSearchQuery({ company: input.company } as ResearchCompanyInput),
+    query: buildSearchQuery(input.company),
     apiKey: input.exaApiKey,
     numResults: 5,
     type: input.type ?? 'auto',
@@ -574,7 +572,7 @@ export async function researchCompanyDossierHybrid(
 
     const [searchResp, contentsResp] = await Promise.all([
       exaSearch({
-        query: buildSearchQuery({ company } as ResearchCompanyInput),
+        query: buildSearchQuery(company),
         apiKey: exaApiKey,
         numResults: 5,
         type: input.type ?? 'auto',
@@ -605,7 +603,7 @@ export async function researchCompanyDossierHybrid(
   if (!tavilyApiKey) return emptyDossier()
 
   const tavilyResults = await tavilySearch({
-    query: buildSearchQuery({ company } as ResearchCompanyInput),
+    query: buildSearchQuery(company),
     apiKey: tavilyApiKey,
     maxResults: 5,
     searchDepth: input.tavilySearchDepth ?? 'advanced',
