@@ -18,9 +18,39 @@ function applySessionToApiClient(session) {
   setApiAccessToken(session?.access_token ?? null)
 }
 
+// Render-first-authenticate-second: read whatever session Supabase already
+// persisted to localStorage so the app paints the logged-in shell on the
+// first frame instead of blocking on getSession(). supabase.auth.getSession()
+// still runs in the provider effect and reconciles via onAuthStateChange
+// (TOKEN_REFRESHED on success, SIGNED_OUT if the cache is stale).
+function readCachedSupabaseSession() {
+  if (typeof window === 'undefined') return null
+  try {
+    const url = import.meta.env.VITE_SUPABASE_URL
+    if (!url) return null
+    const projectRef = new URL(url).hostname.split('.')[0]
+    const raw = window.localStorage.getItem(`sb-${projectRef}-auth-token`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const session = parsed?.currentSession ?? parsed
+    if (!session?.access_token || !session?.user) return null
+    // Don't seed authenticated UI from an expired token — let getSession()
+    // refresh or reject before we render past the spinner. Otherwise the
+    // dashboard briefly paints with stale per-user data.
+    const expiresAt = session.expires_at
+    if (typeof expiresAt === 'number' && expiresAt * 1000 < Date.now()) return null
+    return session
+  } catch {
+    return null
+  }
+}
+
+const BOOT_SESSION = readCachedSupabaseSession()
+if (BOOT_SESSION) applySessionToApiClient(BOOT_SESSION)
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(BOOT_SESSION?.user ?? null)
+  const [loading, setLoading] = useState(!BOOT_SESSION)
 
   useEffect(() => {
     supabase.auth.getSession().then(async () => {

@@ -5,12 +5,65 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=5" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sparrow</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+
+    <link rel="preload" href="/fonts/dm-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+    <link rel="preload" href="/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+
+    <style>
+      @font-face {
+        font-family: 'DM Sans';
+        font-style: normal;
+        font-weight: 100 1000;
+        font-display: swap;
+        src: url('/fonts/dm-sans-latin-wght-normal.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'DM Sans';
+        font-style: italic;
+        font-weight: 100 1000;
+        font-display: swap;
+        src: url('/fonts/dm-sans-latin-wght-italic.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('/fonts/outfit-latin-wght-normal.woff2') format('woff2');
+      }
+
+      :root {
+        --bg-surface: #F5F0E8;
+        --bg-panel: #F8F4ED;
+        --color-dark: #2C1F10;
+        --sidebar-w: 224px;
+      }
+      html, body { margin: 0; padding: 0; background: var(--bg-surface); color: var(--color-dark); }
+      body { font-family: 'DM Sans', system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif; }
+      #root { min-height: 100vh; }
+
+      /* Render-first-authenticate-second: if a Supabase session is in
+       * localStorage, paint the sidebar placeholder before JS parses so
+       * cold-load doesn't flash an empty white pane. The real Sidebar
+       * paints over this pseudo when React mounts (same bg, no seam).
+       * Below md the sidebar is hidden, so suppress it.
+       */
+      @media (min-width: 768px) {
+        html.app-logged-in body::before {
+          content: '';
+          position: fixed;
+          top: 0; left: 0; bottom: 0;
+          width: var(--sidebar-w);
+          background: var(--bg-panel);
+          border-right: 1px solid rgba(168, 132, 92, 0.2);
+          z-index: 0;
+          pointer-events: none;
+        }
+      }
+    </style>
+
+    <script src="/boot.js"></script>
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HP498BKBTX"></script>
     <script>
