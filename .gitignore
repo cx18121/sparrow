@@ -162,6 +162,9 @@ images/
 # Playwright MCP session cache
 .playwright-mcp/
 
+# Firecrawl scrape scratch (local-only research downloads)
+.firecrawl/
+
 # Impeccable skill context (per-contributor, not project artifacts)
 PRODUCT.md
 DESIGN.md
