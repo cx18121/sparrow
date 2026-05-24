@@ -64,15 +64,11 @@
 
     <script src="/boot.js"></script>
 
-    <!-- Google tag (gtag.js) -->
+    <!-- Google tag (gtag.js). Both scripts require CSP allowances for
+         googletagmanager.com (script-src) and google-analytics.com
+         (connect-src + img-src) — see vercel.json. -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HP498BKBTX"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-
-      gtag('config', 'G-HP498BKBTX');
-    </script>
+    <script src="/ga.js"></script>
   </head>
   <body>
     <div id="root"></div>
