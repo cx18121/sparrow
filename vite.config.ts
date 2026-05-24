@@ -33,24 +33,23 @@ function fetchSparrowStats(mode: string): { startups: number; sources: number } 
   }
 }
 
+// One chunk per npm package (or per @scope) so bumping a single dep
+// invalidates only that chunk for returning users — the rest stay cached.
+// React + react-router get explicit buckets because their internal packages
+// always ship together (react/react-dom/scheduler, react-router/@remix-run/
+// router) and splitting them just adds round-trips.
 function packageChunk(id: string) {
   if (!id.includes('node_modules')) return null
-  if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/') || id.includes('/node_modules/scheduler/')) {
-    return 'react-vendor'
+  if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+    return 'vendor-react'
   }
-  if (id.includes('/node_modules/react-router') || id.includes('/node_modules/@remix-run/router')) {
-    return 'router'
+  if (/[\\/]node_modules[\\/](react-router|react-router-dom|@remix-run[\\/]router)[\\/]/.test(id)) {
+    return 'vendor-react-router'
   }
-  if (id.includes('/node_modules/@supabase/')) {
-    return 'supabase'
-  }
-  if (id.includes('/node_modules/lucide-react/')) {
-    return 'icons'
-  }
-  if (id.includes('/node_modules/swr/')) {
-    return 'data-client'
-  }
-  return 'vendor'
+  const match = id.match(/[\\/]node_modules[\\/](@[^/\\]+|[^/\\]+)/)
+  if (!match) return null
+  const pkg = match[1].replace(/[@/]/g, '-').replace(/^-/, '')
+  return `vendor-${pkg}`
 }
 
 export default defineConfig(({ mode }) => {
@@ -77,6 +76,8 @@ export default defineConfig(({ mode }) => {
             || id.includes('/orderedmap/')
             || id.includes('/rope-sequence/')
             || id.includes('/w3c-keyname/')
+            || id.includes('/tippy.js/')
+            || id.includes('/@popperjs/')
           ) return 'editor'
           if (id.includes('dompurify')) return 'html-sanitize'
           return packageChunk(id)
