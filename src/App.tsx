@@ -14,6 +14,7 @@ import { fetchProfile, saveProfile } from './lib/api'
 import { hasRecoverableCompletedSetup } from './lib/profileSetup'
 import { readLocalJsonCache, useWorkspaceResources } from './hooks/useWorkspaceResources'
 import { useGuardedNavigate } from './hooks/useUnsavedChanges'
+import { useAnalyticsPageView } from './hooks/useAnalyticsPageView'
 
 const HomePage = lazy(() => import('./components/Home/HomePage'))
 const Landing = lazy(() => import('./components/Landing/Landing'))
@@ -100,6 +101,7 @@ function AppShell() {
   // so they don't prompt mid-flow (post-onboarding, post-create-campaign).
   const guardedNavigate = useGuardedNavigate()
   const location = useLocation()
+  useAnalyticsPageView(!!user)
   const previousOnboardingKeyRef = useRef(null)
 
   const [onboardingState, setOnboardingState] = useState({ loaded: false, completed: false, data: null })
@@ -688,11 +690,19 @@ function AppShell() {
   )
 }
 
+function LegalRouteShell({ children }: { children: React.ReactNode }) {
+  // Legal pages render outside AuthProvider, so they don't have access to
+  // useAuth — but they're always public, so isAuthenticated=false works
+  // (the path-based public-list match in the hook is what fires the event).
+  useAnalyticsPageView(false)
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/privacy" element={<LegalRouteShell><PrivacyPolicy /></LegalRouteShell>} />
+      <Route path="/terms" element={<LegalRouteShell><TermsOfService /></LegalRouteShell>} />
       <Route path="*" element={
         <AuthProvider>
           <ToastProvider>
