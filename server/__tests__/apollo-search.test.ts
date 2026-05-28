@@ -62,7 +62,10 @@ beforeEach(() => {
 });
 
 describe("POST /apollo-search — apolloSearch", () => {
-  it("returns 200 with previews when quota DB is unavailable (graceful degradation)", async () => {
+  it("fails closed (503) and skips the paid Apollo call when the quota DB errors", async () => {
+    // A quota-infra failure must not become a free pass to a metered Apollo
+    // call — the whole point of the quota is cost protection. We refuse the
+    // request rather than spending a credit we can't account for.
     mockConsumeQuota.mockRejectedValue(new Error("relation 'daily_quota' does not exist"));
 
     const req = makeReq({
@@ -73,10 +76,8 @@ describe("POST /apollo-search — apolloSearch", () => {
 
     await handler(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ previews: expect.any(Array), companyId: "cmp1" }),
-    );
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(mockSearchContacts).not.toHaveBeenCalled();
   });
 
   it("returns 429 when daily quota is exhausted", async () => {

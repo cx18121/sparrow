@@ -21,9 +21,13 @@ async function consumeApolloQuota(userId: string, action: ApolloAction) {
     await consumeDurableDailyQuota("apollo", userId, action, quotaLimit(action));
   } catch (err) {
     if (err instanceof QuotaError) throw new HttpError(429, `Daily Apollo ${action} limit reached (${quotaLimit(action)}). Try again tomorrow.`);
-    // Quota DB unavailable (e.g. table not yet created) — log and continue so
-    // searches are not blocked by an infrastructure gap.
-    console.error("Apollo quota check failed, proceeding without enforcement:", err);
+    // Fail closed: a quota-infra error must NOT grant a free pass to a paid
+    // Apollo call. The DailyQuota table lives in the same Postgres the
+    // company lookup (requireSearchableCompany) already depends on, so a DB
+    // outage fails the request regardless — refusing here adds no new
+    // fragility while removing the cost-bypass window.
+    console.error("Apollo quota check failed; refusing the call:", err);
+    throw new HttpError(503, "Quota service temporarily unavailable. Please try again shortly.");
   }
 }
 
