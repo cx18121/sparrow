@@ -213,3 +213,58 @@ describe("emails route — PATCH", () => {
     expect(res.json).toHaveBeenCalledWith(updated);
   });
 });
+
+describe("emails route — content size limits", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUserId.mockResolvedValue(USER_ID);
+  });
+
+  it("rejects an oversized body on create before any DB write", async () => {
+    const req = makeReq({
+      method: "POST",
+      body: { userLeadId: "lead-1", subject: "Hi", body: "x".repeat(100_001) },
+    });
+    const res = makeRes();
+    await invokeHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    // The cheap length check must short-circuit ahead of the ownership lookup.
+    expect(mockPrisma.userLead.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.email.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized subject on create", async () => {
+    const req = makeReq({
+      method: "POST",
+      body: { userLeadId: "lead-1", subject: "x".repeat(2_001), body: "ok" },
+    });
+    const res = makeRes();
+    await invokeHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockPrisma.email.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized body on update before the ownership lookup", async () => {
+    const req = makeReq({
+      method: "PATCH",
+      body: { id: "email-1", body: "x".repeat(100_001) },
+    });
+    const res = makeRes();
+    await invokeHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockPrisma.email.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.email.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts a body exactly at the limit", async () => {
+    mockPrisma.userLead.findUnique.mockResolvedValue({ id: "lead-1", userId: USER_ID, contactId: null });
+    mockPrisma.email.create.mockResolvedValue({ id: "email-1" });
+    const req = makeReq({
+      method: "POST",
+      body: { userLeadId: "lead-1", subject: "Hi", body: "x".repeat(100_000) },
+    });
+    const res = makeRes();
+    await invokeHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+});

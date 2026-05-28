@@ -6,6 +6,24 @@ import { ALLOWED_EMAIL_STATUSES, isAllowedStatus } from "../lib/email-status.js"
 import { invalidateEmailDashboardCache } from "../lib/email-cache.js";
 import { countEmailsSentToday, listEmailQueue, readDashboardEmailQueue } from "../lib/email-query.js";
 
+// Generous ceilings — real outreach drafts are ~80–120 words. These exist to
+// bound a malicious/buggy client from writing multi-megabyte rows that bloat
+// the table and stress every later send/render path, not to constrain normal
+// use. Mirrors the MAX_RESUME_LENGTH cap on /api/preview/fit-angle.
+const MAX_SUBJECT_LENGTH = 2_000;
+const MAX_BODY_LENGTH = 100_000;
+
+// Rejects oversized subject/body. Only checks fields that are present so it
+// works for both create (full payload) and update (partial payload).
+function assertEmailContentWithinLimits(subject: unknown, body: unknown) {
+  if (typeof subject === "string" && subject.length > MAX_SUBJECT_LENGTH) {
+    throw new HttpError(400, `subject must be at most ${MAX_SUBJECT_LENGTH} characters`);
+  }
+  if (typeof body === "string" && body.length > MAX_BODY_LENGTH) {
+    throw new HttpError(400, `body must be at most ${MAX_BODY_LENGTH} characters`);
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req);
@@ -54,6 +72,7 @@ async function list(req: VercelRequest, res: VercelResponse, userId: string) {
 async function create(req: VercelRequest, res: VercelResponse, userId: string) {
   const { userLeadId, customContactId, subject, body, status = "draft", attachmentIds } = req.body ?? {};
   const safeAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds.filter((id): id is string => typeof id === "string") : [];
+  assertEmailContentWithinLimits(subject, body);
   if (!isAllowedStatus(status)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
   }
@@ -90,6 +109,7 @@ async function create(req: VercelRequest, res: VercelResponse, userId: string) {
 async function update(req: VercelRequest, res: VercelResponse, userId: string) {
   const { id, subject, body, status, sentAt, attachmentIds } = req.body ?? {};
   if (!id) throw new HttpError(400, "id is required");
+  assertEmailContentWithinLimits(subject, body);
   if (status && !isAllowedStatus(status)) {
     throw new HttpError(400, `status must be one of ${ALLOWED_EMAIL_STATUSES.join(", ")}`);
   }
