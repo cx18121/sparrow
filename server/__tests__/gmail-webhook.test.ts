@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 // --- Hoisted mocks ---
@@ -277,5 +277,88 @@ describe("POST /api/webhooks/gmail", () => {
       expect.objectContaining({ where: { id: "cc-1" }, data: { status: "RESPONDED" } }),
     );
     expect(mockPrisma.userLead.update).not.toHaveBeenCalled();
+  });
+
+  // Replay / out-of-order protection: a stale notification must not drag the
+  // cursor backward, which would force a re-walk of already-processed history.
+  it("does NOT advance the cursor when the incoming historyId is older than stored", async () => {
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "50") }),
+      res,
+    );
+    // VALID_WATCH.historyId is "100"; "50" is older → no advance.
+    expect(mockPrisma.userGmailWatch.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("does NOT advance the cursor when the incoming historyId equals stored", async () => {
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "100") }),
+      res,
+    );
+    expect(mockPrisma.userGmailWatch.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/webhooks/gmail — service-account pinning", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabase.maybeSingle.mockResolvedValue({ data: { google_refresh_token_encrypted: "token" } });
+    mockPrisma.userGmailWatch.findUnique.mockResolvedValue(VALID_WATCH);
+    mockPrisma.userGmailWatch.update.mockResolvedValue({});
+    mockPrisma.email.findFirst.mockResolvedValue(VALID_SENT_EMAIL);
+    mockPrisma.email.update.mockResolvedValue({});
+    mockPrisma.userLead.update.mockResolvedValue({});
+    mockHistoryList.mockResolvedValue({
+      data: { history: [{ messagesAdded: [{ message: { id: "msg1" } }] }] },
+    });
+    mockMessageGet.mockResolvedValue(makeMessage({}));
+  });
+
+  afterEach(() => {
+    delete process.env.GMAIL_WEBHOOK_SA_EMAIL;
+  });
+
+  it("accepts a token whose verified email matches GMAIL_WEBHOOK_SA_EMAIL", async () => {
+    process.env.GMAIL_WEBHOOK_SA_EMAIL = "pubsub@my-proj.iam.gserviceaccount.com";
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: "pubsub@my-proj.iam.gserviceaccount.com", email_verified: true }),
+    });
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "200") }),
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockPrisma.email.update).toHaveBeenCalled();
+  });
+
+  it("rejects (401) a Google-signed token from a different service account", async () => {
+    process.env.GMAIL_WEBHOOK_SA_EMAIL = "pubsub@my-proj.iam.gserviceaccount.com";
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: "attacker@evil-proj.iam.gserviceaccount.com", email_verified: true }),
+    });
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "200") }),
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(mockHistoryList).not.toHaveBeenCalled();
+  });
+
+  it("rejects (401) when the matching email is not verified", async () => {
+    process.env.GMAIL_WEBHOOK_SA_EMAIL = "pubsub@my-proj.iam.gserviceaccount.com";
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: "pubsub@my-proj.iam.gserviceaccount.com", email_verified: false }),
+    });
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "200") }),
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 });

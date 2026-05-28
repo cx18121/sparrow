@@ -14,10 +14,35 @@ async function verifyOidcToken(authHeader: string | undefined): Promise<boolean>
   if (!authHeader?.startsWith("Bearer ")) return false;
   const token = authHeader.slice(7);
   try {
-    await oidcClient.verifyIdToken({ idToken: token, audience });
+    const ticket = await oidcClient.verifyIdToken({ idToken: token, audience });
+    // verifyIdToken already proves the token is Google-signed and aud-matched.
+    // When GMAIL_WEBHOOK_SA_EMAIL is configured, also pin the caller to the
+    // exact Pub/Sub push service account — without this, anyone who can mint a
+    // Google ID token for our audience (from any Google project) would pass.
+    // Gated on the env var so the check is opt-in and existing deploys keep
+    // working until the service-account email is set.
+    const expectedEmail = process.env.GMAIL_WEBHOOK_SA_EMAIL?.trim();
+    if (expectedEmail) {
+      const payload = ticket?.getPayload?.();
+      if (payload?.email !== expectedEmail || payload?.email_verified !== true) {
+        return false;
+      }
+    }
     return true;
   } catch {
     return false;
+  }
+}
+
+// Gmail historyIds are monotonically increasing per mailbox. Only advance the
+// stored cursor when the incoming notification is strictly newer — a replayed
+// or out-of-order Pub/Sub delivery carrying a stale historyId must not drag
+// the cursor backward (which would re-walk already-processed history).
+function historyIdIsNewer(incoming: string, current: string): boolean {
+  try {
+    return BigInt(incoming) > BigInt(current);
+  } catch {
+    return false; // non-numeric id → never advance
   }
 }
 
@@ -185,9 +210,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Only advance the cursor when all messages processed cleanly. If any
-  // failed, withhold the update so Pub/Sub retries from the old historyId.
-  if (!anyFailed) {
+  // Only advance the cursor when all messages processed cleanly AND the
+  // incoming historyId is newer than what we've stored. If any message
+  // failed, withhold the update so Pub/Sub retries from the old historyId;
+  // if the id isn't newer, the delivery was a replay/out-of-order dupe.
+  if (!anyFailed && historyIdIsNewer(incomingHistoryId, watch.historyId)) {
     await prisma.userGmailWatch.update({
       where: { userId: watch.userId },
       data: { historyId: incomingHistoryId },
