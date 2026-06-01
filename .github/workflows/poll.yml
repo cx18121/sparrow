@@ -9,6 +9,13 @@ on:
 # switch (matches the CI workflow).
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Dummy URLs so `prisma generate` can load prisma.config.ts, which
+  # resolves env("DIRECT_URL") at config-load time (mirrors ci.yml).
+  # generate never connects — it only needs the vars to resolve. The poll
+  # step overrides DATABASE_URL with the real secret for the actual ingest;
+  # runtime reads DATABASE_URL only (DIRECT_URL is CLI/migration-only).
+  DATABASE_URL: postgresql://test:test@localhost:5432/test
+  DIRECT_URL: postgresql://test:test@localhost:5432/test
 
 jobs:
   poll:
