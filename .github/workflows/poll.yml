@@ -24,6 +24,12 @@ jobs:
 
       - run: npm ci
 
+      # Prisma 7 no longer auto-generates the client on install, so the
+      # client must be generated explicitly before any script imports it
+      # (mirrors ci.yml). Without this, scripts/_lib/prisma.ts fails with
+      # "@prisma/client does not provide an export named 'PrismaClient'".
+      - run: npx prisma generate
+
       - run: npx tsx scripts/poll.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
