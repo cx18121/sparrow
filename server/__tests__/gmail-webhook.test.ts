@@ -192,6 +192,28 @@ describe("POST /api/webhooks/gmail", () => {
     expect(mockPrisma.userLead.update).not.toHaveBeenCalled();
   });
 
+  it("classifies a bounce and marks the lead BOUNCED so it isn't re-emailed", async () => {
+    mockMessageGet.mockResolvedValue(makeMessage({
+      fromAddress: "mailer-daemon@googlemail.com",
+      subject: "Delivery Status Notification (Failure)",
+    }));
+    const res = makeRes();
+    await handler(
+      makeReq({ headers: { authorization: "Bearer tok" }, body: makePubSubBody("sender@example.com", "200") }),
+      res,
+    );
+    expect(mockPrisma.email.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ replyClassification: "BOUNCE" }),
+      }),
+    );
+    // The whole point: a bounce must transition the lead away from EMAILED
+    // to BOUNCED — RESPONDED would falsely read as a real reply.
+    expect(mockPrisma.userLead.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "BOUNCED" } }),
+    );
+  });
+
   it("skips messages sent by the user themselves", async () => {
     mockMessageGet.mockResolvedValue(makeMessage({ fromAddress: "sender@example.com" }));
     const res = makeRes();

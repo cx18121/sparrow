@@ -105,6 +105,11 @@ enum LeadStatus {
   RESPONDED
   NO_RESPONSE
   DECLINED
+  // Set when an outbound email to this lead bounces (the Gmail webhook
+  // classifies the inbound DSN as ReplyClassification.BOUNCE). Marks the
+  // address as undeliverable so it isn't treated as a live "awaiting
+  // reply" lead or re-emailed.
+  BOUNCED
 
   @@schema("public")
 }

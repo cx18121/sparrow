@@ -190,17 +190,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       });
 
-      if (classification === "REPLY") {
+      // Translate the inbound classification into a lead-status transition.
+      // A real REPLY advances the lead to RESPONDED; a BOUNCE marks it
+      // BOUNCED so the undeliverable address isn't treated as a live
+      // awaiting-reply lead or re-emailed. AUTO_REPLY/OTHER leave status
+      // untouched (the lead stays EMAILED — still legitimately in flight).
+      const nextLeadStatus =
+        classification === "REPLY"
+          ? "RESPONDED"
+          : classification === "BOUNCE"
+            ? "BOUNCED"
+            : null;
+      if (nextLeadStatus) {
         // Update lead status for both UserLead and CustomContact paths.
         if (sentEmail.userLeadId) {
           await prisma.userLead.update({
             where: { id: sentEmail.userLeadId },
-            data: { status: "RESPONDED" },
+            data: { status: nextLeadStatus },
           });
         } else if (sentEmail.customContactId) {
           await prisma.customContact.update({
             where: { id: sentEmail.customContactId },
-            data: { status: "RESPONDED" },
+            data: { status: nextLeadStatus },
           });
         }
       }

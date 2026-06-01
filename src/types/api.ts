@@ -6,7 +6,7 @@
 
 // -------------------- Enums --------------------
 
-export type LeadStatus = 'SAVED' | 'EMAILED' | 'NO_RESPONSE' | 'DECLINED'
+export type LeadStatus = 'SAVED' | 'EMAILED' | 'NO_RESPONSE' | 'DECLINED' | 'BOUNCED'
 export type CampaignStatusApi = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED'
 export type CampaignStatusUi = 'draft' | 'active' | 'paused' | 'completed'
 export type EmailStatus = 'draft' | 'sending' | 'sent' | 'failed'

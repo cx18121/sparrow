@@ -1,0 +1,12 @@
+-- Add BOUNCED to the LeadStatus enum.
+--
+-- The Gmail reply webhook (server/routes/webhooks/gmail.ts) classifies an
+-- inbound delivery-status notification as ReplyClassification.BOUNCE and
+-- transitions the originating lead to BOUNCED, so the undeliverable address
+-- is no longer treated as a live "awaiting reply" lead or re-emailed.
+--
+-- ALTER TYPE ... ADD VALUE is allowed inside a transaction on PostgreSQL 12+
+-- as long as the new value isn't *used* in the same transaction (it isn't
+-- here — backfilling existing rows is out of scope). IF NOT EXISTS keeps the
+-- migration idempotent if the value was added ad-hoc before this ran.
+ALTER TYPE "public"."LeadStatus" ADD VALUE IF NOT EXISTS 'BOUNCED';
