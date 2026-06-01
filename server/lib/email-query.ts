@@ -62,6 +62,7 @@ export interface DashboardSendStats {
   sentThisMonth: number;
   sentTotal: number;
   repliedCount: number;
+  openedCount: number;
 }
 
 // Aggregate send counts for the dashboard Send activity panel. Run as a
@@ -73,6 +74,10 @@ export interface DashboardSendStats {
 //   - sentLast7Days: rolling 7-day window from now.
 // repliedCount counts only ReplyClassification.REPLY — bounces and
 // auto-replies don't count toward "real" replies.
+// openedCount counts distinct sent emails with a recorded open (openedAt
+// set by the tracking pixel in server/routes/track.ts). Pixel-based open
+// tracking undercounts (image-blocking clients, proxy pre-fetch inflates)
+// — treat it as a directional signal, not an exact figure.
 export async function readDashboardSendStats(userId: string, db: Db = prisma): Promise<DashboardSendStats> {
   const now = new Date();
   const startOfToday = new Date(now);
@@ -89,15 +94,17 @@ export async function readDashboardSendStats(userId: string, db: Db = prisma): P
     sentThisMonth,
     sentTotal,
     repliedCount,
+    openedCount,
   ] = await Promise.all([
     db.email.count({ where: { ...sentBase, sentAt: { gte: startOfToday } } }),
     db.email.count({ where: { ...sentBase, sentAt: { gte: sevenDaysAgo } } }),
     db.email.count({ where: { ...sentBase, sentAt: { gte: startOfMonth } } }),
     db.email.count({ where: sentBase }),
     db.email.count({ where: { ...sentBase, replyClassification: "REPLY" } }),
+    db.email.count({ where: { ...sentBase, openedAt: { not: null } } }),
   ]);
 
-  return { sentToday, sentLast7Days, sentThisMonth, sentTotal, repliedCount };
+  return { sentToday, sentLast7Days, sentThisMonth, sentTotal, repliedCount, openedCount };
 }
 
 export async function readDashboardEmailQueue(

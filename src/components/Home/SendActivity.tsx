@@ -105,9 +105,19 @@ export default function SendActivity({ stats, loading, dailyMax, monthlyMax }: S
           resetHint={monthlyResetHint}
         />
       </div>
-      <div className="mt-6 grid max-w-xl grid-cols-3 gap-6 text-sm">
+      <div className="mt-6 grid max-w-xl grid-cols-2 gap-6 text-sm sm:grid-cols-4">
         <MiniStat label="Last 7 days" value={stats?.sentLast7Days ?? null} loading={loading} />
         <MiniStat label="All time" value={stats?.sentTotal ?? null} loading={loading} />
+        <MiniStat
+          label="Opens"
+          value={stats?.openedCount ?? null}
+          loading={loading}
+          detail={
+            stats && stats.sentTotal > 0 && stats.openedCount > 0
+              ? `${Math.round((stats.openedCount / stats.sentTotal) * 100)}% open rate`
+              : undefined
+          }
+        />
         <MiniStat
           label="Replies"
           value={stats?.repliedCount ?? null}

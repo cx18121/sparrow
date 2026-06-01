@@ -291,6 +291,7 @@ export interface DashboardSendStats {
   sentThisMonth: number
   sentTotal: number
   repliedCount: number
+  openedCount: number
 }
 
 export interface DashboardEmailsResponse {

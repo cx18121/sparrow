@@ -16,6 +16,7 @@ import {
   countEmailsSentToday,
   listEmailQueue,
   readDashboardEmailQueue,
+  readDashboardSendStats,
 } from "../lib/email-query.js";
 
 const USER_ID = "user-email-query";
@@ -42,6 +43,38 @@ describe("countEmailsSentToday", () => {
   });
 });
 
+describe("readDashboardSendStats", () => {
+  it("counts opened emails via openedAt and folds them into the stats", async () => {
+    // sentToday, sentLast7Days, sentThisMonth, sentTotal, repliedCount, openedCount
+    mockPrisma.email.count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(7);
+
+    await expect(readDashboardSendStats(USER_ID)).resolves.toEqual({
+      sentToday: 1,
+      sentLast7Days: 2,
+      sentThisMonth: 3,
+      sentTotal: 10,
+      repliedCount: 4,
+      openedCount: 7,
+    });
+
+    // The open count must filter on a recorded open, not just sent status —
+    // otherwise the "open rate" the dashboard renders is meaningless.
+    expect(mockPrisma.email.count).toHaveBeenCalledWith({
+      where: {
+        status: "sent",
+        OR: [{ userLead: { userId: USER_ID } }, { customContact: { userId: USER_ID } }],
+        openedAt: { not: null },
+      },
+    });
+  });
+});
+
 describe("readDashboardEmailQueue", () => {
   const emptyStats = {
     sentToday: 0,
@@ -49,6 +82,7 @@ describe("readDashboardEmailQueue", () => {
     sentThisMonth: 0,
     sentTotal: 0,
     repliedCount: 0,
+    openedCount: 0,
   };
 
   it("reads campaign-scoped Drafts and Sent from Lead emails only", async () => {
