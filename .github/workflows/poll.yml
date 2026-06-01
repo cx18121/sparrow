@@ -1,8 +1,13 @@
 name: Monthly data poll
 
 on:
-  schedule:
-    - cron: "0 6 1 * *"  # 1st of every month at 6am UTC
+  # Monthly cron disabled 2026-06-01: the poll only ingests raw Company
+  # rows — it runs no enrichment (Apollo/LLM/Exa) or refresh-company-options,
+  # so auto-polled rows land incomplete and aren't wizard-filterable until
+  # those manual passes run. Re-enable by uncommenting once the poll is made
+  # self-contained. Still runnable on demand via workflow_dispatch.
+  # schedule:
+  #   - cron: "0 6 1 * *"  # 1st of every month at 6am UTC
   workflow_dispatch:       # allow manual trigger from GitHub UI
 
 # Opt JS-based actions into Node 24 ahead of GitHub's 2026-06-02 default
